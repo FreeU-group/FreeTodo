@@ -63,7 +63,7 @@ python start_all_services.py
 Once all services are running, open your browser and navigate to `http://localhost:8840` to enjoy LifeTrace! 🎉
 
 
-<!-- 
+<!--
 #### Start Web Service Only
 ```bash
 python -m lifetrace_backend.server --port 8840
@@ -92,7 +92,7 @@ python -m lifetrace_backend.simple_ocr
   - ☐ Create interactive onboarding tutorial
 
 
-  
+
 
 ### 💡 Future Ideas
 
@@ -189,7 +189,7 @@ Before submitting any code changes, please make sure your environment is set up 
 1. **Install linting and formatting dependencies**
 
    ```bash
-   pip install -r ../requirements/requirements_lint.txt
+   pip install -r requirements/requirements_lint.txt
    ```
 
 2. **Set up pre-commit hooks**
@@ -203,6 +203,7 @@ Before submitting any code changes, please make sure your environment is set up 
 3. **(Optional) Manually format and lint**
 
    ```bash
+   cd lifetrace_backend/
    make format
    make lint
    ```

@@ -61,7 +61,7 @@ python start_all_services.py
 所有服务运行后，打开浏览器访问 `http://localhost:8840` 即可开始使用 LifeTrace！🎉
 
 
-<!-- 
+<!--
 #### 仅启动 Web 服务
 ```bash
 python -m lifetrace_backend.server --port 8840
@@ -90,7 +90,7 @@ python -m lifetrace_backend.simple_ocr
   - ☐ 创建交互式入门教程
 
 
-  
+
 
 ### 💡 未来计划
 
@@ -187,7 +187,7 @@ LifeTrace 社区的存在离不开像您这样的众多友善志愿者。我们�
 1. **安装代码检查与格式化依赖**
 
    ```bash
-   pip install -r ../requirements/requirements_lint.txt
+   pip install -r requirements/requirements_lint.txt
    ```
 
 2. **安装 pre-commit 钩子**
@@ -201,6 +201,7 @@ LifeTrace 社区的存在离不开像您这样的众多友善志愿者。我们�
 3. **（可选）手动执行格式化与检查**
 
    ```bash
+   cd lifetrace_backend/
    make format
    make lint
    ```
