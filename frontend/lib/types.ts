@@ -87,3 +87,27 @@ export interface SearchParams {
   textWeight?: number;
   imageWeight?: number;
 }
+
+// 项目管理类型
+export interface Project {
+  id: number;
+  name: string;
+  goal?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCreate {
+  name: string;
+  goal?: string;
+}
+
+export interface ProjectUpdate {
+  name?: string;
+  goal?: string;
+}
+
+export interface ProjectListResponse {
+  total: number;
+  projects: Project[];
+}

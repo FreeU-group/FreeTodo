@@ -150,4 +150,20 @@ export const api = {
   healthCheck: () => apiClient.get('/health'),
 
   llmHealthCheck: () => apiClient.get('/health/llm'),
+
+  // 项目管理
+  createProject: (data: { name: string; goal?: string }) =>
+    apiClient.post('/api/projects', data),
+
+  getProjects: (params?: { limit?: number; offset?: number }) =>
+    apiClient.get('/api/projects', { params }),
+
+  getProject: (id: number) =>
+    apiClient.get(`/api/projects/${id}`),
+
+  updateProject: (id: number, data: { name?: string; goal?: string }) =>
+    apiClient.put(`/api/projects/${id}`, data),
+
+  deleteProject: (id: number) =>
+    apiClient.delete(`/api/projects/${id}`),
 };
