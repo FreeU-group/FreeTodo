@@ -647,13 +647,13 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
             logger.info(f"[stream] 开始处理查询: {user_query}")
             intent_result = self.llm_client.classify_intent(user_query)
             needs_db = intent_result.get('needs_database', True)
+            intent_type = intent_result.get('intent_type', 'general_chat')
             
             messages = []
             temperature = 0.7
             
             if not needs_db:
                 # 不需要数据库查询的情况
-                intent_type = intent_result.get('intent_type', 'general_chat')
                 if intent_type == 'system_help':
                     system_prompt = """
 你是LifeTrace的智能助手。LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
@@ -664,20 +664,41 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
 
 请根据用户的问题提供有用的帮助信息。
 """
+                elif intent_type == 'todo_creation':
+                    messages = [
+                        {"role": "user", "content": user_query}
+                    ] # system prompt will be added in the server
                 else:
                     system_prompt = """
 你是LifeTrace的智能助手，请以友好、自然的方式与用户对话。
 如果用户需要查询数据或统计信息，请引导他们使用具体的查询语句。
 """
-                messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query}
-                ]
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_query}
+                    ]
             else:
                 # 需要数据库查询的情况
                 parsed_query = self.query_parser.parse_query(user_query)
                 query_type = 'statistics' if '统计' in user_query else 'search'
                 retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 500)
+
+                if intent_type == 'todo_creation':
+                    context_text = self.context_builder.build_search_context(
+                        user_query, retrieved_data, add_system_prompt=False
+                    )
+                    messages = [
+                        {"role": "system", "content": context_text},
+                        {"role": "user", "content": user_query}
+                    ]
+                    temperature = 0.3
+
+                    return {
+                        "success": True,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "intent_result": intent_result
+                    }
                 
                 # 构建上下文
                 if query_type == 'statistics':
@@ -691,7 +712,8 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
                     context_text = self.context_builder.build_search_context(
                         user_query, retrieved_data
                     )
-                print(context_text)
+                print("[stream] 上下文文本: ", context_text)
+                print("[stream] 检索信息: ", retrieved_data)
                 messages = [
                     {"role": "system", "content": context_text},
                     {"role": "user", "content": user_query}

@@ -88,10 +88,11 @@ class LLMClient:
 1. "database_query" - 需要查询数据库的请求（如：搜索截图、统计使用情况、查找特定应用等）
 2. "general_chat" - 一般对话（如：问候、闲聊、询问功能等）
 3. "system_help" - 系统帮助请求（如：如何使用、功能说明等）
+4. "todo_creation" - 需要创建待办事项的请求（如：记一个待办、创建任务等）
 
 请以JSON格式返回结果：
 {
-    "intent_type": "database_query/general_chat/system_help",
+    "intent_type": "database_query/general_chat/system_help/todo_creation",
     "needs_database": true/false
 }
 
@@ -379,6 +380,196 @@ class LLMClient:
             logger.error(f"LLM总结生成失败: {e}")
             return self._fallback_summary(query, context_data)
     
+    def generate_todo_data(self, user_query: str, context_text: Optional[str] = None) -> Dict[str, Any]:
+        """
+        从用户输入生成 todo 的结构化数据
+        
+        Args:
+            user_query: 用户的自然语言输入（如："记一个待办：明天要完成项目报告"）
+            context_text: 上下文文本
+
+        Returns:
+            包含 todo 数据的字典，格式：
+            {
+                "title": "todo标题",
+                "description": "描述",
+                "priority": "low/medium/high/urgent",
+                "deadline": "YYYY-MM-DD" 或 None,
+                "tags": ["标签1", "标签2"],
+                "subtasks": ["子任务1", "子任务2"],
+                "notes": "备注"
+            }
+        """
+        if not self.is_available():
+            logger.warning("LLM客户端不可用，使用规则生成todo")
+            return self._rule_based_todo_generation(user_query)
+        
+        try:
+            prompt = """
+请分析用户的待办事项请求，提取并生成结构化的 todo 数据。
+
+用户输入："<USER_QUERY>"，上下文信息为 "<CONTEXT_TEXT>"
+
+请从用户输入中提取以下信息，并以JSON格式返回：
+{
+    "title": "待办事项的标题（必填，简洁明了）",
+    "description": "详细待办事项描述（可选）",
+    "priority": "优先级：low/medium/high/urgent（默认medium）",
+    "deadline": "截止日期，格式：YYYY-MM-DD 或 null（如果用户提到时间，请转换为具体日期）",
+    "tags": ["标签1", "标签2"]（可选，从用户输入中提取相关标签）,
+    "subtasks": ["子任务1", "子任务2"]（可选，如果用户提到了多个任务点）,
+    "notes": "备注信息（可选）"
+}
+
+注意：
+- title 是必填的，必须从用户输入中提取或生成
+- 如果用户提到时间（如"明天"、"下周一"、"3天后"），请转换为具体的日期格式 YYYY-MM-DD，今天时间是 <CURRENT_DATE>
+- 如果用户没有明确提到优先级，默认使用 "medium"
+- 只返回JSON，不要返回其他任何信息，仅仅在description中使用markdown格式
+"""
+            user_content = prompt.replace("<USER_QUERY>", user_query).replace("<CURRENT_DATE>", datetime.now().strftime("%Y-%m-%d"))
+
+            if context_text:
+                user_content = user_content.replace("<CONTEXT_TEXT>", context_text)
+            else:
+                user_content = user_content.replace("<CONTEXT_TEXT>", "暂无上下文信息")
+            
+            system_prompt = """
+你是LifeTrace的智能助手，专门用于遵照用户需求，从自然语言中提取待办事项信息。请严格按照JSON格式返回结果。
+
+用户可能会提供一个查询和相关的历史数据，你需要：
+1. 理解用户的查询意图
+2. 分析提供的历史数据
+3. 生成准确、有用的TODO
+
+请用中文回答，保持简洁明了，重点突出关键信息。
+"""
+
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.1,
+                max_tokens=500
+            )
+
+            # 记录token使用量
+            if hasattr(response, 'usage') and response.usage:
+                log_token_usage(
+                    model=self.model,
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    endpoint="generate_todo_data",
+                    user_query=user_query,
+                    response_type="todo_generation"
+                )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            logger.info(f"LLM Todo生成 - 用户输入: {user_query}")
+            logger.info(f"LLM Todo生成 - 原始响应: {result_text}")
+            
+            # 尝试解析JSON
+            try:
+                clean_text = result_text.strip()
+                # 移除可能的 JSON 包装标记
+                if clean_text.startswith('```'):
+                    clean_text = clean_text[3:]
+                if clean_text.endswith('```'):
+                    clean_text = clean_text[:-3]
+                
+                clean_text = clean_text.strip()
+                
+                # 处理 null 值（Python json 需要 null 被转换为 None）
+                # 但 json.loads() 应该能自动处理 null → None
+                
+                # 记录原始响应以便调试
+                logger.debug(f"LLM Todo生成 - 清理后文本: {clean_text}")
+                print(f"LLM Todo生成 - 清理后文本: {clean_text}")
+                
+                result = json.loads(clean_text)
+                
+                # 验证必填字段
+                if not result.get('title'):
+                    raise ValueError("title字段是必填的")
+                
+                # 确保priority有默认值
+                if 'priority' not in result or not result['priority']:
+                    result['priority'] = 'medium'
+                
+                logger.info(f"Todo数据生成成功: {result}")
+
+                gen_todo_infos = {
+                    "todo_data": result,
+                    "LLM_generated": True,
+                    "LLM_infos": ""
+                }
+                return gen_todo_infos
+            except json.JSONDecodeError as e:
+                logger.warning(f"LLM返回的不是有效JSON: {result_text}")
+                result = self._rule_based_todo_generation(user_query)
+                gen_todo_infos = {
+                    "todo_data": result,
+                    "LLM_generated": False,
+                    "LLM_infos": "LLM未能返回有效JSON"
+                }
+                return gen_todo_infos
+            except ValueError as e:
+                logger.warning(f"Todo数据验证失败: {e}")
+                result = self._rule_based_todo_generation(user_query)
+                gen_todo_infos = {
+                    "todo_data": result,
+                    "LLM_generated": False,
+                    "LLM_infos": "LLM未能返回有效Todo数据"
+                }
+                return gen_todo_infos
+                
+        except Exception as e:
+            logger.error(f"LLM Todo生成失败: {e}")
+            result = self._rule_based_todo_generation(user_query)
+            gen_todo_infos = {
+                "todo_data": result,
+                "LLM_generated": False,
+                "LLM_infos": "LLM未能返生成Todo数据"
+            }
+            return gen_todo_infos
+
+    def _rule_based_todo_generation(self, user_query: str) -> Dict[str, Any]:
+        """基于规则的todo生成（备用方案）"""
+        # 简单提取标题
+        title = user_query.strip()
+        
+        # 移除常见的待办关键词
+        remove_keywords = ['记一个待办', '创建待办', '添加待办', '记个待办', 'todo', 'task']
+        for kw in remove_keywords:
+            if kw in title.lower():
+                title = title.replace(kw, '').replace('：', '').replace(':', '').strip()
+        
+        # 如果标题为空，使用原输入
+        if not title:
+            title = user_query.strip()
+        
+        # 简单的时间提取（非常基础）
+        deadline = None
+        if '明天' in user_query:
+            from datetime import timedelta
+            deadline = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        elif '后天' in user_query:
+            from datetime import timedelta
+            deadline = (datetime.now() + timedelta(days=2)).strftime('%Y-%m-%d')
+        
+        return {
+            "title": title[:100],  # 限制长度
+            "description": "",
+            "priority": "medium",
+            "deadline": deadline,
+            "tags": [],
+            "subtasks": [],
+            "notes": ""
+        }
+
     def stream_chat(self, messages: List[Dict[str, str]], temperature: float = 0.7, model: Optional[str] = None):
         """
         通用流式聊天方法：对OpenAI兼容接口使用stream=True逐token返回。
@@ -409,6 +600,7 @@ class LLMClient:
     
     def _rule_based_intent_classification(self, user_query: str) -> Dict[str, Any]:
         """基于规则的意图分类（备用方案）"""
+        logger.info(f"开始基于规则的意图分类: {user_query}")
         query_lower = user_query.lower()
         
         # 数据库查询关键词
@@ -429,11 +621,18 @@ class LLMClient:
             '帮助', '功能', '使用方法', '教程', '说明', '介绍',
             'help', 'function', 'tutorial', 'guide', 'instruction'
         ]
+
+        # todo 创建关键词
+        todo_keywords = [
+            '待办', '任务', '提醒', '创建', '添加', '记录',
+            'todo', 'task', 'remember', 'create', 'add'
+        ]
         
         # 计算匹配分数
         database_score = sum(1 for keyword in database_keywords if keyword in query_lower)
         chat_score = sum(1 for keyword in chat_keywords if keyword in query_lower)
         help_score = sum(1 for keyword in help_keywords if keyword in query_lower)
+        todo_score = sum(1 for keyword in todo_keywords if keyword in query_lower)
         
         # 判断意图类型
         if database_score > 0:
@@ -444,6 +643,9 @@ class LLMClient:
             needs_database = False
         elif chat_score > 0:
             intent_type = "general_chat"
+            needs_database = False
+        elif todo_score > 0:
+            intent_type = "todo_creation"
             needs_database = False
         else:
             # 默认认为是数据库查询（保守策略）

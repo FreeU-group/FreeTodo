@@ -997,6 +997,99 @@ async def chat_with_llm_stream(message: ChatMessage):
         # 获取构建好的messages和temperature
         messages = rag_result.get('messages', [])
         temperature = rag_result.get('temperature', 0.7)
+        intent_result = rag_result.get('intent_result', {})
+        intent_type = intent_result.get('intent_type', 'general_chat')
+
+        def create_todo():
+            intent_type = intent_result.get('intent_type', 'general_chat')
+
+            if intent_type != 'todo_creation':
+                return messages
+            
+            logger.info("[stream] 检测到todo_creation意图，开始非流式创建todo")
+
+            # 解析 messages
+            # messgae type:
+            # messages = [
+            #     {"role": "system", "content": context_text},
+            #     {"role": "user", "content": user_query}
+            # ]
+            # or
+            # messages = [
+            #     {"role": "user", "content": user_query}
+            # ]
+            # user_query must be in the last element of messages
+            assert messages[-1]["role"] == "user", f"Wrong message, excepted the last message item with role user, but got {messages[-1]['role']}"
+            user_query = messages[-1]["content"]
+            if len(messages) > 1:
+                context_text = messages[0]["content"]
+            else:
+                context_text = None
+            
+            gen_todo_infos = rag_service.llm_client.generate_todo_data(
+                user_query=user_query, context_text=context_text
+            )
+            # gen_todo_infos = {
+            #     "todo_data": Dict,
+            #     "LLM_generated": bool,
+            #     "LLM_infos": ""
+            # }
+            todo_data = gen_todo_infos["todo_data"]
+            LLM_usage = gen_todo_infos["LLM_generated"]
+            extra_infos = gen_todo_infos["LLM_infos"]
+            if LLM_usage:
+                logger.info(f"[stream] Todo数据生成成功: {todo_data}，采用大模型生成。")
+            else:
+                logger.info(f"[stream] Todo数据生成成功: {todo_data}，采用规则生成。原因：{extra_infos}")
+
+            # 创建TODO信息
+            from fastapi.testclient import TestClient
+            client = TestClient(app)
+            todo_data_dict = {
+                "title": todo_data.get('title', '未命名待办'),
+                "description": todo_data.get('description', ''),
+                "priority": todo_data.get('priority', 'medium'),
+                "deadline": todo_data.get('deadline'),
+                "tags": todo_data.get('tags', []) or [],
+                "subtasks": todo_data.get('subtasks', []) or [],
+                "notes": todo_data.get('notes', '')
+            }
+            response = client.post(
+                "/api/todo/create",
+                json=todo_data_dict
+            )
+            if response.status_code != 200:
+                logger.error(f"[stream] Todo创建失败: {response.status_code}, {response.text}")
+                raise Exception(f"创建todo失败: HTTP {response.status_code}, {response.text}")
+            
+            todo_id = response.json().get('todo_id')
+            logger.info(f"[stream] Todo创建成功: {todo_id}")
+
+            # change the messages to make chat normal
+            success_msg = f"✅ 已成功创建待办事项：{todo_data.get('title', '未命名')}\n\n"
+
+            if todo_data.get('deadline'):
+                success_msg += f"📅 截止日期：{todo_data.get('deadline')}\n"
+
+            if todo_data.get('priority'):
+                priority_map = {'low': '低', 'medium': '中', 'high': '高', 'urgent': '紧急'}
+                priority_text = priority_map.get(todo_data.get('priority'), todo_data.get('priority'))
+                success_msg += f"⚡ 优先级：{priority_text}\n"
+            todo_file_path = f"data/todos/{todo_id}.md"
+            success_msg += f"\n待办ID：{todo_id}\n"
+            success_msg += f"文件路径：{todo_file_path}\n\n"
+            success_msg += "💡 待办事项已自动显示在左侧Analytics页面中。"
+            
+            if LLM_usage:
+                todo_infos = f"{success_msg}，内容为LLM生成。"
+            else:
+                todo_infos = f"{success_msg}，内容为规则生成。未能LLM生成，原因：{extra_infos}"  
+            messages.extend([
+                {"role": "assistant", "content": todo_infos},
+                {"role": "user", "content": "请你根据上面生成的todo内容，生成简要的结果，向用户汇报结果。结果中需要包含todo的id、标题、描述、优先级、截止日期、标签、子任务、备注、生成方式（如果不是LLM生成，则需要说明原因）。"}
+            ])
+
+            return messages
 
         # 3) 调用LLM流式API并逐块返回
         def token_generator():
@@ -1005,6 +1098,10 @@ async def chat_with_llm_stream(message: ChatMessage):
                     yield "抱歉，LLM服务当前不可用，请稍后重试。"
                     return
                 
+                if intent_type == 'todo_creation':
+                    yield "正在根据您的需求创建todo..."
+                    messages = create_todo()
+
                 # 使用LLM客户端进行流式生成
                 response = rag_service.llm_client.client.chat.completions.create(
                     model=rag_service.llm_client.model,
@@ -1106,6 +1203,98 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
         # 获取构建好的messages和temperature
         messages = rag_result.get('messages', [])
         temperature = rag_result.get('temperature', 0.7)
+        intent_result = rag_result.get('intent_result', {})
+        intent_type = intent_result.get('intent_type', 'general_chat')
+
+        def create_todo():
+            intent_type = intent_result.get('intent_type', 'general_chat')
+
+            if intent_type != 'todo_creation':
+                return messages
+            
+            logger.info("[stream] 检测到todo_creation意图，开始非流式创建todo")
+
+            # 解析 messages
+            # messgae type:
+            # messages = [
+            #     {"role": "system", "content": context_text},
+            #     {"role": "user", "content": user_query}
+            # ]
+            # or
+            # messages = [
+            #     {"role": "user", "content": user_query}
+            # ]
+            # user_query must be in the last element of messages
+            assert messages[-1]["role"] == "user", f"Wrong message, excepted the last message item with role user, but got {messages[-1]['role']}"
+            user_query = messages[-1]["content"]
+            if len(messages) > 1:
+                context_text = messages[0]["content"]
+            else:
+                context_text = None
+            
+            gen_todo_infos = rag_service.llm_client.generate_todo_data(
+                user_query=user_query, context_text=context_text
+            )
+            # gen_todo_infos = {
+            #     "todo_data": Dict,
+            #     "LLM_generated": bool,
+            #     "LLM_infos": ""
+            # }
+            todo_data = gen_todo_infos["todo_data"]
+            LLM_usage = gen_todo_infos["LLM_generated"]
+            extra_infos = gen_todo_infos["LLM_infos"]
+            if LLM_usage:
+                logger.info(f"[stream] Todo数据生成成功: {todo_data}，采用大模型生成。")
+            else:
+                logger.info(f"[stream] Todo数据生成成功: {todo_data}，采用规则生成。原因：{extra_infos}")
+
+            # 创建TODO信息
+            from fastapi.testclient import TestClient
+            client = TestClient(app)
+            response = client.post(
+                "/api/todo/create",
+                json={
+                    "title": todo_data.get('title', '未命名待办'),
+                    "description": todo_data.get('description', ''),
+                    "priority": todo_data.get('priority', 'medium'),
+                    "deadline": todo_data.get('deadline'),
+                    "tags": todo_data.get('tags', []) or [],
+                    "subtasks": todo_data.get('subtasks', []) or [],
+                    "notes": todo_data.get('notes', '')
+                }
+            )
+            if response.status_code != 200:
+                logger.error(f"[stream] Todo创建失败: {response.status_code}, {response.text}")
+                raise Exception(f"创建todo失败: HTTP {response.status_code}, {response.text}")
+            
+            todo_id = response.json().get('todo_id')
+            logger.info(f"[stream] Todo创建成功: {todo_id}")
+
+            # change the messages to make chat normal
+            success_msg = f"✅ 已成功创建待办事项：{todo_data.get('title', '未命名')}\n\n"
+
+            if todo_data.get('deadline'):
+                success_msg += f"📅 截止日期：{todo_data.get('deadline')}\n"
+
+            if todo_data.get('priority'):
+                priority_map = {'low': '低', 'medium': '中', 'high': '高', 'urgent': '紧急'}
+                priority_text = priority_map.get(todo_data.get('priority'), todo_data.get('priority'))
+                success_msg += f"⚡ 优先级：{priority_text}\n"
+            todo_file_path = f"data/todos/{todo_id}.md"
+            success_msg += f"\n待办ID：{todo_id}\n"
+            success_msg += f"文件路径：{todo_file_path}\n\n"
+            success_msg += "💡 待办事项已自动显示在左侧Analytics页面中。"
+            
+            if LLM_usage:
+                todo_infos = f"{success_msg}，内容为LLM生成。"
+            else:
+                todo_infos = f"{success_msg}，内容为规则生成。未能LLM生成，原因：{extra_infos}"  
+            messages.extend([
+                {"role": "assistant", "content": todo_infos},
+                {"role": "user", "content": "请你根据上面生成的todo内容，生成简要的结果，向用户汇报结果。结果中需要包含todo的id、标题、描述、优先级、截止日期、标签、子任务、备注、生成方式（如果不是LLM生成，则需要说明原因）。"}
+            ])
+
+            return messages
 
         # 调用LLM流式API并逐块返回
         def token_generator():
@@ -1113,6 +1302,10 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
                 if not rag_service.llm_client.is_available():
                     yield "抱歉，LLM服务当前不可用，请稍后重试。"
                     return
+                
+                if intent_type == 'todo_creation':
+                    yield "正在根据您的需求创建todo..."
+                    messages = create_todo()
                 
                 # 使用LLM客户端进行流式生成
                 response = rag_service.llm_client.client.chat.completions.create(

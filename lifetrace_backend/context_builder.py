@@ -121,7 +121,7 @@ class ContextBuilder:
         
         return context_text
     
-    def build_search_context(self, query: str, retrieved_data: List[Dict[str, Any]]) -> str:
+    def build_search_context(self, query: str, retrieved_data: List[Dict[str, Any]], add_system_prompt: bool = True) -> str:
         """
         构建用于搜索的上下文文本
         
@@ -135,22 +135,25 @@ class ContextBuilder:
         if not retrieved_data:
             return f"查询: {query}\n\n未找到相关记录。"
         
-        context_parts = [
-            "你是一个智能助手，专门帮助用户分析和总结历史记录数据。",
-            "",
-            "**强制性要求 - 必须严格遵守：**",
-            "- 每当引用或提到任何具体信息时，必须标注截图ID来源，格式为：[截图ID: xxx]",
-            "- 不允许提及任何信息而不标注其来源截图ID",
-            "- 如果历史数据中包含截图ID信息，必须在相关内容后立即添加引用",
-            "- 这是为了确保信息的可追溯性和准确性",
-            "- 示例：\"用户在微信中发送了消息 [截图ID: 12345]\"",
-            "",
-            "请用中文回答，保持简洁明了，重点突出关键信息。",
-            "",
-            f"搜索查询: {query}",
-            f"找到 {len(retrieved_data)} 条匹配结果:",
-            ""
-        ]
+        if add_system_prompt:
+            context_parts = [
+                "你是一个智能助手，专门帮助用户分析和总结历史记录数据。",
+                "",
+                "**强制性要求 - 必须严格遵守：**",
+                "- 每当引用或提到任何具体信息时，必须标注截图ID来源，格式为：[截图ID: xxx]",
+                "- 不允许提及任何信息而不标注其来源截图ID",
+                "- 如果历史数据中包含截图ID信息，必须在相关内容后立即添加引用",
+                "- 这是为了确保信息的可追溯性和准确性",
+                "- 示例：\"用户在微信中发送了消息 [截图ID: 12345]\"",
+                "",
+                "请用中文回答，保持简洁明了，重点突出关键信息。",
+                "",
+                f"搜索查询: {query}",
+                f"找到 {len(retrieved_data)} 条匹配结果:",
+                ""
+            ]
+        else:
+            context_parts = []
         
         # 按相关性排序显示
         sorted_data = sorted(retrieved_data, 
