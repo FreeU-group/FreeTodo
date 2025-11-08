@@ -25,6 +25,7 @@ from lifetrace.storage.models import (
     Project,
     Screenshot,
     SearchIndex,
+    Task,
 )
 from lifetrace.util.utils import ensure_dir
 
@@ -1214,6 +1215,241 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             logging.error(f"删除项目失败: {e}")
             return False
+
+    # 任务管理
+    def create_task(
+        self,
+        project_id: int,
+        name: str,
+        description: str = None,
+        status: str = "pending",
+        parent_task_id: Optional[int] = None,
+    ) -> Optional[int]:
+        """创建新任务"""
+        try:
+            with self.get_session() as session:
+                # 验证项目是否存在
+                project = session.query(Project).filter_by(id=project_id).first()
+                if not project:
+                    logging.warning(f"项目不存在: {project_id}")
+                    return None
+
+                # 如果有父任务，验证父任务是否存在且属于同一项目
+                if parent_task_id:
+                    parent_task = session.query(Task).filter_by(id=parent_task_id).first()
+                    if not parent_task:
+                        logging.warning(f"父任务不存在: {parent_task_id}")
+                        return None
+                    if parent_task.project_id != project_id:
+                        logging.warning(
+                            f"父任务 {parent_task_id} 不属于项目 {project_id}"
+                        )
+                        return None
+
+                task = Task(
+                    project_id=project_id,
+                    name=name,
+                    description=description,
+                    status=status,
+                    parent_task_id=parent_task_id,
+                )
+                session.add(task)
+                session.flush()
+                logging.info(f"创建任务: {task.id} - {name}")
+                return task.id
+        except SQLAlchemyError as e:
+            logging.error(f"创建任务失败: {e}")
+            return None
+
+    def get_task(self, task_id: int) -> Optional[Dict[str, Any]]:
+        """获取单个任务"""
+        try:
+            with self.get_session() as session:
+                task = session.query(Task).filter_by(id=task_id).first()
+                if task:
+                    return {
+                        "id": task.id,
+                        "project_id": task.project_id,
+                        "name": task.name,
+                        "description": task.description,
+                        "status": task.status,
+                        "parent_task_id": task.parent_task_id,
+                        "created_at": task.created_at,
+                        "updated_at": task.updated_at,
+                    }
+                return None
+        except SQLAlchemyError as e:
+            logging.error(f"获取任务失败: {e}")
+            return None
+
+    def list_tasks(
+        self,
+        project_id: int,
+        limit: int = 100,
+        offset: int = 0,
+        parent_task_id: Optional[int] = None,
+        include_subtasks: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """列出项目的所有任务
+        
+        Args:
+            project_id: 项目ID
+            limit: 返回数量限制
+            offset: 偏移量
+            parent_task_id: 父任务ID，None表示只返回顶层任务
+            include_subtasks: 是否包含子任务（如果parent_task_id为None）
+        """
+        try:
+            with self.get_session() as session:
+                q = session.query(Task).filter(Task.project_id == project_id)
+
+                # 根据参数过滤
+                if parent_task_id is not None:
+                    # 获取指定父任务的子任务
+                    q = q.filter(Task.parent_task_id == parent_task_id)
+                elif not include_subtasks:
+                    # 只获取顶层任务（没有父任务的任务）
+                    q = q.filter(Task.parent_task_id.is_(None))
+
+                tasks = (
+                    q.order_by(Task.created_at.desc()).offset(offset).limit(limit).all()
+                )
+
+                return [
+                    {
+                        "id": t.id,
+                        "project_id": t.project_id,
+                        "name": t.name,
+                        "description": t.description,
+                        "status": t.status,
+                        "parent_task_id": t.parent_task_id,
+                        "created_at": t.created_at,
+                        "updated_at": t.updated_at,
+                    }
+                    for t in tasks
+                ]
+        except SQLAlchemyError as e:
+            logging.error(f"列出任务失败: {e}")
+            return []
+
+    def count_tasks(
+        self, project_id: int, parent_task_id: Optional[int] = None
+    ) -> int:
+        """统计项目的任务数量"""
+        try:
+            with self.get_session() as session:
+                q = session.query(Task).filter(Task.project_id == project_id)
+                if parent_task_id is not None:
+                    q = q.filter(Task.parent_task_id == parent_task_id)
+                return q.count()
+        except SQLAlchemyError as e:
+            logging.error(f"统计任务数量失败: {e}")
+            return 0
+
+    def update_task(
+        self,
+        task_id: int,
+        name: str = None,
+        description: str = None,
+        status: str = None,
+        parent_task_id: Optional[int] = None,
+    ) -> bool:
+        """更新任务"""
+        try:
+            with self.get_session() as session:
+                task = session.query(Task).filter_by(id=task_id).first()
+                if not task:
+                    logging.warning(f"任务不存在: {task_id}")
+                    return False
+
+                # 如果要更新父任务，验证父任务
+                if parent_task_id is not None and parent_task_id != task.parent_task_id:
+                    # 防止循环引用
+                    if parent_task_id == task_id:
+                        logging.warning(f"任务不能设置自己为父任务: {task_id}")
+                        return False
+
+                    parent_task = session.query(Task).filter_by(id=parent_task_id).first()
+                    if not parent_task:
+                        logging.warning(f"父任务不存在: {parent_task_id}")
+                        return False
+                    if parent_task.project_id != task.project_id:
+                        logging.warning(
+                            f"父任务 {parent_task_id} 不属于同一项目"
+                        )
+                        return False
+
+                if name is not None:
+                    task.name = name
+                if description is not None:
+                    task.description = description
+                if status is not None:
+                    task.status = status
+                if parent_task_id is not None:
+                    task.parent_task_id = parent_task_id
+
+                task.updated_at = datetime.now()
+                session.flush()
+                logging.info(f"更新任务: {task_id}")
+                return True
+        except SQLAlchemyError as e:
+            logging.error(f"更新任务失败: {e}")
+            return False
+
+    def delete_task(self, task_id: int) -> bool:
+        """删除任务（包括其所有子任务）"""
+        try:
+            with self.get_session() as session:
+                task = session.query(Task).filter_by(id=task_id).first()
+                if not task:
+                    logging.warning(f"任务不存在: {task_id}")
+                    return False
+
+                # 递归删除所有子任务
+                def delete_task_and_children(tid: int):
+                    # 查找所有子任务
+                    children = session.query(Task).filter_by(parent_task_id=tid).all()
+                    for child in children:
+                        delete_task_and_children(child.id)
+                    # 删除当前任务
+                    t = session.query(Task).filter_by(id=tid).first()
+                    if t:
+                        session.delete(t)
+
+                delete_task_and_children(task_id)
+                session.flush()
+                logging.info(f"删除任务及其子任务: {task_id}")
+                return True
+        except SQLAlchemyError as e:
+            logging.error(f"删除任务失败: {e}")
+            return False
+
+    def get_task_children(self, task_id: int) -> List[Dict[str, Any]]:
+        """获取任务的所有直接子任务"""
+        try:
+            with self.get_session() as session:
+                children = (
+                    session.query(Task)
+                    .filter_by(parent_task_id=task_id)
+                    .order_by(Task.created_at.asc())
+                    .all()
+                )
+                return [
+                    {
+                        "id": t.id,
+                        "project_id": t.project_id,
+                        "name": t.name,
+                        "description": t.description,
+                        "status": t.status,
+                        "parent_task_id": t.parent_task_id,
+                        "created_at": t.created_at,
+                        "updated_at": t.updated_at,
+                    }
+                    for t in children
+                ]
+        except SQLAlchemyError as e:
+            logging.error(f"获取子任务失败: {e}")
+            return []
 
 
 # 全局数据库管理器实例

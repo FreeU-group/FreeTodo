@@ -30,6 +30,7 @@ from lifetrace.routers import (
     screenshot,
     search,
     system,
+    task,
     vector,
 )
 
@@ -240,6 +241,7 @@ app.include_router(logs.router)
 app.include_router(behavior.router)
 app.include_router(plan.router)
 app.include_router(project.router)
+app.include_router(task.router)
 app.include_router(rag.router)
 
 

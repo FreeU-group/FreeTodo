@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -182,3 +182,25 @@ class Project(Base):
 
     def __repr__(self):
         return f"<Project(id={self.id}, name={self.name})>"
+
+
+class Task(Base):
+    """任务管理模型"""
+
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True)  # task_id
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)  # 外键关联到项目
+    name = Column(String(200), nullable=False)  # 任务名称
+    description = Column(Text)  # 任务描述
+    status = Column(
+        String(20), default="pending", nullable=False
+    )  # 任务状态：pending, in_progress, completed, cancelled
+    parent_task_id = Column(Integer, ForeignKey("tasks.id"))  # 父任务ID（自关联，用于子任务）
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(
+        DateTime, default=get_local_time, onupdate=get_local_time, nullable=False
+    )
+
+    def __repr__(self):
+        return f"<Task(id={self.id}, name={self.name}, project_id={self.project_id})>"
