@@ -7,7 +7,11 @@ import SettingsModal from '../common/SettingsModal';
 import { api } from '@/lib/api';
 import Loading from '../common/Loading';
 
-export default function MainLayout() {
+interface MainLayoutProps {
+  children: React.ReactNode;
+}
+
+export default function MainLayout({ children }: MainLayoutProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHealthCheckRequired, setIsHealthCheckRequired] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -74,7 +78,7 @@ export default function MainLayout() {
       <div className="flex h-screen flex-col bg-background overflow-hidden">
         <Header onSettingsClick={handleSettingsClick} />
         <main className="flex-1 overflow-hidden h-[calc(100vh-4rem)]">
-          <AppLayout />
+          <AppLayout>{children}</AppLayout>
         </main>
       </div>
 

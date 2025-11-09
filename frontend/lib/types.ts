@@ -87,3 +87,86 @@ export interface SearchParams {
   textWeight?: number;
   imageWeight?: number;
 }
+
+// 项目管理类型
+export interface Project {
+  id: number;
+  name: string;
+  goal?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCreate {
+  name: string;
+  goal?: string;
+}
+
+export interface ProjectUpdate {
+  name?: string;
+  goal?: string;
+}
+
+export interface ProjectListResponse {
+  total: number;
+  projects: Project[];
+}
+
+// 任务管理类型
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface Task {
+  id: number;
+  project_id: number;
+  name: string;
+  description?: string;
+  status: TaskStatus;
+  parent_task_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskWithChildren extends Task {
+  children: TaskWithChildren[];
+}
+
+export interface TaskCreate {
+  name: string;
+  description?: string;
+  status?: TaskStatus;
+  parent_task_id?: number;
+}
+
+export interface TaskUpdate {
+  name?: string;
+  description?: string;
+  status?: TaskStatus;
+  parent_task_id?: number;
+}
+
+export interface TaskListResponse {
+  total: number;
+  tasks: Task[];
+}
+
+// 上下文管理类型
+export interface Context {
+  id: number;
+  app_name?: string;
+  window_title?: string;
+  start_time?: string;
+  end_time?: string;
+  ai_title?: string;
+  ai_summary?: string;
+  task_id?: number;
+  created_at?: string;
+}
+
+export interface ContextListResponse {
+  total: number;
+  contexts: Context[];
+}
+
+export interface ContextUpdateRequest {
+  task_id?: number | null;
+}

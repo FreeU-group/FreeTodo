@@ -150,4 +150,49 @@ export const api = {
   healthCheck: () => apiClient.get('/health'),
 
   llmHealthCheck: () => apiClient.get('/health/llm'),
+
+  // 项目管理
+  createProject: (data: { name: string; goal?: string }) =>
+    apiClient.post('/api/projects', data),
+
+  getProjects: (params?: { limit?: number; offset?: number }) =>
+    apiClient.get('/api/projects', { params }),
+
+  getProject: (id: number) =>
+    apiClient.get(`/api/projects/${id}`),
+
+  updateProject: (id: number, data: { name?: string; goal?: string }) =>
+    apiClient.put(`/api/projects/${id}`, data),
+
+  deleteProject: (id: number) =>
+    apiClient.delete(`/api/projects/${id}`),
+
+  // 任务管理
+  createTask: (projectId: number, data: { name: string; description?: string; status?: string; parent_task_id?: number }) =>
+    apiClient.post(`/api/projects/${projectId}/tasks`, data),
+
+  getProjectTasks: (projectId: number, params?: { limit?: number; offset?: number; parent_task_id?: number; include_subtasks?: boolean }) =>
+    apiClient.get(`/api/projects/${projectId}/tasks`, { params }),
+
+  getTask: (projectId: number, taskId: number) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}`),
+
+  updateTask: (projectId: number, taskId: number, data: { name?: string; description?: string; status?: string; parent_task_id?: number }) =>
+    apiClient.put(`/api/projects/${projectId}/tasks/${taskId}`, data),
+
+  deleteTask: (projectId: number, taskId: number) =>
+    apiClient.delete(`/api/projects/${projectId}/tasks/${taskId}`),
+
+  getTaskChildren: (projectId: number, taskId: number) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/children`),
+
+  // 上下文管理
+  getContexts: (params?: { associated?: boolean; task_id?: number; limit?: number; offset?: number }) =>
+    apiClient.get('/api/contexts', { params }),
+
+  getContext: (contextId: number) =>
+    apiClient.get(`/api/contexts/${contextId}`),
+
+  updateContext: (contextId: number, data: { task_id?: number | null }) =>
+    apiClient.put(`/api/contexts/${contextId}`, data),
 };

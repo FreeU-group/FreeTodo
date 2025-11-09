@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { Calendar, BarChart2, FileText, Activity, TrendingUp, Search, FolderKanban } from 'lucide-react';
 import { marked } from 'marked';
 import { Send, Trash2, Plus, User, Bot } from 'lucide-react';
@@ -24,14 +25,21 @@ const ProjectManagementPage = dynamic(() => import('@/app/project-management/pag
 
 type MenuType = 'events' | 'analytics' | 'plan' | 'project-management';
 
-const menuItems: SidebarNavItem[] = [
-  { id: 'events', label: '事件管理', icon: Calendar },
-  { id: 'analytics', label: '行为分析', icon: BarChart2 },
-  { id: 'plan', label: '工作计划', icon: FileText },
-  { id: 'project-management', label: '项目管理', icon: FolderKanban },
+// 菜单项配置（包含路由路径）
+const menuItems: (SidebarNavItem & { path: string })[] = [
+  { id: 'events', label: '事件管理', icon: Calendar, path: '/events' },
+  { id: 'analytics', label: '行为分析', icon: BarChart2, path: '/analytics' },
+  { id: 'plan', label: '工作计划', icon: FileText, path: '/plan' },
+  { id: 'project-management', label: '项目管理', icon: FolderKanban, path: '/project-management' },
 ];
 
-function AppLayoutInner() {
+interface AppLayoutInnerProps {
+  children?: React.ReactNode;
+}
+
+function AppLayoutInner({ children }: AppLayoutInnerProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuType>('events');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -221,6 +229,14 @@ function AppLayoutInner() {
     setMessages(conversation.messages || []);
   };
 
+  // 根据当前路径设置激活的菜单项
+  useEffect(() => {
+    const currentMenuItem = menuItems.find(item => pathname.startsWith(item.path));
+    if (currentMenuItem) {
+      setActiveMenu(currentMenuItem.id as MenuType);
+    }
+  }, [pathname]);
+
   useEffect(() => {
     loadConversations();
   }, []);
@@ -229,8 +245,22 @@ function AppLayoutInner() {
     scrollToBottom();
   }, [messages]);
 
+  // 处理菜单项点击 - 使用路由导航
+  const handleMenuClick = (itemId: string) => {
+    const menuItem = menuItems.find(item => item.id === itemId);
+    if (menuItem) {
+      router.push(menuItem.path);
+    }
+  };
+
   // 渲染中间内容
   const renderContent = () => {
+    // 如果传入了 children，优先渲染 children（用于动态路由页面）
+    if (children) {
+      return children;
+    }
+    
+    // 否则使用菜单切换逻辑
     switch (activeMenu) {
       case 'events':
         return <EventsPage />;
@@ -253,7 +283,7 @@ function AppLayoutInner() {
           <SidebarNav
             items={menuItems}
             activeItem={activeMenu}
-            onItemClick={(id) => setActiveMenu(id as MenuType)}
+            onItemClick={handleMenuClick}
           />
         </SidebarContent>
       </Sidebar>
@@ -507,10 +537,14 @@ function AppLayoutInner() {
   );
 }
 
-export default function AppLayout() {
+interface AppLayoutProps {
+  children?: React.ReactNode;
+}
+
+export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <SelectedEventsProvider>
-      <AppLayoutInner />
+      <AppLayoutInner>{children}</AppLayoutInner>
     </SelectedEventsProvider>
   );
 }
