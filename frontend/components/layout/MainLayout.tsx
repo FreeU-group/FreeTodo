@@ -53,12 +53,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
   };
 
   const handleSettingsClose = () => {
-    // 如果是必须配置，在关闭后重新检查健康状态
-    if (isHealthCheckRequired) {
-      checkLlmHealth();
-    } else {
-      setIsSettingsOpen(false);
-    }
+    // 仅关闭弹窗，避免再次触发健康检查导致循环弹窗
+    // 2025.11.11 关闭窗口不再进行健康检查
+    setIsSettingsOpen(false);
   };
 
   // 健康检查加载中
