@@ -66,7 +66,15 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
   // 根据当前路径设置激活的菜单项
   useEffect(() => {
     if (pathname) {
-      const currentMenuItem = allMenuItems.find(item => pathname.startsWith(item.path));
+      // 按路径长度降序排序，确保先匹配更具体的路径
+      const sortedMenuItems = [...allMenuItems].sort((a, b) => b.path.length - a.path.length);
+      const currentMenuItem = sortedMenuItems.find(item => {
+        // 精确匹配或者路径前缀匹配（但需要确保是完整的路径段）
+        if (item.path === '/') {
+          return pathname === '/';
+        }
+        return pathname.startsWith(item.path);
+      });
       if (currentMenuItem) {
         setActiveMenu(currentMenuItem.id as MenuType);
       }
