@@ -11,7 +11,6 @@ import { toast } from '@/lib/toast';
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isRequired?: boolean; // 是否是必须配置（健康检查失败时）
 }
 
 interface ConfigSettings {
@@ -22,9 +21,10 @@ interface ConfigSettings {
   maxTokens: number;
   recordInterval: number;
   maxDays: number;
+  blacklistApps: string[];
 }
 
-export default function SettingsModal({ isOpen, onClose, isRequired = false }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState<ConfigSettings>({
     llmKey: '',
     baseUrl: '',
@@ -33,16 +33,30 @@ export default function SettingsModal({ isOpen, onClose, isRequired = false }: S
     maxTokens: 2048,
     recordInterval: 5,
     maxDays: 30,
+    blacklistApps: [],
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [initialShowScheduler, setInitialShowScheduler] = useState(false); // 记录初始值
+  const [blacklistInput, setBlacklistInput] = useState(''); // 黑名单输入框的值
+  const [initialLlmConfig, setInitialLlmConfig] = useState<{ llmKey: string; baseUrl: string; model: string }>({
+    llmKey: '',
+    baseUrl: '',
+    model: 'qwen3-max',
+  }); // 记录初始 LLM 配置
 
   // 加载配置
   useEffect(() => {
     if (isOpen) {
       loadConfig();
+      // 从 localStorage 读取定时任务显示设置
+      const saved = localStorage.getItem('showScheduler');
+      const savedValue = saved === 'true';
+      setShowScheduler(savedValue);
+      setInitialShowScheduler(savedValue); // 记录初始值
     }
   }, [isOpen]);
 
@@ -52,7 +66,11 @@ export default function SettingsModal({ isOpen, onClose, isRequired = false }: S
       const response = await api.getConfig();
       if (response.data.success) {
         const config = response.data.config;
-        setSettings({
+        // 处理黑名单应用列表
+        const apps = config.blacklistApps || [];
+        const blacklistAppsArray = Array.isArray(apps) ? apps : (typeof apps === 'string' ? apps.split(',').map((s: string) => s.trim()).filter((s: string) => s) : []);
+
+        const newSettings = {
           llmKey: config.llmKey || '',
           baseUrl: config.baseUrl || '',
           model: config.model || 'qwen3-max',
@@ -60,6 +78,16 @@ export default function SettingsModal({ isOpen, onClose, isRequired = false }: S
           maxTokens: config.maxTokens || 2048,
           recordInterval: config.recordInterval || 5,
           maxDays: config.maxDays || 30,
+          blacklistApps: blacklistAppsArray,
+        };
+
+        setSettings(newSettings);
+
+        // 记录初始 LLM 配置
+        setInitialLlmConfig({
+          llmKey: newSettings.llmKey,
+          baseUrl: newSettings.baseUrl,
+          model: newSettings.model,
         });
       }
     } catch (error) {
@@ -107,12 +135,71 @@ export default function SettingsModal({ isOpen, onClose, isRequired = false }: S
     setSaving(true);
     setMessage(null);
     try {
-      const response = await api.saveConfig(settings);
+      // 检查是否有 LLM 配置
+      const hasLlmConfig = settings.llmKey && settings.baseUrl;
+
+      // 检查 LLM 配置是否发生变化
+      const llmConfigChanged = hasLlmConfig && (
+        settings.llmKey !== initialLlmConfig.llmKey ||
+        settings.baseUrl !== initialLlmConfig.baseUrl ||
+        settings.model !== initialLlmConfig.model
+      );
+
+      let response;
+      if (hasLlmConfig) {
+        // 如果有 LLM 配置，使用 save-and-init-llm 接口
+        // 该接口会保存配置并重新初始化 LLM 客户端
+        response = await api.saveAndInitLlm({
+          llmKey: settings.llmKey,
+          baseUrl: settings.baseUrl,
+          model: settings.model,
+        });
+
+        // 同时保存其他配置
+        await api.saveConfig({
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens,
+          recordInterval: settings.recordInterval,
+          maxDays: settings.maxDays,
+          blacklistApps: settings.blacklistApps,
+        });
+      } else {
+        // 如果没有 LLM 配置，使用普通的保存接口
+        response = await api.saveConfig(settings);
+      }
+
       if (response.data.success) {
+        // 保存定时任务显示设置
+        const schedulerChanged = showScheduler !== initialShowScheduler;
+        if (schedulerChanged) {
+          localStorage.setItem('showScheduler', String(showScheduler));
+          setInitialShowScheduler(showScheduler); // 更新初始值
+
+          // 触发自定义事件通知其他组件
+          const currentPath = window.location.pathname;
+          window.dispatchEvent(new CustomEvent('schedulerVisibilityChange', {
+            detail: {
+              visible: showScheduler,
+              currentPath: currentPath
+            }
+          }));
+        }
+
         toast.configSaved();
-        setTimeout(() => {
-          onClose();
-        }, 1500);
+        onClose(); // 立即关闭弹窗
+
+        // 只有在 LLM 配置实际发生变化时才刷新页面
+        if (llmConfigChanged) {
+          setTimeout(() => {
+            window.location.reload();
+          }, 500); // 延迟 500ms 以确保 toast 消息能显示
+        }
+      } else {
+        // 如果返回了错误信息
+        setMessage({
+          type: 'error',
+          text: response.data.error || '保存失败'
+        });
       }
     } catch (error) {
       console.error('保存配置失败:', error);
@@ -123,8 +210,52 @@ export default function SettingsModal({ isOpen, onClose, isRequired = false }: S
     }
   };
 
-  const handleChange = (key: keyof ConfigSettings, value: string | number) => {
+  const handleChange = (key: keyof ConfigSettings, value: string | number | string[]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // 添加黑名单应用
+  const handleAddBlacklistApp = (app: string) => {
+    const trimmedApp = app.trim();
+    if (trimmedApp && !settings.blacklistApps.includes(trimmedApp)) {
+      setSettings((prev) => ({
+        ...prev,
+        blacklistApps: [...prev.blacklistApps, trimmedApp]
+      }));
+    }
+  };
+
+  // 移除黑名单应用
+  const handleRemoveBlacklistApp = (app: string) => {
+    setSettings((prev) => ({
+      ...prev,
+      blacklistApps: prev.blacklistApps.filter(a => a !== app)
+    }));
+  };
+
+  // 处理黑名单输入框的键盘事件
+  const handleBlacklistKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && blacklistInput.trim()) {
+      e.preventDefault();
+      handleAddBlacklistApp(blacklistInput);
+      setBlacklistInput('');
+    } else if (e.key === 'Backspace' && !blacklistInput && settings.blacklistApps.length > 0) {
+      // 如果输入框为空且按下 Backspace，删除最后一个标签
+      const lastApp = settings.blacklistApps[settings.blacklistApps.length - 1];
+      handleRemoveBlacklistApp(lastApp);
+    }
+  };
+
+  // 处理定时任务显示开关（仅更新状态，不立即保存）
+  const handleSchedulerToggle = (checked: boolean) => {
+    setShowScheduler(checked);
+  };
+
+  // 处理取消操作
+  const handleCancel = () => {
+    // 恢复定时任务开关到初始状态
+    setShowScheduler(initialShowScheduler);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -140,14 +271,7 @@ export default function SettingsModal({ isOpen, onClose, isRequired = false }: S
       >
         {/* Header */}
         <div className="sticky top-0 flex items-center justify-between border-b bg-background px-4 py-3">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">设置</h2>
-            {isRequired && (
-              <p className="text-xs text-orange-500 dark:text-orange-400 mt-0.5">
-                ⚠️ 需要配置 API Key 才能使用 LLM 功能
-              </p>
-            )}
-          </div>
+          <h2 className="text-lg font-bold text-foreground">设置</h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-foreground transition-colors hover:bg-muted"
@@ -270,41 +394,105 @@ export default function SettingsModal({ isOpen, onClose, isRequired = false }: S
                   <CardTitle className="text-base">基础设置</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-foreground">
-                        截图间隔（秒）
-                      </label>
-                      <Input
-                        type="number"
-                        className="px-3 py-2 h-9"
-                        value={settings.recordInterval}
-                        onChange={(e) => handleChange('recordInterval', parseInt(e.target.value))}
-                      />
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-foreground">
+                          截图间隔（秒）
+                        </label>
+                        <Input
+                          type="number"
+                          className="px-3 py-2 h-9"
+                          value={settings.recordInterval}
+                          onChange={(e) => handleChange('recordInterval', parseInt(e.target.value))}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-foreground">
+                          自动清理（天）
+                        </label>
+                        <Input
+                          type="number"
+                          className="px-3 py-2 h-9"
+                          value={settings.maxDays}
+                          onChange={(e) => handleChange('maxDays', parseInt(e.target.value))}
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium text-foreground">
-                        自动清理（天）
+                        应用黑名单
                       </label>
-                      <Input
-                        type="number"
-                        className="px-3 py-2 h-9"
-                        value={settings.maxDays}
-                        onChange={(e) => handleChange('maxDays', parseInt(e.target.value))}
-                      />
+                      <div className="border border-input rounded-md px-2 py-1.5 min-h-[38px] flex flex-wrap gap-1.5 items-center bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                        {settings.blacklistApps.map((app) => (
+                          <span
+                            key={app}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-primary/10 text-primary rounded-md border border-primary/20"
+                          >
+                            {app}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveBlacklistApp(app)}
+                              className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                              aria-label={`删除 ${app}`}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          type="text"
+                          className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder:text-muted-foreground px-1"
+                          placeholder={settings.blacklistApps.length === 0 ? "输入应用名称后按回车添加" : "继续添加..."}
+                          value={blacklistInput}
+                          onChange={(e) => setBlacklistInput(e.target.value)}
+                          onKeyDown={handleBlacklistKeyDown}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        这些应用的窗口将不会被截图记录，输入应用名称后按回车添加（例如：微信、QQ、钉钉）
+                      </p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 开发者选项 */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">开发者选项</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground">
+                        显示定时任务
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        开启后在侧边栏显示定时任务菜单
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
+                        checked={showScheduler}
+                        onChange={(e) => handleSchedulerToggle(e.target.checked)}
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
                   </div>
                 </CardContent>
               </Card>
 
               {/* 操作按钮 */}
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={onClose} disabled={saving} className="h-9">
+                <Button variant="outline" onClick={handleCancel} disabled={saving} className="h-9">
                   取消
                 </Button>
                 <Button
                   onClick={handleSave}
-                  disabled={saving || (isRequired && (!settings.llmKey || !settings.baseUrl))}
+                  disabled={saving}
                   className="h-9"
                 >
                   {saving ? '保存中...' : '保存'}

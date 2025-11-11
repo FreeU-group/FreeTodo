@@ -77,7 +77,7 @@ LifeTrace API 采用模块化架构设计，主要包含以下几个层次：
 2. **路由层 (routers/)**: 处理各类 API 请求，包括截图、事件、聊天、搜索等
 3. **数据层 (storage/)**: SQLAlchemy ORM 模型和数据库操作
 4. **AI 层 (llm/)**: LLM 客户端、RAG 服务、向量数据库等
-5. **工具层 (tool/)**: 后台服务，包括屏幕录制器和 OCR 处理器
+5. **任务层 (jobs/)**: 后台服务，包括屏幕录制器和 OCR 处理器
 6. **工具函数 (util/)**: 配置管理、日志、查询解析等工具函数
 
 ---
@@ -970,7 +970,7 @@ lifetrace/
 │   ├── vector_db.py         # 向量数据库
 │   ├── multimodal_vector_service.py  # 多模态向量
 │   └── multimodal_embedding.py  # 多模态嵌入
-├── tool/                     # 工具层
+├── jobs/                     # 任务层
 │   ├── recorder.py          # 屏幕录制器
 │   └── ocr.py               # OCR 处理器
 ├── util/                     # 工具函数

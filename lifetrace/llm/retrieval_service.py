@@ -2,7 +2,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 # 添加项目根目录到Python路径，以便直接运行此文件
 if __name__ == "__main__":
@@ -11,9 +11,9 @@ if __name__ == "__main__":
 
 from sqlalchemy import func, or_
 
+from lifetrace.storage import DatabaseManager
 from lifetrace.storage.models import OCRResult, Screenshot
 from lifetrace.util.query_parser import QueryConditions, QueryParser
-from lifetrace.storage import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class RetrievalService:
 
     def search_by_conditions(
         self, conditions: QueryConditions, limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         根据查询条件检索数据
 
@@ -63,8 +63,7 @@ class RetrievalService:
                 # 添加应用名称过滤
                 if conditions.app_names:
                     app_filters = [
-                        Screenshot.app_name.ilike(f"%{app}%")
-                        for app in conditions.app_names
+                        Screenshot.app_name.ilike(f"%{app}%") for app in conditions.app_names
                     ]
                     query = query.filter(or_(*app_filters))
 
@@ -72,9 +71,7 @@ class RetrievalService:
                 if conditions.keywords:
                     keyword_filters = []
                     for keyword in conditions.keywords:
-                        keyword_filters.append(
-                            OCRResult.text_content.ilike(f"%{keyword}%")
-                        )
+                        keyword_filters.append(OCRResult.text_content.ilike(f"%{keyword}%"))
 
                     if len(keyword_filters) > 1:
                         # 多个关键词使用OR连接
@@ -123,34 +120,34 @@ class RetrievalService:
                 data_list.sort(key=lambda x: x["timestamp"], reverse=True)
 
                 # 记录查询结果
-                print(f"\n{'=' * 60}")
-                print(f"📊 查询结果: 找到 {len(data_list)} 条记录")
-                print(f"{'=' * 60}")
+                logger.info("=" * 60)
+                logger.info(f"📊 查询结果: 找到 {len(data_list)} 条记录")
+                logger.info("=" * 60)
 
                 if data_list:
-                    print("\n📝 OCR内容详情 (前3条):")
+                    logger.info("📝 OCR内容详情 (前3条):")
                     for i, item in enumerate(data_list[:3]):
                         ocr_text = item.get("ocr_text", "")
-                        print(f"\n  [{i + 1}] 截图ID: {item['screenshot_id']}")
-                        print(f"      应用: {item['app_name']}")
-                        print(f"      时间: {item['timestamp']}")
-                        print(f"      OCR文本长度: {len(ocr_text)} 字符")
-                        print(
+                        logger.info(f"  [{i + 1}] 截图ID: {item['screenshot_id']}")
+                        logger.info(f"      应用: {item['app_name']}")
+                        logger.info(f"      时间: {item['timestamp']}")
+                        logger.info(f"      OCR文本长度: {len(ocr_text)} 字符")
+                        logger.info(
                             f"      OCR文本预览: {ocr_text[:100] if ocr_text else '❌ 无OCR内容'}"
                         )
                         if not ocr_text:
-                            print("      ⚠️  警告: 这条记录没有OCR文本！")
+                            logger.warning("      ⚠️  警告: 这条记录没有OCR文本！")
 
                     # 统计有无OCR内容的记录
                     has_ocr = sum(1 for item in data_list if item.get("ocr_text"))
                     no_ocr = len(data_list) - has_ocr
-                    print("\n📈 OCR统计:")
-                    print(f"   ✅ 有OCR内容: {has_ocr} 条")
-                    print(f"   ❌ 无OCR内容: {no_ocr} 条")
+                    logger.info("📈 OCR统计:")
+                    logger.info(f"   ✅ 有OCR内容: {has_ocr} 条")
+                    logger.info(f"   ❌ 无OCR内容: {no_ocr} 条")
 
-                print(f"\n{'=' * 60}")
-                print("=== 查询完成 ===")
-                print(f"{'=' * 60}\n")
+                logger.info("=" * 60)
+                logger.info("=== 查询完成 ===")
+                logger.info("=" * 60)
 
                 logger.info(f"检索完成，找到 {len(data_list)} 条记录")
                 return data_list
@@ -159,7 +156,7 @@ class RetrievalService:
             logger.error(f"数据检索失败: {e}")
             return []
 
-    def search_by_query(self, user_query: str, limit: int = 50) -> List[Dict[str, Any]]:
+    def search_by_query(self, user_query: str, limit: int = 50) -> list[dict[str, Any]]:
         """
         根据用户查询检索数据
 
@@ -179,7 +176,7 @@ class RetrievalService:
 
     def search_recent(
         self, hours: int = 24, app_name: str = None, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         检索最近的记录
 
@@ -202,9 +199,7 @@ class RetrievalService:
 
         return self.search_by_conditions(conditions, limit)
 
-    def search_by_app(
-        self, app_name: str, days: int = 7, limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    def search_by_app(self, app_name: str, days: int = 7, limit: int = 50) -> list[dict[str, Any]]:
         """
         按应用名称检索记录
 
@@ -228,8 +223,8 @@ class RetrievalService:
         return self.search_by_conditions(conditions, limit)
 
     def search_by_keywords(
-        self, keywords: List[str], days: int = 30, limit: int = 50
-    ) -> List[Dict[str, Any]]:
+        self, keywords: list[str], days: int = 30, limit: int = 50
+    ) -> list[dict[str, Any]]:
         """
         按关键词检索记录
 
@@ -244,13 +239,11 @@ class RetrievalService:
         end_time = datetime.now()
         start_time = end_time - timedelta(days=days)
 
-        conditions = QueryConditions(
-            start_date=start_time, end_date=end_time, keywords=keywords
-        )
+        conditions = QueryConditions(start_date=start_time, end_date=end_time, keywords=keywords)
 
         return self.search_by_conditions(conditions, limit)
 
-    def get_statistics(self, conditions: QueryConditions = None) -> Dict[str, Any]:
+    def get_statistics(self, conditions: QueryConditions = None) -> dict[str, Any]:
         """
         获取统计信息
 
@@ -262,8 +255,8 @@ class RetrievalService:
         """
         try:
             # 记录统计查询条件
-            print("\n=== 数据库查询 - get_statistics ===")
-            print(f"统计查询条件: {conditions}")
+            logger.info("=== 数据库查询 - get_statistics ===")
+            logger.info(f"统计查询条件: {conditions}")
             logger.info(f"执行统计查询 - 条件: {conditions}")
 
             with self.db_manager.get_session() as session:
@@ -273,18 +266,13 @@ class RetrievalService:
                 # 应用条件过滤
                 if conditions:
                     if conditions.start_date:
-                        query = query.filter(
-                            Screenshot.created_at >= conditions.start_date
-                        )
+                        query = query.filter(Screenshot.created_at >= conditions.start_date)
                     if conditions.end_date:
-                        query = query.filter(
-                            Screenshot.created_at <= conditions.end_date
-                        )
+                        query = query.filter(Screenshot.created_at <= conditions.end_date)
                     if conditions.app_names:
                         # 支持多个应用名称过滤
                         app_filters = [
-                            Screenshot.app_name.ilike(f"%{app}%")
-                            for app in conditions.app_names
+                            Screenshot.app_name.ilike(f"%{app}%") for app in conditions.app_names
                         ]
                         query = query.filter(or_(*app_filters))
 
@@ -298,13 +286,9 @@ class RetrievalService:
 
                 if conditions:
                     if conditions.start_date:
-                        app_stats = app_stats.filter(
-                            Screenshot.created_at >= conditions.start_date
-                        )
+                        app_stats = app_stats.filter(Screenshot.created_at >= conditions.start_date)
                     if conditions.end_date:
-                        app_stats = app_stats.filter(
-                            Screenshot.created_at <= conditions.end_date
-                        )
+                        app_stats = app_stats.filter(Screenshot.created_at <= conditions.end_date)
 
                 app_stats = app_stats.all()
 
@@ -316,14 +300,12 @@ class RetrievalService:
 
                 stats = {
                     "total_screenshots": total_count,
-                    "app_distribution": {app: count for app, count in app_stats},
+                    "app_distribution": dict(app_stats),
                     "time_range": {
                         "earliest": time_range.earliest.isoformat()
                         if time_range.earliest
                         else None,
-                        "latest": time_range.latest.isoformat()
-                        if time_range.latest
-                        else None,
+                        "latest": time_range.latest.isoformat() if time_range.latest else None,
                     },
                     "query_conditions": {
                         "start_date": conditions.start_date.isoformat()
@@ -338,15 +320,15 @@ class RetrievalService:
                 }
 
                 # 记录统计结果
-                print("统计结果:")
-                print(f"  总截图数: {total_count}")
-                print(
+                logger.info("统计结果:")
+                logger.info(f"  总截图数: {total_count}")
+                logger.info(
                     f"  应用分布: {dict(list(stats['app_distribution'].items())[:5])}{'...' if len(stats['app_distribution']) > 5 else ''}"
                 )
-                print(
+                logger.info(
                     f"  时间范围: {stats['time_range']['earliest']} 到 {stats['time_range']['latest']}"
                 )
-                print("=== 统计查询完成 ===")
+                logger.info("=== 统计查询完成 ===")
 
                 logger.info(f"统计信息获取完成: {total_count} 条记录")
                 return stats
@@ -378,10 +360,7 @@ class RetrievalService:
 
         # 应用名称匹配加分
         if conditions.app_names and screenshot.app_name:
-            if any(
-                app.lower() in screenshot.app_name.lower()
-                for app in conditions.app_names
-            ):
+            if any(app.lower() in screenshot.app_name.lower() for app in conditions.app_names):
                 score += 0.3
 
         # 关键词匹配加分

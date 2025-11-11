@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime
-from typing import List
 
 from fastapi import APIRouter, HTTPException
 from fastapi.requests import Request
@@ -15,7 +14,7 @@ from lifetrace.schemas.search import SearchRequest
 router = APIRouter(prefix="/api", tags=["search"])
 
 
-@router.post("/search", response_model=List[ScreenshotResponse])
+@router.post("/search", response_model=list[ScreenshotResponse])
 async def search_screenshots(search_request: SearchRequest, request: Request):
     """搜索截图"""
     start_time = datetime.now()
@@ -73,10 +72,10 @@ async def search_screenshots(search_request: SearchRequest, request: Request):
                 response_time=response_time,
             )
 
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/event-search", response_model=List[EventResponse])
+@router.post("/event-search", response_model=list[EventResponse])
 async def search_events(search_request: SearchRequest):
     """事件级简单文本搜索：按OCR分组后返回事件摘要"""
     try:
@@ -85,9 +84,9 @@ async def search_events(search_request: SearchRequest):
             start_date=search_request.start_date,
             end_date=search_request.end_date,
             app_name=search_request.app_name,
-            limit=search_request.limit
+            limit=search_request.limit,
         )
         return [EventResponse(**r) for r in results]
     except Exception as e:
         logging.error(f"搜索事件失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

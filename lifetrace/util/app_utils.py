@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 应用工具模块
 合并了应用名称映射和应用图标映射功能
@@ -7,7 +6,6 @@
 """
 
 import platform
-from typing import Dict, List, Set
 
 # ==================== 应用图标映射 ====================
 # 应用名称(小写) -> 图标文件名
@@ -132,7 +130,7 @@ def get_all_supported_apps():
 # 跨平台应用名称映射字典
 # key: 友好的应用名称（用户配置时使用）
 # value: 字典，包含各平台的进程名列表
-APP_MAPPING: Dict[str, Dict[str, List[str]]] = {
+APP_MAPPING: dict[str, dict[str, list[str]]] = {
     # 即时通讯软件
     "微信": {
         "Windows": ["WeChat.exe", "Weixin.exe"],
@@ -299,9 +297,9 @@ class AppMapper:
     """应用名称映射器"""
 
     def __init__(self):
-        self._process_cache: Dict[str, Set[str]] = {}
+        self._process_cache: dict[str, set[str]] = {}
 
-    def get_process_names(self, app_name: str) -> List[str]:
+    def get_process_names(self, app_name: str) -> list[str]:
         """
         根据应用名称获取所有平台的进程名列表（合并去重）
 
@@ -328,7 +326,7 @@ class AppMapper:
         self._process_cache[app_name] = all_processes
         return list(all_processes)
 
-    def expand_app_names(self, app_names: List[str]) -> List[str]:
+    def expand_app_names(self, app_names: list[str]) -> list[str]:
         """
         将友好的应用名称列表扩展为实际的进程名列表
 
@@ -351,7 +349,7 @@ class AppMapper:
 
         return list(expanded_names)
 
-    def get_supported_apps(self) -> List[str]:
+    def get_supported_apps(self) -> list[str]:
         """
         获取支持的应用名称列表
 
@@ -360,7 +358,7 @@ class AppMapper:
         """
         return list(APP_MAPPING.keys())
 
-    def get_app_info(self, app_name: str) -> Dict[str, List[str]]:
+    def get_app_info(self, app_name: str) -> dict[str, list[str]]:
         """
         获取应用在所有平台的进程名信息
 
@@ -389,7 +387,7 @@ class AppMapper:
 app_mapper = AppMapper()
 
 
-def get_process_names_for_app(app_name: str) -> List[str]:
+def get_process_names_for_app(app_name: str) -> list[str]:
     """
     便捷函数：获取应用对应的进程名列表
 
@@ -402,7 +400,7 @@ def get_process_names_for_app(app_name: str) -> List[str]:
     return app_mapper.get_process_names(app_name)
 
 
-def expand_blacklist_apps(app_names: List[str]) -> List[str]:
+def expand_blacklist_apps(app_names: list[str]) -> list[str]:
     """
     便捷函数：扩展黑名单应用列表
 

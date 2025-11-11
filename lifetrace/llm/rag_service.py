@@ -1,9 +1,10 @@
 import asyncio
 import logging
 import sys
+from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Generator, List
+from typing import Any
 
 # 添加项目根目录到Python路径，以便直接运行此文件
 if __name__ == "__main__":
@@ -12,9 +13,9 @@ if __name__ == "__main__":
 
 from lifetrace.llm.context_builder import ContextBuilder
 from lifetrace.llm.llm_client import LLMClient
-from lifetrace.util.query_parser import QueryConditions, QueryParser
 from lifetrace.llm.retrieval_service import RetrievalService
 from lifetrace.storage import DatabaseManager
+from lifetrace.util.query_parser import QueryConditions, QueryParser
 
 logger = logging.getLogger(__name__)
 
@@ -25,30 +26,22 @@ class RAGService:
     def __init__(
         self,
         db_manager: DatabaseManager,
-        api_key: str = None,
-        base_url: str = None,
-        model: str = None,
     ):
         """
         初始化RAG服务
 
         Args:
             db_manager: 数据库管理器
-            api_key: LLM API密钥
-            base_url: LLM API基础URL
-            model: LLM模型名称
         """
         self.db_manager = db_manager
-        self.llm_client = LLMClient(api_key, base_url, model)
+        self.llm_client = LLMClient()
         self.retrieval_service = RetrievalService(db_manager)
         self.context_builder = ContextBuilder()
         self.query_parser = QueryParser(self.llm_client)
 
         logger.info("RAG服务初始化完成")
 
-    async def process_query(
-        self, user_query: str, max_results: int = 50
-    ) -> Dict[str, Any]:
+    async def process_query(self, user_query: str, max_results: int = 50) -> dict[str, Any]:
         """
         处理用户查询的完整RAG流水线
 
@@ -70,13 +63,9 @@ class RAGService:
             if not intent_result.get("needs_database", True):
                 logger.info(f"用户意图不需要数据库查询: {intent_result['intent_type']}")
                 if self.llm_client.is_available():
-                    response_text = self._generate_direct_response(
-                        user_query, intent_result
-                    )
+                    response_text = self._generate_direct_response(user_query, intent_result)
                 else:
-                    response_text = self._fallback_direct_response(
-                        user_query, intent_result
-                    )
+                    response_text = self._fallback_direct_response(user_query, intent_result)
 
                 processing_time = (datetime.now() - start_time).total_seconds()
                 return {
@@ -101,11 +90,9 @@ class RAGService:
 
             # 3. 数据检索 - 使用已解析的查询条件，避免重复解析
             logger.info("开始数据检索")
-            print(parsed_query)
+            logger.info(f"解析后的查询条件: {parsed_query}")
 
-            retrieved_data = self.retrieval_service.search_by_conditions(
-                parsed_query, max_results
-            )
+            retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, max_results)
 
             # 4. 获取统计信息（如果需要）
             stats = None
@@ -138,9 +125,7 @@ class RAGService:
                     user_query, retrieved_data, stats
                 )
             elif query_type == "search":
-                context_text = self.context_builder.build_search_context(
-                    user_query, retrieved_data
-                )
+                context_text = self.context_builder.build_search_context(user_query, retrieved_data)
             else:
                 context_text = self.context_builder.build_summary_context(
                     user_query, retrieved_data
@@ -149,13 +134,9 @@ class RAGService:
             # 6. LLM生成
             logger.info("开始LLM生成")
             if self.llm_client.is_available():
-                response_text = self.llm_client.generate_summary(
-                    user_query, retrieved_data
-                )
+                response_text = self.llm_client.generate_summary(user_query, retrieved_data)
             else:
-                response_text = self._fallback_response(
-                    user_query, retrieved_data, stats
-                )
+                response_text = self._fallback_response(user_query, retrieved_data, stats)
 
             # 7. 构建响应
             processing_time = (datetime.now() - start_time).total_seconds()
@@ -204,16 +185,12 @@ class RAGService:
                 "response": "抱歉，处理您的查询时出现了错误。请稍后重试。",
                 "query_info": error_query_info,
                 "performance": {
-                    "processing_time_seconds": (
-                        datetime.now() - start_time
-                    ).total_seconds(),
+                    "processing_time_seconds": (datetime.now() - start_time).total_seconds(),
                     "timestamp": start_time.isoformat(),
                 },
             }
 
-    def process_query_sync(
-        self, user_query: str, max_results: int = 50
-    ) -> Dict[str, Any]:
+    def process_query_sync(self, user_query: str, max_results: int = 50) -> dict[str, Any]:
         """
         同步版本的查询处理
 
@@ -252,7 +229,7 @@ class RAGService:
         max_results: int = 50,
         temperature_direct: float = 0.7,
         temperature_rag: float = 0.3,
-    ) -> Generator[str, None, None]:
+    ) -> Generator[str]:
         """
         流式处理用户查询：执行完整的RAG流程，并在生成阶段逐token（或逐chunk）yield 文本。
         当底层LLM不支持真流式时，将按段返回；当不可用时，返回备用文本。
@@ -267,9 +244,7 @@ class RAGService:
             if not needs_db:
                 if not self.llm_client.is_available():
                     # LLM不可用，直接返回备用文本
-                    fallback_text = self._fallback_direct_response(
-                        user_query, intent_result
-                    )
+                    fallback_text = self._fallback_direct_response(user_query, intent_result)
                     yield fallback_text
                     # 完整输出后处理
                     self.post_stream_decision(user_query, fallback_text)
@@ -295,7 +270,7 @@ class RAGService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_query},
                 ]
-                output_chunks: List[str] = []
+                output_chunks: list[str] = []
                 for text in self.llm_client.stream_chat(
                     messages=messages, temperature=temperature_direct
                 ):
@@ -309,9 +284,7 @@ class RAGService:
             # 3) 需要数据库：解析 + 检索 + 构建上下文
             parsed_query = self.query_parser.parse_query(user_query)
             query_type = "statistics" if "统计" in user_query else "search"
-            retrieved_data = self.retrieval_service.search_by_conditions(
-                parsed_query, max_results
-            )
+            retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, max_results)
 
             stats = None
             if query_type == "statistics" or "统计" in user_query:
@@ -336,9 +309,7 @@ class RAGService:
                     user_query, retrieved_data, stats
                 )
             elif query_type == "search":
-                context_text = self.context_builder.build_search_context(
-                    user_query, retrieved_data
-                )
+                context_text = self.context_builder.build_search_context(user_query, retrieved_data)
             else:
                 context_text = self.context_builder.build_summary_context(
                     user_query, retrieved_data
@@ -346,9 +317,7 @@ class RAGService:
 
             # LLM 不可用时，返回规则备选
             if not self.llm_client.is_available():
-                fallback_text = self._fallback_response(
-                    user_query, retrieved_data, stats
-                )
+                fallback_text = self._fallback_response(user_query, retrieved_data, stats)
                 yield fallback_text
                 # 完整输出后处理
                 self.post_stream_decision(user_query, fallback_text)
@@ -384,10 +353,8 @@ class RAGService:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ]
-            output_chunks: List[str] = []
-            for text in self.llm_client.stream_chat(
-                messages=messages, temperature=temperature_rag
-            ):
+            output_chunks: list[str] = []
+            for text in self.llm_client.stream_chat(messages=messages, temperature=temperature_rag):
                 if text:
                     output_chunks.append(text)
                     yield text
@@ -403,7 +370,7 @@ class RAGService:
             except Exception:
                 pass
 
-    def get_query_suggestions(self, partial_query: str = "") -> List[str]:
+    def get_query_suggestions(self, partial_query: str = "") -> list[str]:
         """
         获取查询建议
 
@@ -429,15 +396,13 @@ class RAGService:
         if partial_query:
             # 简单的模糊匹配
             filtered_suggestions = [
-                s
-                for s in suggestions
-                if any(word in s for word in partial_query.split())
+                s for s in suggestions if any(word in s for word in partial_query.split())
             ]
             return filtered_suggestions[:5]
 
         return suggestions[:5]
 
-    def get_supported_query_types(self) -> Dict[str, Any]:
+    def get_supported_query_types(self) -> dict[str, Any]:
         """
         获取支持的查询类型信息
 
@@ -486,9 +451,7 @@ class RAGService:
             ],
         }
 
-    def _summarize_retrieved_data(
-        self, retrieved_data: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _summarize_retrieved_data(self, retrieved_data: list[dict[str, Any]]) -> dict[str, Any]:
         """总结检索到的数据"""
         if not retrieved_data:
             return {"apps": {}, "time_range": None, "total": 0}
@@ -518,8 +481,8 @@ class RAGService:
     def _fallback_response(
         self,
         user_query: str,
-        retrieved_data: List[Dict[str, Any]],
-        stats: Dict[str, Any] = None,
+        retrieved_data: list[dict[str, Any]],
+        stats: dict[str, Any] = None,
     ) -> str:
         """
         备用响应生成（当LLM不可用时）
@@ -544,9 +507,7 @@ class RAGService:
         app_summary = self._summarize_retrieved_data(retrieved_data)
         if app_summary["apps"]:
             response_parts.append("\n📱 应用分布：")
-            for app, count in sorted(
-                app_summary["apps"].items(), key=lambda x: x[1], reverse=True
-            ):
+            for app, count in sorted(app_summary["apps"].items(), key=lambda x: x[1], reverse=True):
                 response_parts.append(f"  • {app}: {count} 条记录")
 
         # 时间范围
@@ -580,7 +541,7 @@ class RAGService:
 
         return "\n".join(response_parts)
 
-    def health_check(self) -> Dict[str, Any]:
+    def health_check(self) -> dict[str, Any]:
         """
         健康检查
 
@@ -589,9 +550,7 @@ class RAGService:
         """
         return {
             "rag_service": "healthy",
-            "llm_client": (
-                "available" if self.llm_client.is_available() else "unavailable"
-            ),
+            "llm_client": ("available" if self.llm_client.is_available() else "unavailable"),
             "database": "connected" if self.db_manager else "disconnected",
             "components": {
                 "retrieval_service": "ready",
@@ -601,9 +560,7 @@ class RAGService:
             "timestamp": datetime.now().isoformat(),
         }
 
-    def _generate_direct_response(
-        self, user_query: str, intent_result: Dict[str, Any]
-    ) -> str:
+    def _generate_direct_response(self, user_query: str, intent_result: dict[str, Any]) -> str:
         """
         为不需要数据库查询的用户输入生成直接回复
 
@@ -643,9 +600,9 @@ class RAGService:
                 max_tokens=500,
             )
 
-            # 记录LLM响应到控制台和日志
+            # 记录LLM响应到日志
             llm_response = response.choices[0].message.content.strip()
-            print(f"[LLM Direct Response] {llm_response}")
+            logger.info(f"[LLM Direct Response] {llm_response}")
             logger.info(f"LLM直接响应: {llm_response}")
 
             return llm_response
@@ -654,9 +611,7 @@ class RAGService:
             logger.error(f"直接响应生成失败: {e}")
             return self._fallback_direct_response(user_query, intent_result)
 
-    def _fallback_direct_response(
-        self, user_query: str, intent_result: Dict[str, Any]
-    ) -> str:
+    def _fallback_direct_response(self, user_query: str, intent_result: dict[str, Any]) -> str:
         """
         当LLM不可用时的直接回复备用方案
 
@@ -699,21 +654,15 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
             ]
 
             if any(word in user_query.lower() for word in ["你好", "hello", "hi"]):
-                return (
-                    greetings[0]
-                    + "\n\n您可以询问我关于LifeTrace的功能，或者直接查询您的数据。"
-                )
+                return greetings[0] + "\n\n您可以询问我关于LifeTrace的功能，或者直接查询您的数据。"
             elif any(word in user_query.lower() for word in ["谢谢", "thanks"]):
                 return "不客气！如果还有其他问题，随时可以问我。"
             else:
-                return (
-                    greetings[1]
-                    + "\n\n您可以尝试搜索截图、查询应用使用情况，或者询问系统功能。"
-                )
+                return greetings[1] + "\n\n您可以尝试搜索截图、查询应用使用情况，或者询问系统功能。"
         else:
             return "我理解您的问题，但可能需要更多信息才能提供准确的回答。您可以尝试更具体的查询，比如搜索特定内容或统计使用情况。"
 
-    async def process_query_stream(self, user_query: str) -> Dict[str, Any]:
+    async def process_query_stream(self, user_query: str) -> dict[str, Any]:
         """
         为流式接口处理查询，返回构建好的messages和temperature
         避免重复的意图识别调用
@@ -753,9 +702,7 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
                 # 需要数据库查询的情况
                 parsed_query = self.query_parser.parse_query(user_query)
                 query_type = "statistics" if "统计" in user_query else "search"
-                retrieved_data = self.retrieval_service.search_by_conditions(
-                    parsed_query, 500
-                )
+                retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 500)
 
                 # 构建上下文
                 if query_type == "statistics":
@@ -769,7 +716,7 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
                     context_text = self.context_builder.build_search_context(
                         user_query, retrieved_data
                     )
-                print(context_text)
+                logger.debug(f"构建的上下文内容: {context_text}")
                 messages = [
                     {"role": "system", "content": context_text},
                     {"role": "user", "content": user_query},

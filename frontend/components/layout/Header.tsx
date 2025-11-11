@@ -10,7 +10,7 @@ interface HeaderProps {
 export default function Header({ onSettingsClick }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm">
-      <div className="flex h-12 items-center justify-between w-full px-4">
+      <div className="flex h-12 items-center justify-between w-full px-8">
         {/* Logo + Title */}
         <div className="flex items-center space-x-2">
           <div className="relative h-6 w-6 flex-shrink-0">
@@ -22,7 +22,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
               unoptimized
             />
           </div>
-          <h1 className="text-lg font-bold text-foreground">LifeTrace Chat</h1>
+          <h1 className="text-lg font-bold text-foreground">LifeTrace</h1>
         </div>
 
         {/* Settings Button */}

@@ -1,7 +1,6 @@
 """事件相关的 Pydantic 模型"""
 
 from datetime import datetime
-from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -10,30 +9,31 @@ from lifetrace.schemas.screenshot import ScreenshotResponse
 
 class EventResponse(BaseModel):
     id: int
-    app_name: Optional[str]
-    window_title: Optional[str]
+    app_name: str | None
+    window_title: str | None
     start_time: datetime
-    end_time: Optional[datetime]
+    end_time: datetime | None
     screenshot_count: int
-    first_screenshot_id: Optional[int]
-    ai_title: Optional[str] = None
-    ai_summary: Optional[str] = None
+    first_screenshot_id: int | None
+    ai_title: str | None = None
+    ai_summary: str | None = None
 
 
 class EventDetailResponse(BaseModel):
     id: int
-    app_name: Optional[str]
-    window_title: Optional[str]
+    app_name: str | None
+    window_title: str | None
     start_time: datetime
-    end_time: Optional[datetime]
-    screenshots: List[ScreenshotResponse]
-    ai_title: Optional[str] = None
-    ai_summary: Optional[str] = None
+    end_time: datetime | None
+    screenshots: list[ScreenshotResponse]
+    ai_title: str | None = None
+    ai_summary: str | None = None
 
 
 class EventListResponse(BaseModel):
     """事件列表响应，包含事件列表和总数"""
-    events: List[EventResponse]
+
+    events: list[EventResponse]
     total_count: int
 
     class Config:

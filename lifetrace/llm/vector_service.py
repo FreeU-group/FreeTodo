@@ -6,11 +6,11 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from lifetrace.storage.models import OCRResult, Screenshot
-from lifetrace.storage import DatabaseManager
 from lifetrace.llm.vector_db import create_vector_db
+from lifetrace.storage import DatabaseManager
+from lifetrace.storage.models import OCRResult, Screenshot
 
 
 class VectorService:
@@ -43,9 +43,7 @@ class VectorService:
         """检查向量服务是否可用"""
         return self.enabled and self.vector_db is not None
 
-    def add_ocr_result(
-        self, ocr_result: OCRResult, screenshot: Optional[Screenshot] = None
-    ) -> bool:
+    def add_ocr_result(self, ocr_result: OCRResult, screenshot: Screenshot | None = None) -> bool:
         """添加 OCR 结果到向量数据库
 
         Args:
@@ -85,9 +83,7 @@ class VectorService:
                     {
                         "screenshot_path": screenshot.file_path,
                         "screenshot_timestamp": (
-                            screenshot.created_at.isoformat()
-                            if screenshot.created_at
-                            else None
+                            screenshot.created_at.isoformat() if screenshot.created_at else None
                         ),
                         "application": screenshot.app_name,
                         "window_title": screenshot.window_title,
@@ -103,24 +99,18 @@ class VectorService:
             )
 
             if success:
-                self.logger.debug(
-                    f"Added OCR result {ocr_result.id} to vector database"
-                )
+                self.logger.debug(f"Added OCR result {ocr_result.id} to vector database")
             else:
-                self.logger.warning(
-                    f"Failed to add OCR result {ocr_result.id} to vector database"
-                )
+                self.logger.warning(f"Failed to add OCR result {ocr_result.id} to vector database")
 
             return success
 
         except Exception as e:
-            self.logger.error(
-                f"Error adding OCR result {ocr_result.id} to vector database: {e}"
-            )
+            self.logger.error(f"Error adding OCR result {ocr_result.id} to vector database: {e}")
             return False
 
     def update_ocr_result(
-        self, ocr_result: OCRResult, screenshot: Optional[Screenshot] = None
+        self, ocr_result: OCRResult, screenshot: Screenshot | None = None
     ) -> bool:
         """更新向量数据库中的 OCR 结果
 
@@ -156,9 +146,7 @@ class VectorService:
                     {
                         "screenshot_path": screenshot.file_path,
                         "screenshot_timestamp": (
-                            screenshot.created_at.isoformat()
-                            if screenshot.created_at
-                            else None
+                            screenshot.created_at.isoformat() if screenshot.created_at else None
                         ),
                         "application": screenshot.app_name,
                         "window_title": screenshot.window_title,
@@ -172,16 +160,12 @@ class VectorService:
             )
 
             if success:
-                self.logger.debug(
-                    f"Updated OCR result {ocr_result.id} in vector database"
-                )
+                self.logger.debug(f"Updated OCR result {ocr_result.id} in vector database")
 
             return success
 
         except Exception as e:
-            self.logger.error(
-                f"Error updating OCR result {ocr_result.id} in vector database: {e}"
-            )
+            self.logger.error(f"Error updating OCR result {ocr_result.id} in vector database: {e}")
             return False
 
     def delete_ocr_result(self, ocr_result_id: int) -> bool:
@@ -201,9 +185,7 @@ class VectorService:
             success = self.vector_db.delete_document(doc_id)
 
             if success:
-                self.logger.debug(
-                    f"Deleted OCR result {ocr_result_id} from vector database"
-                )
+                self.logger.debug(f"Deleted OCR result {ocr_result_id} from vector database")
 
             return success
 
@@ -218,9 +200,9 @@ class VectorService:
         query: str,
         top_k: int = 10,
         use_rerank: bool = True,
-        retrieve_k: Optional[int] = None,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        retrieve_k: int | None = None,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """语义搜索 OCR 结果
 
         Args:
@@ -348,16 +330,12 @@ class VectorService:
             # 元数据（基本信息）
             # 为了简化，这里不再重复查事件信息，向上层调用者可扩展
             doc_id = f"event_{event_id}"
-            return self.vector_db.update_document(
-                doc_id, event_text, {"event_id": event_id}
-            )
+            return self.vector_db.update_document(doc_id, event_text, {"event_id": event_id})
         except Exception as e:
             self.logger.error(f"事件{event_id}写入向量库失败: {e}")
             return False
 
-    def semantic_search_events(
-        self, query: str, top_k: int = 10
-    ) -> List[Dict[str, Any]]:
+    def semantic_search_events(self, query: str, top_k: int = 10) -> list[dict[str, Any]]:
         """对事件文档进行语义搜索（基于 event_{id} 文档）"""
         if not self.is_enabled():
             return []
@@ -400,9 +378,7 @@ class VectorService:
                     with self.db_manager.get_session() as session:
                         from lifetrace.storage.models import Event, Screenshot
 
-                        event = (
-                            session.query(Event).filter(Event.id == event_id).first()
-                        )
+                        event = session.query(Event).filter(Event.id == event_id).first()
 
                         if event:
                             # 获取该事件的截图数量
@@ -423,14 +399,10 @@ class VectorService:
                                 "app_name": event.app_name,
                                 "window_title": event.window_title,
                                 "start_time": (
-                                    event.start_time.isoformat()
-                                    if event.start_time
-                                    else None
+                                    event.start_time.isoformat() if event.start_time else None
                                 ),
                                 "end_time": (
-                                    event.end_time.isoformat()
-                                    if event.end_time
-                                    else None
+                                    event.end_time.isoformat() if event.end_time else None
                                 ),
                                 "screenshot_count": screenshot_count,
                                 "first_screenshot_id": (
@@ -454,9 +426,7 @@ class VectorService:
             self.logger.error(f"事件语义搜索失败: {e}")
             return []
 
-    def sync_from_database(
-        self, limit: Optional[int] = None, force_reset: bool = False
-    ) -> int:
+    def sync_from_database(self, limit: int | None = None, force_reset: bool = False) -> int:
         """从 SQLite 数据库同步 OCR 结果到向量数据库
 
         Args:
@@ -482,9 +452,7 @@ class VectorService:
 
                 # 如果SQLite为空但向量数据库不为空，或者强制重置，则清空向量数据库
                 if (total_ocr_count == 0 and vector_doc_count > 0) or force_reset:
-                    self.logger.info(
-                        "Resetting vector database to match empty SQLite database"
-                    )
+                    self.logger.info("Resetting vector database to match empty SQLite database")
                     self.reset()
                     if total_ocr_count == 0:
                         return 0  # SQLite为空，同步完成
@@ -520,29 +488,23 @@ class VectorService:
                         .first()
                     )
                     if screenshot is None:
-                        self.logger.warning(
-                            f"Screenshot not found for OCR result {ocr_result.id}"
-                        )
+                        self.logger.warning(f"Screenshot not found for OCR result {ocr_result.id}")
                         continue
 
                     if self.add_ocr_result(ocr_result, screenshot):
                         synced_count += 1
 
                     if synced_count % 100 == 0:
-                        self.logger.info(
-                            f"Synced {synced_count} OCR results to vector database"
-                        )
+                        self.logger.info(f"Synced {synced_count} OCR results to vector database")
 
-            self.logger.info(
-                f"Completed sync: {synced_count} OCR results added to vector database"
-            )
+            self.logger.info(f"Completed sync: {synced_count} OCR results added to vector database")
             return synced_count
 
         except Exception as e:
             self.logger.error(f"Error syncing from database: {e}")
             return 0
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取向量数据库统计信息
 
         Returns:

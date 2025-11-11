@@ -113,6 +113,70 @@ export const api = {
     responseType: 'stream',
   }),
 
+  // 流式聊天（使用 fetch 处理流式响应）
+  sendChatMessageStream: async (params: {
+    message: string;
+    conversation_id?: string;
+    use_rag?: boolean;
+  }, onChunk: (chunk: string) => void): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      throw new Error('请求失败');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        onChunk(chunk);
+      }
+    }
+  },
+
+  // 流式聊天（带事件上下文）
+  sendChatMessageWithContextStream: async (params: {
+    message: string;
+    conversation_id?: string;
+    event_context?: Array<{ event_id: number; text: string }>;
+  }, onChunk: (chunk: string) => void): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/api/chat/stream-with-context`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      throw new Error('请求失败');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        onChunk(chunk);
+      }
+    }
+  },
+
   getConversations: () => apiClient.get('/api/conversations'),
 
   deleteConversation: (id: string) => apiClient.delete(`/api/conversations/${id}`),
@@ -146,8 +210,83 @@ export const api = {
   testLlmConfig: (config: { llmKey: string; baseUrl: string; model?: string }) =>
     apiClient.post('/api/test-llm-config', config),
 
+  saveAndInitLlm: (config: { llmKey: string; baseUrl: string; model: string }) =>
+    apiClient.post('/api/save-and-init-llm', config),
+
   // 健康检查
   healthCheck: () => apiClient.get('/health'),
 
   llmHealthCheck: () => apiClient.get('/health/llm'),
+
+  // 项目管理
+  createProject: (data: { name: string; goal?: string }) =>
+    apiClient.post('/api/projects', data),
+
+  getProjects: (params?: { limit?: number; offset?: number }) =>
+    apiClient.get('/api/projects', { params }),
+
+  getProject: (id: number) =>
+    apiClient.get(`/api/projects/${id}`),
+
+  updateProject: (id: number, data: { name?: string; goal?: string }) =>
+    apiClient.put(`/api/projects/${id}`, data),
+
+  deleteProject: (id: number) =>
+    apiClient.delete(`/api/projects/${id}`),
+
+  // 任务管理
+  createTask: (projectId: number, data: { name: string; description?: string; status?: string; parent_task_id?: number }) =>
+    apiClient.post(`/api/projects/${projectId}/tasks`, data),
+
+  getProjectTasks: (projectId: number, params?: { limit?: number; offset?: number; parent_task_id?: number; include_subtasks?: boolean }) =>
+    apiClient.get(`/api/projects/${projectId}/tasks`, { params }),
+
+  getTask: (projectId: number, taskId: number) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}`),
+
+  updateTask: (projectId: number, taskId: number, data: { name?: string; description?: string; status?: string; parent_task_id?: number }) =>
+    apiClient.put(`/api/projects/${projectId}/tasks/${taskId}`, data),
+
+  deleteTask: (projectId: number, taskId: number) =>
+    apiClient.delete(`/api/projects/${projectId}/tasks/${taskId}`),
+
+  getTaskChildren: (projectId: number, taskId: number) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/children`),
+
+  // 上下文管理
+  getContexts: (params?: { associated?: boolean; task_id?: number; limit?: number; offset?: number }) =>
+    apiClient.get('/api/contexts', { params }),
+
+  getContext: (contextId: number) =>
+    apiClient.get(`/api/contexts/${contextId}`),
+
+  updateContext: (contextId: number, data: { task_id?: number | null }) =>
+    apiClient.put(`/api/contexts/${contextId}`, data),
+
+  // 调度器相关
+  getSchedulerJobs: () => apiClient.get('/api/scheduler/jobs'),
+
+  getSchedulerStatus: () => apiClient.get('/api/scheduler/status'),
+
+  pauseSchedulerJob: (jobId: string) =>
+    apiClient.post(`/api/scheduler/jobs/${jobId}/pause`),
+
+  resumeSchedulerJob: (jobId: string) =>
+    apiClient.post(`/api/scheduler/jobs/${jobId}/resume`),
+
+  deleteSchedulerJob: (jobId: string) =>
+    apiClient.delete(`/api/scheduler/jobs/${jobId}`),
+
+  updateSchedulerJobInterval: (jobId: string, data: {
+    job_id: string;
+    seconds?: number;
+    minutes?: number;
+    hours?: number;
+  }) => apiClient.put(`/api/scheduler/jobs/${jobId}/interval`, data),
+
+  pauseAllSchedulerJobs: () =>
+    apiClient.post('/api/scheduler/jobs/pause-all'),
+
+  resumeAllSchedulerJobs: () =>
+    apiClient.post('/api/scheduler/jobs/resume-all'),
 };

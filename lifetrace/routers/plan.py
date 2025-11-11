@@ -22,10 +22,10 @@ def init_plan_dirs():
     """初始化计划目录"""
     global PLANS_DIR, PLAN_IMAGES_DIR
     if PLANS_DIR is None:
-        PLANS_DIR = Path(deps.config.base_dir) / "plans"
+        PLANS_DIR = Path(deps.config.plans_dir)
         PLANS_DIR.mkdir(exist_ok=True)
     if PLAN_IMAGES_DIR is None:
-        PLAN_IMAGES_DIR = Path(deps.config.base_dir) / "plan_images"
+        PLAN_IMAGES_DIR = Path(deps.config.plan_images_dir)
         PLAN_IMAGES_DIR.mkdir(exist_ok=True)
 
 
@@ -44,7 +44,7 @@ async def save_plan(plan: PlanContent):
         return {"plan_id": plan_id, "message": "保存成功"}
     except Exception as e:
         deps.logger.error(f"保存计划失败: {e}")
-        raise HTTPException(status_code=500, detail=f"保存计划失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"保存计划失败: {str(e)}") from e
 
 
 @router.get("/load")
@@ -56,7 +56,7 @@ async def load_plan(plan_id: str):
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="计划不存在")
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
         return data
@@ -64,7 +64,7 @@ async def load_plan(plan_id: str):
         raise
     except Exception as e:
         deps.logger.error(f"加载计划失败: {e}")
-        raise HTTPException(status_code=500, detail=f"加载计划失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"加载计划失败: {str(e)}") from e
 
 
 @router.get("/list")
@@ -74,7 +74,7 @@ async def list_plans():
         init_plan_dirs()
         plans = []
         for file_path in PLANS_DIR.glob("*.json"):
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
                 plans.append(
                     {
@@ -88,7 +88,7 @@ async def list_plans():
         return {"plans": plans}
     except Exception as e:
         deps.logger.error(f"列出计划失败: {e}")
-        raise HTTPException(status_code=500, detail=f"列出计划失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"列出计划失败: {str(e)}") from e
 
 
 @router.post("/upload-image")
@@ -111,7 +111,7 @@ async def upload_plan_image(image: UploadFile = File(...)):
         return {"url": f"/api/plan/images/{filename}"}
     except Exception as e:
         deps.logger.error(f"上传图片失败: {e}")
-        raise HTTPException(status_code=500, detail=f"上传图片失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"上传图片失败: {str(e)}") from e
 
 
 @router.get("/images/{filename}")

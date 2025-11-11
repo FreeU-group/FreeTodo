@@ -4,13 +4,26 @@
 """
 
 import os
-import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
+import torch
 from PIL import Image
 
 from lifetrace.util.config import config
+from lifetrace.util.logging_config import get_logger
+
+logger = get_logger()
+
+# 尝试导入多模态依赖
+MULTIMODAL_AVAILABLE = False
+try:
+    import clip  # noqa: F401
+    from transformers import CLIPModel, CLIPProcessor
+
+    MULTIMODAL_AVAILABLE = True
+except ImportError:
+    logger.warning("多模态依赖未安装，请安装: pip install transformers clip")
 
 
 class MultimodalEmbedding:
@@ -36,17 +49,15 @@ class MultimodalEmbedding:
         self.text_embedding_dim = 512  # CLIP文本嵌入维度
         self.max_image_size = (224, 224)  # CLIP输入图像尺寸
 
-        self.logger = logging.getLogger(__name__)
-
         if MULTIMODAL_AVAILABLE:
             self._initialize_models()
         else:
-            self.logger.warning("多模态功能不可用，缺少必要依赖")
+            logger.warning("多模态功能不可用，缺少必要依赖")
 
     def _initialize_models(self):
         """初始化CLIP模型"""
         try:
-            self.logger.info(f"正在加载CLIP模型: {self.model_name}")
+            logger.info(f"正在加载CLIP模型: {self.model_name}")
 
             # 使用Transformers版本的CLIP
             self.model = CLIPModel.from_pretrained(self.model_name)
@@ -59,14 +70,14 @@ class MultimodalEmbedding:
             # 也尝试加载原版CLIP作为备选
             try:
                 self.clip_model, _ = clip.load("ViT-B/32", device=self.device)
-                self.logger.info("原版CLIP模型加载成功")
+                logger.info("原版CLIP模型加载成功")
             except Exception as e:
-                self.logger.warning(f"原版CLIP模型加载失败: {e}")
+                logger.warning(f"原版CLIP模型加载失败: {e}")
 
-            self.logger.info(f"CLIP模型初始化完成，使用设备: {self.device}")
+            logger.info(f"CLIP模型初始化完成，使用设备: {self.device}")
 
         except Exception as e:
-            self.logger.error(f"CLIP模型初始化失败: {e}")
+            logger.error(f"CLIP模型初始化失败: {e}")
             self.model = None
             self.processor = None
 
@@ -74,7 +85,7 @@ class MultimodalEmbedding:
         """检查多模态功能是否可用"""
         return MULTIMODAL_AVAILABLE and self.model is not None
 
-    def encode_text(self, text: str) -> Optional[np.ndarray]:
+    def encode_text(self, text: str) -> np.ndarray | None:
         """编码文本为向量
 
         Args:
@@ -95,17 +106,15 @@ class MultimodalEmbedding:
                 inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
                 text_features = self.model.get_text_features(**inputs)
-                text_features = text_features / text_features.norm(
-                    dim=-1, keepdim=True
-                )  # 归一化
+                text_features = text_features / text_features.norm(dim=-1, keepdim=True)  # 归一化
 
                 return text_features.cpu().numpy().flatten()
 
         except Exception as e:
-            self.logger.error(f"文本编码失败: {e}")
+            logger.error(f"文本编码失败: {e}")
             return None
 
-    def encode_image(self, image_path: str) -> Optional[np.ndarray]:
+    def encode_image(self, image_path: str) -> np.ndarray | None:
         """编码图像为向量
 
         Args:
@@ -134,10 +143,10 @@ class MultimodalEmbedding:
                 return image_features.cpu().numpy().flatten()
 
         except Exception as e:
-            self.logger.error(f"图像编码失败 {image_path}: {e}")
+            logger.error(f"图像编码失败 {image_path}: {e}")
             return None
 
-    def encode_image_from_array(self, image_array: np.ndarray) -> Optional[np.ndarray]:
+    def encode_image_from_array(self, image_array: np.ndarray) -> np.ndarray | None:
         """从numpy数组编码图像
 
         Args:
@@ -161,19 +170,15 @@ class MultimodalEmbedding:
                 inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
                 image_features = self.model.get_image_features(**inputs)
-                image_features = image_features / image_features.norm(
-                    dim=-1, keepdim=True
-                )
+                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 
                 return image_features.cpu().numpy().flatten()
 
         except Exception as e:
-            self.logger.error(f"图像数组编码失败: {e}")
+            logger.error(f"图像数组编码失败: {e}")
             return None
 
-    def compute_similarity(
-        self, embedding1: np.ndarray, embedding2: np.ndarray
-    ) -> float:
+    def compute_similarity(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
         """计算两个嵌入向量的相似度
 
         Args:
@@ -201,10 +206,10 @@ class MultimodalEmbedding:
             return float((similarity + 1) / 2)
 
         except Exception as e:
-            self.logger.error(f"相似度计算失败: {e}")
+            logger.error(f"相似度计算失败: {e}")
             return 0.0
 
-    def batch_encode_texts(self, texts: List[str]) -> List[Optional[np.ndarray]]:
+    def batch_encode_texts(self, texts: list[str]) -> list[np.ndarray | None]:
         """批量编码文本
 
         Args:
@@ -218,14 +223,12 @@ class MultimodalEmbedding:
 
         try:
             # 过滤空文本
-            valid_texts = [
-                (i, text) for i, text in enumerate(texts) if text and text.strip()
-            ]
+            valid_texts = [(i, text) for i, text in enumerate(texts) if text and text.strip()]
 
             if not valid_texts:
                 return [None] * len(texts)
 
-            indices, clean_texts = zip(*valid_texts)
+            indices, clean_texts = zip(*valid_texts, strict=False)
 
             with torch.no_grad():
                 inputs = self.processor(
@@ -246,10 +249,10 @@ class MultimodalEmbedding:
             return results
 
         except Exception as e:
-            self.logger.error(f"批量文本编码失败: {e}")
+            logger.error(f"批量文本编码失败: {e}")
             return [None] * len(texts)
 
-    def batch_encode_images(self, image_paths: List[str]) -> List[Optional[np.ndarray]]:
+    def batch_encode_images(self, image_paths: list[str]) -> list[np.ndarray | None]:
         """批量编码图像
 
         Args:
@@ -273,7 +276,7 @@ class MultimodalEmbedding:
                         valid_images.append(image)
                         indices.append(i)
                     except Exception as e:
-                        self.logger.warning(f"加载图像失败 {path}: {e}")
+                        logger.warning(f"加载图像失败 {path}: {e}")
 
             if not valid_images:
                 return [None] * len(image_paths)
@@ -283,9 +286,7 @@ class MultimodalEmbedding:
                 inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
                 image_features = self.model.get_image_features(**inputs)
-                image_features = image_features / image_features.norm(
-                    dim=-1, keepdim=True
-                )
+                image_features = image_features / image_features.norm(dim=-1, keepdim=True)
 
                 features_np = image_features.cpu().numpy()
 
@@ -297,10 +298,10 @@ class MultimodalEmbedding:
             return results
 
         except Exception as e:
-            self.logger.error(f"批量图像编码失败: {e}")
+            logger.error(f"批量图像编码失败: {e}")
             return [None] * len(image_paths)
 
-    def get_model_info(self) -> Dict[str, Any]:
+    def get_model_info(self) -> dict[str, Any]:
         """获取模型信息"""
         return {
             "available": self.is_available(),

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Token使用量记录器
 记录LLM API调用的token使用情况，便于后续统计分析
@@ -9,7 +8,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from lifetrace.util.logging_config import get_logger
 
@@ -46,7 +45,7 @@ class TokenUsageLogger:
         endpoint: str = None,
         user_query: str = None,
         response_type: str = None,
-        additional_info: Dict[str, Any] = None,
+        additional_info: dict[str, Any] = None,
     ):
         """
         记录token使用量
@@ -96,7 +95,7 @@ class TokenUsageLogger:
             # 记录错误但不影响主流程
             logger.error(f"Failed to log token usage: {e}")
 
-    def get_usage_stats(self, days: int = 30) -> Dict[str, Any]:
+    def get_usage_stats(self, days: int = 30) -> dict[str, Any]:
         """
         获取token使用统计
 
@@ -130,23 +129,17 @@ class TokenUsageLogger:
                 log_file = os.path.join(self.log_dir, f"token_usage_{month_str}.jsonl")
 
                 if os.path.exists(log_file):
-                    with open(log_file, "r", encoding="utf-8") as f:
+                    with open(log_file, encoding="utf-8") as f:
                         for line in f:
                             try:
                                 record = json.loads(line.strip())
-                                record_date = datetime.fromisoformat(
-                                    record["timestamp"]
-                                )
+                                record_date = datetime.fromisoformat(record["timestamp"])
 
                                 # 检查是否在统计范围内
                                 if start_date <= record_date <= end_date:
                                     # 更新总计
-                                    stats["total_input_tokens"] += record[
-                                        "input_tokens"
-                                    ]
-                                    stats["total_output_tokens"] += record[
-                                        "output_tokens"
-                                    ]
+                                    stats["total_input_tokens"] += record["input_tokens"]
+                                    stats["total_output_tokens"] += record["output_tokens"]
                                     stats["total_tokens"] += record["total_tokens"]
                                     stats["total_requests"] += 1
 
@@ -159,15 +152,15 @@ class TokenUsageLogger:
                                             "total_tokens": 0,
                                             "requests": 0,
                                         }
-                                    stats["model_stats"][model]["input_tokens"] += (
-                                        record["input_tokens"]
-                                    )
-                                    stats["model_stats"][model]["output_tokens"] += (
-                                        record["output_tokens"]
-                                    )
-                                    stats["model_stats"][model]["total_tokens"] += (
-                                        record["total_tokens"]
-                                    )
+                                    stats["model_stats"][model]["input_tokens"] += record[
+                                        "input_tokens"
+                                    ]
+                                    stats["model_stats"][model]["output_tokens"] += record[
+                                        "output_tokens"
+                                    ]
+                                    stats["model_stats"][model]["total_tokens"] += record[
+                                        "total_tokens"
+                                    ]
                                     stats["model_stats"][model]["requests"] += 1
 
                                     # 按端点统计
@@ -179,15 +172,15 @@ class TokenUsageLogger:
                                             "total_tokens": 0,
                                             "requests": 0,
                                         }
-                                    stats["endpoint_stats"][endpoint][
+                                    stats["endpoint_stats"][endpoint]["input_tokens"] += record[
                                         "input_tokens"
-                                    ] += record["input_tokens"]
-                                    stats["endpoint_stats"][endpoint][
+                                    ]
+                                    stats["endpoint_stats"][endpoint]["output_tokens"] += record[
                                         "output_tokens"
-                                    ] += record["output_tokens"]
-                                    stats["endpoint_stats"][endpoint][
+                                    ]
+                                    stats["endpoint_stats"][endpoint]["total_tokens"] += record[
                                         "total_tokens"
-                                    ] += record["total_tokens"]
+                                    ]
                                     stats["endpoint_stats"][endpoint]["requests"] += 1
 
                                     # 按日期统计
@@ -199,15 +192,15 @@ class TokenUsageLogger:
                                             "total_tokens": 0,
                                             "requests": 0,
                                         }
-                                    stats["daily_stats"][date_str]["input_tokens"] += (
-                                        record["input_tokens"]
-                                    )
-                                    stats["daily_stats"][date_str]["output_tokens"] += (
-                                        record["output_tokens"]
-                                    )
-                                    stats["daily_stats"][date_str]["total_tokens"] += (
-                                        record["total_tokens"]
-                                    )
+                                    stats["daily_stats"][date_str]["input_tokens"] += record[
+                                        "input_tokens"
+                                    ]
+                                    stats["daily_stats"][date_str]["output_tokens"] += record[
+                                        "output_tokens"
+                                    ]
+                                    stats["daily_stats"][date_str]["total_tokens"] += record[
+                                        "total_tokens"
+                                    ]
                                     stats["daily_stats"][date_str]["requests"] += 1
 
                             except (json.JSONDecodeError, KeyError, ValueError) as e:
@@ -224,7 +217,7 @@ class TokenUsageLogger:
 
 
 # 全局token使用量记录器实例
-_token_logger: Optional[TokenUsageLogger] = None
+_token_logger: TokenUsageLogger | None = None
 
 
 def setup_token_logger(config=None) -> TokenUsageLogger:
@@ -235,7 +228,7 @@ def setup_token_logger(config=None) -> TokenUsageLogger:
     return _token_logger
 
 
-def get_token_logger() -> Optional[TokenUsageLogger]:
+def get_token_logger() -> TokenUsageLogger | None:
     """获取token使用量记录器实例"""
     return _token_logger
 

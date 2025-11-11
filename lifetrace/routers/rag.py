@@ -4,10 +4,10 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-
-from lifetrace.util.app_utils import get_icon_filename
-from lifetrace.routers import dependencies as deps
 from fastapi.responses import FileResponse
+
+from lifetrace.routers import dependencies as deps
+from lifetrace.util.app_utils import get_icon_filename
 
 router = APIRouter(prefix="/api", tags=["rag"])
 
@@ -66,4 +66,4 @@ async def get_app_icon(app_name: str):
         raise
     except Exception as e:
         deps.logger.error(f"获取应用图标失败 {app_name}: {e}")
-        raise HTTPException(status_code=500, detail=f"获取图标失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取图标失败: {str(e)}") from e

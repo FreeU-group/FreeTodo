@@ -3,7 +3,7 @@
 import uuid
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 # 全局依赖对象 - 在 server.py 中初始化
 db_manager = None
@@ -16,9 +16,7 @@ config = None
 logger = None
 
 # 会话管理
-chat_sessions = defaultdict(
-    dict
-)
+chat_sessions = defaultdict(dict)
 
 # 配置状态标志
 is_llm_configured = False
@@ -56,7 +54,7 @@ def clear_session_context(session_id: str) -> bool:
     return False
 
 
-def get_session_context(session_id: str) -> List[Dict[str, Any]]:
+def get_session_context(session_id: str) -> list[dict[str, Any]]:
     """获取会话上下文"""
     if session_id in chat_sessions:
         chat_sessions[session_id]["last_active"] = datetime.now()

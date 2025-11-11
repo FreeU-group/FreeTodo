@@ -61,20 +61,13 @@ source .venv/bin/activate
 
 ### Start the Backend Service
 
-**Before starting the server, you need to configure the settings:**
-
-```bash
-# Copy the default configuration file
-cp lifetrace/config/default_config.yaml lifetrace/config/config.yaml
-
-# Edit config.yaml to customize your settings (optional)
-```
-
 **Start the server:**
 
 ```bash
 python -m lifetrace.server
 ```
+
+> **Note**: On first run, the system will automatically create `config.yaml` from `default_config.yaml` if it doesn't exist. You can customize your settings by editing `lifetrace/config/config.yaml`.
 
 The backend service will start at `http://localhost:8000`.
 
@@ -85,7 +78,7 @@ The frontend is required to use LifeTrace. Start the frontend development server
 ```bash
 cd frontend
 pnpm install
-pnpm run dev
+pnpm dev
 ```
 
 The frontend development server will start at `http://localhost:3000`, with API requests automatically proxied to backend `:8000`.
@@ -110,6 +103,7 @@ For more details, see: [frontend/README.md](frontend/README.md)
   - ☐ Create web-based version
 
 ### ✅ Recently Completed
+
 - ☑ **Core Infrastructure** - Basic screenshot recording and OCR functionality
 
 ---
@@ -127,32 +121,40 @@ For more details, see: [frontend/README.md](frontend/README.md)
 ├── lifetrace/                  # Core backend modules
 │   ├── server.py               # Web API service
 │   ├── config/                 # Configuration files
-│   │   ├── config.yaml         # Main configuration
-│   │   ├── default_config.yaml # Default configuration
+│   │   ├── config.yaml         # Main configuration (auto-generated)
+│   │   ├── default_config.yaml # Default configuration template
 │   │   └── rapidocr_config.yaml# OCR configuration
 │   ├── routers/                # API route handlers
-│   │   ├── screenshot.py       # Screenshot endpoints
-│   │   ├── event.py            # Event management endpoints
-│   │   ├── chat.py             # Chat interface endpoints
-│   │   ├── search.py           # Search endpoints
-│   │   ├── ocr.py              # OCR service endpoints
-│   │   ├── rag.py              # RAG service endpoints
-│   │   ├── plan.py             # Plan management endpoints
 │   │   ├── behavior.py         # User behavior endpoints
+│   │   ├── chat.py             # Chat interface endpoints
 │   │   ├── config.py           # Configuration endpoints
+│   │   ├── context.py          # Context management endpoints
+│   │   ├── dependencies.py     # Router dependencies
+│   │   ├── event.py            # Event management endpoints
 │   │   ├── health.py           # Health check endpoints
 │   │   ├── logs.py             # Log management endpoints
+│   │   ├── ocr.py              # OCR service endpoints
+│   │   ├── plan.py             # Plan management endpoints
+│   │   ├── project.py          # Project management endpoints
+│   │   ├── rag.py              # RAG service endpoints
+│   │   ├── scheduler.py        # Scheduler endpoints
+│   │   ├── screenshot.py       # Screenshot endpoints
+│   │   ├── search.py           # Search endpoints
 │   │   ├── system.py           # System endpoints
+│   │   ├── task.py             # Task management endpoints
 │   │   └── vector.py           # Vector service endpoints
 │   ├── schemas/                # Pydantic data models
-│   │   ├── screenshot.py       # Screenshot models
-│   │   ├── event.py            # Event models
 │   │   ├── chat.py             # Chat models
-│   │   ├── search.py           # Search models
-│   │   ├── plan.py             # Plan models
 │   │   ├── config.py           # Config models
+│   │   ├── context.py          # Context models
+│   │   ├── event.py            # Event models
+│   │   ├── plan.py             # Plan models
+│   │   ├── project.py          # Project models
+│   │   ├── screenshot.py       # Screenshot models
+│   │   ├── search.py           # Search models
 │   │   ├── stats.py            # Statistics models
 │   │   ├── system.py           # System models
+│   │   ├── task.py             # Task models
 │   │   └── vector.py           # Vector models
 │   ├── storage/                # Data storage layer
 │   │   ├── database.py         # Database operations
@@ -167,58 +169,83 @@ For more details, see: [frontend/README.md](frontend/README.md)
 │   │   ├── vector_db.py        # Vector database
 │   │   ├── multimodal_vector_service.py # Multimodal vectors
 │   │   └── multimodal_embedding.py # Multimodal embeddings
-│   ├── tool/                   # Core tools
-│   │   ├── recorder.py         # Screen recording tool
-│   │   └── ocr.py              # OCR processing tool
+│   ├── jobs/                   # Background jobs
+│   │   ├── job_manager.py      # Job management
+│   │   ├── ocr.py              # OCR processing job
+│   │   ├── recorder.py         # Screen recording job
+│   │   ├── scheduler.py        # Job scheduler
+│   │   ├── task_context_mapper.py # Task context mapping
+│   │   └── task_summary.py     # Task summarization
 │   ├── util/                   # Utility functions
-│   │   ├── config.py           # Configuration utilities
-│   │   ├── logging_config.py   # Logging configuration
-│   │   ├── utils.py            # General utilities
 │   │   ├── app_utils.py        # Application utilities
+│   │   ├── config.py           # Configuration utilities
+│   │   ├── config_watcher.py   # Configuration file watcher
+│   │   ├── llm_config_handler.py # LLM config handler
+│   │   ├── logging_config.py   # Logging configuration
 │   │   ├── query_parser.py     # Query parsing
-│   │   └── token_usage_logger.py # Token usage tracking
-│   └── models/                 # OCR model files
-│       ├── ch_PP-OCRv4_det_infer.onnx
-│       ├── ch_PP-OCRv4_rec_infer.onnx
-│       └── ch_ppocr_mobile_v2.0_cls_infer.onnx
+│   │   ├── token_usage_logger.py # Token usage tracking
+│   │   └── utils.py            # General utilities
+│   ├── models/                 # OCR model files
+│   │   ├── ch_PP-OCRv4_det_infer.onnx
+│   │   ├── ch_PP-OCRv4_rec_infer.onnx
+│   │   └── ch_ppocr_mobile_v2.0_cls_infer.onnx
+│   ├── devlog/                 # Development logs
+│   │   ├── AUTO_ASSOCIATION_*.md
+│   │   ├── CONFIG_CHANGE_*.md
+│   │   ├── CONTEXT_MANAGEMENT_API.md
+│   │   ├── PROJECT_*.md
+│   │   ├── TASK_*.md
+│   │   └── ...
+│   └── data/                   # Runtime data (generated)
+│       ├── lifetrace.db        # SQLite database
+│       ├── scheduler.db        # Scheduler database
+│       ├── screenshots/        # Screenshot storage
+│       ├── vector_db/          # Vector database storage
+│       └── logs/               # Application logs
 ├── frontend/                   # Frontend application (Next.js)
 │   ├── app/                    # Next.js app directory
 │   │   ├── page.tsx            # Home page
 │   │   ├── layout.tsx          # Root layout
+│   │   ├── globals.css         # Global styles
 │   │   ├── events/             # Events management page
-│   │   ├── chat/               # Chat interface page
-│   │   ├── analytics/          # Analytics page
 │   │   ├── app-usage/          # App usage page
-│   │   ├── plan/               # Plan management page
+│   │   ├── project-management/ # Project & task management
+│   │   │   ├── page.tsx        # Projects list
+│   │   │   └── [id]/           # Project details
+│   │   │       ├── page.tsx    # Project overview
+│   │   │       └── tasks/      # Task management
+│   │   ├── scheduler/          # Scheduler page
 │   │   └── settings/           # Settings page
 │   ├── components/             # React components
 │   │   ├── common/             # Common components
+│   │   │   ├── Button.tsx
+│   │   │   ├── Card.tsx
+│   │   │   ├── Input.tsx
+│   │   │   ├── Loading.tsx
+│   │   │   ├── Pagination.tsx
+│   │   │   ├── SettingsModal.tsx
+│   │   │   └── ThemeToggle.tsx
+│   │   ├── context/            # Context components
 │   │   ├── layout/             # Layout components
+│   │   ├── project/            # Project components
 │   │   ├── screenshot/         # Screenshot components
 │   │   ├── search/             # Search components
+│   │   ├── task/               # Task components
 │   │   └── ui/                 # UI components
 │   ├── lib/                    # Utilities and services
 │   │   ├── api.ts              # API client
 │   │   ├── types.ts            # TypeScript types
 │   │   ├── utils.ts            # Utility functions
+│   │   ├── toast.ts            # Toast notifications
 │   │   ├── context/            # React contexts
 │   │   └── store/              # State management
+│   ├── devlog/                 # Frontend development logs
 │   ├── public/                 # Static assets
 │   ├── package.json            # Frontend dependencies
 │   ├── pnpm-lock.yaml          # pnpm lock file
 │   ├── next.config.ts          # Next.js configuration
-│   └── tsconfig.json           # TypeScript configuration
-├── doc/                        # Documentation
-│   ├── setup_guide.md          # Setup guide
-│   ├── api_configuration_guide.md # API configuration
-│   ├── uv_usage_guide.md       # uv package manager guide
-│   ├── event_mechanism.md      # Event mechanism docs
-│   ├── memory_optimization_guide.md # Memory optimization
-│   └── ...                     # Other documentation files
-├── deploy/                     # Deployment scripts
-│   ├── build_server.bat        # Server build script
-│   ├── build_ocr.bat           # OCR build script
-│   └── build_recorder.bat      # Recorder build script
+│   ├── tsconfig.json           # TypeScript configuration
+│   └── README.md               # Frontend documentation
 ├── pyproject.toml              # Python project configuration
 ├── uv.lock                     # uv lock file
 ├── LICENSE                     # Apache 2.0 License

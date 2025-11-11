@@ -77,20 +77,13 @@ source .venv/bin/activate
 
 ### 启动后端服务
 
-**在启动服务器之前，需要配置设置：**
-
-```bash
-# 复制默认配置文件
-cp lifetrace/config/default_config.yaml lifetrace/config/config.yaml
-
-# 编辑 config.yaml 自定义您的设置（可选）
-```
-
 **启动服务器：**
 
 ```bash
 python -m lifetrace.server
 ```
+
+> **注意**：首次运行时，如果 `config.yaml` 不存在，系统会自动从 `default_config.yaml` 创建。您可以通过编辑 `lifetrace/config/config.yaml` 来自定义设置。
 
 后端服务将在 `http://localhost:8000` 启动。
 
@@ -102,8 +95,9 @@ python -m lifetrace.server
 
 ```bash
 cd frontend
+
 pnpm install
-pnpm run dev
+pnpm dev
 ```
 
 前端开发服务器将在 `http://localhost:3000` 启动，API 请求会自动代理到后端 `:8000`。
@@ -157,38 +151,46 @@ python -m lifetrace_backend.simple_ocr
 ### 项目结构
 
 ```
-├── .github/                    # GitHub repository assets
-│   ├── assets/                 # Static assets (images for README)
-│   └── ...                     # Other GitHub repository files
+├── .github/                    # GitHub 仓库资源
+│   ├── assets/                 # 静态资源（README 图片）
+│   └── ...                     # 其他 GitHub 仓库文件
 ├── lifetrace/                  # 核心后端模块
 │   ├── server.py               # Web API 服务
 │   ├── config/                 # 配置文件
-│   │   ├── config.yaml         # 主配置文件
-│   │   ├── default_config.yaml # 默认配置
+│   │   ├── config.yaml         # 主配置文件（自动生成）
+│   │   ├── default_config.yaml # 默认配置模板
 │   │   └── rapidocr_config.yaml# OCR 配置
 │   ├── routers/                # API 路由处理器
-│   │   ├── screenshot.py       # 截图端点
-│   │   ├── event.py            # 事件管理端点
-│   │   ├── chat.py             # 聊天接口端点
-│   │   ├── search.py           # 搜索端点
-│   │   ├── ocr.py              # OCR 服务端点
-│   │   ├── rag.py              # RAG 服务端点
-│   │   ├── plan.py             # 计划管理端点
 │   │   ├── behavior.py         # 用户行为端点
+│   │   ├── chat.py             # 聊天接口端点
 │   │   ├── config.py           # 配置端点
+│   │   ├── context.py          # 上下文管理端点
+│   │   ├── dependencies.py     # 路由依赖项
+│   │   ├── event.py            # 事件管理端点
 │   │   ├── health.py           # 健康检查端点
 │   │   ├── logs.py             # 日志管理端点
+│   │   ├── ocr.py              # OCR 服务端点
+│   │   ├── plan.py             # 计划管理端点
+│   │   ├── project.py          # 项目管理端点
+│   │   ├── rag.py              # RAG 服务端点
+│   │   ├── scheduler.py        # 调度器端点
+│   │   ├── screenshot.py       # 截图端点
+│   │   ├── search.py           # 搜索端点
 │   │   ├── system.py           # 系统端点
+│   │   ├── task.py             # 任务管理端点
 │   │   └── vector.py           # 向量服务端点
 │   ├── schemas/                # Pydantic 数据模型
-│   │   ├── screenshot.py       # 截图模型
-│   │   ├── event.py            # 事件模型
 │   │   ├── chat.py             # 聊天模型
-│   │   ├── search.py           # 搜索模型
-│   │   ├── plan.py             # 计划模型
 │   │   ├── config.py           # 配置模型
+│   │   ├── context.py          # 上下文模型
+│   │   ├── event.py            # 事件模型
+│   │   ├── plan.py             # 计划模型
+│   │   ├── project.py          # 项目模型
+│   │   ├── screenshot.py       # 截图模型
+│   │   ├── search.py           # 搜索模型
 │   │   ├── stats.py            # 统计模型
 │   │   ├── system.py           # 系统模型
+│   │   ├── task.py             # 任务模型
 │   │   └── vector.py           # 向量模型
 │   ├── storage/                # 数据存储层
 │   │   ├── database.py         # 数据库操作
@@ -203,58 +205,83 @@ python -m lifetrace_backend.simple_ocr
 │   │   ├── vector_db.py        # 向量数据库
 │   │   ├── multimodal_vector_service.py # 多模态向量
 │   │   └── multimodal_embedding.py # 多模态嵌入
-│   ├── tool/                   # 核心工具
-│   │   ├── recorder.py         # 屏幕录制工具
-│   │   └── ocr.py              # OCR 处理工具
+│   ├── jobs/                   # 后台任务
+│   │   ├── job_manager.py      # 任务管理
+│   │   ├── ocr.py              # OCR 处理任务
+│   │   ├── recorder.py         # 屏幕录制任务
+│   │   ├── scheduler.py        # 任务调度器
+│   │   ├── task_context_mapper.py # 任务上下文映射
+│   │   └── task_summary.py     # 任务摘要
 │   ├── util/                   # 工具函数
-│   │   ├── config.py           # 配置工具
-│   │   ├── logging_config.py   # 日志配置
-│   │   ├── utils.py            # 通用工具
 │   │   ├── app_utils.py        # 应用工具
+│   │   ├── config.py           # 配置工具
+│   │   ├── config_watcher.py   # 配置文件监听器
+│   │   ├── llm_config_handler.py # LLM 配置处理器
+│   │   ├── logging_config.py   # 日志配置
 │   │   ├── query_parser.py     # 查询解析
-│   │   └── token_usage_logger.py # Token 使用跟踪
-│   └── models/                 # OCR 模型文件
-│       ├── ch_PP-OCRv4_det_infer.onnx
-│       ├── ch_PP-OCRv4_rec_infer.onnx
-│       └── ch_ppocr_mobile_v2.0_cls_infer.onnx
+│   │   ├── token_usage_logger.py # Token 使用跟踪
+│   │   └── utils.py            # 通用工具
+│   ├── models/                 # OCR 模型文件
+│   │   ├── ch_PP-OCRv4_det_infer.onnx
+│   │   ├── ch_PP-OCRv4_rec_infer.onnx
+│   │   └── ch_ppocr_mobile_v2.0_cls_infer.onnx
+│   ├── devlog/                 # 开发日志
+│   │   ├── AUTO_ASSOCIATION_*.md
+│   │   ├── CONFIG_CHANGE_*.md
+│   │   ├── CONTEXT_MANAGEMENT_API.md
+│   │   ├── PROJECT_*.md
+│   │   ├── TASK_*.md
+│   │   └── ...
+│   └── data/                   # 运行时数据（自动生成）
+│       ├── lifetrace.db        # SQLite 数据库
+│       ├── scheduler.db        # 调度器数据库
+│       ├── screenshots/        # 截图存储
+│       ├── vector_db/          # 向量数据库存储
+│       └── logs/               # 应用日志
 ├── frontend/                   # 前端应用 (Next.js)
 │   ├── app/                    # Next.js 应用目录
 │   │   ├── page.tsx            # 主页
 │   │   ├── layout.tsx          # 根布局
+│   │   ├── globals.css         # 全局样式
 │   │   ├── events/             # 事件管理页面
-│   │   ├── chat/               # 聊天界面页面
-│   │   ├── analytics/          # 分析页面
 │   │   ├── app-usage/          # 应用使用页面
-│   │   ├── plan/               # 计划管理页面
+│   │   ├── project-management/ # 项目和任务管理
+│   │   │   ├── page.tsx        # 项目列表
+│   │   │   └── [id]/           # 项目详情
+│   │   │       ├── page.tsx    # 项目概览
+│   │   │       └── tasks/      # 任务管理
+│   │   ├── scheduler/          # 调度器页面
 │   │   └── settings/           # 设置页面
 │   ├── components/             # React 组件
 │   │   ├── common/             # 通用组件
+│   │   │   ├── Button.tsx
+│   │   │   ├── Card.tsx
+│   │   │   ├── Input.tsx
+│   │   │   ├── Loading.tsx
+│   │   │   ├── Pagination.tsx
+│   │   │   ├── SettingsModal.tsx
+│   │   │   └── ThemeToggle.tsx
+│   │   ├── context/            # 上下文组件
 │   │   ├── layout/             # 布局组件
+│   │   ├── project/            # 项目组件
 │   │   ├── screenshot/         # 截图组件
 │   │   ├── search/             # 搜索组件
+│   │   ├── task/               # 任务组件
 │   │   └── ui/                 # UI 组件
 │   ├── lib/                    # 工具和服务
 │   │   ├── api.ts              # API 客户端
 │   │   ├── types.ts            # TypeScript 类型
 │   │   ├── utils.ts            # 工具函数
+│   │   ├── toast.ts            # 消息提示
 │   │   ├── context/            # React 上下文
 │   │   └── store/              # 状态管理
+│   ├── devlog/                 # 前端开发日志
 │   ├── public/                 # 静态资源
 │   ├── package.json            # 前端依赖
 │   ├── pnpm-lock.yaml          # pnpm 锁定文件
 │   ├── next.config.ts          # Next.js 配置
-│   └── tsconfig.json           # TypeScript 配置
-├── doc/                        # 文档
-│   ├── setup_guide.md          # 安装指南
-│   ├── api_configuration_guide.md # API 配置
-│   ├── uv_usage_guide.md       # uv 包管理器指南
-│   ├── event_mechanism.md      # 事件机制文档
-│   ├── memory_optimization_guide.md # 内存优化
-│   └── ...                     # 其他文档文件
-├── deploy/                     # 部署脚本
-│   ├── build_server.bat        # 服务器构建脚本
-│   ├── build_ocr.bat           # OCR 构建脚本
-│   └── build_recorder.bat      # 录制器构建脚本
+│   ├── tsconfig.json           # TypeScript 配置
+│   └── README.md               # 前端文档
 ├── pyproject.toml              # Python 项目配置
 ├── uv.lock                     # uv 锁定文件
 ├── LICENSE                     # Apache 2.0 许可证

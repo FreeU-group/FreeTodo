@@ -1,7 +1,5 @@
-
 import os
 import sys
-from typing import Dict
 
 from loguru import logger
 
@@ -10,7 +8,7 @@ class LoggerManager:
     def __init__(self):
         logger.remove()
 
-    def configure(self, config: Dict):
+    def configure(self, config: dict):
         level = config.get("level", "INFO")
         log_path = config.get("log_path", "lifetrace/data/logs/")
 
@@ -23,8 +21,8 @@ class LoggerManager:
 
         if log_path:
             # 如果 log_path 是目录或以 / 结尾，直接使用目录作为日志目录
-            if log_path.endswith(os.sep) or log_path.endswith('/'):
-                log_dir = log_path.rstrip(os.sep).rstrip('/')
+            if log_path.endswith(os.sep) or log_path.endswith("/"):
+                log_dir = log_path.rstrip(os.sep).rstrip("/")
                 os.makedirs(log_dir, exist_ok=True)
                 # 直接使用日期作为文件名，格式：YYYY-MM-DD.log
                 dated_log_path = os.path.join(log_dir, "{time:YYYY-MM-DD}.log")
@@ -32,10 +30,7 @@ class LoggerManager:
                 raise ValueError("log_path must be a directory")
 
             # 添加文件名和行号信息到日志格式
-            file_format = (
-                "{time:YYYY-MM-DD HH:mm:ss} | {level} | "
-                "{file}:{line} | {message}"
-            )
+            file_format = "{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{line} | {message}"
 
             logger.add(
                 dated_log_path,
@@ -63,7 +58,7 @@ class LoggerManager:
         return logger
 
 
-def setup_logging(config: Dict):
+def setup_logging(config: dict):
     logger_manager = LoggerManager()
     logger_manager.configure(config)
     logger.info("Logging setup completed")

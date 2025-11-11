@@ -9,7 +9,7 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 # 添加项目根目录到Python路径，以便直接运行此文件
 if __name__ == "__main__":
@@ -84,14 +84,10 @@ class VectorDatabase:
 
             # 初始化嵌入模型
             if self.embedding_model_name:
-                self.logger.info(
-                    f"Loading embedding model: {self.embedding_model_name}"
-                )
+                self.logger.info(f"Loading embedding model: {self.embedding_model_name}")
                 self.embedding_model = SentenceTransformer(self.embedding_model_name)
             else:
-                self.logger.info(
-                    "Skipping embedding model initialization (multimodal mode)"
-                )
+                self.logger.info("Skipping embedding model initialization (multimodal mode)")
                 self.embedding_model = None
 
             # 初始化 ChromaDB
@@ -116,13 +112,11 @@ class VectorDatabase:
     def _get_cross_encoder(self) -> CrossEncoder:
         """延迟加载交叉编码器"""
         if self.cross_encoder is None:
-            self.logger.info(
-                f"Loading cross-encoder model: {self.cross_encoder_model_name}"
-            )
+            self.logger.info(f"Loading cross-encoder model: {self.cross_encoder_model_name}")
             self.cross_encoder = CrossEncoder(self.cross_encoder_model_name)
         return self.cross_encoder
 
-    def embed_text(self, text: str) -> List[float]:
+    def embed_text(self, text: str) -> list[float]:
         """将文本转换为向量嵌入
 
         Args:
@@ -138,17 +132,13 @@ class VectorDatabase:
             raise RuntimeError("Embedding model not available (multimodal mode)")
 
         try:
-            embedding = self.embedding_model.encode(
-                text.strip(), normalize_embeddings=True
-            )
+            embedding = self.embedding_model.encode(text.strip(), normalize_embeddings=True)
             return embedding.tolist()
         except Exception as e:
             self.logger.error(f"Failed to embed text: {e}")
             return []
 
-    def add_document(
-        self, doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> bool:
+    def add_document(self, doc_id: str, text: str, metadata: dict[str, Any] | None = None) -> bool:
         """添加文档到向量数据库
 
         Args:
@@ -197,8 +187,8 @@ class VectorDatabase:
         self,
         doc_id: str,
         text: str,
-        embedding: List[float],
-        metadata: Optional[Dict[str, Any]] = None,
+        embedding: list[float],
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         """使用预计算的嵌入向量添加文档到向量数据库
 
@@ -245,7 +235,7 @@ class VectorDatabase:
             return False
 
     def update_document(
-        self, doc_id: str, text: str, metadata: Optional[Dict[str, Any]] = None
+        self, doc_id: str, text: str, metadata: dict[str, Any] | None = None
     ) -> bool:
         """更新文档
 
@@ -284,8 +274,8 @@ class VectorDatabase:
             return False
 
     def search(
-        self, query: str, top_k: int = 10, where: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
+        self, query: str, top_k: int = 10, where: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """语义搜索
 
         Args:
@@ -320,29 +310,19 @@ class VectorDatabase:
                     {
                         "id": results["ids"][0][i],
                         "document": results["documents"][0][i],
-                        "metadata": (
-                            results["metadatas"][0][i]
-                            if results["metadatas"][0]
-                            else {}
-                        ),
-                        "distance": (
-                            results["distances"][0][i] if results["distances"] else None
-                        ),
+                        "metadata": (results["metadatas"][0][i] if results["metadatas"][0] else {}),
+                        "distance": (results["distances"][0][i] if results["distances"] else None),
                     }
                 )
 
-            self.logger.debug(
-                f"Found {len(formatted_results)} results for query: {query[:50]}..."
-            )
+            self.logger.debug(f"Found {len(formatted_results)} results for query: {query[:50]}...")
             return formatted_results
 
         except Exception as e:
             self.logger.error(f"Failed to search: {e}")
             return []
 
-    def _clean_where_clause(
-        self, where: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+    def _clean_where_clause(self, where: dict[str, Any] | None) -> dict[str, Any] | None:
         """清理和验证 where 条件，移除空对象和无效操作符
 
         Args:
@@ -371,8 +351,8 @@ class VectorDatabase:
         return cleaned if cleaned else None
 
     def rerank(
-        self, query: str, documents: List[str], top_k: Optional[int] = None
-    ) -> List[Tuple[str, float]]:
+        self, query: str, documents: list[str], top_k: int | None = None
+    ) -> list[tuple[str, float]]:
         """使用交叉编码器重排序文档
 
         Args:
@@ -396,16 +376,14 @@ class VectorDatabase:
             scores = cross_encoder.predict(pairs)
 
             # 排序
-            scored_docs = list(zip(documents, scores))
+            scored_docs = list(zip(documents, scores, strict=False))
             scored_docs.sort(key=lambda x: x[1], reverse=True)
 
             # 返回指定数量
             if top_k is not None:
                 scored_docs = scored_docs[:top_k]
 
-            self.logger.debug(
-                f"Reranked {len(documents)} documents, returning {len(scored_docs)}"
-            )
+            self.logger.debug(f"Reranked {len(documents)} documents, returning {len(scored_docs)}")
             return scored_docs
 
         except Exception as e:
@@ -417,8 +395,8 @@ class VectorDatabase:
         query: str,
         retrieve_k: int = 20,
         rerank_k: int = 5,
-        where: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        where: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """搜索并重排序
 
         Args:
@@ -453,7 +431,7 @@ class VectorDatabase:
 
         return final_results
 
-    def get_collection_stats(self) -> Dict[str, Any]:
+    def get_collection_stats(self) -> dict[str, Any]:
         """获取集合统计信息
 
         Returns:
@@ -491,7 +469,7 @@ class VectorDatabase:
             return False
 
 
-def create_vector_db(config) -> Optional[VectorDatabase]:
+def create_vector_db(config) -> VectorDatabase | None:
     """创建向量数据库实例
 
     Args:

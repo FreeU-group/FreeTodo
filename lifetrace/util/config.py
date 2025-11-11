@@ -1,16 +1,18 @@
+import copy
+import logging
 import os
 import sys
-import yaml
-from pathlib import Path
-from typing import Optional, Callable
 import threading
 import time
-import logging
+from collections.abc import Callable
+from pathlib import Path
+
+import yaml
 
 # 尝试导入watchdog，如果不可用则优雅降级
 try:
-    from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
+    from watchdog.observers import Observer
 
     WATCHDOG_AVAILABLE = True
 except ImportError:
@@ -20,8 +22,12 @@ except ImportError:
 class LifeTraceConfig:
     """LifeTrace配置管理类"""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         self.config_path = config_path or self._get_default_config_path()
+
+        # 初始化配置文件（如果不存在则从默认配置复制）
+        self._init_config_file()
+
         self._config = self._load_config()
 
         # 配置热重载相关
@@ -60,13 +66,40 @@ class LifeTraceConfig:
         # 如果两者都不存在，返回config.yaml的路径
         return project_config
 
+    def _init_config_file(self):
+        """初始化配置文件
+        检查config.yaml是否存在，如果不存在则从default_config.yaml复制
+        """
+        # 如果config.yaml已存在，无需初始化
+        if os.path.exists(self.config_path):
+            logging.debug(f"配置文件已存在: {self.config_path}")
+            return
+
+        # 获取default_config.yaml路径
+        config_dir = os.path.dirname(self.config_path)
+        default_config_path = os.path.join(config_dir, "default_config.yaml")
+
+        # 检查default_config.yaml是否存在
+        if not os.path.exists(default_config_path):
+            logging.warning(f"默认配置文件不存在: {default_config_path}，将使用内置默认配置")
+            return
+
+        try:
+            # 复制default_config.yaml到config.yaml
+            import shutil
+
+            shutil.copy2(default_config_path, self.config_path)
+            logging.info(f"已从默认配置创建配置文件: {self.config_path}")
+        except Exception as e:
+            logging.error(f"初始化配置文件失败: {e}")
+
     def _load_config(self) -> dict:
         """加载配置文件
         直接加载配置文件，不进行配置合并
         """
         # 如果配置文件存在，直接加载
         if os.path.exists(self.config_path):
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f) or {}
                 return config
 
@@ -91,25 +124,43 @@ class LifeTraceConfig:
         """默认配置"""
         return {
             "base_dir": "lifetrace/data",
-            "database_path": "lifetrace/data/lifetrace.db",
-            "screenshots_dir": "screenshots",
+            "database_path": "lifetrace.db",
+            "screenshots_dir": "screenshots/",
+            "plans_dir": "plans/",
+            "plan_images_dir": "plan_images/",
             "server": {"host": "127.0.0.1", "port": 8000},
-            "record": {
-                "interval": 1,  # 截图间隔（秒）
-                "screens": "all",  # 截图屏幕：all 或屏幕编号列表
-                "auto_exclude_self": True,  # 自动排除LifeTrace自身窗口
-                "blacklist": {
-                    "enabled": False,  # 是否启用黑名单功能
-                    "apps": [],  # 应用黑名单
-                    "windows": [],  # 窗口标题黑名单
-                },
+            "logging": {
+                "level": "INFO",
+                "log_path": "logs/",
             },
-            "ocr": {
-                "enabled": True,
-                "use_gpu": False,
-                "language": ["ch", "en"],
-                "check_interval": 5,  # 数据库检查间隔（秒）
-                "confidence_threshold": 0.5,
+            "scheduler": {
+                "enabled": True,  # 启用调度器
+                "database_path": "scheduler.db",  # 调度器数据库路径
+                "max_workers": 10,  # 最大工作线程数
+                "coalesce": True,  # 合并错过的任务
+                "max_instances": 1,  # 同一任务同时只能有一个实例
+                "misfire_grace_time": 60,  # 错过触发时间的容忍度（秒）
+                "timezone": "Asia/Shanghai",  # 时区
+            },
+            "jobs": {
+                "recorder": {
+                    "enabled": True,
+                    "interval": 1,  # 截图间隔（秒）
+                    "screens": "all",  # 截图屏幕：all 或屏幕编号列表
+                    "auto_exclude_self": True,  # 自动排除LifeTrace自身窗口
+                    "blacklist": {
+                        "enabled": False,  # 是否启用黑名单功能
+                        "apps": [],  # 应用黑名单
+                        "windows": [],  # 窗口标题黑名单
+                    },
+                },
+                "ocr": {
+                    "enabled": True,
+                    "use_gpu": False,
+                    "language": ["ch", "en"],
+                    "interval": 5,  # 数据库检查间隔（秒）
+                    "confidence_threshold": 0.5,
+                },
             },
             "storage": {
                 "max_days": 30,  # 数据保留天数
@@ -160,13 +211,18 @@ class LifeTraceConfig:
             shutil.copy2(default_config_path, self.config_path)
 
             # 读取复制后的配置文件
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 config_data = yaml.safe_load(f)
 
-            # 修改路径设置
+            # 修改路径设置（路径应该相对于base_dir）
             config_data["base_dir"] = "lifetrace/data"
-            config_data["database_path"] = "lifetrace/data/lifetrace.db"
-            config_data["screenshots_dir"] = "screenshots"
+            config_data["database_path"] = "lifetrace.db"
+            config_data["screenshots_dir"] = "screenshots/"
+            if "logging" not in config_data:
+                config_data["logging"] = {}
+            config_data["logging"]["log_path"] = "logs/"
+            if "scheduler" in config_data:
+                config_data["scheduler"]["database_path"] = "scheduler.db"
 
             # 保存修改后的配置
             with open(self.config_path, "w", encoding="utf-8") as f:
@@ -178,10 +234,10 @@ class LifeTraceConfig:
 
         # 如果默认配置文件不存在，创建默认配置
         default_config = self._get_default_config()
-        # 确保base_dir、database_path和screenshots_dir使用相对路径
+        # 确保base_dir、database_path和screenshots_dir使用相对路径（相对于base_dir）
         default_config["base_dir"] = "lifetrace/data"
-        default_config["database_path"] = "lifetrace/data/lifetrace.db"
-        default_config["screenshots_dir"] = "screenshots"
+        default_config["database_path"] = "lifetrace.db"
+        default_config["screenshots_dir"] = "screenshots/"
 
         with open(self.config_path, "w", encoding="utf-8") as f:
             yaml.dump(default_config, f, allow_unicode=True, sort_keys=False)
@@ -219,10 +275,10 @@ class LifeTraceConfig:
     @property
     def database_path(self) -> str:
         """数据库路径"""
-        db_path = self.get("database_path", "lifetrace/data/lifetrace.db")
-        # 如果是相对路径，转换为绝对路径
+        db_path = self.get("database_path", "lifetrace.db")
+        # 如果是相对路径，基于base_dir拼接
         if not os.path.isabs(db_path):
-            db_path = os.path.join(self._get_application_path(), db_path)
+            db_path = os.path.join(self.base_dir, db_path)
         return db_path
 
     @property
@@ -233,6 +289,33 @@ class LifeTraceConfig:
             # 如果是相对路径，先转换为相对于项目根目录的路径
             screenshots_dir = os.path.join(self.base_dir, screenshots_dir)
         return screenshots_dir
+
+    @property
+    def log_path(self) -> str:
+        """日志目录路径"""
+        log_path = self.get("logging.log_path", "logs/")
+        if not os.path.isabs(log_path):
+            # 如果是相对路径，基于base_dir拼接
+            log_path = os.path.join(self.base_dir, log_path)
+        return log_path
+
+    @property
+    def plans_dir(self) -> str:
+        """计划文件目录路径"""
+        plans_dir = self.get("plans_dir", "plans/")
+        if not os.path.isabs(plans_dir):
+            # 如果是相对路径，基于base_dir拼接
+            plans_dir = os.path.join(self.base_dir, plans_dir)
+        return plans_dir
+
+    @property
+    def plan_images_dir(self) -> str:
+        """计划图片目录路径"""
+        plan_images_dir = self.get("plan_images_dir", "plan_images/")
+        if not os.path.isabs(plan_images_dir):
+            # 如果是相对路径，基于base_dir拼接
+            plan_images_dir = os.path.join(self.base_dir, plan_images_dir)
+        return plan_images_dir
 
     @property
     def vector_db_enabled(self) -> bool:
@@ -310,14 +393,12 @@ class LifeTraceConfig:
     @property
     def llm_api_key(self) -> str:
         """LLM 密钥"""
-        return self.get("llm.llm_key", "")
+        return self.get("llm.api_key", "")
 
     @property
     def llm_base_url(self) -> str:
         """LLM API基础URL"""
-        return self.get(
-            "llm.base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        )
+        return self.get("llm.base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
 
     @property
     def llm_model(self) -> str:
@@ -356,6 +437,31 @@ class LifeTraceConfig:
         """历史记录条数限制"""
         return self.get("chat.history_limit", 6)
 
+    # 调度器配置属性
+    @property
+    def scheduler_enabled(self) -> bool:
+        """是否启用调度器"""
+        return self.get("scheduler.enabled", True)
+
+    @property
+    def scheduler_database_path(self) -> str:
+        """调度器数据库路径"""
+        db_path = self.get("scheduler.database_path", "scheduler.db")
+        # 如果是相对路径，基于base_dir拼接
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(self.base_dir, db_path)
+        return db_path
+
+    @property
+    def scheduler_max_workers(self) -> int:
+        """调度器最大工作线程数"""
+        return self.get("scheduler.max_workers", 10)
+
+    @property
+    def scheduler_timezone(self) -> str:
+        """调度器时区"""
+        return self.get("scheduler.timezone", "Asia/Shanghai")
+
     def is_configured(self) -> bool:
         """检查LLM配置是否已完成
 
@@ -385,8 +491,6 @@ class LifeTraceConfig:
         try:
             with self._config_lock:
                 # 保存旧配置的深拷贝
-                import copy
-
                 old_config = copy.deepcopy(self._config)
 
                 # 重新加载配置

@@ -4,7 +4,6 @@ import os
 import platform
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple
 
 
 def get_file_hash(file_path: str) -> str:
@@ -24,7 +23,7 @@ def ensure_dir(path: str):
     os.makedirs(path, exist_ok=True)
 
 
-def get_active_window_info() -> Tuple[Optional[str], Optional[str]]:
+def get_active_window_info() -> tuple[str | None, str | None]:
     """获取当前活跃窗口信息"""
     try:
         system = platform.system()
@@ -42,7 +41,7 @@ def get_active_window_info() -> Tuple[Optional[str], Optional[str]]:
         return None, None
 
 
-def _get_windows_active_window() -> Tuple[Optional[str], Optional[str]]:
+def _get_windows_active_window() -> tuple[str | None, str | None]:
     """获取Windows活跃窗口信息"""
     try:
         import psutil
@@ -69,7 +68,7 @@ def _get_windows_active_window() -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
-def _get_macos_active_window() -> Tuple[Optional[str], Optional[str]]:
+def _get_macos_active_window() -> tuple[str | None, str | None]:
     """获取macOS活跃窗口信息"""
     try:
         from AppKit import NSWorkspace
@@ -85,9 +84,7 @@ def _get_macos_active_window() -> Tuple[Optional[str], Optional[str]]:
         app_name = active_app.get("NSApplicationName", None) if active_app else None
 
         # 获取窗口标题
-        window_list = CGWindowListCopyWindowInfo(
-            kCGWindowListOptionOnScreenOnly, kCGNullWindowID
-        )
+        window_list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID)
         if window_list:
             for window in window_list:
                 if window.get("kCGWindowOwnerName") == app_name:
@@ -104,7 +101,7 @@ def _get_macos_active_window() -> Tuple[Optional[str], Optional[str]]:
     return None, None
 
 
-def _get_linux_active_window() -> Tuple[Optional[str], Optional[str]]:
+def _get_linux_active_window() -> tuple[str | None, str | None]:
     """获取Linux活跃窗口信息"""
     try:
         import subprocess
@@ -160,9 +157,7 @@ def format_file_size(size_bytes: int) -> str:
     return f"{size_bytes:.1f} {size_names[i]}"
 
 
-def get_screenshot_filename(
-    screen_id: int = 0, timestamp: Optional[datetime] = None
-) -> str:
+def get_screenshot_filename(screen_id: int = 0, timestamp: datetime | None = None) -> str:
     """生成截图文件名"""
     if timestamp is None:
         timestamp = datetime.now()
@@ -174,7 +169,6 @@ def cleanup_old_files(directory: str, max_days: int):
     """清理旧文件"""
     if max_days <= 0:
         return
-
 
     cutoff_time = datetime.now() - timedelta(days=max_days)
 

@@ -4,7 +4,6 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.requests import Request
@@ -16,13 +15,13 @@ from lifetrace.schemas.screenshot import ScreenshotResponse
 router = APIRouter(prefix="/api/screenshots", tags=["screenshot"])
 
 
-@router.get("", response_model=List[ScreenshotResponse])
+@router.get("", response_model=list[ScreenshotResponse])
 async def get_screenshots(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    app_name: Optional[str] = Query(None),
+    start_date: str | None = Query(None),
+    end_date: str | None = Query(None),
+    app_name: str | None = Query(None),
 ):
     """获取截图列表"""
     try:
@@ -48,7 +47,7 @@ async def get_screenshots(
 
     except Exception as e:
         logging.error(f"获取截图列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{screenshot_id}")
@@ -65,9 +64,7 @@ async def get_screenshot(screenshot_id: int):
         with deps.db_manager.get_session() as session:
             from lifetrace.storage.models import OCRResult
 
-            ocr_result = (
-                session.query(OCRResult).filter_by(screenshot_id=screenshot_id).first()
-            )
+            ocr_result = session.query(OCRResult).filter_by(screenshot_id=screenshot_id).first()
 
             # 在session内提取数据
             if ocr_result:
@@ -120,7 +117,7 @@ async def get_screenshot_image(screenshot_id: int, request: Request):
 
     except Exception as e:
         deps.logger.error(f"获取截图图像时发生错误: {e}")
-        raise HTTPException(status_code=500, detail="服务器内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误") from e
 
 
 @router.get("/{screenshot_id}/path")

@@ -5,15 +5,15 @@
 
 from .database import DatabaseManager, db_manager
 from .models import (
-    Base,
-    Event,
-    Screenshot,
-    OCRResult,
-    SearchIndex,
-    ProcessingQueue,
-    UserBehaviorStats,
     AppUsageLog,
+    Base,
     DailyStats,
+    Event,
+    OCRResult,
+    ProcessingQueue,
+    Screenshot,
+    SearchIndex,
+    UserBehaviorStats,
 )
 
 __all__ = [

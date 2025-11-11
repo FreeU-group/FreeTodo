@@ -47,7 +47,7 @@ async def process_ocr(screenshot_id: int):
 
     except Exception as e:
         logging.error(f"OCR处理失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/statistics")

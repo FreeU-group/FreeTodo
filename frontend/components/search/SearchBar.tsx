@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { SearchType } from '@/lib/types';
 import Button from '../common/Button';
-import Input from '../common/Input';
+import { FormField } from '../common/Input';
 
 interface SearchBarProps {
   onSearch: (params: {
@@ -58,7 +58,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
       {/* 搜索表单 */}
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-5">
         <div className="md:col-span-2">
-          <Input
+          <FormField
             label="搜索关键词"
             placeholder="输入要搜索的内容..."
             value={query}
@@ -72,7 +72,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
         </div>
 
         <div>
-          <Input
+          <FormField
             label="开始日期"
             type="date"
             value={startDate}
@@ -81,7 +81,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
         </div>
 
         <div>
-          <Input
+          <FormField
             label="结束日期"
             type="date"
             value={endDate}
@@ -90,7 +90,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
         </div>
 
         <div>
-          <Input
+          <FormField
             label="应用名称"
             placeholder="过滤应用..."
             value={appName}

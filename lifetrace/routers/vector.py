@@ -1,7 +1,6 @@
 """向量数据库相关路由"""
 
 import logging
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -19,7 +18,7 @@ from lifetrace.schemas.vector import (
 router = APIRouter(prefix="/api", tags=["vector"])
 
 
-@router.post("/semantic-search", response_model=List[SemanticSearchResult])
+@router.post("/semantic-search", response_model=list[SemanticSearchResult])
 async def semantic_search(request: SemanticSearchRequest):
     """语义搜索 OCR 结果"""
     try:
@@ -50,10 +49,10 @@ async def semantic_search(request: SemanticSearchRequest):
 
     except Exception as e:
         logging.error(f"语义搜索失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/event-semantic-search", response_model=List[EventResponse])
+@router.post("/event-semantic-search", response_model=list[EventResponse])
 async def event_semantic_search(request: SemanticSearchRequest):
     """事件级语义搜索（基于事件聚合文本）"""
     try:
@@ -64,7 +63,7 @@ async def event_semantic_search(request: SemanticSearchRequest):
         )
 
         # semantic_search_events 现在直接返回格式化的事件数据
-        events_resp: List[EventResponse] = []
+        events_resp: list[EventResponse] = []
         for event_data in raw_results:
             # 检查是否已经是完整的事件数据格式
             if "id" in event_data and "app_name" in event_data:
@@ -85,10 +84,10 @@ async def event_semantic_search(request: SemanticSearchRequest):
         raise
     except Exception as e:
         logging.error(f"事件语义搜索失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@router.post("/multimodal-search", response_model=List[MultimodalSearchResult])
+@router.post("/multimodal-search", response_model=list[MultimodalSearchResult])
 async def multimodal_search(request: MultimodalSearchRequest):
     """多模态搜索 (图像+文本)"""
     try:
@@ -123,7 +122,7 @@ async def multimodal_search(request: MultimodalSearchRequest):
 
     except Exception as e:
         logging.error(f"多模态搜索失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/vector-stats", response_model=VectorStatsResponse)
@@ -135,7 +134,7 @@ async def get_vector_stats():
 
     except Exception as e:
         logging.error(f"获取向量数据库统计信息失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/multimodal-stats", response_model=MultimodalStatsResponse)
@@ -147,12 +146,12 @@ async def get_multimodal_stats():
 
     except Exception as e:
         logging.error(f"获取多模态统计信息失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/multimodal-sync")
 async def sync_multimodal_database(
-    limit: Optional[int] = Query(None, description="同步的最大记录数"),
+    limit: int | None = Query(None, description="同步的最大记录数"),
     force_reset: bool = Query(False, description="是否强制重置多模态向量数据库"),
 ):
     """同步 SQLite 数据库到多模态向量数据库"""
@@ -168,12 +167,12 @@ async def sync_multimodal_database(
 
     except Exception as e:
         logging.error(f"多模态同步失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/vector-sync")
 async def sync_vector_database(
-    limit: Optional[int] = Query(None, description="同步的最大记录数"),
+    limit: int | None = Query(None, description="同步的最大记录数"),
     force_reset: bool = Query(False, description="是否强制重置向量数据库"),
 ):
     """同步 SQLite 数据库到向量数据库"""
@@ -181,15 +180,13 @@ async def sync_vector_database(
         if not deps.vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
 
-        synced_count = deps.vector_service.sync_from_database(
-            limit=limit, force_reset=force_reset
-        )
+        synced_count = deps.vector_service.sync_from_database(limit=limit, force_reset=force_reset)
 
         return {"message": "同步完成", "synced_count": synced_count}
 
     except Exception as e:
         logging.error(f"向量数据库同步失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/vector-reset")
@@ -208,4 +205,4 @@ async def reset_vector_database():
 
     except Exception as e:
         logging.error(f"向量数据库重置失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

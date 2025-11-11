@@ -4,13 +4,15 @@
 使用LLM理解用户意图并提取查询参数。
 """
 
-import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from lifetrace.util.app_utils import app_mapper
+from lifetrace.util.logging_config import get_logger
+
+logger = get_logger()
 
 
 @dataclass
@@ -18,19 +20,19 @@ class QueryConditions:
     """查询条件数据类"""
 
     # 时间范围
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
 
     # 应用过滤
-    app_names: Optional[List[str]] = None
+    app_names: list[str] | None = None
 
     # 文本内容
-    keywords: Optional[List[str]] = None
+    keywords: list[str] | None = None
 
     # 其他条件
     limit: int = 1000
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典格式"""
         result = {}
 
@@ -52,7 +54,6 @@ class QueryParser:
     """查询解析器"""
 
     def __init__(self, llm_client=None):
-        self.logger = logging.getLogger(__name__)
         self.llm_client = llm_client
 
         # 应用名称映射（常见的应用别名）
@@ -95,7 +96,7 @@ class QueryParser:
         Returns:
             QueryConditions: 解析后的查询条件
         """
-        self.logger.info(f"解析查询: {query}")
+        logger.info(f"解析查询: {query}")
 
         # 如果有LLM客户端，使用LLM解析
         if self.llm_client:
@@ -103,37 +104,30 @@ class QueryParser:
                 parsed_data = self.llm_client.parse_query(query)
 
                 # 检查LLM解析结果是否有效（至少有一个有用的字段）
-                has_keywords = (
-                    parsed_data.get("keywords") and len(parsed_data["keywords"]) > 0
-                )
-                has_app_names = (
-                    parsed_data.get("app_names") and len(parsed_data["app_names"]) > 0
-                )
-                has_time_info = parsed_data.get("start_date") or parsed_data.get(
-                    "end_date"
-                )
+                has_keywords = parsed_data.get("keywords") and len(parsed_data["keywords"]) > 0
+                has_app_names = parsed_data.get("app_names") and len(parsed_data["app_names"]) > 0
+                has_time_info = parsed_data.get("start_date") or parsed_data.get("end_date")
 
                 if has_keywords or has_app_names or has_time_info:
-                    print("LLM解析结果有效，构建QueryConditions")
+                    logger.info("LLM解析结果有效，构建QueryConditions")
                     try:
                         result = self._build_query_conditions(parsed_data)
-                        print("\n=== 最终查询条件 (LLM解析) ===")
-                        print(f"查询条件: {result}")
+                        logger.info("=== 最终查询条件 (LLM解析) ===")
+                        logger.info(f"查询条件: {result}")
                         return result
                     except Exception as e:
-                        self.logger.warning(f"构建查询条件失败: {e}")
+                        logger.warning(f"构建查询条件失败: {e}")
                         pass
                 else:
-                    print("缺乏有效查询条件")
+                    logger.warning("缺乏有效查询条件")
                     # return "缺乏有效查询条件"
             except Exception as e:
-                self.logger.warning(f"LLM解析失败: {e}")
-                print(f"LLM解析失败: {e}")
+                logger.warning(f"LLM解析失败: {e}")
 
         # 回退到规则解析
         result = self._parse_with_rules(query)
-        print("\n=== 最终查询条件 (规则解析) ===")
-        print(f"查询条件: {result}")
+        logger.info("=== 最终查询条件 (规则解析) ===")
+        logger.info(f"查询条件: {result}")
         return result
 
     def _parse_with_rules(self, query: str) -> QueryConditions:
@@ -151,9 +145,7 @@ class QueryParser:
 
         return conditions
 
-    def _extract_time_range(
-        self, query: str
-    ) -> Tuple[Optional[datetime], Optional[datetime]]:
+    def _extract_time_range(self, query: str) -> tuple[datetime | None, datetime | None]:
         """提取时间范围"""
         now = datetime.now()
         start_date = None
@@ -167,12 +159,8 @@ class QueryParser:
                     end_date = now
                 elif keyword in ["昨天"]:
                     yesterday = now - timedelta(days=1)
-                    start_date = yesterday.replace(
-                        hour=0, minute=0, second=0, microsecond=0
-                    )
-                    end_date = yesterday.replace(
-                        hour=23, minute=59, second=59, microsecond=999999
-                    )
+                    start_date = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+                    end_date = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
                 elif keyword in ["本周"]:
                     # 本周一开始
                     days_since_monday = now.weekday()
@@ -192,18 +180,14 @@ class QueryParser:
             try:
                 date_str = dates[0].replace("/", "-")
                 parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
-                start_date = parsed_date.replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                )
-                end_date = parsed_date.replace(
-                    hour=23, minute=59, second=59, microsecond=999999
-                )
+                start_date = parsed_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_date = parsed_date.replace(hour=23, minute=59, second=59, microsecond=999999)
             except ValueError:
                 pass
 
         return start_date, end_date
 
-    def _extract_app_names(self, query: str) -> Optional[List[str]]:
+    def _extract_app_names(self, query: str) -> list[str] | None:
         """提取应用名称"""
         friendly_app_names = []
 
@@ -213,7 +197,7 @@ class QueryParser:
                 friendly_app_names.append(app_name)
 
         # 检查传统的应用别名映射
-        for app_alias, real_names in self.app_name_mapping.items():
+        for app_alias, _real_names in self.app_name_mapping.items():
             if app_alias in query and app_alias not in friendly_app_names:
                 friendly_app_names.append(app_alias)
 
@@ -245,7 +229,7 @@ class QueryParser:
 
         return None
 
-    def _extract_keywords(self, query: str) -> Optional[List[str]]:
+    def _extract_keywords(self, query: str) -> list[str] | None:
         """提取关键词 - 改进版本，区分功能描述词和搜索关键词"""
         keywords = []
 
@@ -339,7 +323,7 @@ class QueryParser:
 
 只返回JSON，不要其他解释。"""
 
-    def _build_query_conditions(self, parsed_data: Dict[str, Any]) -> QueryConditions:
+    def _build_query_conditions(self, parsed_data: dict[str, Any]) -> QueryConditions:
         """从解析数据构建查询条件"""
         conditions = QueryConditions()
 
@@ -354,16 +338,12 @@ class QueryParser:
             # 处理直接的start_date和end_date字段
             if parsed_data.get("start_date"):
                 try:
-                    conditions.start_date = datetime.fromisoformat(
-                        parsed_data["start_date"]
-                    )
+                    conditions.start_date = datetime.fromisoformat(parsed_data["start_date"])
                 except (ValueError, TypeError):
                     pass
             if parsed_data.get("end_date"):
                 try:
-                    conditions.end_date = datetime.fromisoformat(
-                        parsed_data["end_date"]
-                    )
+                    conditions.end_date = datetime.fromisoformat(parsed_data["end_date"])
                 except (ValueError, TypeError):
                     pass
 
@@ -378,9 +358,7 @@ class QueryParser:
                 else:
                     # 如果映射中没有找到，保留原名称
                     actual_process_names.append(app_name)
-            conditions.app_names = (
-                actual_process_names if actual_process_names else None
-            )
+            conditions.app_names = actual_process_names if actual_process_names else None
 
         # 处理关键词
         if parsed_data.get("keywords"):

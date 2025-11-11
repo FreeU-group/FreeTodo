@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -25,6 +25,7 @@ class Event(Base):
     created_at = Column(DateTime, default=get_local_time)
     ai_title = Column(String(50))  # LLM生成的事件标题（≤10字）
     ai_summary = Column(Text)  # LLM生成的事件摘要（≤30字，支持markdown）
+    task_id = Column(Integer, ForeignKey("tasks.id"))  # 关联的任务ID（可为空）
 
     def __repr__(self):
         return f"<Event(id={self.id}, app={self.app_name})>"
@@ -94,9 +95,7 @@ class ProcessingQueue(Base):
     id = Column(Integer, primary_key=True)
     screenshot_id = Column(Integer, nullable=False)
     task_type = Column(String(50), nullable=False)  # 任务类型：ocr
-    status = Column(
-        String(20), default="pending"
-    )  # pending, processing, completed, failed
+    status = Column(String(20), default="pending")  # pending, processing, completed, failed
     retry_count = Column(Integer, default=0)
     error_message = Column(Text)
     created_at = Column(DateTime, default=get_local_time)
@@ -112,9 +111,7 @@ class UserBehaviorStats(Base):
     __tablename__ = "user_behavior_stats"
 
     id = Column(Integer, primary_key=True)
-    action_type = Column(
-        String(50), nullable=False
-    )  # search, chat, view_screenshot, etc.
+    action_type = Column(String(50), nullable=False)  # search, chat, view_screenshot, etc.
     action_details = Column(Text)  # JSON格式的详细信息
     session_id = Column(String(100))  # 会话ID
     user_agent = Column(String(500))  # 用户代理
@@ -136,9 +133,7 @@ class AppUsageLog(Base):
     app_name = Column(String(200), nullable=False)  # 应用名称
     window_title = Column(String(500))  # 窗口标题
     timestamp = Column(DateTime, default=get_local_time, nullable=False)  # 记录时间戳
-    duration_seconds = Column(
-        Integer, default=0
-    )  # 持续时间（秒），用于记录从上次记录到现在的时长
+    duration_seconds = Column(Integer, default=0)  # 持续时间（秒），用于记录从上次记录到现在的时长
     is_active = Column(Boolean, default=True)  # 是否为活跃状态
     screen_id = Column(Integer, default=0)  # 屏幕ID
     created_at = Column(DateTime, default=get_local_time)
@@ -167,3 +162,38 @@ class DailyStats(Base):
 
     def __repr__(self):
         return f"<DailyStats(date={self.date}, searches={self.total_searches})>"
+
+
+class Project(Base):
+    """项目管理模型"""
+
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)  # 项目名称
+    goal = Column(Text)  # 项目目标
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<Project(id={self.id}, name={self.name})>"
+
+
+class Task(Base):
+    """任务管理模型"""
+
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True)  # task_id
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)  # 外键关联到项目
+    name = Column(String(200), nullable=False)  # 任务名称
+    description = Column(Text)  # 任务描述
+    status = Column(
+        String(20), default="pending", nullable=False
+    )  # 任务状态：pending, in_progress, completed, cancelled
+    parent_task_id = Column(Integer, ForeignKey("tasks.id"))  # 父任务ID（自关联，用于子任务）
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<Task(id={self.id}, name={self.name}, project_id={self.project_id})>"

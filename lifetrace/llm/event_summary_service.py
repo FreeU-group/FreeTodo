@@ -6,11 +6,11 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from lifetrace.llm.llm_client import LLMClient
-from lifetrace.storage.models import Event, OCRResult, Screenshot
 from lifetrace.storage import db_manager
+from lifetrace.storage.models import Event, OCRResult, Screenshot
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class EventSummaryService:
             logger.error(f"生成事件 {event_id} 摘要时出错: {e}", exc_info=True)
             return False
 
-    def _get_event_info(self, event_id: int) -> Optional[Dict[str, Any]]:
+    def _get_event_info(self, event_id: int) -> dict[str, Any] | None:
         """获取事件信息"""
         try:
             with self.db_manager.get_session() as session:
@@ -101,7 +101,7 @@ class EventSummaryService:
             logger.error(f"获取事件信息失败: {e}")
             return None
 
-    def _get_event_ocr_texts(self, event_id: int) -> List[str]:
+    def _get_event_ocr_texts(self, event_id: int) -> list[str]:
         """获取事件下所有截图的OCR文本"""
         ocr_texts = []
 
@@ -109,9 +109,7 @@ class EventSummaryService:
             with self.db_manager.get_session() as session:
                 # 查询事件下的所有截图
                 screenshots = (
-                    session.query(Screenshot)
-                    .filter(Screenshot.event_id == event_id)
-                    .all()
+                    session.query(Screenshot).filter(Screenshot.event_id == event_id).all()
                 )
 
                 # 获取每个截图的OCR结果
@@ -134,12 +132,12 @@ class EventSummaryService:
 
     def _generate_summary_with_llm(
         self,
-        ocr_texts: List[str],
+        ocr_texts: list[str],
         app_name: str,
         window_title: str,
         start_time: datetime,
-        end_time: Optional[datetime],
-    ) -> Optional[Dict[str, str]]:
+        end_time: datetime | None,
+    ) -> dict[str, str] | None:
         """
         使用LLM生成标题和摘要
 
@@ -158,9 +156,7 @@ class EventSummaryService:
                 combined_text = combined_text[:3000] + "..."
 
             # 格式化时间
-            start_str = (
-                start_time.strftime("%Y-%m-%d %H:%M:%S") if start_time else "未知"
-            )
+            start_str = start_time.strftime("%Y-%m-%d %H:%M:%S") if start_time else "未知"
             end_str = end_time.strftime("%Y-%m-%d %H:%M:%S") if end_time else "进行中"
 
             # 构建prompt
@@ -234,8 +230,8 @@ OCR文本内容：
             return self._generate_fallback_summary(app_name, window_title)
 
     def _generate_fallback_summary(
-        self, app_name: Optional[str], window_title: Optional[str]
-    ) -> Dict[str, str]:
+        self, app_name: str | None, window_title: str | None
+    ) -> dict[str, str]:
         """
         无OCR数据时的后备方案
         基于应用名和窗口标题生成简单描述

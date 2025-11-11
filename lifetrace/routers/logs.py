@@ -15,7 +15,7 @@ async def get_log_files():
     """获取日志文件列表"""
     try:
         # 使用配置中的日志目录
-        logs_dir = Path(deps.config.base_dir) / "logs"
+        logs_dir = Path(deps.config.log_path)
         if not logs_dir.exists():
             return []
 
@@ -42,7 +42,7 @@ async def get_log_files():
         return sorted(log_files, key=lambda x: x["name"])
     except Exception as e:
         deps.logger.error(f"获取日志文件列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/content", response_class=PlainTextResponse)
@@ -50,7 +50,7 @@ async def get_log_content(file: str = Query(..., description="日志文件相对
     """获取日志文件内容"""
     try:
         # 使用配置中的日志目录
-        logs_dir = Path(deps.config.base_dir) / "logs"
+        logs_dir = Path(deps.config.log_path)
 
         log_file = logs_dir / file
 
@@ -62,7 +62,7 @@ async def get_log_content(file: str = Query(..., description="日志文件相对
             raise HTTPException(status_code=404, detail="日志文件不存在")
 
         # 读取文件内容（最后1000行）
-        with open(log_file, "r", encoding="utf-8") as f:
+        with open(log_file, encoding="utf-8") as f:
             lines = f.readlines()
             # 只返回最后1000行，避免内存问题
             if len(lines) > 1000:
@@ -72,4 +72,4 @@ async def get_log_content(file: str = Query(..., description="日志文件相对
         raise
     except Exception as e:
         deps.logger.error(f"读取日志文件失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

@@ -1,7 +1,6 @@
 """聊天相关路由"""
 
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.requests import Request
@@ -67,9 +66,7 @@ async def chat_with_llm(message: ChatMessage, request: Request):
             return response
         else:
             # 如果RAG处理失败，返回错误信息
-            error_msg = rag_result.get(
-                "response", "处理您的查询时出现了错误，请稍后重试。"
-            )
+            error_msg = rag_result.get("response", "处理您的查询时出现了错误，请稍后重试。")
 
             # 记录失败的用户行为（如果behavior_tracker可用）
             if deps.behavior_tracker is not None:
@@ -132,16 +129,12 @@ async def chat_with_llm_stream(message: ChatMessage):
 
         if not rag_result.get("success", False):
             # 如果RAG处理失败，返回错误信息
-            error_msg = rag_result.get(
-                "response", "处理您的查询时出现了错误，请稍后重试。"
-            )
+            error_msg = rag_result.get("response", "处理您的查询时出现了错误，请稍后重试。")
 
             async def error_generator():
                 yield error_msg
 
-            return StreamingResponse(
-                error_generator(), media_type="text/plain; charset=utf-8"
-            )
+            return StreamingResponse(error_generator(), media_type="text/plain; charset=utf-8")
 
         # 获取构建好的messages和temperature
         messages = rag_result.get("messages", [])
@@ -172,11 +165,7 @@ async def chat_with_llm_stream(message: ChatMessage):
                         usage_info = chunk.usage
 
                     # 检查choices是否存在且不为空
-                    if (
-                        chunk.choices
-                        and len(chunk.choices) > 0
-                        and chunk.choices[0].delta.content
-                    ):
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
                         total_content += content
                         yield content
@@ -216,7 +205,7 @@ async def chat_with_llm_stream(message: ChatMessage):
 
     except Exception as e:
         deps.logger.error(f"[stream] 聊天处理失败: {e}")
-        raise HTTPException(status_code=500, detail="流式聊天处理失败")
+        raise HTTPException(status_code=500, detail="流式聊天处理失败") from e
 
 
 @router.post("/stream-with-context")
@@ -255,16 +244,12 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
 
         if not rag_result.get("success", False):
             # 如果RAG处理失败，返回错误信息
-            error_msg = rag_result.get(
-                "response", "处理您的查询时出现了错误，请稍后重试。"
-            )
+            error_msg = rag_result.get("response", "处理您的查询时出现了错误，请稍后重试。")
 
             async def error_generator():
                 yield error_msg
 
-            return StreamingResponse(
-                error_generator(), media_type="text/plain; charset=utf-8"
-            )
+            return StreamingResponse(error_generator(), media_type="text/plain; charset=utf-8")
 
         # 获取构建好的messages和temperature
         messages = rag_result.get("messages", [])
@@ -295,11 +280,7 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
                         usage_info = chunk.usage
 
                     # 检查choices是否存在且不为空
-                    if (
-                        chunk.choices
-                        and len(chunk.choices) > 0
-                        and chunk.choices[0].delta.content
-                    ):
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
                         total_content += content
                         yield content
@@ -320,18 +301,14 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
                                 "total_tokens": usage_info.total_tokens,
                                 "temperature": temperature,
                                 "response_length": len(total_content),
-                                "context_events_count": len(
-                                    message.event_context or []
-                                ),
+                                "context_events_count": len(message.event_context or []),
                             },
                         )
                         deps.logger.info(
                             f"[stream-with-context] Token使用量已记录: input={usage_info.prompt_tokens}, output={usage_info.completion_tokens}"
                         )
                     except Exception as log_error:
-                        deps.logger.error(
-                            f"[stream-with-context] 记录token使用量失败: {log_error}"
-                        )
+                        deps.logger.error(f"[stream-with-context] 记录token使用量失败: {log_error}")
 
             except Exception as e:
                 deps.logger.error(f"[stream-with-context] 生成失败: {e}")
@@ -344,7 +321,7 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
 
     except Exception as e:
         deps.logger.error(f"[stream-with-context] 聊天处理失败: {e}")
-        raise HTTPException(status_code=500, detail="带上下文的流式聊天处理失败")
+        raise HTTPException(status_code=500, detail="带上下文的流式聊天处理失败") from e
 
 
 @router.post("/new", response_model=NewChatResponse)
@@ -365,12 +342,10 @@ async def create_new_chat(request: NewChatRequest = None):
             message = "创建新对话会话"
 
         deps.logger.info(f"新对话会话: {session_id}")
-        return NewChatResponse(
-            session_id=session_id, message=message, timestamp=datetime.now()
-        )
+        return NewChatResponse(session_id=session_id, message=message, timestamp=datetime.now())
     except Exception as e:
         deps.logger.error(f"创建新对话失败: {e}")
-        raise HTTPException(status_code=500, detail="创建新对话失败")
+        raise HTTPException(status_code=500, detail="创建新对话失败") from e
 
 
 @router.delete("/session/{session_id}")
@@ -390,11 +365,11 @@ async def clear_chat_session(session_id: str):
         raise
     except Exception as e:
         deps.logger.error(f"清除会话上下文失败: {e}")
-        raise HTTPException(status_code=500, detail="清除会话上下文失败")
+        raise HTTPException(status_code=500, detail="清除会话上下文失败") from e
 
 
 @router.get("/history")
-async def get_chat_history(session_id: Optional[str] = Query(None)):
+async def get_chat_history(session_id: str | None = Query(None)):
     """获取聊天历史记录"""
     try:
         if session_id:
@@ -420,7 +395,7 @@ async def get_chat_history(session_id: Optional[str] = Query(None)):
             return {"sessions": sessions_info, "message": "所有会话摘要"}
     except Exception as e:
         deps.logger.error(f"获取聊天历史失败: {e}")
-        raise HTTPException(status_code=500, detail="获取聊天历史失败")
+        raise HTTPException(status_code=500, detail="获取聊天历史失败") from e
 
 
 @router.get("/suggestions")
@@ -433,7 +408,7 @@ async def get_query_suggestions(
         return {"suggestions": suggestions, "partial_query": partial_query}
     except Exception as e:
         deps.logger.error(f"获取查询建议失败: {e}")
-        raise HTTPException(status_code=500, detail="获取查询建议失败")
+        raise HTTPException(status_code=500, detail="获取查询建议失败") from e
 
 
 @router.get("/query-types")
@@ -443,4 +418,4 @@ async def get_supported_query_types():
         return deps.rag_service.get_supported_query_types()
     except Exception as e:
         deps.logger.error(f"获取查询类型失败: {e}")
-        raise HTTPException(status_code=500, detail="获取查询类型失败")
+        raise HTTPException(status_code=500, detail="获取查询类型失败") from e

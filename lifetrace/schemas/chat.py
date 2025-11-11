@@ -1,7 +1,7 @@
 """聊天相关的 Pydantic 模型"""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -12,21 +12,21 @@ class ChatMessage(BaseModel):
 
 class ChatMessageWithContext(BaseModel):
     message: str
-    conversation_id: Optional[str] = None
-    event_context: Optional[List[Dict[str, Any]]] = None  # 新增事件上下文
+    conversation_id: str | None = None
+    event_context: list[dict[str, Any]] | None = None  # 新增事件上下文
 
 
 class ChatResponse(BaseModel):
     response: str
     timestamp: datetime
-    query_info: Optional[Dict[str, Any]] = None
-    retrieval_info: Optional[Dict[str, Any]] = None
-    performance: Optional[Dict[str, Any]] = None
-    session_id: Optional[str] = None
+    query_info: dict[str, Any] | None = None
+    retrieval_info: dict[str, Any] | None = None
+    performance: dict[str, Any] | None = None
+    session_id: str | None = None
 
 
 class NewChatRequest(BaseModel):
-    session_id: Optional[str] = None
+    session_id: str | None = None
 
 
 class NewChatResponse(BaseModel):

@@ -1,7 +1,7 @@
 """系统资源相关的 Pydantic 模型"""
 
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -16,10 +16,10 @@ class ProcessInfo(BaseModel):
 
 
 class SystemResourcesResponse(BaseModel):
-    memory: Dict[str, float]
-    cpu: Dict[str, Any]
-    disk: Dict[str, Dict[str, float]]
-    lifetrace_processes: List[ProcessInfo]
-    storage: Dict[str, Any]
-    summary: Dict[str, Any]
+    memory: dict[str, float]
+    cpu: dict[str, Any]
+    disk: dict[str, dict[str, float]]
+    lifetrace_processes: list[ProcessInfo]
+    storage: dict[str, Any]
+    summary: dict[str, Any]
     timestamp: datetime

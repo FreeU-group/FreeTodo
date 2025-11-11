@@ -1,7 +1,6 @@
 """用户行为统计相关路由"""
 
 from datetime import datetime, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -18,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["behavior"])
 @router.get("/behavior-stats", response_model=BehaviorStatsResponse)
 async def get_behavior_stats(
     days: int = Query(7, description="获取最近多少天的数据"),
-    action_type: Optional[str] = Query(None, description="行为类型过滤"),
+    action_type: str | None = Query(None, description="行为类型过滤"),
     limit: int = Query(100, description="返回记录数限制"),
 ):
     """获取用户行为统计数据"""
@@ -34,9 +33,7 @@ async def get_behavior_stats(
         daily_stats = deps.behavior_tracker.get_daily_stats(days=days)
 
         # 获取行为类型分布
-        action_distribution = deps.behavior_tracker.get_action_type_distribution(
-            days=days
-        )
+        action_distribution = deps.behavior_tracker.get_action_type_distribution(days=days)
 
         # 获取小时活动分布
         hourly_activity = deps.behavior_tracker.get_hourly_activity(days=days)
@@ -50,7 +47,7 @@ async def get_behavior_stats(
         )
     except Exception as e:
         deps.logger.error(f"获取行为统计失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取行为统计失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取行为统计失败: {str(e)}") from e
 
 
 @router.get("/dashboard-stats", response_model=DashboardStatsResponse)
@@ -59,9 +56,7 @@ async def get_dashboard_stats():
     try:
         # 今日活动统计
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        today_records = deps.behavior_tracker.get_behavior_stats(
-            start_date=today, limit=1000
-        )
+        today_records = deps.behavior_tracker.get_behavior_stats(start_date=today, limit=1000)
 
         today_activity = {}
         for record in today_records:
@@ -80,19 +75,9 @@ async def get_dashboard_stats():
                 {
                     "date": day_start.strftime("%Y-%m-%d"),
                     "total_actions": len(day_records),
-                    "searches": len(
-                        [r for r in day_records if r["action_type"] == "search"]
-                    ),
-                    "chats": len(
-                        [r for r in day_records if r["action_type"] == "chat"]
-                    ),
-                    "views": len(
-                        [
-                            r
-                            for r in day_records
-                            if r["action_type"] == "view_screenshot"
-                        ]
-                    ),
+                    "searches": len([r for r in day_records if r["action_type"] == "search"]),
+                    "chats": len([r for r in day_records if r["action_type"] == "chat"]),
+                    "views": len([r for r in day_records if r["action_type"] == "view_screenshot"]),
                 }
             )
 
@@ -108,18 +93,14 @@ async def get_dashboard_stats():
         # 性能指标
         performance_metrics = {
             "avg_response_time": sum(
-                [
-                    r.get("response_time", 0)
-                    for r in today_records
-                    if r.get("response_time")
-                ]
+                [r.get("response_time", 0) for r in today_records if r.get("response_time")]
             )
             / max(len([r for r in today_records if r.get("response_time")]), 1),
             "success_rate": len([r for r in today_records if r.get("success", True)])
             / max(len(today_records), 1)
             * 100,
             "total_sessions": len(
-                set([r.get("session_id") for r in today_records if r.get("session_id")])
+                {r.get("session_id") for r in today_records if r.get("session_id")}
             ),
         }
 
@@ -131,7 +112,7 @@ async def get_dashboard_stats():
         )
     except Exception as e:
         deps.logger.error(f"获取仪表板统计失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取仪表板统计失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取仪表板统计失败: {str(e)}") from e
 
 
 @router.get("/app-usage-stats", response_model=AppUsageStatsResponse)
@@ -145,7 +126,7 @@ async def get_app_usage_stats(
 
         # 转换数据格式以匹配前端期望
         app_usage_list = []
-        for app_name, app_data in stats_data["app_usage_summary"].items():
+        for _app_name, app_data in stats_data["app_usage_summary"].items():
             formatted_data = {
                 "app_name": app_data["app_name"],
                 "total_time": app_data["total_time"],
@@ -203,4 +184,4 @@ async def get_app_usage_stats(
 
     except Exception as e:
         deps.logger.error(f"获取应用使用统计失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取应用使用统计失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取应用使用统计失败: {str(e)}") from e

@@ -29,7 +29,7 @@ async def cleanup_old_data(days: int = Query(30, ge=1)):
         return {"success": True, "message": f"清理了 {days} 天前的数据"}
     except Exception as e:
         logging.error(f"清理数据失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/queue/status")
@@ -39,33 +39,22 @@ async def get_queue_status():
         with deps.db_manager.get_session() as session:
             from lifetrace.storage.models import ProcessingQueue
 
-            pending_count = (
-                session.query(ProcessingQueue).filter_by(status="pending").count()
-            )
-            processing_count = (
-                session.query(ProcessingQueue).filter_by(status="processing").count()
-            )
-            completed_count = (
-                session.query(ProcessingQueue).filter_by(status="completed").count()
-            )
-            failed_count = (
-                session.query(ProcessingQueue).filter_by(status="failed").count()
-            )
+            pending_count = session.query(ProcessingQueue).filter_by(status="pending").count()
+            processing_count = session.query(ProcessingQueue).filter_by(status="processing").count()
+            completed_count = session.query(ProcessingQueue).filter_by(status="completed").count()
+            failed_count = session.query(ProcessingQueue).filter_by(status="failed").count()
 
             return {
                 "pending": pending_count,
                 "processing": processing_count,
                 "completed": completed_count,
                 "failed": failed_count,
-                "total": pending_count
-                + processing_count
-                + completed_count
-                + failed_count,
+                "total": pending_count + processing_count + completed_count + failed_count,
             }
 
     except Exception as e:
         logging.error(f"获取队列状态失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/system-resources", response_model=SystemResourcesResponse)
@@ -88,9 +77,9 @@ async def get_system_resources():
                         "lifetrace.recorder",
                         "lifetrace.processor",
                         "lifetrace.ocr",
-                        "lifetrace.tool.recorder",
-                        "lifetrace.tool.processor",
-                        "lifetrace.tool.ocr",
+                        "lifetrace.jobs.recorder",
+                        "lifetrace.jobs.processor",
+                        "lifetrace.jobs.ocr",
                         "recorder.py",
                         "processor.py",
                         "ocr.py",
@@ -183,4 +172,4 @@ async def get_system_resources():
 
     except Exception as e:
         logging.error(f"获取系统资源信息失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

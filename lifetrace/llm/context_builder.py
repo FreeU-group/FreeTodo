@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,9 @@ class ContextBuilder:
     def build_context(
         self,
         query: str,
-        retrieved_data: List[Dict[str, Any]],
+        retrieved_data: list[dict[str, Any]],
         query_type: str = "search",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         构建完整的上下文
 
@@ -50,9 +50,7 @@ class ContextBuilder:
         logger.info(f"上下文构建完成，包含 {len(retrieved_data)} 条记录")
         return context
 
-    def build_summary_context(
-        self, query: str, retrieved_data: List[Dict[str, Any]]
-    ) -> str:
+    def build_summary_context(self, query: str, retrieved_data: list[dict[str, Any]]) -> str:
         """
         构建用于总结的上下文文本
 
@@ -100,9 +98,7 @@ class ContextBuilder:
 
                 ocr_text = record.get("ocr_text", "无文本内容")
                 window_title = record.get("window_title", "")
-                screenshot_id = record.get("screenshot_id") or record.get(
-                    "id"
-                )  # 获取截图ID
+                screenshot_id = record.get("screenshot_id") or record.get("id")  # 获取截图ID
 
                 # 截断过长的文本
                 if len(ocr_text) > 200:
@@ -126,15 +122,11 @@ class ContextBuilder:
 
         # 检查长度并截断
         if len(context_text) > self.max_context_length:
-            context_text = (
-                context_text[: self.max_context_length] + "\n\n[内容过长，已截断]"
-            )
+            context_text = context_text[: self.max_context_length] + "\n\n[内容过长，已截断]"
 
         return context_text
 
-    def build_search_context(
-        self, query: str, retrieved_data: List[Dict[str, Any]]
-    ) -> str:
+    def build_search_context(self, query: str, retrieved_data: list[dict[str, Any]]) -> str:
         """
         构建用于搜索的上下文文本
 
@@ -182,9 +174,7 @@ class ContextBuilder:
             app_name = record.get("app_name", "未知应用")
             ocr_text = record.get("ocr_text", "无文本内容")
             relevance = record.get("relevance_score", 0)
-            screenshot_id = record.get("screenshot_id") or record.get(
-                "id"
-            )  # 获取截图ID
+            screenshot_id = record.get("screenshot_id") or record.get("id")  # 获取截图ID
 
             # 截断过长的文本
             if len(ocr_text) > 150:
@@ -200,14 +190,12 @@ class ContextBuilder:
 
         # 检查长度并截断
         if len(context_text) > self.max_context_length:
-            context_text = (
-                context_text[: self.max_context_length] + "\n\n[搜索结果过长，已截断]"
-            )
+            context_text = context_text[: self.max_context_length] + "\n\n[搜索结果过长，已截断]"
 
         return context_text
 
     def build_statistics_context(
-        self, query: str, retrieved_data: List[Dict[str, Any]], stats: Dict[str, Any]
+        self, query: str, retrieved_data: list[dict[str, Any]], stats: dict[str, Any]
     ) -> str:
         """
         构建用于统计的上下文文本
@@ -244,9 +232,7 @@ class ContextBuilder:
         app_distribution = stats.get("app_distribution", {})
         if app_distribution:
             context_parts.append("\n应用分布:")
-            sorted_apps = sorted(
-                app_distribution.items(), key=lambda x: x[1], reverse=True
-            )
+            sorted_apps = sorted(app_distribution.items(), key=lambda x: x[1], reverse=True)
             for app, count in sorted_apps[:10]:  # 最多显示10个应用
                 percentage = (count / total_count * 100) if total_count > 0 else 0
                 context_parts.append(f"  {app}: {count} 条 ({percentage:.1f}%)")
@@ -255,12 +241,8 @@ class ContextBuilder:
         time_range = stats.get("time_range", {})
         if time_range.get("earliest") and time_range.get("latest"):
             try:
-                earliest = datetime.fromisoformat(
-                    time_range["earliest"].replace("Z", "+00:00")
-                )
-                latest = datetime.fromisoformat(
-                    time_range["latest"].replace("Z", "+00:00")
-                )
+                earliest = datetime.fromisoformat(time_range["earliest"].replace("Z", "+00:00"))
+                latest = datetime.fromisoformat(time_range["latest"].replace("Z", "+00:00"))
                 context_parts.append(
                     f"\n时间范围: {earliest.strftime('%Y-%m-%d %H:%M')} 至 {latest.strftime('%Y-%m-%d %H:%M')}"
                 )
@@ -289,9 +271,7 @@ class ContextBuilder:
                     else:
                         context_parts.append(f"  应用: {app_names}")
                 if query_conditions.keywords:
-                    context_parts.append(
-                        f"  关键词: {', '.join(query_conditions.keywords)}"
-                    )
+                    context_parts.append(f"  关键词: {', '.join(query_conditions.keywords)}")
                 if query_conditions.start_date:
                     context_parts.append(f"  开始时间: {query_conditions.start_date}")
                 if query_conditions.end_date:
@@ -313,23 +293,15 @@ class ContextBuilder:
                     else:
                         context_parts.append(f"  应用: {app_names}")
                 if query_conditions.get("keywords"):
-                    context_parts.append(
-                        f"  关键词: {', '.join(query_conditions.get('keywords'))}"
-                    )
+                    context_parts.append(f"  关键词: {', '.join(query_conditions.get('keywords'))}")
                 if query_conditions.get("start_date"):
-                    context_parts.append(
-                        f"  开始时间: {query_conditions.get('start_date')}"
-                    )
+                    context_parts.append(f"  开始时间: {query_conditions.get('start_date')}")
                 if query_conditions.get("end_date"):
-                    context_parts.append(
-                        f"  结束时间: {query_conditions.get('end_date')}"
-                    )
+                    context_parts.append(f"  结束时间: {query_conditions.get('end_date')}")
 
         return "\n".join(context_parts)
 
-    def _build_data_summary(
-        self, retrieved_data: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _build_data_summary(self, retrieved_data: list[dict[str, Any]]) -> dict[str, Any]:
         """构建数据摘要"""
         if not retrieved_data:
             return {"total_count": 0, "app_distribution": {}, "time_span": None}
@@ -358,9 +330,7 @@ class ContextBuilder:
             "time_span": time_span,
         }
 
-    def _build_detailed_records(
-        self, retrieved_data: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _build_detailed_records(self, retrieved_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """构建详细记录"""
         detailed_records = []
 
@@ -371,14 +341,13 @@ class ContextBuilder:
                 "window_title": record.get("window_title"),
                 "ocr_text": record.get("ocr_text", "")[:500],  # 截断OCR文本
                 "relevance_score": record.get("relevance_score", 0),
-                "screenshot_id": record.get("screenshot_id")
-                or record.get("id"),  # 添加截图ID
+                "screenshot_id": record.get("screenshot_id") or record.get("id"),  # 添加截图ID
             }
             detailed_records.append(detailed_record)
 
         return detailed_records
 
-    def _build_metadata(self, retrieved_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _build_metadata(self, retrieved_data: list[dict[str, Any]]) -> dict[str, Any]:
         """构建元数据"""
         return {
             "total_retrieved": len(retrieved_data),
@@ -387,8 +356,8 @@ class ContextBuilder:
         }
 
     def _group_by_app(
-        self, retrieved_data: List[Dict[str, Any]]
-    ) -> Dict[str, List[Dict[str, Any]]]:
+        self, retrieved_data: list[dict[str, Any]]
+    ) -> dict[str, list[dict[str, Any]]]:
         """按应用分组"""
         app_groups = {}
 
@@ -401,7 +370,7 @@ class ContextBuilder:
         # 按记录数量排序
         return dict(sorted(app_groups.items(), key=lambda x: len(x[1]), reverse=True))
 
-    def _truncate_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    def _truncate_context(self, context: dict[str, Any]) -> dict[str, Any]:
         """截断过长的上下文"""
         context_str = json.dumps(context, ensure_ascii=False)
 
@@ -422,7 +391,5 @@ class ContextBuilder:
             if "ocr_text" in record and len(record["ocr_text"]) > 100:
                 record["ocr_text"] = record["ocr_text"][:100] + "..."
 
-        logger.warning(
-            f"上下文过长，已截断至 {len(json.dumps(context, ensure_ascii=False))} 字符"
-        )
+        logger.warning(f"上下文过长，已截断至 {len(json.dumps(context, ensure_ascii=False))} 字符")
         return context

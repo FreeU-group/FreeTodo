@@ -1,68 +1,55 @@
 import json
-import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from openai import OpenAI
 
+from lifetrace.util.config import config
+from lifetrace.util.logging_config import get_logger
 from lifetrace.util.token_usage_logger import log_token_usage, setup_token_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class LLMClient:
     """LLM客户端，用于与OpenAI兼容的API进行交互"""
 
-    def __init__(self, api_key: str = None, base_url: str = None, model: str = None):
+    def __init__(self):
         """
-        初始化LLM客户端
-
-        Args:
-            api_key: API密钥，如果未提供则从配置文件读取
-            base_url: API基础URL，如果未提供则从配置文件读取
-            model: 使用的模型名称，如果未提供则从配置文件读取
+        初始化LLM客户端，从配置文件读取所有配置
         """
-        # 如果未传入参数，从配置文件读取
-        if api_key is None or base_url is None or model is None:
-            try:
-                from lifetrace.util.config import config
+        self._initialize_client()
+        # 初始化token使用量记录器
+        setup_token_logger()
 
-                self.api_key = (
-                    api_key
-                    or config.llm_api_key
-                    or "sk-ef4b56e3bc9c4693b596415dd364af56"
-                )
-                self.base_url = (
-                    base_url
-                    or config.llm_base_url
-                    or "https://dashscope.aliyuncs.com/compatible-mode/v1"
-                )
-                self.model = model or config.llm_model or "qwen3-max"
+    def _initialize_client(self):
+        """内部方法：初始化或重新初始化客户端"""
+        try:
+            # 从配置文件读取配置
+            self.api_key = config.llm_api_key
+            self.base_url = (
+                config.llm_base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            )
+            self.model = config.llm_model or "qwen3-max"
 
-                # 检查关键配置是否为空或默认占位符
-                invalid_values = [
-                    "xxx",
-                    "YOUR_API_KEY_HERE",
-                    "YOUR_BASE_URL_HERE",
-                    "YOUR_LLM_KEY_HERE",
-                ]
-                if not self.api_key or self.api_key in invalid_values:
-                    logger.warning("LLM Key未配置或为默认占位符，LLM功能可能不可用")
-                if not self.base_url or self.base_url in invalid_values:
-                    logger.warning("Base URL未配置或为默认占位符，LLM功能可能不可用")
-            except Exception as e:
-                logger.error(f"无法从配置文件读取LLM配置: {e}")
-                # 使用默认值但记录警告
-                self.api_key = api_key or "sk-ef4b56e3bc9c4693b596415dd364af56"
-                self.base_url = (
-                    base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
-                )
-                self.model = model or "qwen3-max"
-                logger.warning("使用硬编码默认值初始化LLM客户端")
-        else:
-            self.api_key = api_key
-            self.base_url = base_url
-            self.model = model
+            # 检查关键配置是否为空或默认占位符
+            invalid_values = [
+                "xxx",
+                "YOUR_API_KEY_HERE",
+                "YOUR_BASE_URL_HERE",
+                "YOUR_LLM_KEY_HERE",
+            ]
+            if not self.api_key or self.api_key in invalid_values:
+                logger.warning("LLM Key未配置或为默认占位符，LLM功能可能不可用")
+            if not self.base_url or self.base_url in invalid_values:
+                logger.warning("Base URL未配置或为默认占位符，LLM功能可能不可用")
+        except Exception as e:
+            logger.error(f"无法从配置文件读取LLM配置: {e}")
+            # 使用默认值但记录警告
+            self.api_key = "YOUR_LLM_KEY_HERE"
+            self.base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            self.model = "qwen3-max"
+            logger.warning("使用硬编码默认值初始化LLM客户端")
 
         try:
             self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
@@ -72,14 +59,29 @@ class LLMClient:
             logger.error(f"LLM客户端初始化失败: {e}")
             self.client = None
 
-        # 初始化token使用量记录器
-        setup_token_logger()
+    def reinitialize(self):
+        """重新初始化LLM客户端（从配置文件重新读取配置）"""
+        logger.info("正在重新初始化LLM客户端...")
+        old_api_key = self.api_key if hasattr(self, "api_key") else None
+        old_model = self.model if hasattr(self, "model") else None
+
+        self._initialize_client()
+
+        # 记录变更信息
+        if old_api_key != self.api_key:
+            logger.info(
+                f"API Key已更新: {old_api_key[:10] if old_api_key else 'None'}... -> {self.api_key[:10]}..."
+            )
+        if old_model != self.model:
+            logger.info(f"模型已更新: {old_model} -> {self.model}")
+
+        return self.is_available()
 
     def is_available(self) -> bool:
         """检查LLM客户端是否可用"""
         return self.client is not None
 
-    def classify_intent(self, user_query: str) -> Dict[str, Any]:
+    def classify_intent(self, user_query: str) -> dict[str, Any]:
         """
         分类用户意图，判断是否需要数据库查询
 
@@ -142,12 +144,11 @@ class LLMClient:
 
             result_text = response.choices[0].message.content.strip()
 
-            # 打印LLM响应到控制台和日志
-            print("\n=== LLM意图分类响应 ===")
-            print(f"用户输入: {user_query}")
-            print(f"LLM回复: {result_text}")
-            # print(result_text)
-            print("=== 响应结束 ===\n")
+            # 记录LLM响应到日志
+            logger.info("=== LLM意图分类响应 ===")
+            logger.info(f"用户输入: {user_query}")
+            logger.info(f"LLM回复: {result_text}")
+            logger.info("=== 响应结束 ===")
 
             logger.info(f"LLM意图分类 - 用户输入: {user_query}")
             logger.info(f"LLM意图分类 - 原始响应: {result_text}")
@@ -175,7 +176,7 @@ class LLMClient:
             logger.error(f"LLM意图分类失败: {e}")
             return self._rule_based_intent_classification(user_query)
 
-    def parse_query(self, user_query: str) -> Dict[str, Any]:
+    def parse_query(self, user_query: str) -> dict[str, Any]:
         """
         使用LLM解析用户查询，提取时间范围、应用名称和关键词
 
@@ -228,9 +229,7 @@ class LLMClient:
 
         try:
             # 将当前时间与用户查询一并放入 user 消息，避免在包含花括号的模板里插值
-            user_message = (
-                f"当前时间是：{current_date_str}\n请解析这个查询：{user_query}"
-            )
+            user_message = f"当前时间是：{current_date_str}\n请解析这个查询：{user_query}"
             response = self.client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -253,12 +252,11 @@ class LLMClient:
 
             result_text = response.choices[0].message.content.strip()
 
-            # 打印LLM响应到控制台和日志
-            print("\n=== LLM查询解析响应 ===")
-            print(f"用户查询: {user_query}")
-            print(f"LLM回复: {result_text}")
-            # print(result_text)
-            print("=== 响应结束 ===\n")
+            # 记录LLM响应到日志
+            logger.info("=== LLM查询解析响应 ===")
+            logger.info(f"用户查询: {user_query}")
+            logger.info(f"LLM回复: {result_text}")
+            logger.info("=== 响应结束 ===")
 
             logger.info(f"LLM查询解析 - 用户查询: {user_query}")
             logger.info(f"LLM查询解析 - 原始响应: {result_text}")
@@ -281,7 +279,7 @@ class LLMClient:
             logger.error(f"LLM解析失败: {e}")
             return self._rule_based_parse(user_query)
 
-    def generate_summary(self, query: str, context_data: List[Dict[str, Any]]) -> str:
+    def generate_summary(self, query: str, context_data: list[dict[str, Any]]) -> str:
         """
         生成基于查询和上下文数据的总结
 
@@ -334,9 +332,7 @@ class LLMClient:
                 app_name = record.get("app_name", "未知应用")
                 ocr_text = record.get("ocr_text", "无文本内容")
                 window_title = record.get("window_title", "")
-                screenshot_id = record.get("screenshot_id") or record.get(
-                    "id"
-                )  # 获取截图ID
+                screenshot_id = record.get("screenshot_id") or record.get("id")  # 获取截图ID
 
                 # 截断过长的文本
                 if len(ocr_text) > 200:
@@ -390,11 +386,11 @@ class LLMClient:
 
             result = response.choices[0].message.content.strip()
 
-            # 打印LLM响应到控制台和日志
-            print("\n=== LLM总结生成响应 ===")
-            print(f"用户查询: {query}")
-            print(f"LLM回复: {result}")
-            print("=== 响应结束 ===\n")
+            # 记录LLM响应到日志
+            logger.info("=== LLM总结生成响应 ===")
+            logger.info(f"用户查询: {query}")
+            logger.info(f"LLM回复: {result}")
+            logger.info("=== 响应结束 ===")
 
             logger.info(f"LLM总结生成 - 用户查询: {query}")
             logger.info(f"LLM总结生成 - 生成结果: {result}")
@@ -407,9 +403,9 @@ class LLMClient:
 
     def stream_chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         temperature: float = 0.7,
-        model: Optional[str] = None,
+        model: str | None = None,
     ):
         """
         通用流式聊天方法：对OpenAI兼容接口使用stream=True逐token返回。
@@ -438,7 +434,7 @@ class LLMClient:
             logger.error(f"流式聊天失败: {e}")
             raise
 
-    def _rule_based_intent_classification(self, user_query: str) -> Dict[str, Any]:
+    def _rule_based_intent_classification(self, user_query: str) -> dict[str, Any]:
         """基于规则的意图分类（备用方案）"""
         query_lower = user_query.lower()
 
@@ -502,9 +498,7 @@ class LLMClient:
         ]
 
         # 计算匹配分数
-        database_score = sum(
-            1 for keyword in database_keywords if keyword in query_lower
-        )
+        database_score = sum(1 for keyword in database_keywords if keyword in query_lower)
         chat_score = sum(1 for keyword in chat_keywords if keyword in query_lower)
         help_score = sum(1 for keyword in help_keywords if keyword in query_lower)
 
@@ -525,7 +519,7 @@ class LLMClient:
 
         return {"intent_type": intent_type, "needs_database": needs_database}
 
-    def _rule_based_parse(self, user_query: str) -> Dict[str, Any]:
+    def _rule_based_parse(self, user_query: str) -> dict[str, Any]:
         """基于规则的查询解析（备用方案）"""
         query_lower = user_query.lower()  # noqa: F841
 
@@ -537,9 +531,7 @@ class LLMClient:
         # 只有在明确搜索特定内容时才提取关键词
         # 检查是否包含搜索意图的词汇
         search_indicators = ["搜索", "查找", "包含", "关于", "找到"]
-        has_search_intent = any(
-            indicator in user_query for indicator in search_indicators
-        )
+        has_search_intent = any(indicator in user_query for indicator in search_indicators)
 
         if has_search_intent:
             # 简单提取可能的搜索关键词（排除功能描述词）
@@ -598,7 +590,7 @@ class LLMClient:
             "query_type": query_type,
         }
 
-    def _build_context(self, context_data: List[Dict[str, Any]]) -> str:
+    def _build_context(self, context_data: list[dict[str, Any]]) -> str:
         """构建用于LLM生成的上下文文本"""
         context_parts = []
         for i, item in enumerate(context_data[:50], start=1):
@@ -622,7 +614,7 @@ class LLMClient:
             context_parts.append(f"[{i}] 应用: {app_name}, 时间: {timestamp}\n{text}\n")
         return "\n".join(context_parts)
 
-    def _fallback_summary(self, query: str, context_data: List[Dict[str, Any]]) -> str:
+    def _fallback_summary(self, query: str, context_data: list[dict[str, Any]]) -> str:
         """在LLM不可用或失败时的总结备选方案"""
         summary_parts = [
             "以下是根据历史数据的简要总结：",

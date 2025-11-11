@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -17,16 +16,18 @@ router = APIRouter(prefix="/api/events", tags=["event"])
 async def list_events(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    app_name: Optional[str] = Query(None),
+    start_date: str | None = Query(None),
+    end_date: str | None = Query(None),
+    app_name: str | None = Query(None),
 ):
     """获取事件列表（事件=前台应用使用阶段），用于事件级别展示与检索，同时返回总数"""
     try:
         start_dt = datetime.fromisoformat(start_date) if start_date else None
         end_dt = datetime.fromisoformat(end_date) if end_date else None
 
-        logging.info(f"获取事件列表 - 参数: limit={limit}, offset={offset}, start_date={start_dt}, end_date={end_dt}, app_name={app_name}")
+        logging.info(
+            f"获取事件列表 - 参数: limit={limit}, offset={offset}, start_date={start_dt}, end_date={end_dt}, app_name={app_name}"
+        )
 
         # 并行获取事件列表和总数
         events = deps.db_manager.list_events(
@@ -55,14 +56,14 @@ async def list_events(
         return result
     except Exception as e:
         logging.error(f"获取事件列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/count")
 async def count_events(
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    app_name: Optional[str] = Query(None),
+    start_date: str | None = Query(None),
+    end_date: str | None = Query(None),
+    app_name: str | None = Query(None),
 ):
     """获取事件总数"""
     try:
@@ -76,7 +77,7 @@ async def count_events(
         return {"count": count}
     except Exception as e:
         logging.error(f"获取事件总数失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{event_id}", response_model=EventDetailResponse)
@@ -118,7 +119,7 @@ async def get_event_detail(event_id: int):
         raise
     except Exception as e:
         logging.error(f"获取事件详情失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{event_id}/context")
@@ -157,7 +158,7 @@ async def get_event_context(event_id: int):
         raise
     except Exception as e:
         logging.error(f"获取事件上下文失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/{event_id}/generate-summary")
@@ -190,4 +191,4 @@ async def generate_event_summary(event_id: int):
         raise
     except Exception as e:
         logging.error(f"生成事件摘要失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

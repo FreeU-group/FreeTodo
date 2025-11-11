@@ -7,7 +7,7 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -16,10 +16,10 @@ if __name__ == "__main__":
     project_root = Path(__file__).parent.parent
     sys.path.insert(0, str(project_root))
 
-from lifetrace.storage.models import OCRResult, Screenshot
 from lifetrace.llm.multimodal_embedding import get_multimodal_embedding
-from lifetrace.storage import DatabaseManager
 from lifetrace.llm.vector_db import create_vector_db
+from lifetrace.storage import DatabaseManager
+from lifetrace.storage.models import OCRResult, Screenshot
 
 
 class MultimodalVectorService:
@@ -65,9 +65,7 @@ class MultimodalVectorService:
                 self.enabled = False
                 self.logger.warning("多模态向量服务不可用（缺少依赖或模型加载失败）")
         else:
-            self.logger.info(
-                "多模态向量服务已禁用（配置中设置为 multimodal.enabled=false）"
-            )
+            self.logger.info("多模态向量服务已禁用（配置中设置为 multimodal.enabled=false）")
 
     def _initialize_vector_databases(self):
         """初始化向量数据库"""
@@ -160,9 +158,7 @@ class MultimodalVectorService:
             and self.multimodal_embedding.is_available()
         )
 
-    def add_multimodal_result(
-        self, ocr_result: OCRResult, screenshot: Screenshot
-    ) -> bool:
+    def add_multimodal_result(self, ocr_result: OCRResult, screenshot: Screenshot) -> bool:
         """添加多模态结果到向量数据库
 
         Args:
@@ -193,9 +189,7 @@ class MultimodalVectorService:
 
         try:
             # 生成文本嵌入
-            text_embedding = self.multimodal_embedding.encode_text(
-                ocr_result.text_content
-            )
+            text_embedding = self.multimodal_embedding.encode_text(ocr_result.text_content)
             if text_embedding is None:
                 return False
 
@@ -222,9 +216,7 @@ class MultimodalVectorService:
 
         try:
             # 生成图像嵌入
-            image_embedding = self.multimodal_embedding.encode_image(
-                screenshot.file_path
-            )
+            image_embedding = self.multimodal_embedding.encode_image(screenshot.file_path)
             if image_embedding is None:
                 return False
 
@@ -246,7 +238,7 @@ class MultimodalVectorService:
 
     def _build_metadata(
         self, ocr_result: OCRResult, screenshot: Screenshot, modality: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """构建元数据"""
         metadata = {
             "modality": modality,
@@ -255,9 +247,7 @@ class MultimodalVectorService:
             "confidence": ocr_result.confidence,
             "language": ocr_result.language or "unknown",
             "processing_time": ocr_result.processing_time,
-            "created_at": (
-                ocr_result.created_at.isoformat() if ocr_result.created_at else None
-            ),
+            "created_at": (ocr_result.created_at.isoformat() if ocr_result.created_at else None),
             "text_length": len(ocr_result.text_content or ""),
         }
 
@@ -266,9 +256,7 @@ class MultimodalVectorService:
                 {
                     "screenshot_path": screenshot.file_path,
                     "screenshot_timestamp": (
-                        screenshot.created_at.isoformat()
-                        if screenshot.created_at
-                        else None
+                        screenshot.created_at.isoformat() if screenshot.created_at else None
                     ),
                     "application": screenshot.app_name,
                     "window_title": screenshot.window_title,
@@ -283,10 +271,10 @@ class MultimodalVectorService:
         self,
         query: str,
         top_k: int = 10,
-        text_weight: Optional[float] = None,
-        image_weight: Optional[float] = None,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        text_weight: float | None = None,
+        image_weight: float | None = None,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """多模态语义搜索
 
         Args:
@@ -358,8 +346,8 @@ class MultimodalVectorService:
         self,
         query_embedding: np.ndarray,
         top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """使用预计算的嵌入搜索文本向量"""
         try:
             # 直接使用向量搜索文本数据库
@@ -380,14 +368,8 @@ class MultimodalVectorService:
                     {
                         "id": results["ids"][0][i],
                         "document": results["documents"][0][i],
-                        "metadata": (
-                            results["metadatas"][0][i]
-                            if results["metadatas"][0]
-                            else {}
-                        ),
-                        "distance": (
-                            results["distances"][0][i] if results["distances"] else None
-                        ),
+                        "metadata": (results["metadatas"][0][i] if results["metadatas"][0] else {}),
+                        "distance": (results["distances"][0][i] if results["distances"] else None),
                     }
                 )
 
@@ -401,8 +383,8 @@ class MultimodalVectorService:
         self,
         query_embedding: np.ndarray,
         top_k: int,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """使用文本嵌入搜索图像向量"""
         try:
             # 直接使用向量搜索图像数据库
@@ -426,14 +408,8 @@ class MultimodalVectorService:
                     {
                         "id": results["ids"][0][i],
                         "document": results["documents"][0][i],
-                        "metadata": (
-                            results["metadatas"][0][i]
-                            if results["metadatas"][0]
-                            else {}
-                        ),
-                        "distance": (
-                            results["distances"][0][i] if results["distances"] else None
-                        ),
+                        "metadata": (results["metadatas"][0][i] if results["metadatas"][0] else {}),
+                        "distance": (results["distances"][0][i] if results["distances"] else None),
                     }
                 )
 
@@ -445,12 +421,12 @@ class MultimodalVectorService:
 
     def _merge_multimodal_results(
         self,
-        text_results: List[Dict],
-        image_results: List[Dict],
+        text_results: list[dict],
+        image_results: list[dict],
         text_weight: float,
         image_weight: float,
         top_k: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """合并多模态搜索结果"""
         try:
             # 构建结果字典，按OCR结果ID分组
@@ -507,11 +483,10 @@ class MultimodalVectorService:
 
             # 计算综合分数并排序
             final_results = []
-            for ocr_id, data in merged.items():
+            for _ocr_id, data in merged.items():
                 # 综合分数 = 文本权重 * 文本分数 + 图像权重 * 图像分数
                 combined_score = (
-                    text_weight * data["text_score"]
-                    + image_weight * data["image_score"]
+                    text_weight * data["text_score"] + image_weight * data["image_score"]
                 )
 
                 data["combined_score"] = combined_score
@@ -532,9 +507,7 @@ class MultimodalVectorService:
             self.logger.error(f"合并多模态结果失败: {e}")
             return []
 
-    def _enhance_result_data(
-        self, result_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def _enhance_result_data(self, result_data: dict[str, Any]) -> dict[str, Any] | None:
         """增强结果数据，添加数据库信息"""
         try:
             ocr_result_id = result_data.get("ocr_result_id")
@@ -543,11 +516,7 @@ class MultimodalVectorService:
 
             # 从数据库获取完整信息
             with self.db_manager.get_session() as session:
-                ocr_result = (
-                    session.query(OCRResult)
-                    .filter(OCRResult.id == ocr_result_id)
-                    .first()
-                )
+                ocr_result = session.query(OCRResult).filter(OCRResult.id == ocr_result_id).first()
 
                 if not ocr_result:
                     return None
@@ -561,9 +530,7 @@ class MultimodalVectorService:
                 # 构建增强结果
                 enhanced = {
                     "id": f"multimodal_{ocr_result_id}",
-                    "text": result_data.get(
-                        "text_content", ocr_result.text_content or ""
-                    ),
+                    "text": result_data.get("text_content", ocr_result.text_content or ""),
                     "combined_score": result_data["combined_score"],
                     "text_score": result_data["text_score"],
                     "image_score": result_data["image_score"],
@@ -578,9 +545,7 @@ class MultimodalVectorService:
                         "language": ocr_result.language,
                         "processing_time": ocr_result.processing_time,
                         "created_at": (
-                            ocr_result.created_at.isoformat()
-                            if ocr_result.created_at
-                            else None
+                            ocr_result.created_at.isoformat() if ocr_result.created_at else None
                         ),
                     },
                 }
@@ -590,9 +555,7 @@ class MultimodalVectorService:
                         "id": screenshot.id,
                         "file_path": screenshot.file_path,
                         "timestamp": (
-                            screenshot.created_at.isoformat()
-                            if screenshot.created_at
-                            else None
+                            screenshot.created_at.isoformat() if screenshot.created_at else None
                         ),
                         "application": screenshot.app_name,
                         "window_title": screenshot.window_title,
@@ -606,9 +569,7 @@ class MultimodalVectorService:
             self.logger.error(f"增强结果数据失败: {e}")
             return None
 
-    def sync_from_database(
-        self, limit: Optional[int] = None, force_reset: bool = False
-    ) -> int:
+    def sync_from_database(self, limit: int | None = None, force_reset: bool = False) -> int:
         """从SQLite数据库同步到多模态向量数据库"""
         if not self.is_enabled():
             return 0
@@ -672,7 +633,7 @@ class MultimodalVectorService:
             self.logger.error(f"多模态向量数据库重置失败: {e}")
             return False
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取多模态向量数据库统计信息"""
         try:
             stats = {
