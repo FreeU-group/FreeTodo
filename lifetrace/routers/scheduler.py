@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from lifetrace.jobs.scheduler import get_scheduler_manager
+from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
@@ -114,6 +115,8 @@ async def pause_job(job_id: str):
         success = scheduler_manager.pause_job(job_id)
 
         if success:
+            # 同步更新配置文件中的 enabled 状态
+            _sync_job_enabled_to_config(job_id, False)
             return JobOperationResponse(success=True, message=f"任务 {job_id} 已暂停")
         else:
             raise HTTPException(status_code=400, detail="暂停任务失败")
@@ -132,6 +135,8 @@ async def resume_job(job_id: str):
         success = scheduler_manager.resume_job(job_id)
 
         if success:
+            # 同步更新配置文件中的 enabled 状态
+            _sync_job_enabled_to_config(job_id, True)
             return JobOperationResponse(success=True, message=f"任务 {job_id} 已恢复")
         else:
             raise HTTPException(status_code=400, detail="恢复任务失败")
@@ -253,3 +258,27 @@ async def resume_all_jobs():
     except Exception as e:
         logger.error(f"批量恢复任务失败: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _sync_job_enabled_to_config(job_id: str, enabled: bool):
+    """同步任务的启用状态到配置文件
+
+    Args:
+        job_id: 任务ID
+        enabled: 是否启用
+    """
+    # 定义任务ID到配置路径的映射
+    job_config_map = {
+        "recorder_job": "jobs.recorder.enabled",
+        "ocr_job": "jobs.ocr.enabled",
+        "task_context_mapper_job": "jobs.task_context_mapper.enabled",
+        "task_summary_job": "jobs.task_summary.enabled",
+    }
+
+    if job_id in job_config_map:
+        config_key = job_config_map[job_id]
+        try:
+            config.set(config_key, enabled)
+            logger.info(f"已同步任务 {job_id} 的启用状态到配置: {enabled}")
+        except Exception as e:
+            logger.error(f"同步任务启用状态到配置失败: {e}")

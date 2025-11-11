@@ -30,7 +30,8 @@ scheduler:
 # 定时任务
 jobs:
   recorder:
-    enabled: true
+    name: '屏幕录制'  # 任务显示名称
+    enabled: true  # 是否启用录制器任务
     interval: 10 # 截图间隔（秒）
     screens: 'all'  # 截图屏幕：all 或屏幕编号列表
     auto_exclude_self: true # 自动排除 LifeTrace 自身窗口
@@ -39,17 +40,20 @@ jobs:
       apps: ["微信"]  # 应用黑名单，使用友好名称，例如: ["微信", "QQ", "钉钉"]
       windows: []  # 窗口标题黑名单，例如: ["记事本", "计算器"]
   ocr:
-    enabled: true
-    interval: 60  # 数据库检查间隔（秒）
+    name: 'OCR识别'  # 任务显示名称
+    enabled: true  # 是否启用OCR任务
+    interval: 10  # 数据库检查间隔（秒）
     use_gpu: false
     language: ['ch', 'en']
     confidence_threshold: 0.5
   task_context_mapper:
+    name: '任务上下文映射'  # 任务显示名称
     enabled: false  # 是否启用任务上下文映射服务
     interval: 60  # 检查间隔（秒）
     batch_size: 10  # 每次处理的上下文数量
     confidence_threshold: 0.7  # 置信度阈值，只有超过此阈值的关联才会被应用
   task_summary:
+    name: '任务摘要生成'  # 任务显示名称
     enabled: false  # 是否启用任务摘要服务
     interval: 3600  # 检查间隔（秒）
     min_new_contexts: 5  # 触发摘要的最小新上下文数量

@@ -341,7 +341,10 @@ export default function SchedulerPage() {
               <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    任务信息
+                    任务名称
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    任务ID
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     触发器
@@ -360,7 +363,7 @@ export default function SchedulerPage() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex justify-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                       </div>
@@ -368,16 +371,21 @@ export default function SchedulerPage() {
                   </tr>
                 ) : jobs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                       暂无任务
                     </td>
                   </tr>
                 ) : (
                   jobs.map((job) => (
                     <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                          {job.name || job.id}
+                        </span>
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-col gap-1">
-                          <span className="text-base font-bold">{job.id}</span>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{job.id}</span>
                           <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">
                             {job.func}
                           </code>

@@ -77,87 +77,109 @@ class JobManager:
 
     def _start_recorder_job(self):
         """启动录制器任务"""
+        enabled = config.get("jobs.recorder.enabled", True)
+
         try:
             # 预先初始化全局录制器实例（避免首次调用时延迟）
             get_recorder_instance()
             logger.info("录制器实例已初始化")
 
-            # 添加录制器定时任务（使用可序列化的函数）
+            # 添加录制器定时任务（使用可序列化的函数，无论是否启用都添加）
             recorder_interval = config.get("jobs.recorder.interval", 1)
+            recorder_name = config.get("jobs.recorder.name", "屏幕录制")
             self.scheduler_manager.add_interval_job(
                 func=execute_capture_task,  # 使用模块级别的函数
                 job_id="recorder_job",
+                name=recorder_name,
                 seconds=recorder_interval,
                 replace_existing=True,
             )
             logger.info(f"录制器定时任务已添加，间隔: {recorder_interval}秒")
+
+            # 如果未启用，则暂停任务
+            if not enabled:
+                self.scheduler_manager.pause_job("recorder_job")
+                logger.info("录制器服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动录制器任务失败: {e}", exc_info=True)
 
     def _start_ocr_job(self):
         """启动OCR任务"""
+        enabled = config.get("jobs.ocr.enabled", True)
+
         try:
-            # 添加OCR定时任务
+            # 添加OCR定时任务（无论是否启用都添加）
             ocr_interval = config.get("jobs.ocr.interval", 5)
+            ocr_name = config.get("jobs.ocr.name", "OCR识别")
             self.scheduler_manager.add_interval_job(
                 func=execute_ocr_task,
                 job_id="ocr_job",
+                name=ocr_name,
                 seconds=ocr_interval,
                 replace_existing=True,
             )
             logger.info(f"OCR定时任务已添加，间隔: {ocr_interval}秒")
+
+            # 如果未启用，则暂停任务
+            if not enabled:
+                self.scheduler_manager.pause_job("ocr_job")
+                logger.info("OCR服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动OCR任务失败: {e}", exc_info=True)
 
     def _start_task_context_mapper(self):
         """启动任务上下文映射服务"""
-        mapper_config = config.get("jobs.task_context_mapper", {})
-        enabled = mapper_config.get("enabled", False)
-
-        if not enabled:
-            logger.info("任务上下文映射服务未启用")
-            return
+        enabled = config.get("jobs.task_context_mapper.enabled", False)
 
         try:
             # 预先初始化全局实例
             get_mapper_instance()
             logger.info("任务上下文映射服务实例已初始化")
 
-            # 添加到调度器
-            interval = mapper_config.get("interval", 60)
+            # 添加到调度器（无论是否启用都添加）
+            interval = config.get("jobs.task_context_mapper.interval", 60)
+            mapper_name = config.get("jobs.task_context_mapper.name", "任务上下文映射")
             self.scheduler_manager.add_interval_job(
                 func=execute_mapper_task,
                 job_id="task_context_mapper_job",
+                name=mapper_name,
                 seconds=interval,
                 replace_existing=True,
             )
             logger.info(f"任务上下文映射定时任务已添加，间隔: {interval}秒")
+
+            # 如果未启用，则暂停任务
+            if not enabled:
+                self.scheduler_manager.pause_job("task_context_mapper_job")
+                logger.info("任务上下文映射服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动任务上下文映射服务失败: {e}", exc_info=True)
 
     def _start_task_summary_service(self):
         """启动任务摘要服务"""
-        summary_config = config.get("jobs.task_summary", {})
-        enabled = summary_config.get("enabled", False)
-
-        if not enabled:
-            logger.info("任务摘要服务未启用")
-            return
+        enabled = config.get("jobs.task_summary.enabled", False)
 
         try:
             # 预先初始化全局实例
             get_summary_instance()
             logger.info("任务摘要服务实例已初始化")
 
-            # 添加到调度器
-            interval = summary_config.get("interval", 3600)
+            # 添加到调度器（无论是否启用都添加）
+            interval = config.get("jobs.task_summary.interval", 3600)
+            summary_name = config.get("jobs.task_summary.name", "任务摘要生成")
             self.scheduler_manager.add_interval_job(
                 func=execute_summary_task,
                 job_id="task_summary_job",
+                name=summary_name,
                 seconds=interval,
                 replace_existing=True,
             )
             logger.info(f"任务摘要定时任务已添加，间隔: {interval}秒")
+
+            # 如果未启用，则暂停任务
+            if not enabled:
+                self.scheduler_manager.pause_job("task_summary_job")
+                logger.info("任务摘要服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动任务摘要服务失败: {e}", exc_info=True)
 
@@ -194,7 +216,29 @@ class JobManager:
         old_recorder = old_jobs.get("recorder", {})
         new_recorder = new_jobs.get("recorder", {})
 
-        if old_recorder.get("interval") != new_recorder.get("interval"):
+        # 检查是否启用状态变更
+        old_enabled = old_recorder.get("enabled", True)
+        new_enabled = new_recorder.get("enabled", True)
+
+        if old_enabled != new_enabled:
+            logger.info(f"录制器服务启用状态变更: {old_enabled} -> {new_enabled}")
+            job = self.scheduler_manager.get_job("recorder_job")
+            if new_enabled:
+                # 恢复任务
+                if job:
+                    self.scheduler_manager.resume_job("recorder_job")
+                    logger.info("录制器服务已恢复")
+                else:
+                    # 任务不存在，需要创建
+                    self._start_recorder_job()
+            else:
+                # 暂停任务（不移除）
+                if job:
+                    self.scheduler_manager.pause_job("recorder_job")
+                    logger.info("录制器服务已暂停")
+
+        # 检查间隔配置变更（无论是否启用都允许修改）
+        elif old_recorder.get("interval") != new_recorder.get("interval"):
             new_interval = new_recorder.get("interval", 1)
             logger.info(f"检测到录制间隔配置变更: {new_interval}秒")
 
@@ -212,7 +256,29 @@ class JobManager:
         old_ocr = old_jobs.get("ocr", {})
         new_ocr = new_jobs.get("ocr", {})
 
-        if old_ocr.get("interval") != new_ocr.get("interval"):
+        # 检查是否启用状态变更
+        old_enabled = old_ocr.get("enabled", True)
+        new_enabled = new_ocr.get("enabled", True)
+
+        if old_enabled != new_enabled:
+            logger.info(f"OCR服务启用状态变更: {old_enabled} -> {new_enabled}")
+            job = self.scheduler_manager.get_job("ocr_job")
+            if new_enabled:
+                # 恢复任务
+                if job:
+                    self.scheduler_manager.resume_job("ocr_job")
+                    logger.info("OCR服务已恢复")
+                else:
+                    # 任务不存在，需要创建
+                    self._start_ocr_job()
+            else:
+                # 暂停任务（不移除）
+                if job:
+                    self.scheduler_manager.pause_job("ocr_job")
+                    logger.info("OCR服务已暂停")
+
+        # 检查间隔配置变更（无论是否启用都允许修改）
+        elif old_ocr.get("interval") != new_ocr.get("interval"):
             new_interval = new_ocr.get("interval", 5)
             logger.info(f"检测到 OCR 检查间隔配置变更: {new_interval}秒")
 
@@ -236,20 +302,23 @@ class JobManager:
 
         if old_enabled != new_enabled:
             logger.info(f"任务上下文映射服务启用状态变更: {old_enabled} -> {new_enabled}")
+            job = self.scheduler_manager.get_job("task_context_mapper_job")
             if new_enabled:
-                # 启动服务（添加到调度器）
-                job = self.scheduler_manager.get_job("task_context_mapper_job")
-                if not job:
-                    self._start_task_context_mapper()
+                # 恢复任务
+                if job:
+                    self.scheduler_manager.resume_job("task_context_mapper_job")
+                    logger.info("任务上下文映射服务已恢复")
                 else:
-                    logger.warning("任务上下文映射服务已在运行")
+                    # 任务不存在，需要创建
+                    self._start_task_context_mapper()
             else:
-                # 停止服务（从调度器移除）
-                self.scheduler_manager.remove_job("task_context_mapper_job")
-                logger.error("任务上下文映射服务已停止")
+                # 暂停任务（不移除）
+                if job:
+                    self.scheduler_manager.pause_job("task_context_mapper_job")
+                    logger.info("任务上下文映射服务已暂停")
 
-        # 检查间隔配置变更
-        elif new_enabled and old_mapper.get("interval") != new_mapper.get("interval"):
+        # 检查间隔配置变更（无论是否启用都允许修改）
+        elif old_mapper.get("interval") != new_mapper.get("interval"):
             new_interval = new_mapper.get("interval", 60)
             logger.info(f"检测到任务上下文映射间隔配置变更: {new_interval}秒")
             if self.scheduler_manager:
@@ -281,20 +350,23 @@ class JobManager:
 
         if old_enabled != new_enabled:
             logger.info(f"任务摘要服务启用状态变更: {old_enabled} -> {new_enabled}")
+            job = self.scheduler_manager.get_job("task_summary_job")
             if new_enabled:
-                # 启动服务（添加到调度器）
-                job = self.scheduler_manager.get_job("task_summary_job")
-                if not job:
-                    self._start_task_summary_service()
+                # 恢复任务
+                if job:
+                    self.scheduler_manager.resume_job("task_summary_job")
+                    logger.info("任务摘要服务已恢复")
                 else:
-                    logger.warning("任务摘要服务已在运行")
+                    # 任务不存在，需要创建
+                    self._start_task_summary_service()
             else:
-                # 停止服务（从调度器移除）
-                self.scheduler_manager.remove_job("task_summary_job")
-                logger.error("任务摘要服务已停止")
+                # 暂停任务（不移除）
+                if job:
+                    self.scheduler_manager.pause_job("task_summary_job")
+                    logger.info("任务摘要服务已暂停")
 
-        # 检查间隔配置变更
-        elif new_enabled and old_summary.get("interval") != new_summary.get("interval"):
+        # 检查间隔配置变更（无论是否启用都允许修改）
+        elif old_summary.get("interval") != new_summary.get("interval"):
             new_interval = new_summary.get("interval", 3600)
             logger.info(f"检测到任务摘要间隔配置变更: {new_interval}秒")
             if self.scheduler_manager:

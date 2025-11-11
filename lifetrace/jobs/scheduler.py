@@ -118,6 +118,7 @@ class SchedulerManager:
         self,
         func,
         job_id: str,
+        name: str = None,
         seconds: int = None,
         minutes: int = None,
         hours: int = None,
@@ -129,6 +130,7 @@ class SchedulerManager:
         Args:
             func: 要执行的函数
             job_id: 任务ID
+            name: 任务名称（显示用）
             seconds: 间隔秒数
             minutes: 间隔分钟数
             hours: 间隔小时数
@@ -157,12 +159,13 @@ class SchedulerManager:
                 func,
                 trigger="interval",
                 id=job_id,
+                name=name,
                 replace_existing=replace_existing,
                 kwargs=kwargs,
                 **interval_kwargs,
             )
             logger.info(
-                f"添加间隔任务: {job_id}, 间隔: {interval_kwargs}, 下次运行: {job.next_run_time}"
+                f"添加间隔任务: {job_id} ({name}), 间隔: {interval_kwargs}, 下次运行: {job.next_run_time}"
             )
             return job
         except Exception as e:

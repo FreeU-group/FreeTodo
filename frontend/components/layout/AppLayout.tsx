@@ -9,14 +9,14 @@ import { Sidebar, SidebarContent, SidebarNav } from '@/components/ui/sidebar-nav
 import type { SidebarNavItem } from '@/components/ui/sidebar-nav';
 
 // 动态导入页面组件以避免 SSR 问题
-const EventsPage = dynamic(() => import('@/app/events/page'), { ssr: false });
+const EventsPage = dynamic(() => import('@/app/page'), { ssr: false });
 const ProjectManagementPage = dynamic(() => import('@/app/project-management/page'), { ssr: false });
 
 type MenuType = 'events' | 'project-management' | 'scheduler';
 
 // 所有菜单项配置（包含路由路径）
 const allMenuItems: (SidebarNavItem & { path: string })[] = [
-  { id: 'events', label: '事件管理', icon: Calendar, path: '/events' },
+  { id: 'events', label: '事件管理', icon: Calendar, path: '/' },
   { id: 'project-management', label: '项目管理', icon: FolderKanban, path: '/project-management' },
   { id: 'scheduler', label: '定时任务', icon: Clock, path: '/scheduler' },
 ];
@@ -53,7 +53,7 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
 
       // 如果关闭了定时任务开关，且当前在定时任务页面，则跳转到事件管理页面
       if (!visible && currentPath?.startsWith('/scheduler')) {
-        router.push('/events');
+        router.push('/');
       }
     };
 
