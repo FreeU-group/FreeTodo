@@ -22,6 +22,7 @@ interface ConfigSettings {
   recordingEnabled: boolean;
   recordInterval: number;
   maxDays: number;
+  serverPort: number;
   localHistory: boolean;
   historyLimit: number;
   blacklistApps: string[];
@@ -37,6 +38,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     recordingEnabled: true,
     recordInterval: 5,
     maxDays: 30,
+    serverPort: 8000,
     localHistory: true,
     historyLimit: 3,
     blacklistApps: [],
@@ -92,6 +94,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           recordingEnabled: config.recordingEnabled ?? config.record?.enabled ?? true,
           recordInterval: config.recordInterval || 5,
           maxDays: config.maxDays || 30,
+          serverPort: config.serverPort || 8000,
           localHistory: config.localHistory ?? true,
           historyLimit: config.historyLimit ?? 3,
           blacklistApps: blacklistAppsArray,
@@ -178,6 +181,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           recordingEnabled: settings.recordingEnabled,
           recordInterval: settings.recordInterval,
           maxDays: settings.maxDays,
+          serverPort: settings.serverPort,
           localHistory: settings.localHistory,
           historyLimit: settings.historyLimit,
           blacklistApps: settings.blacklistApps,
@@ -466,6 +470,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                       </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-foreground">
+                          服务器端口
+                        </label>
+                        <Input
+                          type="number"
+                          className="px-3 py-2 h-9"
+                          placeholder="8000"
+                          value={settings.serverPort}
+                          onChange={(e) => handleChange('serverPort', parseInt(e.target.value))}
+                        />
+                      </div>
                     </div>
 
                     {settings.recordingEnabled && (
