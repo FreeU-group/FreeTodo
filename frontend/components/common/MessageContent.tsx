@@ -108,16 +108,19 @@ export default function MessageContent({ content, isMarkdown = true, isStreaming
   useEffect(() => {
     return () => {
       if (rootsRef.current.length > 0) {
-        rootsRef.current.forEach(({ root, element }) => {
-          try {
-            root.unmount();
-            // 移除标记
-            (element as HTMLElement).removeAttribute('data-root-mounted');
-          } catch {
-            // 忽略卸载错误
-          }
+        // 使用 queueMicrotask 异步卸载，避免在 React 渲染期间同步卸载
+        queueMicrotask(() => {
+          rootsRef.current.forEach(({ root, element }) => {
+            try {
+              root.unmount();
+              // 移除标记
+              (element as HTMLElement).removeAttribute('data-root-mounted');
+            } catch {
+              // 忽略卸载错误
+            }
+          });
+          rootsRef.current = [];
         });
-        rootsRef.current = [];
       }
     };
   }, []);

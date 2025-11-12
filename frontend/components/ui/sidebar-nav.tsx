@@ -28,7 +28,7 @@ export function SidebarNav({ items, activeItem, onItemClick, className }: Sideba
   };
 
   return (
-    <nav className={cn('flex flex-col gap-1', className)} role="navigation" aria-label="主导航">
+    <nav className={cn('flex flex-col gap-1 p-1', className)} role="navigation" aria-label="主导航">
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = activeItem === item.id;
@@ -39,22 +39,26 @@ export function SidebarNav({ items, activeItem, onItemClick, className }: Sideba
             onKeyDown={(e) => handleKeyDown(e, item.id)}
             disabled={item.disabled}
             className={cn(
-              'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+              'group relative flex items-center gap-3',
+              'rounded-md px-3 py-2',
+              'text-sm font-medium',
+              'transition-all duration-200',
               'hover:bg-accent hover:text-accent-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               'disabled:pointer-events-none disabled:opacity-50',
               'active:scale-[0.98]',
-              isActive && [
-                'bg-accent text-accent-foreground shadow-sm',
-                'before:absolute before:left-0 before:top-1/2 before:h-8 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-primary before:transition-all before:duration-200',
+              isActive ? [
+                'bg-accent text-accent-foreground',
+              ] : [
+                'text-muted-foreground',
               ]
             )}
             aria-current={isActive ? 'page' : undefined}
             aria-label={item.label}
           >
             <Icon className={cn(
-              'h-5 w-5 shrink-0 transition-colors duration-200',
-              isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-accent-foreground'
+              'h-4 w-4 shrink-0 transition-colors duration-200',
+              isActive ? 'text-foreground' : 'text-muted-foreground group-hover:text-accent-foreground'
             )} />
             <span className="truncate flex-1 text-left">{item.label}</span>
             {item.badge !== undefined && (
@@ -85,7 +89,9 @@ export const Sidebar = React.forwardRef<HTMLDivElement, SidebarProps>(
       <aside
         ref={ref}
         className={cn(
-          'flex h-full flex-col border-r bg-sidebar text-sidebar-foreground',
+          'flex h-full flex-col',
+          'border-r border-border',
+          'bg-background',
           'transition-all duration-300 ease-in-out',
           className
         )}
@@ -108,7 +114,9 @@ export const SidebarHeader = React.forwardRef<HTMLDivElement, SidebarHeaderProps
       <div
         ref={ref}
         className={cn(
-          'flex flex-col gap-2 border-b border-sidebar-border px-4 py-3',
+          'flex flex-col justify-center gap-2',
+          'border-b border-border',
+          'h-14 px-4',
           className
         )}
         {...props}
@@ -130,7 +138,9 @@ export const SidebarContent = React.forwardRef<HTMLDivElement, SidebarContentPro
       <div
         ref={ref}
         className={cn(
-          'flex-1 overflow-y-auto px-3 py-3 scrollbar-thin scrollbar-thumb-sidebar-border scrollbar-track-transparent',
+          'flex-1 overflow-y-auto',
+          'px-3 py-4',
+          'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
           className
         )}
         {...props}
@@ -152,7 +162,8 @@ export const SidebarFooter = React.forwardRef<HTMLDivElement, SidebarFooterProps
       <div
         ref={ref}
         className={cn(
-          'border-t border-sidebar-border px-4 py-3',
+          'border-t border-border',
+          'px-4 py-4',
           className
         )}
         {...props}

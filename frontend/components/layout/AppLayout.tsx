@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Calendar, FolderKanban, Clock } from 'lucide-react';
+import { Calendar, FolderKanban, Clock, PanelLeftClose, PanelLeft, Settings } from 'lucide-react';
+import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { SelectedEventsProvider } from '@/lib/context/SelectedEventsContext';
-import { Sidebar, SidebarContent, SidebarNav } from '@/components/ui/sidebar-nav';
+import { Sidebar, SidebarHeader, SidebarContent, SidebarNav } from '@/components/ui/sidebar-nav';
 import type { SidebarNavItem } from '@/components/ui/sidebar-nav';
+import ThemeToggle from '@/components/common/ThemeToggle';
 
 // 动态导入页面组件以避免 SSR 问题
 const EventsPage = dynamic(() => import('@/app/page'), { ssr: false });
@@ -23,13 +25,23 @@ const allMenuItems: (SidebarNavItem & { path: string })[] = [
 
 interface AppLayoutInnerProps {
   children?: React.ReactNode;
+  onSettingsClick: () => void;
 }
 
-function AppLayoutInner({ children }: AppLayoutInnerProps) {
+function AppLayoutInner({ children, onSettingsClick }: AppLayoutInnerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuType>('events');
   const [showScheduler, setShowScheduler] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // 从 localStorage 读取侧边栏折叠状态
+  useEffect(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    if (saved !== null) {
+      setIsSidebarCollapsed(saved === 'true');
+    }
+  }, []);
 
   // 根据设置过滤菜单项
   const menuItems = allMenuItems.filter(item => {
@@ -89,6 +101,13 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
     }
   };
 
+  // 切换侧边栏折叠状态
+  const toggleSidebar = () => {
+    const newState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newState);
+    localStorage.setItem('sidebarCollapsed', String(newState));
+  };
+
   // 渲染中间内容
   const renderContent = () => {
     // 如果传入了 children，优先渲染 children（用于动态路由页面）
@@ -108,9 +127,33 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
   };
 
   return (
-    <div className="flex flex-1 overflow-hidden h-full">
-      {/* 左侧菜单 - 使用 shadcn 风格组件 */}
-      <Sidebar className="w-56 flex-shrink-0 h-full">
+    <div className="flex w-full h-full">
+      {/* 左侧栏 - 侧边栏菜单 */}
+      <Sidebar
+        className={`flex-shrink-0 h-full transition-all duration-300 ${
+          isSidebarCollapsed ? 'w-0 border-r-0 overflow-hidden' : 'w-64'
+        }`}
+      >
+        {/* Logo 区域 */}
+        <SidebarHeader>
+          <div className="flex items-center gap-3">
+            <div className="relative h-7 w-7 flex-shrink-0">
+              <Image
+                src="/logo.png"
+                alt="LifeTrace Logo"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            </div>
+            <div>
+              <h1 className="text-base font-bold text-foreground">LifeTrace</h1>
+              <p className="text-[11px] text-muted-foreground leading-tight">生活追踪系统</p>
+            </div>
+          </div>
+        </SidebarHeader>
+
+        {/* 导航菜单 */}
         <SidebarContent>
           <SidebarNav
             items={menuItems}
@@ -120,9 +163,43 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
         </SidebarContent>
       </Sidebar>
 
-      {/* 内容区 - 全宽 */}
-      <div className="flex-1 overflow-y-auto h-full">
-        {renderContent()}
+      {/* 中间内容区 */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
+        {/* 顶部工具栏 */}
+        <div className="flex items-center justify-between h-14 px-4 border-b bg-background">
+          {/* 左侧：折叠按钮 */}
+          <button
+            onClick={toggleSidebar}
+            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+            title={isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+          >
+            {isSidebarCollapsed ? (
+              <PanelLeft className="h-5 w-5" />
+            ) : (
+              <PanelLeftClose className="h-5 w-5" />
+            )}
+          </button>
+
+          {/* 右侧：主题切换和设置 */}
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+
+            <button
+              onClick={onSettingsClick}
+              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="设置"
+              title="设置"
+            >
+              <Settings className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* 页面内容 */}
+        <div className="flex-1 overflow-y-auto">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );
@@ -130,12 +207,13 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
 
 interface AppLayoutProps {
   children?: React.ReactNode;
+  onSettingsClick: () => void;
 }
 
-export default function AppLayout({ children }: AppLayoutProps) {
+export default function AppLayout({ children, onSettingsClick }: AppLayoutProps) {
   return (
     <SelectedEventsProvider>
-      <AppLayoutInner>{children}</AppLayoutInner>
+      <AppLayoutInner onSettingsClick={onSettingsClick}>{children}</AppLayoutInner>
     </SelectedEventsProvider>
   );
 }

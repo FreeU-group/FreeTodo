@@ -9,21 +9,12 @@ from typing import Any
 import numpy as np
 import torch
 from PIL import Image
+from transformers import CLIPModel, CLIPProcessor
 
 from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
-
-# 尝试导入多模态依赖
-MULTIMODAL_AVAILABLE = False
-try:
-    import clip  # noqa: F401
-    from transformers import CLIPModel, CLIPProcessor
-
-    MULTIMODAL_AVAILABLE = True
-except ImportError:
-    logger.warning("多模态依赖未安装，请安装: pip install transformers clip")
 
 
 class MultimodalEmbedding:
@@ -49,10 +40,7 @@ class MultimodalEmbedding:
         self.text_embedding_dim = 512  # CLIP文本嵌入维度
         self.max_image_size = (224, 224)  # CLIP输入图像尺寸
 
-        if MULTIMODAL_AVAILABLE:
-            self._initialize_models()
-        else:
-            logger.warning("多模态功能不可用，缺少必要依赖")
+        self._initialize_models()
 
     def _initialize_models(self):
         """初始化CLIP模型"""
@@ -67,13 +55,6 @@ class MultimodalEmbedding:
             self.model.to(self.device)
             self.model.eval()
 
-            # 也尝试加载原版CLIP作为备选
-            try:
-                self.clip_model, _ = clip.load("ViT-B/32", device=self.device)
-                logger.info("原版CLIP模型加载成功")
-            except Exception as e:
-                logger.warning(f"原版CLIP模型加载失败: {e}")
-
             logger.info(f"CLIP模型初始化完成，使用设备: {self.device}")
 
         except Exception as e:
@@ -83,7 +64,7 @@ class MultimodalEmbedding:
 
     def is_available(self) -> bool:
         """检查多模态功能是否可用"""
-        return MULTIMODAL_AVAILABLE and self.model is not None
+        return self.model is not None
 
     def encode_text(self, text: str) -> np.ndarray | None:
         """编码文本为向量

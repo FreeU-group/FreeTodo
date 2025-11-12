@@ -6,6 +6,8 @@ from lifetrace.routers import dependencies as deps
 from lifetrace.schemas.task import (
     TaskCreate,
     TaskListResponse,
+    TaskProgressListResponse,
+    TaskProgressResponse,
     TaskResponse,
     TaskUpdate,
 )
@@ -299,3 +301,158 @@ async def get_task_children(
     except Exception as e:
         deps.logger.error(f"获取子任务失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取子任务失败: {str(e)}") from e
+
+
+@router.get(
+    "/api/projects/{project_id}/tasks/{task_id}/progress",
+    response_model=TaskProgressListResponse,
+)
+async def get_task_progress(
+    project_id: int = Path(..., description="项目ID"),
+    task_id: int = Path(..., description="任务ID"),
+    limit: int = Query(10, ge=1, le=100, description="返回数量限制"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+):
+    """
+    获取任务的进展记录列表
+
+    Args:
+        project_id: 项目ID
+        task_id: 任务ID
+        limit: 返回数量限制
+        offset: 偏移量
+
+    Returns:
+        进展记录列表
+    """
+    try:
+        # 检查任务是否存在
+        task = deps.db_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 验证任务是否属于指定项目
+        if task["project_id"] != project_id:
+            raise HTTPException(status_code=404, detail="任务不属于该项目")
+
+        # 获取进展记录列表
+        progress_list = deps.db_manager.get_task_progress_list(
+            task_id=task_id, limit=limit, offset=offset
+        )
+
+        # 统计总数
+        total = deps.db_manager.count_task_progress(task_id=task_id)
+
+        deps.logger.info(f"获取任务 {task_id} 的进展记录，返回 {len(progress_list)} 条")
+
+        return TaskProgressListResponse(
+            total=total,
+            progress_list=[TaskProgressResponse(**p) for p in progress_list],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        deps.logger.error(f"获取任务进展记录失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取任务进展记录失败: {str(e)}") from e
+
+
+@router.get(
+    "/api/projects/{project_id}/tasks/{task_id}/progress/latest",
+    response_model=TaskProgressResponse | None,
+)
+async def get_latest_task_progress(
+    project_id: int = Path(..., description="项目ID"),
+    task_id: int = Path(..., description="任务ID"),
+):
+    """
+    获取任务最新的进展记录
+
+    Args:
+        project_id: 项目ID
+        task_id: 任务ID
+
+    Returns:
+        最新的进展记录，如果没有记录则返回 null
+    """
+    try:
+        # 检查任务是否存在
+        task = deps.db_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 验证任务是否属于指定项目
+        if task["project_id"] != project_id:
+            raise HTTPException(status_code=404, detail="任务不属于该项目")
+
+        # 获取最新进展记录
+        latest_progress = deps.db_manager.get_latest_task_progress(task_id=task_id)
+
+        if not latest_progress:
+            # 返回 null 而不是 404 错误
+            deps.logger.info(f"任务 {task_id} 还没有进展记录")
+            return None
+
+        deps.logger.info(f"获取任务 {task_id} 的最新进展记录")
+
+        return TaskProgressResponse(**latest_progress)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        deps.logger.error(f"获取最新任务进展记录失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取最新任务进展记录失败: {str(e)}") from e
+
+
+@router.post(
+    "/api/projects/{project_id}/tasks/{task_id}/generate-summary",
+    response_model=dict,
+)
+async def generate_task_summary(
+    project_id: int = Path(..., description="项目ID"),
+    task_id: int = Path(..., description="任务ID"),
+):
+    """
+    手动触发任务进度总结生成
+
+    Args:
+        project_id: 项目ID
+        task_id: 任务ID
+
+    Returns:
+        生成结果
+    """
+    try:
+        # 检查任务是否存在
+        task = deps.db_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 验证任务是否属于指定项目
+        if task["project_id"] != project_id:
+            raise HTTPException(status_code=404, detail="任务不属于该项目")
+
+        # 获取任务总结服务实例
+        from lifetrace.jobs.task_summary import get_summary_instance
+
+        summary_service = get_summary_instance()
+
+        # 触发手动总结
+        result = summary_service.trigger_manual_summary(task_id)
+
+        if not result["success"]:
+            raise HTTPException(status_code=400, detail=result["message"])
+
+        deps.logger.info(f"成功为任务 {task_id} 生成总结")
+
+        return {
+            "success": True,
+            "message": result["message"],
+            "contexts_summarized": result.get("contexts_summarized", 0),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        deps.logger.error(f"生成任务总结失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"生成任务总结失败: {str(e)}") from e

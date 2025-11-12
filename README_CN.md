@@ -18,8 +18,8 @@ LifeTrace 是一个基于 AI 的智能生活记录系统，可以自动管理您
 - **智能 OCR 识别**：使用 RapidOCR 从截图中提取文本内容
 - **智能事件管理**：基于上下文自动将截图聚合为智能事件
 - **信息回溯检索**：帮助用户回溯和检索过去重要的信息碎片
-<!-- - **多模态搜索**：支持文本、图像和语义搜索 -->
-<!-- - **向量数据库**：基于 ChromaDB 的高效向量存储和检索 -->
+- **多模态搜索**：支持文本、图像和语义搜索
+- **向量数据库**：基于 ChromaDB 的高效向量存储和检索
 - **Web API 服务**：提供完整的 RESTful API 接口
 - **前端集成**：支持与各种前端框架集成
 
@@ -38,11 +38,13 @@ LifeTrace 采用**前后端分离**架构：
 ### 环境要求
 
 **后端**:
+
 - Python 3.13+
 - 支持的操作系统：Windows、macOS
 - 可选：CUDA 支持（用于 GPU 加速）
 
 **前端**:
+
 - Node.js 18+
 - pnpm 包管理器
 
@@ -51,6 +53,7 @@ LifeTrace 采用**前后端分离**架构：
 本项目使用 [uv](https://github.com/astral-sh/uv) 进行快速可靠的依赖管理。
 
 **安装 uv:**
+
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -63,6 +66,7 @@ pip install uv
 ```
 
 **安装依赖并同步环境:**
+
 ```bash
 # 从 pyproject.toml 和 uv.lock 同步依赖
 uv sync
@@ -106,24 +110,6 @@ pnpm dev
 
 详细说明请参考：[frontend/README.md](frontend/README.md)
 
-<!--
-#### 仅启动 Web 服务
-```bash
-python -m lifetrace_backend.server --port 8000
-```
-
-#### 启动单个服务
-```bash
-# 启动录制器
-python -m lifetrace_backend.recorder
-
-# 启动处理器
-python -m lifetrace_backend.processor
-
-# 启动 OCR 服务
-python -m lifetrace_backend.simple_ocr
-``` -->
-
 ## 📋 待办事项与路线图
 
 ### 🚀 高优先级
@@ -140,7 +126,8 @@ python -m lifetrace_backend.simple_ocr
   - ☐ 创建 Web 版本
 
 ### ✅ 最近完成
-- ☑ **核心基础设施** - 基础截图记录和 OCR 功能
+
+- ☑ **后台定时任务管理** - 添加定时任务管理功能，支持暂停/开启任务操作
 
 ---
 

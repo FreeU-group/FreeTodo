@@ -181,6 +181,24 @@ export const api = {
 
   deleteConversation: (id: string) => apiClient.delete(`/api/conversations/${id}`),
 
+  getChatHistory: (sessionId?: string, chatType?: string, limit?: number) => apiClient.get('/api/chat/history', {
+    params: {
+      ...(sessionId && { session_id: sessionId }),
+      ...(chatType && { chat_type: chatType }),
+      ...(limit && { limit }),
+    }
+  }),
+
+  createNewChat: (chatType: string = 'event', contextId?: number, sessionId?: string) =>
+    apiClient.post('/api/chat/new', {
+      ...(sessionId && { session_id: sessionId }),
+      chat_type: chatType,
+      ...(contextId && { context_id: contextId }),
+    }),
+
+  addMessageToSession: (sessionId: string, role: string, content: string) =>
+    apiClient.post('/api/chat/add-message', { session_id: sessionId, role, content }),
+
   // 应用使用分析
   getAppUsage: (params?: {
     start_date?: string;
@@ -252,6 +270,16 @@ export const api = {
 
   getTaskChildren: (projectId: number, taskId: number) =>
     apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/children`),
+
+  // 任务进展管理
+  getTaskProgress: (projectId: number, taskId: number, params?: { limit?: number; offset?: number }) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/progress`, { params }),
+
+  getLatestTaskProgress: (projectId: number, taskId: number) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/progress/latest`),
+
+  generateTaskSummary: (projectId: number, taskId: number) =>
+    apiClient.post(`/api/projects/${projectId}/tasks/${taskId}/generate-summary`),
 
   // 上下文管理
   getContexts: (params?: { associated?: boolean; task_id?: number; limit?: number; offset?: number }) =>

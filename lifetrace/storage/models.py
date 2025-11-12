@@ -197,3 +197,59 @@ class Task(Base):
 
     def __repr__(self):
         return f"<Task(id={self.id}, name={self.name}, project_id={self.project_id})>"
+
+
+class Chat(Base):
+    """聊天会话模型"""
+
+    __tablename__ = "chats"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(String(100), nullable=False, unique=True, index=True)  # UUID会话ID
+    chat_type = Column(
+        String(50), default="event", nullable=False
+    )  # 聊天类型：event, project, general, task等
+    title = Column(String(200))  # 会话标题（可选，可由第一条消息生成）
+    context_id = Column(Integer)  # 上下文ID（如event_id, project_id等，根据chat_type不同而不同）
+    extra_data = Column(Text)  # JSON格式的元数据，存储额外信息
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+    last_message_at = Column(DateTime)  # 最后一条消息的时间
+
+    def __repr__(self):
+        return f"<Chat(id={self.id}, session_id={self.session_id}, type={self.chat_type})>"
+
+
+class Message(Base):
+    """聊天消息模型"""
+
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(
+        Integer, ForeignKey("chats.id"), nullable=False, index=True
+    )  # 外键关联到聊天会话
+    role = Column(String(20), nullable=False)  # 消息角色：user, assistant, system
+    content = Column(Text, nullable=False)  # 消息内容
+    token_count = Column(Integer)  # token数量（可选）
+    model = Column(String(100))  # 使用的模型（可选）
+    extra_data = Column(Text)  # JSON格式的元数据，如sources、images等
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<Message(id={self.id}, chat_id={self.chat_id}, role={self.role})>"
+
+
+class TaskProgress(Base):
+    """任务进展记录模型"""
+
+    __tablename__ = "task_progress"
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)  # 外键关联到任务
+    summary = Column(Text, nullable=False)  # AI生成的进展摘要
+    context_count = Column(Integer, default=0)  # 本次摘要关联的上下文数量
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<TaskProgress(id={self.id}, task_id={self.task_id}, created_at={self.created_at})>"

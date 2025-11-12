@@ -69,6 +69,17 @@ export interface Conversation {
   messages: ChatMessage[];
 }
 
+// 会话摘要类型
+export interface SessionSummary {
+  session_id: string;
+  chat_type: string;
+  title?: string;
+  context_id?: number;
+  created_at: string;
+  last_active: string;
+  message_count: number;
+}
+
 // 搜索类型
 export type SearchType = 'traditional' | 'semantic' | 'multimodal' | 'event';
 
@@ -147,6 +158,20 @@ export interface TaskUpdate {
 export interface TaskListResponse {
   total: number;
   tasks: Task[];
+}
+
+// 任务进展类型
+export interface TaskProgress {
+  id: number;
+  task_id: number;
+  summary: string;
+  context_count: number;
+  created_at: string;
+}
+
+export interface TaskProgressListResponse {
+  total: number;
+  progress_list: TaskProgress[];
 }
 
 // 上下文管理类型

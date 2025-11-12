@@ -133,6 +133,16 @@ def _create_rapidocr_instance() -> RapidOCR:
             )
         else:
             logger.warning("外部模型文件不存在，使用默认配置")
+            logger.warning(f"  应用路径: {app_path}")
+            logger.warning(
+                f"  检测模型路径: {det_model_path} (存在: {os.path.exists(det_model_path)})"
+            )
+            logger.warning(
+                f"  识别模型路径: {rec_model_path} (存在: {os.path.exists(rec_model_path)})"
+            )
+            logger.warning(
+                f"  分类模型路径: {cls_model_path} (存在: {os.path.exists(cls_model_path)})"
+            )
             return RapidOCR(
                 config_path=None,
                 det_use_cuda=False,

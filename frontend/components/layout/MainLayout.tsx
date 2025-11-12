@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Header from './Header';
 import AppLayout from './AppLayout';
 import SettingsModal from '../common/SettingsModal';
+import { SelectedEventsProvider } from '@/lib/context/SelectedEventsContext';
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -21,12 +21,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
   };
 
   return (
-    <>
-      <div className="flex h-screen flex-col bg-background overflow-hidden">
-        <Header onSettingsClick={handleSettingsClick} />
-        <main className="flex-1 overflow-hidden h-[calc(100vh-4rem)]">
-          <AppLayout>{children}</AppLayout>
-        </main>
+    <SelectedEventsProvider>
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* 左中右三栏布局 */}
+        <AppLayout onSettingsClick={handleSettingsClick}>
+          {children}
+        </AppLayout>
       </div>
 
       {/* 设置对话框 */}
@@ -34,6 +34,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
         isOpen={isSettingsOpen}
         onClose={handleSettingsClose}
       />
-    </>
+    </SelectedEventsProvider>
   );
 }

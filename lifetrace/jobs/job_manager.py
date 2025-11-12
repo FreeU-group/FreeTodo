@@ -4,6 +4,7 @@
 负责管理所有后台任务的启动、停止和配置更新
 """
 
+from lifetrace.jobs.clean_data import execute_clean_task, get_cleaner_instance
 from lifetrace.jobs.ocr import execute_ocr_task
 from lifetrace.jobs.recorder import execute_capture_task, get_recorder_instance
 from lifetrace.jobs.scheduler import get_scheduler_manager
@@ -44,6 +45,9 @@ class JobManager:
 
         # 启动任务摘要服务
         self._start_task_summary_service()
+
+        # 启动数据清理服务
+        self._start_clean_data_service()
 
         logger.info("所有后台任务已启动")
 
@@ -202,6 +206,8 @@ class JobManager:
                 self._handle_task_context_mapper_config_change(old_value, new_value)
                 # 检查任务摘要配置
                 self._handle_task_summary_config_change_in_jobs(old_value, new_value)
+                # 检查数据清理配置
+                self._handle_clean_data_config_change(old_value, new_value)
 
         except Exception as e:
             logger.error(f"JobManager 处理配置变更失败: {e}", exc_info=True)
@@ -379,6 +385,86 @@ class JobManager:
                 min_contexts = new_summary.get("min_new_contexts", 5)
                 logger.info(f"更新任务摘要最小上下文数: {min_contexts}")
                 summary_instance.min_new_contexts = min_contexts
+
+    def _start_clean_data_service(self):
+        """启动数据清理服务"""
+        enabled = config.get("jobs.clean_data.enabled", True)
+
+        try:
+            # 预先初始化全局实例
+            get_cleaner_instance()
+            logger.info("数据清理服务实例已初始化")
+
+            # 添加到调度器（无论是否启用都添加）
+            interval = config.get("jobs.clean_data.interval", 3600)
+            clean_name = config.get("jobs.clean_data.name", "数据清理")
+            self.scheduler_manager.add_interval_job(
+                func=execute_clean_task,
+                job_id="clean_data_job",
+                name=clean_name,
+                seconds=interval,
+                replace_existing=True,
+            )
+            logger.info(f"数据清理定时任务已添加，间隔: {interval}秒")
+
+            # 如果未启用，则暂停任务
+            if not enabled:
+                self.scheduler_manager.pause_job("clean_data_job")
+                logger.info("数据清理服务未启用，已暂停")
+        except Exception as e:
+            logger.error(f"启动数据清理服务失败: {e}", exc_info=True)
+
+    def _handle_clean_data_config_change(self, old_jobs: dict, new_jobs: dict):
+        """处理数据清理配置变更
+
+        Args:
+            old_jobs: 旧的 jobs 配置
+            new_jobs: 新的 jobs 配置
+        """
+        old_clean = old_jobs.get("clean_data", {})
+        new_clean = new_jobs.get("clean_data", {})
+
+        # 检查是否启用状态变更
+        old_enabled = old_clean.get("enabled", True)
+        new_enabled = new_clean.get("enabled", True)
+
+        if old_enabled != new_enabled:
+            logger.info(f"数据清理服务启用状态变更: {old_enabled} -> {new_enabled}")
+            job = self.scheduler_manager.get_job("clean_data_job")
+            if new_enabled:
+                # 恢复任务
+                if job:
+                    self.scheduler_manager.resume_job("clean_data_job")
+                    logger.info("数据清理服务已恢复")
+                else:
+                    # 任务不存在，需要创建
+                    self._start_clean_data_service()
+            else:
+                # 暂停任务（不移除）
+                if job:
+                    self.scheduler_manager.pause_job("clean_data_job")
+                    logger.info("数据清理服务已暂停")
+
+        # 检查间隔配置变更（无论是否启用都允许修改）
+        elif old_clean.get("interval") != new_clean.get("interval"):
+            new_interval = new_clean.get("interval", 3600)
+            logger.info(f"检测到数据清理间隔配置变更: {new_interval}秒")
+            if self.scheduler_manager:
+                self.scheduler_manager.modify_job_interval("clean_data_job", seconds=new_interval)
+
+        # 检查其他配置参数变更
+        if new_enabled:
+            cleaner_instance = get_cleaner_instance()
+            if old_clean.get("max_screenshots") != new_clean.get("max_screenshots"):
+                max_screenshots = new_clean.get("max_screenshots", 10000)
+                logger.info(f"更新最大截图数量: {max_screenshots}")
+                cleaner_instance.max_screenshots = max_screenshots
+
+            if old_clean.get("delete_file_only") != new_clean.get("delete_file_only"):
+                delete_file_only = new_clean.get("delete_file_only", True)
+                mode = "只删除文件" if delete_file_only else "删除文件和记录"
+                logger.info(f"更新清理模式: {mode}")
+                cleaner_instance.delete_file_only = delete_file_only
 
 
 # 全局单例

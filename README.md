@@ -26,6 +26,7 @@ LifeTrace is an AI-based intelligent life recording system that can automaticall
 ## Get started
 
 ### Environment Requirements
+
 - Python 3.13+
 - Supported OS: Windows, macOS
 - Optional: CUDA support (for GPU acceleration)
@@ -35,6 +36,7 @@ LifeTrace is an AI-based intelligent life recording system that can automaticall
 This project uses [uv](https://github.com/astral-sh/uv) for fast and reliable dependency management.
 
 **Install uv:**
+
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -47,6 +49,7 @@ pip install uv
 ```
 
 **Install dependencies and sync environment:**
+
 ```bash
 # Sync dependencies from pyproject.toml and uv.lock
 uv sync
@@ -77,6 +80,7 @@ The frontend is required to use LifeTrace. Start the frontend development server
 
 ```bash
 cd frontend
+
 pnpm install
 pnpm dev
 ```
@@ -104,7 +108,7 @@ For more details, see: [frontend/README.md](frontend/README.md)
 
 ### ✅ Recently Completed
 
-- ☑ **Core Infrastructure** - Basic screenshot recording and OCR functionality
+- ☑ **Background Job Management** - Add background job management functionality, support pause/start task operation
 
 ---
 

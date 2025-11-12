@@ -28,6 +28,6 @@ Rec:
 
 # 外部模型文件路径配置（用于PyInstaller打包优化）
 Models:
-  det_model_path: "lifetrace/models/ch_PP-OCRv4_det_infer.onnx"
-  rec_model_path: "lifetrace/models/ch_PP-OCRv4_rec_infer.onnx"
-  cls_model_path: "lifetrace/models/ch_ppocr_mobile_v2.0_cls_infer.onnx"
+  det_model_path: "models/ch_PP-OCRv4_det_infer.onnx"
+  rec_model_path: "models/ch_PP-OCRv4_rec_infer.onnx"
+  cls_model_path: "models/ch_ppocr_mobile_v2.0_cls_infer.onnx"
