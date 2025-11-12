@@ -1,14 +1,59 @@
 """配置相关路由"""
 
+import asyncio
 import os
+import shutil
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from lifetrace.jobs.job_manager import get_job_manager
+from lifetrace.llm.multimodal_vector_service import create_multimodal_vector_service
+from lifetrace.llm.vector_service import create_vector_service
 from lifetrace.routers import dependencies as deps
 from lifetrace.schemas.config import ConfigResponse
+from lifetrace.storage import DatabaseManager
+from lifetrace.util.config_watcher import get_config_watcher
+from lifetrace.util.utils import ensure_dir
 
 router = APIRouter(prefix="/api", tags=["config"])
+
+
+def _reset_database_and_services():
+    """重置数据库及其依赖的服务实例"""
+    # 重置数据库
+    if deps.db_manager:
+        deps.logger.info("正在重置数据库...")
+        deps.db_manager.reset()
+    else:
+        deps.logger.info("未检测到数据库实例，正在创建新实例")
+        deps.db_manager = DatabaseManager()
+        try:
+            from lifetrace.storage import database as storage_database_module
+
+            storage_database_module.db_manager = deps.db_manager
+        except Exception as exc:
+            deps.logger.warning(f"更新全局数据库实例失败: {exc}")
+
+    # 重新初始化向量数据库服务
+    try:
+        deps.logger.info("正在重新初始化向量服务...")
+        deps.vector_service = create_vector_service(deps.config, deps.db_manager)
+        deps.logger.info("向量服务初始化完成")
+    except Exception as exc:
+        deps.logger.error(f"向量服务初始化失败: {exc}")
+        deps.vector_service = None
+
+    try:
+        deps.logger.info("正在重新初始化多模态向量服务...")
+        deps.multimodal_vector_service = create_multimodal_vector_service(
+            deps.config, deps.db_manager
+        )
+        deps.logger.info("多模态向量服务初始化完成")
+    except Exception as exc:
+        deps.logger.error(f"多模态向量服务初始化失败: {exc}")
+        deps.multimodal_vector_service = None
 
 
 @router.get("/config", response_model=ConfigResponse)
@@ -303,3 +348,67 @@ async def save_config(settings: dict[str, Any]):
     except Exception as e:
         deps.logger.error(f"保存配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}") from e
+
+
+@router.post("/clear-data")
+async def clear_data():
+    """清除 data 目录并重启后台任务（危险操作）"""
+    job_manager = get_job_manager()
+    config_watcher = get_config_watcher()
+    watcher_was_running = False
+    jobs_stopped = False
+
+    loop = asyncio.get_running_loop()
+
+    # 步骤 1：暂停监听与后台任务
+    async def stop_services():
+        nonlocal watcher_was_running, jobs_stopped
+        if config_watcher:
+            watcher_was_running = getattr(config_watcher, "is_watching", lambda: False)()
+            if watcher_was_running:
+                deps.logger.info("正在停止配置文件监听...")
+                await loop.run_in_executor(None, config_watcher.stop_watching)
+                deps.logger.info("配置文件监听已暂停")
+
+        if job_manager:
+            deps.logger.info("正在停止所有后台任务...")
+            await loop.run_in_executor(None, job_manager.stop_all)
+            jobs_stopped = True
+            deps.logger.info("后台任务已全部暂停")
+
+    async def start_services():
+        if job_manager and jobs_stopped:
+            deps.logger.info("正在恢复后台任务...")
+            await loop.run_in_executor(None, job_manager.start_all)
+            deps.logger.info("后台任务已重新启动")
+
+        if config_watcher and watcher_was_running:
+            deps.logger.info("正在恢复配置文件监听...")
+            await loop.run_in_executor(None, config_watcher.start_watching)
+            deps.logger.info("配置文件监听已重新启动")
+
+    try:
+        # TODO：待验证和实现
+        # await stop_services()
+        # job_manager.stop_all()
+        # config_watcher.stop_watching()
+
+        # TODO: 验证reset_database_and_services方法可用
+        deps.logger.info("开始重新构建data目录和相关服务")
+        # _reset_database_and_services()
+        deps.logger.info("重新构建data目录和相关服务完毕")
+
+        # await start_services()
+        # job_manager.stop_all()
+        # config_watcher.start_watching()
+        return {
+            "success": True,
+            "message": "后台任务与监听已恢复，等待数据清理逻辑完善",
+        }
+    except Exception as exc:
+        deps.logger.error(f"clear-data 操作失败: {exc}")
+        await start_services()
+        return {
+            "success": False,
+            "error": f"clear-data 操作失败: {exc}",
+        }

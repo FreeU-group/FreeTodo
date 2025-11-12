@@ -213,6 +213,9 @@ export const api = {
   saveAndInitLlm: (config: { llmKey: string; baseUrl: string; model: string }) =>
     apiClient.post('/api/save-and-init-llm', config),
 
+  // 数据清理
+  clearData: () => apiClient.post('/api/clear-data'),
+
   // 健康检查
   healthCheck: () => apiClient.get('/health'),
 

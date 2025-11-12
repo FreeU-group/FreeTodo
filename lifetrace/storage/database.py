@@ -151,6 +151,23 @@ class DatabaseManager:
             logging.warning(f"创建性能索引失败: {e}")
             raise
 
+    def reset(self):
+        """重置数据库连接并重新初始化结构"""
+        try:
+            if self.engine:
+                try:
+                    self.engine.dispose()
+                    logging.info("数据库连接已释放")
+                except Exception as dispose_error:
+                    logging.warning(f"释放数据库连接失败: {dispose_error}")
+            self.engine = None
+            self.SessionLocal = None
+            self._init_database()
+            logging.info("数据库已重置")
+        except Exception as e:
+            logging.error(f"重置数据库失败: {e}")
+            raise
+
     @contextmanager
     def get_session(self):
         """获取数据库会话上下文管理器"""

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import Input from './Input';
 import Button from './Button';
@@ -44,6 +44,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
   const [initialShowScheduler, setInitialShowScheduler] = useState(false); // 记录初始值
@@ -63,6 +65,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const savedValue = saved === 'true';
       setShowScheduler(savedValue);
       setInitialShowScheduler(savedValue); // 记录初始值
+      setConfirmingClear(false);
+      setClearing(false);
+    } else {
+      setConfirmingClear(false);
+      setClearing(false);
     }
   }, [isOpen]);
 
@@ -263,16 +270,44 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setShowScheduler(checked);
   };
 
-  const handleClearData = () => {
-    toast.warning('清除所有数据功能暂未开放', {
-      description: '请在后端提供相应接口后再尝试该操作',
-    });
+  const handleClearData = async () => {
+    if (!confirmingClear) {
+      setConfirmingClear(true);
+      toast.warning('请再次点击确认清除', {
+        description: '该操作会删除 data/ 目录下的所有内容，且不可恢复',
+        duration: 5000,
+      });
+      return;
+    }
+
+    setClearing(true);
+    try {
+      const response = await api.clearData();
+      if (response.data.success) {
+        toast.success('数据清理成功', {
+          description: response.data.message || '后台任务已重新启动',
+        });
+      } else {
+        toast.error('数据清理失败', {
+          description: response.data.error || '请检查后端日志',
+        });
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      toast.error('数据清理失败', {
+        description: errorMsg,
+      });
+    } finally {
+      setClearing(false);
+      setConfirmingClear(false);
+    }
   };
 
   // 处理取消操作
   const handleCancel = () => {
     // 恢复定时任务开关到初始状态
     setShowScheduler(initialShowScheduler);
+    setConfirmingClear(false);
     onClose();
   };
 
@@ -550,11 +585,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-4">
-                    <div className="flex items-center gap-2 text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                      <p className="text-sm font-semibold">危险操作</p>
-                    </div>
+                  <div>
+                    <p className="text-sm font-semibold text-destructive">危险操作</p>
                     <p className="text-xs text-destructive/80 mt-1">
                       清除 data/ 目录下的所有本地内容，操作不可撤销
                     </p>
@@ -562,8 +594,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       variant="danger"
                       className="mt-3 w-full"
                       onClick={handleClearData}
+                      disabled={clearing}
                     >
-                      清除所有数据
+                      {clearing ? '清除中...' : confirmingClear ? '确认清除' : '清除所有数据'}
                     </Button>
                   </div>
                 </CardContent>
