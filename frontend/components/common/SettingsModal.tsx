@@ -58,6 +58,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     baseUrl: '',
     model: 'qwen3-max',
   }); // 记录初始 LLM 配置
+  const [portError, setPortError] = useState<string | null>(null);
 
   // 加载配置
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         setSettings(newSettings);
         setInitialServerPort(newSettings.serverPort);
+        setPortError(null);
 
         // 记录初始 LLM 配置
         setInitialLlmConfig({
@@ -152,10 +154,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const isValidPort = (port: number) => Number.isInteger(port) && port >= 1 && port <= 65535;
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
     try {
+      const portChanged = settings.serverPort !== initialServerPort;
+      if (portChanged && !isValidPort(settings.serverPort)) {
+        const errorText = '端口号需在 1-65535 之间';
+        setPortError(errorText);
+        setMessage({ type: 'error', text: errorText });
+        setSaving(false);
+        return;
+      }
+
       // 检查是否有 LLM 配置
       const hasLlmConfig = settings.llmKey && settings.baseUrl;
 
@@ -246,7 +259,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
     } catch (error) {
       console.error('保存配置失败:', error);
-      const errorMsg = error instanceof Error ? error.message : undefined;
+      let detail: string | undefined;
+      if (typeof window !== 'undefined') {
+        const maybeAxiosError = error as any;
+        detail = maybeAxiosError?.response?.data?.detail || maybeAxiosError?.response?.data?.error;
+      }
+      const errorMsg = detail || (error instanceof Error ? error.message : undefined);
       toast.configSaveFailed(errorMsg);
     } finally {
       setSaving(false);
@@ -255,6 +273,24 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleChange = (key: keyof ConfigSettings, value: string | number | string[] | boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleServerPortChange = (value: number) => {
+    if (Number.isNaN(value)) {
+      handleChange('serverPort', 1);
+      setPortError(null);
+      return;
+    }
+
+    let nextValue = value;
+    if (nextValue > 65535) {
+      nextValue = 65535;
+    } else if (nextValue < 1) {
+      nextValue = 1;
+    }
+
+    handleChange('serverPort', nextValue);
+    setPortError(null);
   };
 
   // 添加黑名单应用
@@ -492,24 +528,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       </label>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="col-span-1">
-                        <label className="mb-1 block text-sm font-medium text-foreground">
-                          服务器端口
-                        </label>
-                        <Input
-                          type="number"
-                          className="px-3 py-2 h-9"
-                          placeholder="8000"
-                          value={settings.serverPort}
-                          onChange={(e) => handleChange('serverPort', parseInt(e.target.value))}
-                        />
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          服务器监听端口，修改后需要重启服务
-                        </p>
-                      </div>
-                    </div>
-
                     {settings.recordingEnabled && (
                       <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
@@ -668,6 +686,27 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                     </label>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="mb-1 block text-sm font-medium text-foreground">
+                      服务器端口
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      className="px-3 py-2 h-9"
+                      placeholder="8000"
+                      value={settings.serverPort}
+                      onChange={(e) => handleServerPortChange(parseInt(e.target.value, 10))}
+                    />
+                    {portError && (
+                      <p className="text-xs text-red-500 mt-0.5">{portError}</p>
+                    )}
+                    <p className="text-xs text-red-500 mt-0.5">
+                      修改后需重启后端服务
+                    </p>
                   </div>
                 </CardContent>
               </Card>
