@@ -53,6 +53,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [initialShowScheduler, setInitialShowScheduler] = useState(false); // 记录初始值
   const [initialServerPort, setInitialServerPort] = useState(8000);
   const [blacklistInput, setBlacklistInput] = useState(''); // 黑名单输入框的值
+  const [serverPortInput, setServerPortInput] = useState('8000');
   const [initialLlmConfig, setInitialLlmConfig] = useState<{ llmKey: string; baseUrl: string; model: string }>({
     llmKey: '',
     baseUrl: '',
@@ -104,6 +105,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         setSettings(newSettings);
         setInitialServerPort(newSettings.serverPort);
+        setServerPortInput(String(newSettings.serverPort));
         setPortError(null);
 
         // 记录初始 LLM 配置
@@ -232,12 +234,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             nextUrl.port = String(settings.serverPort);
             setApiBaseUrl(nextUrl.toString().replace(/\/$/, ''));
             setInitialServerPort(settings.serverPort);
+            setServerPortInput(String(settings.serverPort));
           } catch (error) {
             const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
             const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
             const fallbackUrl = `${protocol}//${hostname}:${settings.serverPort}`;
             setApiBaseUrl(fallbackUrl);
             setInitialServerPort(settings.serverPort);
+            setServerPortInput(String(settings.serverPort));
             console.warn('更新 API 基础地址失败，已使用回退地址:', error);
           }
         }
@@ -275,21 +279,45 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleServerPortChange = (value: number) => {
-    if (Number.isNaN(value)) {
-      handleChange('serverPort', 1);
+  const handleServerPortChange = (value: string) => {
+    setServerPortInput(value);
+
+    const parsed = parseInt(value, 10);
+    if (Number.isNaN(parsed)) {
       setPortError(null);
       return;
     }
 
-    let nextValue = value;
-    if (nextValue > 65535) {
-      nextValue = 65535;
-    } else if (nextValue < 1) {
-      nextValue = 1;
+    let normalized = parsed;
+    if (normalized < 1) {
+      normalized = 1;
+    } else if (normalized > 65535) {
+      normalized = 65535;
     }
 
-    handleChange('serverPort', nextValue);
+    handleChange('serverPort', normalized);
+    setPortError(null);
+  };
+
+  const handleServerPortBlur = () => {
+    const parsed = parseInt(serverPortInput, 10);
+    if (Number.isNaN(parsed)) {
+      const fallbackPort = 8000;
+      handleChange('serverPort', fallbackPort);
+      setServerPortInput(String(fallbackPort));
+      setPortError(null);
+      return;
+    }
+
+    let normalized = parsed;
+    if (normalized < 1) {
+      normalized = 1;
+    } else if (normalized > 65535) {
+      normalized = 65535;
+    }
+
+    handleChange('serverPort', normalized);
+    setServerPortInput(String(normalized));
     setPortError(null);
   };
 
@@ -698,15 +726,17 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       max={65535}
                       className="px-3 py-2 h-9"
                       placeholder="8000"
-                      value={settings.serverPort}
-                      onChange={(e) => handleServerPortChange(parseInt(e.target.value, 10))}
+                      value={serverPortInput}
+                      onChange={(e) => handleServerPortChange(e.target.value)}
+                      onBlur={handleServerPortBlur}
                     />
-                    {portError && (
+                    {portError ? (
                       <p className="text-xs text-red-500 mt-0.5">{portError}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        服务器监听端口，修改后需要重启服务
+                      </p>
                     )}
-                    <p className="text-xs text-red-500 mt-0.5">
-                      修改后需重启后端服务
-                    </p>
                   </div>
                 </CardContent>
               </Card>
