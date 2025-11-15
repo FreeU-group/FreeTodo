@@ -109,23 +109,12 @@ async def get_screenshot_image(screenshot_id: int, request: Request):
             raise HTTPException(status_code=404, detail="截图不存在")
 
         file_path = screenshot["file_path"]
-
-        # 检查文件是否存在
-        if not os.path.exists(file_path):
-            logging.info(f"截图文件已被清理: {file_path}")
-            raise HTTPException(
-                status_code=404, detail="该截图文件已被清理，可能是由于数据清理任务删除了历史数据"
-            )
-
         return FileResponse(
             file_path,
             media_type="image/png",
             filename=f"screenshot_{screenshot_id}.png",
         )
 
-    except HTTPException:
-        # 重新抛出HTTPException，保持原有的错误信息
-        raise
     except Exception as e:
         deps.logger.error(f"获取截图图像时发生错误: {e}")
         raise HTTPException(status_code=500, detail="服务器内部错误") from e

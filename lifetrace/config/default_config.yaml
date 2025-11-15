@@ -57,12 +57,6 @@ jobs:
     enabled: false  # 是否启用任务摘要服务
     interval: 3600  # 检查间隔（秒）
     min_new_contexts: 5  # 触发摘要的最小新上下文数量
-  clean_data:
-    name: '截图清理'  # 任务显示名称
-    enabled: true  # 是否启用截图清理任务
-    interval: 3600  # 检查间隔（秒），默认每小时检查一次
-    max_screenshots: 10000  # 最大截图数量限制
-    delete_file_only: true  # 只删除文件（true），还是同时删除记录（false）
 
 # 存储配置
 storage:

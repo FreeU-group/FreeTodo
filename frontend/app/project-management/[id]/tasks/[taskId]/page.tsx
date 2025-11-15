@@ -7,7 +7,6 @@ import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
 import ContextList from '@/components/context/ContextList';
-import TaskProgressCard from '@/components/task/TaskProgressCard';
 import { Task, Project, Context } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
@@ -207,52 +206,47 @@ export default function TaskDetailPage() {
 
         {/* 内容区域 */}
         {activeTab === 'info' ? (
-          <div className="space-y-6">
-            {/* 任务进展卡片 */}
-            <TaskProgressCard projectId={projectId} taskId={taskId} />
-
-            {/* 任务信息 */}
-            <Card>
-              <CardHeader>
-                <CardTitle>任务详情</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {task.description && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">描述</label>
-                    <p className="mt-1 text-foreground">{task.description}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">状态</label>
-                    <p className="mt-1 text-foreground">
-                      {task.status === 'pending' && '待办'}
-                      {task.status === 'in_progress' && '进行中'}
-                      {task.status === 'completed' && '已完成'}
-                      {task.status === 'cancelled' && '已取消'}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">创建时间</label>
-                    <p className="mt-1 text-foreground">{formatDate(task.created_at)}</p>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">更新时间</label>
-                    <p className="mt-1 text-foreground">{formatDate(task.updated_at)}</p>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">关联上下文数</label>
-                    <p className="mt-1 text-foreground">{contexts.length} 个</p>
-                  </div>
+          // 任务信息
+          <Card>
+            <CardHeader>
+              <CardTitle>任务详情</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {task.description && (
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">描述</label>
+                  <p className="mt-1 text-foreground">{task.description}</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">状态</label>
+                  <p className="mt-1 text-foreground">
+                    {task.status === 'pending' && '待办'}
+                    {task.status === 'in_progress' && '进行中'}
+                    {task.status === 'completed' && '已完成'}
+                    {task.status === 'cancelled' && '已取消'}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">创建时间</label>
+                  <p className="mt-1 text-foreground">{formatDate(task.created_at)}</p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">更新时间</label>
+                  <p className="mt-1 text-foreground">{formatDate(task.updated_at)}</p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">关联上下文数</label>
+                  <p className="mt-1 text-foreground">{contexts.length} 个</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         ) : (
           // 关联上下文
           <div className="space-y-6">

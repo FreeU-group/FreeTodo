@@ -5,7 +5,7 @@ import { X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import Input from './Input';
 import Button from './Button';
-import { api, getApiBaseUrl, setApiBaseUrl } from '@/lib/api';
+import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
 
 interface SettingsModalProps {
@@ -19,12 +19,9 @@ interface ConfigSettings {
   model: string;
   temperature: number;
   maxTokens: number;
-  recordingEnabled: boolean;
+  recordEnabled: boolean;
   recordInterval: number;
   maxDays: number;
-  serverPort: number;
-  localHistory: boolean;
-  historyLimit: number;
   blacklistApps: string[];
 }
 
@@ -35,31 +32,23 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     model: 'qwen3-max',
     temperature: 0.7,
     maxTokens: 2048,
-    recordingEnabled: true,
+    recordEnabled: true,
     recordInterval: 5,
     maxDays: 30,
-    serverPort: 8000,
-    localHistory: true,
-    historyLimit: 3,
     blacklistApps: [],
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const [confirmingClear, setConfirmingClear] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showScheduler, setShowScheduler] = useState(false);
   const [initialShowScheduler, setInitialShowScheduler] = useState(false); // 记录初始值
-  const [initialServerPort, setInitialServerPort] = useState(8000);
   const [blacklistInput, setBlacklistInput] = useState(''); // 黑名单输入框的值
-  const [serverPortInput, setServerPortInput] = useState('8000');
   const [initialLlmConfig, setInitialLlmConfig] = useState<{ llmKey: string; baseUrl: string; model: string }>({
     llmKey: '',
     baseUrl: '',
     model: 'qwen3-max',
   }); // 记录初始 LLM 配置
-  const [portError, setPortError] = useState<string | null>(null);
 
   // 加载配置
   useEffect(() => {
@@ -70,11 +59,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const savedValue = saved === 'true';
       setShowScheduler(savedValue);
       setInitialShowScheduler(savedValue); // 记录初始值
-      setConfirmingClear(false);
-      setClearing(false);
-    } else {
-      setConfirmingClear(false);
-      setClearing(false);
     }
   }, [isOpen]);
 
@@ -94,19 +78,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           model: config.model || 'qwen3-max',
           temperature: config.temperature || 0.7,
           maxTokens: config.maxTokens || 2048,
-          recordingEnabled: config.recordingEnabled ?? config.record?.enabled ?? true,
+          recordEnabled: config.recordEnabled ?? config.record?.enabled ?? true,
           recordInterval: config.recordInterval || 5,
           maxDays: config.maxDays || 30,
-          serverPort: config.serverPort || 8000,
-          localHistory: config.localHistory ?? true,
-          historyLimit: config.historyLimit ?? 3,
           blacklistApps: blacklistAppsArray,
         };
 
         setSettings(newSettings);
-        setInitialServerPort(newSettings.serverPort);
-        setServerPortInput(String(newSettings.serverPort));
-        setPortError(null);
 
         // 记录初始 LLM 配置
         setInitialLlmConfig({
@@ -156,21 +134,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const isValidPort = (port: number) => Number.isInteger(port) && port >= 1 && port <= 65535;
-
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
     try {
-      const portChanged = settings.serverPort !== initialServerPort;
-      if (portChanged && !isValidPort(settings.serverPort)) {
-        const errorText = '端口号需在 1-65535 之间';
-        setPortError(errorText);
-        setMessage({ type: 'error', text: errorText });
-        setSaving(false);
-        return;
-      }
-
       // 检查是否有 LLM 配置
       const hasLlmConfig = settings.llmKey && settings.baseUrl;
 
@@ -195,12 +162,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         await api.saveConfig({
           temperature: settings.temperature,
           maxTokens: settings.maxTokens,
-          recordingEnabled: settings.recordingEnabled,
+          recordEnabled: settings.recordEnabled,
           recordInterval: settings.recordInterval,
           maxDays: settings.maxDays,
-          serverPort: settings.serverPort,
-          localHistory: settings.localHistory,
-          historyLimit: settings.historyLimit,
           blacklistApps: settings.blacklistApps,
         });
       } else {
@@ -226,26 +190,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         }
 
         toast.configSaved();
-
-        if (settings.serverPort && settings.serverPort !== initialServerPort) {
-          try {
-            const currentBase = getApiBaseUrl();
-            const nextUrl = new URL(currentBase);
-            nextUrl.port = String(settings.serverPort);
-            setApiBaseUrl(nextUrl.toString().replace(/\/$/, ''));
-            setInitialServerPort(settings.serverPort);
-            setServerPortInput(String(settings.serverPort));
-          } catch (error) {
-            const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
-            const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-            const fallbackUrl = `${protocol}//${hostname}:${settings.serverPort}`;
-            setApiBaseUrl(fallbackUrl);
-            setInitialServerPort(settings.serverPort);
-            setServerPortInput(String(settings.serverPort));
-            console.warn('更新 API 基础地址失败，已使用回退地址:', error);
-          }
-        }
-
         onClose(); // 立即关闭弹窗
 
         // 只有在 LLM 配置实际发生变化时才刷新页面
@@ -263,12 +207,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
     } catch (error) {
       console.error('保存配置失败:', error);
-      let detail: string | undefined;
-      if (typeof window !== 'undefined') {
-        const maybeAxiosError = error as any;
-        detail = maybeAxiosError?.response?.data?.detail || maybeAxiosError?.response?.data?.error;
-      }
-      const errorMsg = detail || (error instanceof Error ? error.message : undefined);
+      const errorMsg = error instanceof Error ? error.message : undefined;
       toast.configSaveFailed(errorMsg);
     } finally {
       setSaving(false);
@@ -277,48 +216,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleChange = (key: keyof ConfigSettings, value: string | number | string[] | boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleServerPortChange = (value: string) => {
-    setServerPortInput(value);
-
-    const parsed = parseInt(value, 10);
-    if (Number.isNaN(parsed)) {
-      setPortError(null);
-      return;
-    }
-
-    let normalized = parsed;
-    if (normalized < 1) {
-      normalized = 1;
-    } else if (normalized > 65535) {
-      normalized = 65535;
-    }
-
-    handleChange('serverPort', normalized);
-    setPortError(null);
-  };
-
-  const handleServerPortBlur = () => {
-    const parsed = parseInt(serverPortInput, 10);
-    if (Number.isNaN(parsed)) {
-      const fallbackPort = 8000;
-      handleChange('serverPort', fallbackPort);
-      setServerPortInput(String(fallbackPort));
-      setPortError(null);
-      return;
-    }
-
-    let normalized = parsed;
-    if (normalized < 1) {
-      normalized = 1;
-    } else if (normalized > 65535) {
-      normalized = 65535;
-    }
-
-    handleChange('serverPort', normalized);
-    setServerPortInput(String(normalized));
-    setPortError(null);
   };
 
   // 添加黑名单应用
@@ -358,44 +255,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setShowScheduler(checked);
   };
 
-  const handleClearData = async () => {
-    if (!confirmingClear) {
-      setConfirmingClear(true);
-      toast.warning('请再次点击确认清除', {
-        description: '该操作会删除 data/ 目录下的所有内容，且不可恢复',
-        duration: 5000,
-      });
-      return;
-    }
-
-    setClearing(true);
-    try {
-      const response = await api.clearData();
-      if (response.data.success) {
-        toast.success('数据清理成功', {
-          description: response.data.message || '后台任务已重新启动',
-        });
-      } else {
-        toast.error('数据清理失败', {
-          description: response.data.error || '请检查后端日志',
-        });
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : '未知错误';
-      toast.error('数据清理失败', {
-        description: errorMsg,
-      });
-    } finally {
-      setClearing(false);
-      setConfirmingClear(false);
-    }
-  };
-
   // 处理取消操作
   const handleCancel = () => {
     // 恢复定时任务开关到初始状态
     setShowScheduler(initialShowScheduler);
-    setConfirmingClear(false);
     onClose();
   };
 
@@ -549,14 +412,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <input
                           type="checkbox"
                           className="sr-only peer"
-                          checked={settings.recordingEnabled}
-                          onChange={(e) => handleChange('recordingEnabled', e.target.checked)}
+                          checked={settings.recordEnabled}
+                          onChange={(e) => handleChange('recordEnabled', e.target.checked)}
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                       </label>
                     </div>
 
-                    {settings.recordingEnabled && (
+                    {settings.recordEnabled && (
                       <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -622,74 +485,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </CardContent>
               </Card>
 
-              {/* 数据与隐私 */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">数据与隐私</CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    管理您的数据与隐私相关设置
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">启用对话上下文</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        在本地保留最近 K 轮问答，发送消息时附带上下文
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={settings.localHistory}
-                        onChange={(e) => handleChange('localHistory', e.target.checked)}
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                    </label>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">上下文轮数 (K)</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          发送时附带最近 K 条问答，帮助改进多轮对话体验
-                        </p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">{settings.historyLimit} 轮</span>
-                    </div>
-                    <div className="mt-3">
-                      <input
-                        type="range"
-                        min={0}
-                        max={10}
-                        step={1}
-                        value={settings.historyLimit}
-                        disabled={!settings.localHistory}
-                        onChange={(e) => handleChange('historyLimit', parseInt(e.target.value))}
-                        className="w-full accent-primary"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-semibold text-destructive">危险操作</p>
-                    <p className="text-xs text-destructive/80 mt-1">
-                      清除 data/ 目录下的所有本地内容，操作不可撤销
-                    </p>
-                    <Button
-                      variant="danger"
-                      className="mt-3 w-full"
-                      onClick={handleClearData}
-                      disabled={clearing}
-                    >
-                      {clearing ? '清除中...' : confirmingClear ? '确认清除' : '清除所有数据'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* 开发者选项 */}
               <Card>
                 <CardHeader className="pb-3">
@@ -714,29 +509,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                     </label>
-                  </div>
-
-                  <div className="mt-4">
-                    <label className="mb-1 block text-sm font-medium text-foreground">
-                      服务器端口
-                    </label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={65535}
-                      className="px-3 py-2 h-9"
-                      placeholder="8000"
-                      value={serverPortInput}
-                      onChange={(e) => handleServerPortChange(e.target.value)}
-                      onBlur={handleServerPortBlur}
-                    />
-                    {portError ? (
-                      <p className="text-xs text-red-500 mt-0.5">{portError}</p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        服务器监听端口，修改后需要重启服务
-                      </p>
-                    )}
                   </div>
                 </CardContent>
               </Card>

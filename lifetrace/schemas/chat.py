@@ -27,8 +27,6 @@ class ChatResponse(BaseModel):
 
 class NewChatRequest(BaseModel):
     session_id: str | None = None
-    chat_type: str = "event"  # 默认为 event 类型
-    context_id: int | None = None  # 上下文ID（如 project_id）
 
 
 class NewChatResponse(BaseModel):
