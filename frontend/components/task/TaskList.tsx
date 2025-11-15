@@ -1,8 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { Task } from '@/lib/types';
 import TaskItem from './TaskItem';
-import { cn } from '@/lib/utils';
 
 interface TaskListProps {
   tasks: Task[];
@@ -10,10 +10,7 @@ interface TaskListProps {
   onDelete: (taskId: number) => void;
   onStatusChange: (taskId: number, newStatus: string) => void;
   onCreateSubtask: (parentTaskId: number) => void;
-  projectId?: number;
-  selectedTaskIds?: Set<number>;
-  onToggleSelect?: (task: Task, selected: boolean) => void;
-  className?: string;
+  projectId?: number; // 添加项目ID参数
 }
 
 export default function TaskList({
@@ -23,9 +20,6 @@ export default function TaskList({
   onStatusChange,
   onCreateSubtask,
   projectId,
-  selectedTaskIds,
-  onToggleSelect,
-  className,
 }: TaskListProps) {
   // 构建任务树结构
   const buildTaskTree = (tasks: Task[]): Task[] => {
@@ -56,7 +50,7 @@ export default function TaskList({
   const taskTree = buildTaskTree(tasks);
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className="space-y-2">
       {taskTree.map((task) => (
         <TaskItem
           key={task.id}
@@ -67,10 +61,9 @@ export default function TaskList({
           onCreateSubtask={onCreateSubtask}
           level={0}
           projectId={projectId}
-          isSelected={selectedTaskIds?.has(task.id)}
-          onToggleSelect={onToggleSelect}
         />
       ))}
     </div>
   );
 }
+

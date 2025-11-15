@@ -63,23 +63,3 @@ class TaskWithChildren(TaskResponse):
 
     class Config:
         from_attributes = True
-
-
-class TaskProgressResponse(BaseModel):
-    """任务进展响应模型"""
-
-    id: int = Field(..., description="进展记录ID")
-    task_id: int = Field(..., description="任务ID")
-    summary: str = Field(..., description="AI生成的进展摘要")
-    context_count: int = Field(..., description="关联的上下文数量")
-    created_at: datetime = Field(..., description="创建时间")
-
-    class Config:
-        from_attributes = True
-
-
-class TaskProgressListResponse(BaseModel):
-    """任务进展列表响应模型"""
-
-    total: int = Field(..., description="总数")
-    progress_list: list[TaskProgressResponse] = Field(..., description="进展记录列表")
