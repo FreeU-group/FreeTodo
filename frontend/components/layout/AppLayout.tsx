@@ -2,40 +2,43 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Calendar, FolderKanban, Clock, PanelLeftClose, PanelLeft, Settings, DollarSign } from 'lucide-react';
+import { Calendar, FolderKanban, Clock, PanelLeftClose, PanelLeft, Settings, DollarSign, BarChart3 } from 'lucide-react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { SelectedEventsProvider } from '@/lib/context/SelectedEventsContext';
-import { Sidebar, SidebarHeader, SidebarContent, SidebarNav } from '@/components/ui/sidebar-nav';
+import { Sidebar, SidebarContent, SidebarHeader, SidebarNav } from '@/components/ui/sidebar-nav';
 import type { SidebarNavItem } from '@/components/ui/sidebar-nav';
 import ThemeToggle from '@/components/common/ThemeToggle';
+import SettingsModal from '@/components/common/SettingsModal';
 
 // 动态导入页面组件以避免 SSR 问题
 const EventsPage = dynamic(() => import('@/app/page'), { ssr: false });
 const ProjectManagementPage = dynamic(() => import('@/app/project-management/page'), { ssr: false });
+const TimeAllocationPage = dynamic(() => import('@/app/time-allocation/page'), { ssr: false });
 
-type MenuType = 'events' | 'project-management' | 'scheduler' | 'cost-tracking';
+type MenuType = 'events' | 'project-management' | 'scheduler' | 'time-allocation' | 'cost-tracking';
 
 // 所有菜单项配置（包含路由路径）
 const allMenuItems: (SidebarNavItem & { path: string })[] = [
   { id: 'events', label: '事件管理', icon: Calendar, path: '/' },
   { id: 'project-management', label: '项目管理', icon: FolderKanban, path: '/project-management' },
+  { id: 'time-allocation', label: '时间分配', icon: BarChart3, path: '/time-allocation' },
   { id: 'scheduler', label: '定时任务', icon: Clock, path: '/scheduler' },
   { id: 'cost-tracking', label: '费用统计', icon: DollarSign, path: '/cost-tracking' },
 ];
 
 interface AppLayoutInnerProps {
   children?: React.ReactNode;
-  onSettingsClick: () => void;
 }
 
-function AppLayoutInner({ children, onSettingsClick }: AppLayoutInnerProps) {
+function AppLayoutInner({ children }: AppLayoutInnerProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [activeMenu, setActiveMenu] = useState<MenuType>('events');
   const [showScheduler, setShowScheduler] = useState(false);
   const [showCostTracking, setShowCostTracking] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // 从 localStorage 读取侧边栏折叠状态
   useEffect(() => {
@@ -44,6 +47,18 @@ function AppLayoutInner({ children, onSettingsClick }: AppLayoutInnerProps) {
       setIsSidebarCollapsed(saved === 'true');
     }
   }, []);
+
+  // 切换侧边栏折叠状态
+  const toggleSidebar = () => {
+    const newState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(newState);
+    localStorage.setItem('sidebarCollapsed', String(newState));
+  };
+
+  // 打开设置模态框
+  const onSettingsClick = () => {
+    setIsSettingsOpen(true);
+  };
 
   // 根据设置过滤菜单项
   const menuItems = allMenuItems.filter(item => {
@@ -124,13 +139,6 @@ function AppLayoutInner({ children, onSettingsClick }: AppLayoutInnerProps) {
     }
   };
 
-  // 切换侧边栏折叠状态
-  const toggleSidebar = () => {
-    const newState = !isSidebarCollapsed;
-    setIsSidebarCollapsed(newState);
-    localStorage.setItem('sidebarCollapsed', String(newState));
-  };
-
   // 渲染中间内容
   const renderContent = () => {
     // 如果传入了 children，优先渲染 children（用于动态路由页面）
@@ -144,14 +152,18 @@ function AppLayoutInner({ children, onSettingsClick }: AppLayoutInnerProps) {
         return <EventsPage />;
       case 'project-management':
         return <ProjectManagementPage />;
+      case 'time-allocation':
+        return <TimeAllocationPage />;
       default:
         return <EventsPage />;
     }
   };
 
   return (
-    <div className="flex w-full h-full">
-      {/* 左侧栏 - 侧边栏菜单 */}
+    <>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <div className="flex w-full h-full">
+        {/* 左侧栏 - 侧边栏菜单 */}
       <Sidebar
         className={`flex-shrink-0 h-full transition-all duration-300 ${
           isSidebarCollapsed ? 'w-0 border-r-0 overflow-hidden' : 'w-64'
@@ -224,19 +236,19 @@ function AppLayoutInner({ children, onSettingsClick }: AppLayoutInnerProps) {
           {renderContent()}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
 interface AppLayoutProps {
   children?: React.ReactNode;
-  onSettingsClick: () => void;
 }
 
-export default function AppLayout({ children, onSettingsClick }: AppLayoutProps) {
+export default function AppLayout({ children }: AppLayoutProps) {
   return (
     <SelectedEventsProvider>
-      <AppLayoutInner onSettingsClick={onSettingsClick}>{children}</AppLayoutInner>
+      <AppLayoutInner>{children}</AppLayoutInner>
     </SelectedEventsProvider>
   );
 }

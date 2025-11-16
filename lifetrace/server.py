@@ -24,6 +24,7 @@ from lifetrace.routers import (
     search,
     system,
     task,
+    time_allocation,
     vector,
 )
 from lifetrace.routers import config as config_router
@@ -153,6 +154,7 @@ app.include_router(context.router)
 app.include_router(rag.router)
 app.include_router(scheduler.router)
 app.include_router(cost_tracking.router)
+app.include_router(time_allocation.router)
 
 
 if __name__ == "__main__":

@@ -342,86 +342,26 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
 
 @router.post("/new", response_model=NewChatResponse)
 async def create_new_chat(request: NewChatRequest = None):
-    """创建新对话会话（数据库持久化）"""
+    """创建新对话会话"""
     try:
-        # 获取请求参数
-        chat_type = request.chat_type if request else "event"
-        context_id = request.context_id if request else None
-
         # 如果提供了session_id，清除其上下文；否则创建新会话
         if request and request.session_id:
-            # 检查数据库中是否存在
-            existing_chat = deps.db_manager.get_chat_by_session_id(request.session_id)
-            if existing_chat:
-                # 清除内存上下文
-                deps.clear_session_context(request.session_id)
+            if deps.clear_session_context(request.session_id):
                 session_id = request.session_id
                 message = "会话上下文已清除"
             else:
                 # 会话不存在，创建新的
-                session_id = deps.generate_session_id()
-                # 创建内存会话
-                deps.create_new_session(session_id)
-                # 创建数据库会话
-                deps.db_manager.create_chat(
-                    session_id=session_id, chat_type=chat_type, context_id=context_id
-                )
+                session_id = deps.create_new_session()
                 message = "创建新对话会话"
         else:
-            # 创建新会话
-            session_id = deps.generate_session_id()
-            # 创建内存会话
-            deps.create_new_session(session_id)
-            # 创建数据库会话
-            deps.db_manager.create_chat(
-                session_id=session_id, chat_type=chat_type, context_id=context_id
-            )
+            session_id = deps.create_new_session()
             message = "创建新对话会话"
 
-        deps.logger.info(f"新对话会话: {session_id}, 类型: {chat_type}")
+        deps.logger.info(f"新对话会话: {session_id}")
         return NewChatResponse(session_id=session_id, message=message, timestamp=datetime.now())
     except Exception as e:
         deps.logger.error(f"创建新对话失败: {e}")
         raise HTTPException(status_code=500, detail="创建新对话失败") from e
-
-
-@router.post("/add-message")
-async def add_message_to_session(request: dict):
-    """添加消息到会话上下文（数据库持久化）"""
-    try:
-        session_id = request.get("session_id")
-        role = request.get("role")
-        content = request.get("content")
-        model = request.get("model")
-
-        if not session_id or not role or not content:
-            raise HTTPException(status_code=400, detail="缺少必要参数")
-
-        # 保存到数据库
-        message = deps.db_manager.add_message(
-            session_id=session_id,
-            role=role,
-            content=content,
-            model=model,
-        )
-
-        if not message:
-            raise HTTPException(status_code=500, detail="保存消息失败")
-
-        # 同时也添加到内存（兼容现有流程）
-        deps.add_to_session_context(session_id, role, content)
-
-        return {
-            "success": True,
-            "message": "消息已添加到会话",
-            "session_id": session_id,
-            "message_id": message["id"],
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        deps.logger.error(f"添加消息到会话失败: {e}")
-        raise HTTPException(status_code=500, detail="添加消息到会话失败") from e
 
 
 @router.delete("/session/{session_id}")
@@ -445,33 +385,30 @@ async def clear_chat_session(session_id: str):
 
 
 @router.get("/history")
-async def get_chat_history(
-    session_id: str | None = Query(None),
-    chat_type: str | None = Query(None, description="聊天类型过滤"),
-    limit: int = Query(10, description="返回数量限制"),
-):
-    """获取聊天历史记录（从数据库）"""
+async def get_chat_history(session_id: str | None = Query(None)):
+    """获取聊天历史记录"""
     try:
         if session_id:
             # 返回指定会话的历史记录
-            messages = deps.db_manager.get_messages(session_id)
-            chat_info = deps.db_manager.get_chat_by_session_id(session_id)
-
+            context = deps.get_session_context(session_id)
             return {
                 "session_id": session_id,
-                "chat_info": chat_info,
-                "history": messages,
+                "history": context,
                 "message": f"会话 {session_id} 的历史记录",
             }
         else:
-            # 返回所有会话的摘要信息（从数据库）
-            summaries = deps.db_manager.get_chat_summaries(chat_type=chat_type, limit=limit)
-
-            return {
-                "sessions": summaries,
-                "message": "所有会话摘要",
-                "total": len(summaries),
-            }
+            # 返回所有会话的摘要信息
+            sessions_info = []
+            for sid, session_data in deps.chat_sessions.items():
+                sessions_info.append(
+                    {
+                        "session_id": sid,
+                        "created_at": session_data["created_at"],
+                        "last_active": session_data["last_active"],
+                        "message_count": len(session_data["context"]),
+                    }
+                )
+            return {"sessions": sessions_info, "message": "所有会话摘要"}
     except Exception as e:
         deps.logger.error(f"获取聊天历史失败: {e}")
         raise HTTPException(status_code=500, detail="获取聊天历史失败") from e

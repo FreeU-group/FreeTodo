@@ -204,6 +204,7 @@ class TaskSummaryService:
         """
         task_id = task["id"]
         task_name = task["name"]
+        task_description = task.get("description", "")
 
         logger.info(
             f"开始为任务 {task_id} ({task_name}) 生成摘要，基于 {len(new_contexts)} 个新上下文"
@@ -246,22 +247,22 @@ class TaskSummaryService:
             logger.warning(f"任务 {task_id} 的摘要生成失败")
             return
 
-        # d. 将摘要保存到任务进展表中
-        # 先更新上下文数量到数据库
-        progress_id = self.db_manager.create_task_progress(
-            task_id=task_id, summary=summary, context_count=len(new_contexts)
-        )
+        # d. 将摘要文本追加到 tasks 表的 description 字段中
+        success = self._append_summary_to_task(task_id, summary, task_description)
 
-        if progress_id:
+        if success:
             # 标记这些上下文已被摘要（在数据库中标记）
             event_ids = [ctx["id"] for ctx in new_contexts]
             self.db_manager.mark_contexts_used_in_summary(task_id, event_ids)
+
+            # 同时调用旧的方法以保持兼容性
+            self._mark_contexts_as_summarized(task_id, new_contexts)
 
             self.stats["total_summaries_generated"] += 1
             self.stats["total_contexts_summarized"] += len(new_contexts)
 
             logger.info(
-                f"✅ 成功为任务 {task_id} ({task_name}) 生成并保存摘要 (进展记录ID: {progress_id})，"
+                f"✅ 成功为任务 {task_id} ({task_name}) 生成并保存摘要，"
                 f"摘要了 {len(new_contexts)} 个上下文"
             )
         else:
@@ -414,33 +415,39 @@ class TaskSummaryService:
 
     def _append_summary_to_task(self, task_id: int, summary: str, current_description: str) -> bool:
         """
-        将摘要保存到任务进展表中
+        将摘要追加到任务描述中
 
         Args:
             task_id: 任务ID
             summary: 摘要文本
-            current_description: 当前描述（已弃用，保留参数用于兼容性）
+            current_description: 当前描述
 
         Returns:
             是否成功
         """
         try:
-            # 创建任务进展记录
-            progress_id = self.db_manager.create_task_progress(
-                task_id=task_id,
-                summary=summary,
-                context_count=0,  # 这个值会在调用处设置
-            )
+            # 格式化摘要，添加时间戳和前缀
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            formatted_summary = f"\n\n---\n**AI 摘要** ({timestamp}):\n{summary}"
 
-            if progress_id:
-                logger.info(f"成功创建任务进展记录 {progress_id} for task {task_id}")
-                return True
+            # 将摘要追加到现有描述
+            if current_description:
+                new_description = current_description + formatted_summary
             else:
-                logger.error(f"创建任务进展记录失败 for task {task_id}")
-                return False
+                new_description = formatted_summary.strip()
+
+            # 更新任务描述
+            success = self.db_manager.update_task(task_id=task_id, description=new_description)
+
+            if success:
+                logger.info(f"成功将摘要追加到任务 {task_id} 的描述中")
+            else:
+                logger.error(f"更新任务 {task_id} 的描述失败")
+
+            return success
 
         except Exception as e:
-            logger.error(f"保存任务进展失败 {task_id}: {e}")
+            logger.error(f"追加摘要到任务 {task_id} 失败: {e}")
             logger.exception(e)
             return False
 

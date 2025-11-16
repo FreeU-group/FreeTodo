@@ -21,7 +21,6 @@ from lifetrace.storage.models import (
     Screenshot,
     SearchIndex,
     Task,
-    TaskProgress,
 )
 from lifetrace.util.config import config
 from lifetrace.util.utils import ensure_dir
@@ -986,20 +985,27 @@ class DatabaseManager:
             logging.error(f"添加应用使用记录失败: {e}")
             return None
 
-    def get_app_usage_stats(self, days: int = 7) -> dict[str, Any]:
-        """获取应用使用统计数据"""
+    def get_app_usage_stats(
+        self, days: int = None, start_date: datetime = None, end_date: datetime = None
+    ) -> dict[str, Any]:
+        """获取应用使用统计数据，支持按天数或日期区间查询"""
         try:
             with self.get_session() as session:
-                # 计算时间范围
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=days)
+                # 计算时间范围（优先使用日期区间）
+                if start_date and end_date:
+                    dt_start = start_date
+                    dt_end = end_date + timedelta(days=1) - timedelta(seconds=1)  # 包含当天
+                else:
+                    dt_end = datetime.now()
+                    use_days = days if days else 7
+                    dt_start = dt_end - timedelta(days=use_days)
 
                 # 查询指定时间范围内的应用使用记录
                 logs = (
                     session.query(AppUsageLog)
                     .filter(
-                        AppUsageLog.timestamp >= start_date,
-                        AppUsageLog.timestamp <= end_date,
+                        AppUsageLog.timestamp >= dt_start,
+                        AppUsageLog.timestamp <= dt_end,
                     )
                     .all()
                 )
@@ -1382,119 +1388,6 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             logging.error(f"获取子任务失败: {e}")
             return []
-
-    # 任务进展管理
-    def create_task_progress(
-        self, task_id: int, summary: str, context_count: int = 0
-    ) -> int | None:
-        """创建任务进展记录
-
-        Args:
-            task_id: 任务ID
-            summary: AI生成的进展摘要
-            context_count: 关联的上下文数量
-
-        Returns:
-            创建的进展记录ID，失败返回None
-        """
-        try:
-            with self.get_session() as session:
-                progress = TaskProgress(
-                    task_id=task_id, summary=summary, context_count=context_count
-                )
-                session.add(progress)
-                session.flush()
-                progress_id = progress.id
-                session.commit()
-                logging.info(f"创建任务进展记录: {progress_id} for task {task_id}")
-                return progress_id
-        except SQLAlchemyError as e:
-            logging.error(f"创建任务进展记录失败: {e}")
-            return None
-
-    def get_task_progress_list(
-        self, task_id: int, limit: int = 10, offset: int = 0
-    ) -> list[dict[str, Any]]:
-        """获取任务的进展记录列表
-
-        Args:
-            task_id: 任务ID
-            limit: 返回数量限制
-            offset: 偏移量
-
-        Returns:
-            进展记录列表
-        """
-        try:
-            with self.get_session() as session:
-                progress_list = (
-                    session.query(TaskProgress)
-                    .filter_by(task_id=task_id)
-                    .order_by(TaskProgress.created_at.desc())
-                    .limit(limit)
-                    .offset(offset)
-                    .all()
-                )
-                return [
-                    {
-                        "id": p.id,
-                        "task_id": p.task_id,
-                        "summary": p.summary,
-                        "context_count": p.context_count,
-                        "created_at": p.created_at,
-                    }
-                    for p in progress_list
-                ]
-        except SQLAlchemyError as e:
-            logging.error(f"获取任务进展列表失败: {e}")
-            return []
-
-    def get_latest_task_progress(self, task_id: int) -> dict[str, Any] | None:
-        """获取任务最新的进展记录
-
-        Args:
-            task_id: 任务ID
-
-        Returns:
-            最新的进展记录，如果没有则返回None
-        """
-        try:
-            with self.get_session() as session:
-                progress = (
-                    session.query(TaskProgress)
-                    .filter_by(task_id=task_id)
-                    .order_by(TaskProgress.created_at.desc())
-                    .first()
-                )
-                if progress:
-                    return {
-                        "id": progress.id,
-                        "task_id": progress.task_id,
-                        "summary": progress.summary,
-                        "context_count": progress.context_count,
-                        "created_at": progress.created_at,
-                    }
-                return None
-        except SQLAlchemyError as e:
-            logging.error(f"获取最新任务进展失败: {e}")
-            return None
-
-    def count_task_progress(self, task_id: int) -> int:
-        """统计任务的进展记录数量
-
-        Args:
-            task_id: 任务ID
-
-        Returns:
-            进展记录数量
-        """
-        try:
-            with self.get_session() as session:
-                count = session.query(TaskProgress).filter_by(task_id=task_id).count()
-                return count
-        except SQLAlchemyError as e:
-            logging.error(f"统计任务进展数量失败: {e}")
-            return 0
 
     # 上下文管理（事件与任务关联）
     def list_contexts(

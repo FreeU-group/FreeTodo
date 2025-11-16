@@ -4,7 +4,7 @@
 
 **语言**: [English](README.md) | [中文](README_CN.md)
 
-[📖 文档](https://freeyou.club/lifetrace/introduction.html) • [🚀 快速开始](#get-started) • [💡 功能特性](#核心功能) • [🏗️ 架构说明](ARCHITECTURE.md) • [📡 API 文档](README_API.md) • [🔧 开发指南](#开发指南) • [🤝 贡献指南](#贡献)
+[📖 文档](https://freeyou.club/lifetrace/introduction.html) • [🚀 快速开始](#快速开始) • [💡 功能特性](#核心功能) • [🏗️ 架构说明](ARCHITECTURE.md) • [📡 API 文档](README_API.md) • [🔧 开发指南](#开发指南) • [🤝 贡献指南](#贡献)
 
 # LifeTrace - 智能生活记录系统
 
@@ -17,9 +17,10 @@ LifeTrace 是一个基于 AI 的智能生活记录系统，可以自动管理您
 - **自动截图记录**：定时自动屏幕捕获，记录用户活动
 - **智能 OCR 识别**：使用 RapidOCR 从截图中提取文本内容
 - **智能事件管理**：基于上下文自动将截图聚合为智能事件
+- **时间分配分析**：可视化展示应用使用时间分布，支持24小时分布图表和应用分类
 - **信息回溯检索**：帮助用户回溯和检索过去重要的信息碎片
-- **多模态搜索**：支持文本、图像和语义搜索
-- **向量数据库**：基于 ChromaDB 的高效向量存储和检索
+<!-- - **多模态搜索**：支持文本、图像和语义搜索 -->
+<!-- - **向量数据库**：基于 ChromaDB 的高效向量存储和检索 -->
 - **Web API 服务**：提供完整的 RESTful API 接口
 - **前端集成**：支持与各种前端框架集成
 
@@ -33,18 +34,16 @@ LifeTrace 采用**前后端分离**架构：
 
 详细架构说明请参考 [ARCHITECTURE.md](ARCHITECTURE.md)
 
-## Get started
+## 快速开始
 
 ### 环境要求
 
 **后端**:
-
 - Python 3.13+
 - 支持的操作系统：Windows、macOS
 - 可选：CUDA 支持（用于 GPU 加速）
 
 **前端**:
-
 - Node.js 18+
 - pnpm 包管理器
 
@@ -53,7 +52,6 @@ LifeTrace 采用**前后端分离**架构：
 本项目使用 [uv](https://github.com/astral-sh/uv) 进行快速可靠的依赖管理。
 
 **安装 uv:**
-
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -63,7 +61,6 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 **安装依赖并同步环境:**
-
 ```bash
 # 从 pyproject.toml 和 uv.lock 同步依赖
 uv sync
@@ -76,6 +73,20 @@ source .venv/bin/activate
 .venv\Scripts\activate
 ```
 
+### 配置设置
+
+**在启动服务器之前，需要配置设置：**
+
+```bash
+# 复制默认配置文件（Windows）
+copy lifetrace\config\default_config.yaml lifetrace\config\config.yaml
+
+# 复制默认配置文件（macOS/Linux）
+cp lifetrace/config/default_config.yaml lifetrace/config/config.yaml
+```
+
+> **注意**：首次运行时，如果 `config.yaml` 不存在，系统会自动从 `default_config.yaml` 创建。您可以通过编辑 `lifetrace/config/config.yaml` 来自定义设置。
+
 ### 启动后端服务
 
 **启动服务器：**
@@ -84,8 +95,6 @@ source .venv/bin/activate
 python -m lifetrace.server
 ```
 
-> **注意**：首次运行时，如果 `config.yaml` 不存在，系统会自动从 `default_config.yaml` 创建。您可以通过编辑 `lifetrace/config/config.yaml` 来自定义设置。
->
 > **自定义提示词**：如果您想修改不同功能的 AI 提示词，可以编辑 `lifetrace/config/prompt.yaml` 文件。
 
 后端服务将在 `http://localhost:8000` 启动。
@@ -109,6 +118,24 @@ pnpm dev
 
 详细说明请参考：[frontend/README.md](frontend/README.md)
 
+<!--
+#### 仅启动 Web 服务
+```bash
+python -m lifetrace_backend.server --port 8000
+```
+
+#### 启动单个服务
+```bash
+# 启动录制器
+python -m lifetrace_backend.recorder
+
+# 启动处理器
+python -m lifetrace_backend.processor
+
+# 启动 OCR 服务
+python -m lifetrace_backend.simple_ocr
+``` -->
+
 ## 📋 待办事项与路线图
 
 ### 🚀 高优先级
@@ -125,8 +152,7 @@ pnpm dev
   - ☐ 创建 Web 版本
 
 ### ✅ 最近完成
-
-- ☑ **后台定时任务管理** - 添加定时任务管理功能，支持暂停/开启任务操作
+- ☑ **核心基础设施** - 基础截图记录和 OCR 功能
 
 ---
 
@@ -164,6 +190,7 @@ pnpm dev
 │   │   ├── search.py           # 搜索端点
 │   │   ├── system.py           # 系统端点
 │   │   ├── task.py             # 任务管理端点
+│   │   ├── time_allocation.py  # 时间分配端点
 │   │   └── vector.py           # 向量服务端点
 │   ├── schemas/                # Pydantic 数据模型
 │   │   ├── chat.py             # 聊天模型
@@ -231,6 +258,7 @@ pnpm dev
 │   │   ├── globals.css         # 全局样式
 │   │   ├── events/             # 事件管理页面
 │   │   ├── app-usage/          # 应用使用页面
+│   │   ├── time-allocation/    # 时间分配页面
 │   │   ├── project-management/ # 项目和任务管理
 │   │   │   ├── page.tsx        # 项目列表
 │   │   │   └── [id]/           # 项目详情

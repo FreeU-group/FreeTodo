@@ -19,6 +19,7 @@ interface ConfigSettings {
   model: string;
   temperature: number;
   maxTokens: number;
+  recordEnabled: boolean;
   recordInterval: number;
   maxDays: number;
   blacklistApps: string[];
@@ -31,6 +32,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     model: 'qwen3-max',
     temperature: 0.7,
     maxTokens: 2048,
+    recordEnabled: true,
     recordInterval: 5,
     maxDays: 30,
     blacklistApps: [],
@@ -84,6 +86,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           model: config.model || 'qwen3-max',
           temperature: config.temperature || 0.7,
           maxTokens: config.maxTokens || 2048,
+          recordEnabled: config.recordEnabled ?? config.record?.enabled ?? true,
           recordInterval: config.recordInterval || 5,
           maxDays: config.maxDays || 30,
           blacklistApps: blacklistAppsArray,
@@ -167,6 +170,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         await api.saveConfig({
           temperature: settings.temperature,
           maxTokens: settings.maxTokens,
+          recordEnabled: settings.recordEnabled,
           recordInterval: settings.recordInterval,
           maxDays: settings.maxDays,
           blacklistApps: settings.blacklistApps,
@@ -234,7 +238,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
-  const handleChange = (key: keyof ConfigSettings, value: string | number | string[]) => {
+  const handleChange = (key: keyof ConfigSettings, value: string | number | string[] | boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -425,65 +429,89 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <CardTitle className="text-base">基础设置</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <label className="mb-1 block text-sm font-medium text-foreground">
-                          截图间隔（秒）
-                        </label>
-                        <Input
-                          type="number"
-                          className="px-3 py-2 h-9"
-                          value={settings.recordInterval}
-                          onChange={(e) => handleChange('recordInterval', parseInt(e.target.value))}
-                        />
+                        <p className="text-sm font-medium text-foreground">
+                          启用录制
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          开启屏幕录制和截图功能
+                        </p>
                       </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-foreground">
-                          自动清理（天）
-                        </label>
-                        <Input
-                          type="number"
-                          className="px-3 py-2 h-9"
-                          value={settings.maxDays}
-                          onChange={(e) => handleChange('maxDays', parseInt(e.target.value))}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-foreground">
-                        应用黑名单
-                      </label>
-                      <div className="border border-input rounded-md px-2 py-1.5 min-h-[38px] flex flex-wrap gap-1.5 items-center bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-                        {settings.blacklistApps.map((app) => (
-                          <span
-                            key={app}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-primary/10 text-primary rounded-md border border-primary/20"
-                          >
-                            {app}
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveBlacklistApp(app)}
-                              className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-                              aria-label={`删除 ${app}`}
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </span>
-                        ))}
+                      <label className="relative inline-flex items-center cursor-pointer">
                         <input
-                          type="text"
-                          className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder:text-muted-foreground px-1"
-                          placeholder={settings.blacklistApps.length === 0 ? "输入应用名称后按回车添加" : "继续添加..."}
-                          value={blacklistInput}
-                          onChange={(e) => setBlacklistInput(e.target.value)}
-                          onKeyDown={handleBlacklistKeyDown}
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={settings.recordEnabled}
+                          onChange={(e) => handleChange('recordEnabled', e.target.checked)}
                         />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        这些应用的窗口将不会被截图记录，输入应用名称后按回车添加（例如：微信、QQ、钉钉）
-                      </p>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                      </label>
                     </div>
+
+                    {settings.recordEnabled && (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-sm font-medium text-foreground">
+                              截图间隔（秒）
+                            </label>
+                            <Input
+                              type="number"
+                              className="px-3 py-2 h-9"
+                              value={settings.recordInterval}
+                              onChange={(e) => handleChange('recordInterval', parseInt(e.target.value))}
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-sm font-medium text-foreground">
+                              自动清理（天）
+                            </label>
+                            <Input
+                              type="number"
+                              className="px-3 py-2 h-9"
+                              value={settings.maxDays}
+                              onChange={(e) => handleChange('maxDays', parseInt(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-sm font-medium text-foreground">
+                            应用黑名单
+                          </label>
+                          <div className="border border-input rounded-md px-2 py-1.5 min-h-[38px] flex flex-wrap gap-1.5 items-center bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                            {settings.blacklistApps.map((app) => (
+                              <span
+                                key={app}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-primary/10 text-primary rounded-md border border-primary/20"
+                              >
+                                {app}
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBlacklistApp(app)}
+                                  className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                                  aria-label={`删除 ${app}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ))}
+                            <input
+                              type="text"
+                              className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder:text-muted-foreground px-1"
+                              placeholder={settings.blacklistApps.length === 0 ? "输入应用名称后按回车添加" : "继续添加..."}
+                              value={blacklistInput}
+                              onChange={(e) => setBlacklistInput(e.target.value)}
+                              onKeyDown={handleBlacklistKeyDown}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            这些应用的窗口将不会被截图记录，输入应用名称后按回车添加（例如：微信、QQ、钉钉）
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

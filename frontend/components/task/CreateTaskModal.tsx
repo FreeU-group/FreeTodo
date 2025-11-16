@@ -7,7 +7,6 @@ import Button from '@/components/common/Button';
 import { Task, TaskCreate, TaskStatus } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
-import { cn } from '@/lib/utils';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -132,29 +131,21 @@ export default function CreateTaskModal({
 
   return (
     <div
-      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-lg rounded-xl bg-background shadow-2xl border border-border animate-in fade-in-0 zoom-in-95 duration-200"
+        className="relative w-full max-w-md rounded-lg bg-background shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4 bg-muted/30">
-          <h2 className="text-xl font-semibold text-foreground">
+        <div className="flex items-center justify-between border-b px-6 py-4">
+          <h2 className="text-lg font-bold text-foreground">
             {isEditMode ? '编辑任务' : isSubtask ? '创建子任务' : '创建任务'}
           </h2>
           <button
             onClick={onClose}
-            className={cn(
-              'inline-flex items-center justify-center rounded-md',
-              'h-8 w-8',
-              'hover:bg-accent hover:text-accent-foreground',
-              'transition-all duration-200',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              'active:scale-95',
-              'disabled:pointer-events-none disabled:opacity-50'
-            )}
+            className="rounded-lg p-1 text-foreground transition-colors hover:bg-muted"
             aria-label="关闭"
             disabled={saving}
           >
@@ -163,11 +154,10 @@ export default function CreateTaskModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* 任务名称 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              任务名称 <span className="text-destructive">*</span>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-foreground">
+              任务名称 <span className="text-red-500">*</span>
             </label>
             <Input
               type="text"
@@ -175,18 +165,15 @@ export default function CreateTaskModal({
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
               disabled={saving}
-              className={cn(
-                errors.name && 'border-destructive focus-visible:ring-destructive'
-              )}
+              className={errors.name ? 'border-destructive' : ''}
             />
             {errors.name && (
-              <p className="text-sm font-medium text-destructive">{errors.name}</p>
+              <p className="mt-1 text-sm text-destructive">{errors.name}</p>
             )}
           </div>
 
-          {/* 任务描述 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-foreground">
               任务描述
             </label>
             <textarea
@@ -194,34 +181,20 @@ export default function CreateTaskModal({
               value={formData.description}
               onChange={(e) => handleChange('description', e.target.value)}
               disabled={saving}
-              rows={4}
-              className={cn(
-                'flex w-full rounded-md border border-input bg-background px-3 py-2',
-                'text-sm shadow-sm transition-colors',
-                'placeholder:text-muted-foreground',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                'resize-none'
-              )}
+              rows={3}
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
             />
           </div>
 
-          {/* 任务状态 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+          <div>
+            <label className="mb-2 block text-sm font-medium text-foreground">
               任务状态
             </label>
             <select
               value={formData.status}
               onChange={(e) => handleChange('status', e.target.value as TaskStatus)}
               disabled={saving}
-              className={cn(
-                'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2',
-                'text-sm shadow-sm transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                'cursor-pointer'
-              )}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -232,21 +205,16 @@ export default function CreateTaskModal({
           </div>
 
           {/* 操作按钮 */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-border">
+          <div className="flex justify-end gap-3 pt-2">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={saving}
-              className="min-w-[80px]"
             >
               取消
             </Button>
-            <Button
-              type="submit"
-              disabled={saving}
-              className="min-w-[80px]"
-            >
+            <Button type="submit" disabled={saving}>
               {saving ? '保存中...' : isEditMode ? '保存' : '创建'}
             </Button>
           </div>
@@ -255,3 +223,4 @@ export default function CreateTaskModal({
     </div>
   );
 }
+

@@ -8,14 +8,26 @@ import Loading from '@/components/common/Loading';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
 import TaskBoard from '@/components/task/TaskBoard';
 import CreateTaskModal from '@/components/task/CreateTaskModal';
-import TaskStats from '@/components/task/TaskStats';
-import TaskEmptyState, { TaskTemplate } from '@/components/task/TaskEmptyState';
-import { Project, Task, ChatMessage, SessionSummary } from '@/lib/types';
+import { Project, Task } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
-import Input from '@/components/common/Input';
 import MessageContent from '@/components/common/MessageContent';
-import { useSelectedEvents } from '@/lib/context/SelectedEventsContext';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: number;
+}
+
+interface SessionSummary {
+  session_id: string;
+  chat_type: string;
+  title: string | null;
+  context_id: number | null;
+  created_at: string;
+  last_active: string;
+  message_count: number;
+}
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -28,9 +40,6 @@ export default function ProjectDetailPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentTaskId, setParentTaskId] = useState<number | undefined>(undefined);
-
-  // 使用上下文管理选中的任务
-  const { selectedTasks, setSelectedTasks, selectedTasksData, setSelectedTasksData } = useSelectedEvents();
 
   // 聊天相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -277,16 +286,6 @@ export default function ProjectDetailPage() {
     }
   };
 
-  // 监听消息变化，滚动到底部
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // 初始化时检查 LLM 健康状态
-  useEffect(() => {
-    checkLlmHealth();
-  }, []);
-
   // 初始加载
   useEffect(() => {
     if (projectId) {
@@ -300,22 +299,6 @@ export default function ProjectDetailPage() {
     setEditingTask(undefined);
     setParentTaskId(parentId);
     setIsModalOpen(true);
-  };
-
-  // 处理快速创建任务（使用模板）
-  const handleQuickCreateTask = async (template: TaskTemplate) => {
-    try {
-      await api.createTask(projectId, {
-        name: template.name,
-        description: template.description,
-        status: 'pending',
-      });
-      toast.success('任务创建成功');
-      loadTasks();
-    } catch (error) {
-      console.error('创建任务失败:', error);
-      toast.error('创建任务失败');
-    }
   };
 
   // 处理编辑任务
@@ -358,44 +341,6 @@ export default function ProjectDetailPage() {
     loadTasks();
   };
 
-  // 处理任务选择
-  const handleToggleTaskSelect = (task: Task, selected: boolean) => {
-    setSelectedTasks((prev) => {
-      const newSet = new Set(prev);
-      if (selected) {
-        newSet.add(task.id);
-      } else {
-        newSet.delete(task.id);
-      }
-      return newSet;
-    });
-
-    setSelectedTasksData((prev) => {
-      if (selected) {
-        return [...prev, task];
-      } else {
-        return prev.filter((t) => t.id !== task.id);
-      }
-    });
-  };
-
-  // 移除选中的任务
-  const handleRemoveSelectedTask = (taskId: number) => {
-    setSelectedTasks((prev) => {
-      const newSet = new Set(prev);
-      newSet.delete(taskId);
-      return newSet;
-    });
-
-    setSelectedTasksData((prev) => prev.filter((t) => t.id !== taskId));
-  };
-
-  // 清空选中的任务
-  const handleClearSelectedTasks = () => {
-    setSelectedTasks(new Set());
-    setSelectedTasksData([]);
-  };
-
   if (!project && !loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
@@ -406,20 +351,6 @@ export default function ProjectDetailPage() {
       </div>
     );
   }
-
-  const formatDateTime = (dateString: string) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleString('zh-CN', {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return dateString;
-    }
-  };
 
   return (
     <div className="flex h-full overflow-hidden relative">
@@ -612,13 +543,76 @@ export default function ProjectDetailPage() {
                             <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           </div>
                         </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+
+      {/* 右侧聊天区域 - 占1/3或窄列 */}
+      <div className={`bg-card flex flex-col flex-shrink-0 h-full overflow-hidden transition-all duration-300 ${
+        isChatCollapsed ? 'w-16' : 'w-1/3'
+      }`}>
+        {/* 折叠状态：显示展开按钮 */}
+        {isChatCollapsed && (
+          <div className="flex flex-col items-center h-full">
+            <div className="flex items-center justify-center px-2 py-3 border-b border-border flex-shrink-0 w-full">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsChatCollapsed(false)}
+                className="h-8 w-8 p-0 rounded-lg hover:bg-accent"
+                title="展开 AI 助手"
+              >
+                <Bot className="h-4 w-4" />
+              </Button>
             </div>
-          )}
+          </div>
+        )}
+
+        {/* 展开状态：显示完整聊天界面 */}
+        <div className={`flex flex-1 flex-col h-full overflow-hidden ${isChatCollapsed ? 'hidden' : ''}`}>
+          {/* 顶部工具栏 */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center">
+                <Bot className="w-4 h-4" />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground">项目助手</h2>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowHistory(!showHistory);
+                  if (!showHistory && sessionHistory.length === 0) {
+                    loadChatHistory();
+                  }
+                }}
+                className="h-8 w-8 p-0"
+                title="历史记录"
+              >
+                <History className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={createNewConversation}
+                className="h-8 w-8 p-0"
+                title="新建对话"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsChatCollapsed(true)}
+                className="h-8 w-8 p-0"
+                title="收起对话"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
           {/* 消息列表 */}
           <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
@@ -840,6 +834,16 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* 创建/编辑任务模态框 */}
+      <CreateTaskModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleModalSuccess}
+        projectId={projectId}
+        task={editingTask}
+        parentTaskId={parentTaskId}
+      />
     </div>
   );
 }

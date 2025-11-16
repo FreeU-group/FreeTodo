@@ -17,6 +17,7 @@ LifeTrace is an AI-based intelligent life recording system that can automaticall
 - **Automatic Screenshot Recording**: Timed automatic screen capture to record user activities
 - **Intelligent OCR Recognition**: Uses RapidOCR to extract text content from screenshots
 - **Smart Event Management**: Automatically aggregate screenshots into intelligent events based on context
+- **Time Allocation Analysis**: Visualize app usage time distribution with 24-hour charts and app categorization
 - **Information Retrieval**: Help users trace back and retrieve important information fragments from the past
 <!-- - **Multimodal Search**: Supports text, image, and semantic search -->
 <!-- - **Vector Database**: Efficient vector storage and retrieval based on ChromaDB -->
@@ -26,7 +27,6 @@ LifeTrace is an AI-based intelligent life recording system that can automaticall
 ## Get started
 
 ### Environment Requirements
-
 - Python 3.13+
 - Supported OS: Windows, macOS
 - Optional: CUDA support (for GPU acceleration)
@@ -36,7 +36,6 @@ LifeTrace is an AI-based intelligent life recording system that can automaticall
 This project uses [uv](https://github.com/astral-sh/uv) for fast and reliable dependency management.
 
 **Install uv:**
-
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -46,7 +45,6 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 **Install dependencies and sync environment:**
-
 ```bash
 # Sync dependencies from pyproject.toml and uv.lock
 uv sync
@@ -59,6 +57,20 @@ source .venv/bin/activate
 .venv\Scripts\activate
 ```
 
+### Configuration
+
+**Before starting the server, configure settings:**
+
+```bash
+# Copy default config file (Windows)
+copy lifetrace\config\default_config.yaml lifetrace\config\config.yaml
+
+# Copy default config file (macOS/Linux)
+cp lifetrace/config/default_config.yaml lifetrace/config/config.yaml
+```
+
+> **Note**: On first run, the system will automatically create `config.yaml` from `default_config.yaml` if it doesn't exist. You can customize your settings by editing `lifetrace/config/config.yaml`.
+
 ### Start the Backend Service
 
 **Start the server:**
@@ -67,8 +79,6 @@ source .venv/bin/activate
 python -m lifetrace.server
 ```
 
-> **Note**: On first run, the system will automatically create `config.yaml` from `default_config.yaml` if it doesn't exist. You can customize your settings by editing `lifetrace/config/config.yaml`.
->
 > **Customize Prompts**: If you want to modify AI prompts for different features, you can edit `lifetrace/config/prompt.yaml`.
 
 The backend service will start at `http://localhost:8000`.
@@ -79,7 +89,6 @@ The frontend is required to use LifeTrace. Start the frontend development server
 
 ```bash
 cd frontend
-
 pnpm install
 pnpm dev
 ```
@@ -107,7 +116,7 @@ For more details, see: [frontend/README.md](frontend/README.md)
 
 ### ✅ Recently Completed
 
-- ☑ **Background Job Management** - Add background job management functionality, support pause/start task operation
+- ☑ **Core Infrastructure** - Basic screenshot recording and OCR functionality
 
 ---
 
@@ -145,6 +154,7 @@ For more details, see: [frontend/README.md](frontend/README.md)
 │   │   ├── search.py           # Search endpoints
 │   │   ├── system.py           # System endpoints
 │   │   ├── task.py             # Task management endpoints
+│   │   ├── time_allocation.py  # Time allocation endpoints
 │   │   └── vector.py           # Vector service endpoints
 │   ├── schemas/                # Pydantic data models
 │   │   ├── chat.py             # Chat models
@@ -212,6 +222,7 @@ For more details, see: [frontend/README.md](frontend/README.md)
 │   │   ├── globals.css         # Global styles
 │   │   ├── events/             # Events management page
 │   │   ├── app-usage/          # App usage page
+│   │   ├── time-allocation/    # Time allocation page
 │   │   ├── project-management/ # Project & task management
 │   │   │   ├── page.tsx        # Projects list
 │   │   │   └── [id]/           # Project details

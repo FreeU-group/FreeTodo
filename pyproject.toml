@@ -1,7 +1,7 @@
 [project]
 name = "lifetrace"
 version = "0.1.0"
-description = "LifeTrace - A macOS screen recording and activity tracking application"
+description = "LifeTrace - A cross-platform screen recording and activity tracking application"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -51,6 +51,8 @@ dependencies = [
     # macOS specific dependencies (only install on macOS)
     "pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'",
     "pyobjc-framework-Quartz>=9.0; sys_platform == 'darwin'",
+    # Windows specific dependencies (only install on Windows)
+    "pywin32>=306; sys_platform == 'win32'",
     "open-clip-torch>=3.2.0",
     "loguru>=0.7.3",
 ]
