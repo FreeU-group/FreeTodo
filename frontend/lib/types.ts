@@ -149,6 +149,21 @@ export interface TaskListResponse {
   tasks: Task[];
 }
 
+// 任务进展类型
+export interface TaskProgress {
+  id: number;
+  task_id: number;
+  summary: string;
+  context_count: number;
+  generated_at: string;
+  created_at: string;
+}
+
+export interface TaskProgressListResponse {
+  total: number;
+  progress_list: TaskProgress[];
+}
+
 // 上下文管理类型
 export interface Context {
   id: number;

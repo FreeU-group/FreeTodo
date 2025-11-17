@@ -14,7 +14,7 @@ export default function ThemeToggle() {
 
   if (!mounted) {
     return (
-      <div className="h-9 w-9 rounded-lg border border-white/20 bg-white/10" />
+      <div className="h-9 w-9" />
     );
   }
 
@@ -25,20 +25,19 @@ export default function ThemeToggle() {
   ];
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => {
-          const currentIndex = themes.findIndex((t) => t.value === theme);
-          const nextIndex = (currentIndex + 1) % themes.length;
-          setTheme(themes[nextIndex].value);
-        }}
-        className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white transition-colors hover:bg-white/20"
-        title={`当前主题: ${themes.find((t) => t.value === theme)?.label}`}
-      >
-        {theme === 'light' && <Sun className="h-5 w-5" />}
-        {theme === 'dark' && <Moon className="h-5 w-5" />}
-        {theme === 'system' && <Monitor className="h-5 w-5" />}
-      </button>
-    </div>
+    <button
+      onClick={() => {
+        const currentIndex = themes.findIndex((t) => t.value === theme);
+        const nextIndex = (currentIndex + 1) % themes.length;
+        setTheme(themes[nextIndex].value);
+      }}
+      className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      title={`当前主题: ${themes.find((t) => t.value === theme)?.label}`}
+      aria-label={`当前主题: ${themes.find((t) => t.value === theme)?.label}`}
+    >
+      {theme === 'light' && <Sun className="h-5 w-5" />}
+      {theme === 'dark' && <Moon className="h-5 w-5" />}
+      {theme === 'system' && <Monitor className="h-5 w-5" />}
+    </button>
   );
 }

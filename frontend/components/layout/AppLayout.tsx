@@ -170,9 +170,9 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
         }`}
       >
         {/* Logo 区域 */}
-        <SidebarHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative h-7 w-7 flex-shrink-0 ml-2">
+        <SidebarHeader className="h-[68px] flex items-center justify-center">
+          <div className="flex items-center gap-3 w-full">
+            <div className="relative h-8 w-8 flex-shrink-0">
               <Image
                 src="/logo.png"
                 alt="LifeTrace Logo"
@@ -181,9 +181,9 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
                 unoptimized
               />
             </div>
-            <div>
-              <h1 className="text-base font-bold text-foreground">LifeTrace</h1>
-              <p className="text-[11px] text-muted-foreground leading-tight">智能生活记录系统</p>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-base font-semibold text-foreground leading-tight">LifeTrace</h1>
+              <p className="text-xs text-muted-foreground leading-tight truncate">智能生活记录系统</p>
             </div>
           </div>
         </SidebarHeader>
@@ -201,7 +201,7 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
       {/* 中间内容区 */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
         {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between h-14 px-4 border-b bg-background">
+        <div className="flex items-center justify-between h-[68px] px-4 border-b bg-background">
           {/* 左侧：折叠按钮 */}
           <button
             onClick={toggleSidebar}

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, FolderOpen, MessageSquare, ChevronRight, ChevronLeft, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, FolderOpen, ChevronRight, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock } from 'lucide-react';
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
+import Input from '@/components/common/Input';
+import { Card, CardContent } from '@/components/common/Card';
 import TaskBoard from '@/components/task/TaskBoard';
 import CreateTaskModal from '@/components/task/CreateTaskModal';
 import { Project, Task } from '@/lib/types';
@@ -27,6 +28,79 @@ interface SessionSummary {
   created_at: string;
   last_active: string;
   message_count: number;
+}
+
+// 任务统计组件
+function TaskStats({ tasks }: { tasks: Task[] }) {
+  const stats = {
+    total: tasks.length,
+    pending: tasks.filter((t) => t.status === 'pending').length,
+    in_progress: tasks.filter((t) => t.status === 'in_progress').length,
+    completed: tasks.filter((t) => t.status === 'completed').length,
+    cancelled: tasks.filter((t) => t.status === 'cancelled').length,
+  };
+
+  const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <Card>
+        <CardContent className="pt-4">
+          <div className="text-2xl font-bold text-foreground">{stats.total}</div>
+          <p className="text-xs text-muted-foreground mt-1">总任务数</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-4">
+          <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          <p className="text-xs text-muted-foreground mt-1">待办</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-4">
+          <div className="text-2xl font-bold text-blue-600">{stats.in_progress}</div>
+          <p className="text-xs text-muted-foreground mt-1">进行中</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-4">
+          <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
+          <p className="text-xs text-muted-foreground mt-1">已完成</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="pt-4">
+          <div className="text-2xl font-bold text-primary">{completionRate}%</div>
+          <p className="text-xs text-muted-foreground mt-1">完成率</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// 空状态组件
+function TaskEmptyState({
+  onCreateTask,
+}: {
+  onCreateTask: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20">
+      <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
+        <FolderOpen className="w-12 h-12 text-muted-foreground" />
+      </div>
+      <h3 className="text-xl font-semibold text-foreground mb-2">还没有任务</h3>
+      <p className="text-muted-foreground mb-8 text-center max-w-md">
+        开始创建第一个任务，让项目管理变得井井有条
+      </p>
+      <div className="flex gap-3">
+        <Button onClick={onCreateTask} className="gap-2">
+          <Plus className="h-5 w-5" />
+          创建任务
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export default function ProjectDetailPage() {
@@ -55,6 +129,7 @@ export default function ProjectDetailPage() {
   const [sessionHistory, setSessionHistory] = useState<SessionSummary[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 滚动到聊天底部
@@ -78,17 +153,14 @@ export default function ProjectDetailPage() {
     }
   };
 
-  // 加载聊天历史记录（只加载 project 类型）
+  // 加载聊天历史记录（只加载 project 类型，最多20条）
   const loadChatHistory = async () => {
     setHistoryLoading(true);
     try {
-      const response = await api.getChatHistory(undefined, 'project', 3);
+      const response = await api.getChatHistory(undefined, 'project', 20);
       const sessions = response.data.sessions || [];
-      const sortedSessions = sessions
-        .sort((a: SessionSummary, b: SessionSummary) =>
-          new Date(b.last_active).getTime() - new Date(a.last_active).getTime()
-        );
-      setSessionHistory(sortedSessions);
+      // 后端已按最后活跃时间排序，直接使用
+      setSessionHistory(sessions);
     } catch (error) {
       console.error('加载聊天历史失败:', error);
     } finally {
@@ -103,7 +175,7 @@ export default function ProjectDetailPage() {
       const response = await api.getChatHistory(sessionId);
       const history = response.data.history || [];
 
-      const loadedMessages: ChatMessage[] = history.map((item: any) => ({
+      const loadedMessages: ChatMessage[] = history.map((item: { role: 'user' | 'assistant'; content: string; timestamp: number }) => ({
         role: item.role,
         content: item.content,
         timestamp: item.timestamp,
@@ -152,23 +224,10 @@ export default function ProjectDetailPage() {
       return;
     }
 
-    let sessionId = currentConversationId;
-    if (!sessionId) {
-      try {
-        const response = await api.createNewChat('project', projectId);
-        sessionId = response.data.session_id;
-        setCurrentConversationId(sessionId);
-      } catch (error) {
-        console.error('创建会话失败:', error);
-        toast.error('创建会话失败');
-        return;
-      }
-    }
-
     const userMessage: ChatMessage = {
       role: 'user',
       content: inputMessage,
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -180,11 +239,12 @@ export default function ProjectDetailPage() {
     const assistantMessage: ChatMessage = {
       role: 'assistant',
       content: '正在思考...',
-      timestamp: new Date().toISOString(),
+      timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, assistantMessage]);
 
     let assistantContent = '';
+    let sessionId = currentConversationId;
 
     try {
       let isFirstChunk = true;
@@ -211,6 +271,14 @@ export default function ProjectDetailPage() {
           if (isFirstChunk) {
             setChatLoading(false);
             isFirstChunk = false;
+          }
+        },
+        (newSessionId: string) => {
+          // 流式聊天接口会自动创建会话并返回 session_id
+          if (!sessionId) {
+            sessionId = newSessionId;
+            setCurrentConversationId(newSessionId);
+            console.log('获取到新的 session_id:', newSessionId);
           }
         }
       );
@@ -249,11 +317,13 @@ export default function ProjectDetailPage() {
       const sessionId = response.data.session_id;
       setCurrentConversationId(sessionId);
       setMessages([]);
+      setShowHistory(false); // 自动折叠最近会话
       toast.success('新会话已创建');
     } catch (error) {
       console.error('创建新会话失败:', error);
       setCurrentConversationId(null);
       setMessages([]);
+      setShowHistory(false); // 自动折叠最近会话
     }
   };
 
@@ -341,6 +411,49 @@ export default function ProjectDetailPage() {
     loadTasks();
   };
 
+  // 任务选择相关函数
+  const selectedTasksData = tasks.filter((task) => selectedTasks.has(task.id));
+
+  const handleToggleTaskSelect = (task: Task, selected: boolean) => {
+    setSelectedTasks((prev) => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(task.id);
+      } else {
+        newSet.delete(task.id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleClearSelectedTasks = () => {
+    setSelectedTasks(new Set());
+  };
+
+  const handleRemoveSelectedTask = (taskId: number) => {
+    setSelectedTasks((prev) => {
+      const newSet = new Set(prev);
+      newSet.delete(taskId);
+      return newSet;
+    });
+  };
+
+  // 格式化日期时间
+  const formatDateTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return '刚刚';
+    if (diffMins < 60) return `${diffMins} 分钟前`;
+    if (diffHours < 24) return `${diffHours} 小时前`;
+    if (diffDays < 7) return `${diffDays} 天前`;
+    return date.toLocaleDateString('zh-CN');
+  };
+
   if (!project && !loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
@@ -406,7 +519,6 @@ export default function ProjectDetailPage() {
               // 创新的空状态设计
               <TaskEmptyState
                 onCreateTask={() => handleCreateTask()}
-                onQuickCreate={handleQuickCreateTask}
               />
             ) : (
               // 任务看板
@@ -472,7 +584,8 @@ export default function ProjectDetailPage() {
                 size="sm"
                 onClick={() => {
                   setShowHistory(!showHistory);
-                  if (!showHistory && sessionHistory.length === 0) {
+                  if (!showHistory) {
+                    // 每次打开历史记录时都重新加载
                     loadChatHistory();
                   }
                 }}
@@ -513,7 +626,7 @@ export default function ProjectDetailPage() {
                 {sessionHistory.length === 0 && !historyLoading ? (
                   <p className="text-sm text-muted-foreground py-4 text-center">暂无历史记录</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                     {sessionHistory.map((session) => {
                       const timeAgo = formatDateTime(session.last_active);
                       // 使用 title，如果没有则显示会话ID的前8位
@@ -543,76 +656,13 @@ export default function ProjectDetailPage() {
                             <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           </div>
                         </button>
-                    );
-                  })}
-                </div>
-
-      {/* 右侧聊天区域 - 占1/3或窄列 */}
-      <div className={`bg-card flex flex-col flex-shrink-0 h-full overflow-hidden transition-all duration-300 ${
-        isChatCollapsed ? 'w-16' : 'w-1/3'
-      }`}>
-        {/* 折叠状态：显示展开按钮 */}
-        {isChatCollapsed && (
-          <div className="flex flex-col items-center h-full">
-            <div className="flex items-center justify-center px-2 py-3 border-b border-border flex-shrink-0 w-full">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsChatCollapsed(false)}
-                className="h-8 w-8 p-0 rounded-lg hover:bg-accent"
-                title="展开 AI 助手"
-              >
-                <Bot className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* 展开状态：显示完整聊天界面 */}
-        <div className={`flex flex-1 flex-col h-full overflow-hidden ${isChatCollapsed ? 'hidden' : ''}`}>
-          {/* 顶部工具栏 */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center">
-                <Bot className="w-4 h-4" />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <h2 className="text-sm font-semibold text-foreground">项目助手</h2>
             </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowHistory(!showHistory);
-                  if (!showHistory && sessionHistory.length === 0) {
-                    loadChatHistory();
-                  }
-                }}
-                className="h-8 w-8 p-0"
-                title="历史记录"
-              >
-                <History className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={createNewConversation}
-                className="h-8 w-8 p-0"
-                title="新建对话"
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsChatCollapsed(true)}
-                className="h-8 w-8 p-0"
-                title="收起对话"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+          )}
 
           {/* 消息列表 */}
           <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
@@ -834,16 +884,6 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* 创建/编辑任务模态框 */}
-      <CreateTaskModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={handleModalSuccess}
-        projectId={projectId}
-        task={editingTask}
-        parentTaskId={parentTaskId}
-      />
     </div>
   );
 }

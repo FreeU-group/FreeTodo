@@ -6,6 +6,8 @@ from lifetrace.routers import dependencies as deps
 from lifetrace.schemas.task import (
     TaskCreate,
     TaskListResponse,
+    TaskProgressListResponse,
+    TaskProgressResponse,
     TaskResponse,
     TaskUpdate,
 )
@@ -299,3 +301,244 @@ async def get_task_children(
     except Exception as e:
         deps.logger.error(f"获取子任务失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取子任务失败: {str(e)}") from e
+
+
+@router.get(
+    "/api/projects/{project_id}/tasks/{task_id}/progress",
+    response_model=TaskProgressListResponse,
+)
+async def get_task_progress(
+    project_id: int = Path(..., description="项目ID"),
+    task_id: int = Path(..., description="任务ID"),
+    limit: int = Query(10, ge=1, le=100, description="返回数量限制"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+):
+    """
+    获取任务的进展记录列表
+
+    Args:
+        project_id: 项目ID
+        task_id: 任务ID
+        limit: 返回数量限制
+        offset: 偏移量
+
+    Returns:
+        任务进展记录列表
+    """
+    try:
+        # 检查任务是否存在
+        task = deps.db_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 验证任务是否属于指定项目
+        if task["project_id"] != project_id:
+            raise HTTPException(status_code=404, detail="任务不属于该项目")
+
+        # 获取进展记录列表
+        progress_list = deps.db_manager.get_task_progress_list(
+            task_id=task_id,
+            limit=limit,
+            offset=offset,
+        )
+
+        # 统计总数
+        total = deps.db_manager.count_task_progress(task_id=task_id)
+
+        deps.logger.info(f"获取任务 {task_id} 的进展记录，返回 {len(progress_list)} 条")
+
+        return TaskProgressListResponse(
+            total=total,
+            progress_list=[TaskProgressResponse(**p) for p in progress_list],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        deps.logger.error(f"获取任务进展记录失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取任务进展记录失败: {str(e)}") from e
+
+
+@router.get(
+    "/api/projects/{project_id}/tasks/{task_id}/progress/latest",
+    response_model=TaskProgressResponse | None,
+)
+async def get_task_progress_latest(
+    project_id: int = Path(..., description="项目ID"),
+    task_id: int = Path(..., description="任务ID"),
+):
+    """
+    获取任务最新的进展记录
+
+    Args:
+        project_id: 项目ID
+        task_id: 任务ID
+
+    Returns:
+        最新的进展记录，无记录返回null
+    """
+    try:
+        # 检查任务是否存在
+        task = deps.db_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 验证任务是否属于指定项目
+        if task["project_id"] != project_id:
+            raise HTTPException(status_code=404, detail="任务不属于该项目")
+
+        # 获取最新进展记录
+        progress = deps.db_manager.get_task_progress_latest(task_id=task_id)
+
+        if progress:
+            deps.logger.info(f"获取任务 {task_id} 的最新进展记录")
+            return TaskProgressResponse(**progress)
+        else:
+            deps.logger.info(f"任务 {task_id} 暂无进展记录")
+            return None
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        deps.logger.error(f"获取任务最新进展记录失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取任务最新进展记录失败: {str(e)}") from e
+
+
+@router.post(
+    "/api/projects/{project_id}/tasks/{task_id}/generate-summary",
+    response_model=TaskProgressResponse,
+)
+async def generate_task_summary(
+    project_id: int = Path(..., description="项目ID"),
+    task_id: int = Path(..., description="任务ID"),
+):
+    """
+    手动触发生成任务进展摘要
+
+    Args:
+        project_id: 项目ID
+        task_id: 任务ID
+
+    Returns:
+        生成的进展记录
+    """
+    try:
+        # 检查任务是否存在
+        task = deps.db_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="任务不存在")
+
+        # 验证任务是否属于指定项目
+        if task["project_id"] != project_id:
+            raise HTTPException(status_code=404, detail="任务不属于该项目")
+
+        # 获取任务关联的未使用上下文
+        contexts = deps.db_manager.list_contexts(
+            task_id=task_id,
+            used_in_summary=False,
+            limit=1000,
+        )
+
+        # 如果没有未使用的上下文，获取所有上下文（允许重新生成）
+        if not contexts:
+            contexts = deps.db_manager.list_contexts(
+                task_id=task_id,
+                limit=1000,
+            )
+
+        # 如果仍然没有上下文，返回友好的提示
+        if not contexts:
+            raise HTTPException(
+                status_code=400,
+                detail="该任务还没有关联任何上下文。请先在「关联上下文」标签页关联相关的工作记录。",
+            )
+
+        # 准备上下文信息
+        context_summaries = []
+        for ctx in contexts:
+            summary = f"[{ctx.get('ai_title', '未命名')}] {ctx.get('ai_summary', '无摘要')}"
+            context_summaries.append(summary)
+
+        # 构建 LLM prompt
+        prompt = f"""请基于以下上下文信息，生成任务「{task["name"]}」的进展摘要。
+
+任务描述：{task.get("description", "无描述")}
+
+相关上下文（共 {len(contexts)} 个）：
+{chr(10).join(f"{i + 1}. {s}" for i, s in enumerate(context_summaries))}
+
+要求：
+1. 摘要应简洁明了，突出重点进展
+2. 长度控制在 200 字以内
+3. 使用 Markdown 格式
+4. 关注任务的完成情况和关键成果
+"""
+
+        # 调用 LLM 生成摘要
+        from lifetrace.llm.llm_client import LLMClient
+
+        llm_client = LLMClient()
+
+        if not llm_client.is_available():
+            raise HTTPException(status_code=500, detail="LLM 服务不可用")
+
+        response = llm_client.client.chat.completions.create(
+            model=llm_client.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "你是一个专业的任务进展分析助手，擅长从上下文信息中总结任务进展。",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=500,
+        )
+
+        summary = response.choices[0].message.content.strip()
+
+        # 记录 token 使用量
+        try:
+            from lifetrace.util.token_usage_logger import log_token_usage
+
+            if hasattr(response, "usage") and response.usage:
+                log_token_usage(
+                    model=llm_client.model,
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    endpoint="/api/projects/{project_id}/tasks/{task_id}/generate-summary",
+                    response_type="task_progress",
+                    feature_type="task_summary",
+                    user_query=f"生成任务进展摘要 - 任务ID: {task_id}",
+                )
+        except Exception as e:
+            deps.logger.warning(f"记录token使用量失败: {e}")
+
+        # 保存进展记录
+        progress_id = deps.db_manager.create_task_progress(
+            task_id=task_id,
+            summary=summary,
+            context_count=len(contexts),
+        )
+
+        if not progress_id:
+            raise HTTPException(status_code=500, detail="保存进展记录失败")
+
+        # 标记上下文为已使用
+        for ctx in contexts:
+            if "id" in ctx:
+                deps.db_manager.mark_context_as_used_in_summary(ctx["id"])
+
+        # 获取保存的进展记录
+        progress = deps.db_manager.get_task_progress_latest(task_id=task_id)
+        if not progress:
+            raise HTTPException(status_code=500, detail="获取保存的进展记录失败")
+
+        deps.logger.info(f"成功生成任务 {task_id} 的进展摘要，基于 {len(contexts)} 个上下文")
+        return TaskProgressResponse(**progress)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        deps.logger.error(f"生成任务进展摘要失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"生成任务进展摘要失败: {str(e)}") from e

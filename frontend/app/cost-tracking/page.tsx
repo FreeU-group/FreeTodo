@@ -53,6 +53,7 @@ const FEATURE_NAME_MAP: Record<string, string> = {
   project_assistant: '项目助手',
   job_task_context_mapper: '任务上下文映射',
   job_task_summary: '任务摘要生成',
+  task_summary: '任务摘要生成（手动）',
   unknown: '未知功能',
 };
 

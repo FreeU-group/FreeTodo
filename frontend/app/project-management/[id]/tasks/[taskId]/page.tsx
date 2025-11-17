@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar, Target, User } from 'lucide-react';
+import { ArrowLeft, RefreshCw, TrendingUp } from 'lucide-react';
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
 import ContextList from '@/components/context/ContextList';
-import { Task, Project, Context } from '@/lib/types';
+import { Task, Project, Context, TaskProgress } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 dayjs.locale('zh-cn');
 
@@ -25,7 +27,9 @@ export default function TaskDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [contexts, setContexts] = useState<Context[]>([]);
   const [unassociatedContexts, setUnassociatedContexts] = useState<Context[]>([]);
+  const [latestProgress, setLatestProgress] = useState<TaskProgress | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<'info' | 'contexts'>('info');
 
   // 加载项目信息
@@ -76,6 +80,33 @@ export default function TaskDetailPage() {
     }
   };
 
+  // 加载最新任务进展
+  const loadTaskProgress = async () => {
+    try {
+      const response = await api.getTaskProgressLatest(projectId, taskId);
+      setLatestProgress(response.data);
+    } catch (error) {
+      console.debug('加载任务进展失败:', error);
+      setLatestProgress(null);
+    }
+  };
+
+  // 手动生成任务进展摘要
+  const handleGenerateProgress = async () => {
+    setIsGenerating(true);
+    try {
+      await api.generateTaskSummary(projectId, taskId);
+      toast.success('任务进展摘要已生成');
+      // 重新加载进展列表
+      await loadTaskProgress();
+    } catch (error) {
+      const errorMsg = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || '生成进展摘要失败';
+      toast.error(errorMsg);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   // 初始加载
   useEffect(() => {
     if (projectId && taskId) {
@@ -85,6 +116,7 @@ export default function TaskDetailPage() {
         loadTask(),
         loadAssociatedContexts(),
         loadUnassociatedContexts(),
+        loadTaskProgress(),
       ]).finally(() => {
         setLoading(false);
       });
@@ -206,47 +238,97 @@ export default function TaskDetailPage() {
 
         {/* 内容区域 */}
         {activeTab === 'info' ? (
-          // 任务信息
-          <Card>
-            <CardHeader>
-              <CardTitle>任务详情</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {task.description && (
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">描述</label>
-                  <p className="mt-1 text-foreground">{task.description}</p>
+          <div className="space-y-6">
+            {/* 任务进展 */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  <CardTitle>任务进展</CardTitle>
                 </div>
-              )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateProgress}
+                  disabled={isGenerating}
+                  className="gap-2"
+                >
+                  <RefreshCw className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                  手动更新
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {!latestProgress ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">暂无任务进展记录</p>
+                    <Button
+                      variant="outline"
+                      onClick={handleGenerateProgress}
+                      disabled={isGenerating}
+                      className="gap-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
+                      生成第一条进展
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
+                      <span>更新于 {formatDate(latestProgress.generated_at)}</span>
+                      <span>基于 {latestProgress.context_count} 个上下文</span>
+                    </div>
+                    <div className="prose prose-sm max-w-none dark:prose-invert">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {latestProgress.summary}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">状态</label>
-                  <p className="mt-1 text-foreground">
-                    {task.status === 'pending' && '待办'}
-                    {task.status === 'in_progress' && '进行中'}
-                    {task.status === 'completed' && '已完成'}
-                    {task.status === 'cancelled' && '已取消'}
-                  </p>
-                </div>
+            {/* 任务信息 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>任务详情</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {task.description && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">描述</label>
+                    <p className="mt-1 text-foreground">{task.description}</p>
+                  </div>
+                )}
 
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">创建时间</label>
-                  <p className="mt-1 text-foreground">{formatDate(task.created_at)}</p>
-                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">状态</label>
+                    <p className="mt-1 text-foreground">
+                      {task.status === 'pending' && '待办'}
+                      {task.status === 'in_progress' && '进行中'}
+                      {task.status === 'completed' && '已完成'}
+                      {task.status === 'cancelled' && '已取消'}
+                    </p>
+                  </div>
 
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">更新时间</label>
-                  <p className="mt-1 text-foreground">{formatDate(task.updated_at)}</p>
-                </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">创建时间</label>
+                    <p className="mt-1 text-foreground">{formatDate(task.created_at)}</p>
+                  </div>
 
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">关联上下文数</label>
-                  <p className="mt-1 text-foreground">{contexts.length} 个</p>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">更新时间</label>
+                    <p className="mt-1 text-foreground">{formatDate(task.updated_at)}</p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">关联上下文数</label>
+                    <p className="mt-1 text-foreground">{contexts.length} 个</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           // 关联上下文
           <div className="space-y-6">

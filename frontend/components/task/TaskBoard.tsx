@@ -1,9 +1,9 @@
 'use client';
 
 import { Task, TaskStatus } from '@/lib/types';
-import TaskItem from './TaskItem';
 import { cn } from '@/lib/utils';
-import { Circle, CircleDot, CheckCircle2, XCircle } from 'lucide-react';
+import { Circle, CircleDot, CheckCircle2, XCircle, Edit2, Trash2, Square, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
   DndContext,
   DragEndEvent,
@@ -184,7 +184,6 @@ export default function TaskBoard({
                 tasks={columnTasks}
                 onEdit={onEdit}
                 onDelete={onDelete}
-                onStatusChange={onStatusChange}
                 projectId={projectId}
                 selectedTaskIds={selectedTaskIds}
                 onToggleSelect={onToggleSelect}
@@ -198,13 +197,12 @@ export default function TaskBoard({
       <DragOverlay>
         {activeTask ? (
           <div className="opacity-80 rotate-3 scale-105">
-            <TaskItem
+            <TaskCard
               task={activeTask}
               onEdit={onEdit}
               onDelete={onDelete}
-              onStatusChange={onStatusChange}
-              projectId={projectId}
               isSelected={false}
+              onToggleSelect={undefined}
             />
           </div>
         ) : null}
@@ -219,7 +217,6 @@ function DroppableColumn({
   tasks,
   onEdit,
   onDelete,
-  onStatusChange,
   projectId,
   selectedTaskIds,
   onToggleSelect,
@@ -228,7 +225,6 @@ function DroppableColumn({
   tasks: Task[];
   onEdit: (task: Task) => void;
   onDelete: (taskId: number) => void;
-  onStatusChange: (taskId: number, newStatus: string) => void;
   projectId?: number;
   selectedTaskIds?: Set<number>;
   onToggleSelect?: (task: Task, selected: boolean) => void;
@@ -257,7 +253,6 @@ function DroppableColumn({
             task={task}
             onEdit={onEdit}
             onDelete={onDelete}
-            onStatusChange={onStatusChange}
             projectId={projectId}
             isSelected={selectedTaskIds?.has(task.id)}
             onToggleSelect={onToggleSelect}
@@ -273,7 +268,6 @@ function DraggableTask({
   task,
   onEdit,
   onDelete,
-  onStatusChange,
   projectId,
   isSelected,
   onToggleSelect,
@@ -281,7 +275,6 @@ function DraggableTask({
   task: Task;
   onEdit: (task: Task) => void;
   onDelete: (taskId: number) => void;
-  onStatusChange: (taskId: number, newStatus: string) => void;
   projectId?: number;
   isSelected?: boolean;
   onToggleSelect?: (task: Task, selected: boolean) => void;
@@ -304,15 +297,111 @@ function DraggableTask({
       {...listeners}
       className={cn(isDragging && 'opacity-50')}
     >
-      <TaskItem
+      <TaskCard
         task={task}
         onEdit={onEdit}
         onDelete={onDelete}
-        onStatusChange={onStatusChange}
-        projectId={projectId}
         isSelected={isSelected}
         onToggleSelect={onToggleSelect}
+        projectId={projectId}
       />
+    </div>
+  );
+}
+
+// 简单的任务卡片组件（用于看板视图）
+function TaskCard({
+  task,
+  onEdit,
+  onDelete,
+  isSelected,
+  onToggleSelect,
+  projectId,
+}: {
+  task: Task;
+  onEdit: (task: Task) => void;
+  onDelete: (taskId: number) => void;
+  isSelected?: boolean;
+  onToggleSelect?: (task: Task, selected: boolean) => void;
+  projectId?: number;
+}) {
+  const router = useRouter();
+
+  // 点击卡片内容区域 - 跳转到任务详情
+  const handleCardClick = () => {
+    if (projectId) {
+      router.push(`/project-management/${projectId}/tasks/${task.id}`);
+    }
+  };
+
+  // 点击单选框 - 切换选中状态
+  const handleToggleSelect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleSelect?.(task, !isSelected);
+  };
+
+  const SelectIcon = isSelected ? Check : Square;
+
+  return (
+    <div
+      className={cn(
+        'group rounded-lg border bg-card hover:shadow-md transition-all relative',
+        isSelected ? 'border-primary bg-primary/5' : 'border-border'
+      )}
+    >
+      {/* 顶部操作栏 */}
+      <div className="absolute top-2 left-2 right-2 flex items-center justify-between z-10">
+        {/* 左上角 - 单选框 */}
+        <button
+          onClick={handleToggleSelect}
+          className={cn(
+            'p-1 hover:bg-accent rounded transition-colors',
+            isSelected ? 'text-primary' : 'text-muted-foreground'
+          )}
+          title={isSelected ? '取消选择' : '选择任务'}
+        >
+          <SelectIcon className="h-4 w-4" />
+        </button>
+
+        {/* 右上角 - 操作按钮（悬停时显示） */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(task);
+            }}
+            className="p-1 hover:bg-accent rounded transition-colors"
+            title="编辑"
+          >
+            <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(task.id);
+            }}
+            className="p-1 hover:bg-destructive/10 rounded transition-colors"
+            title="删除"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </button>
+        </div>
+      </div>
+
+      {/* 任务内容 - 点击跳转到详情 */}
+      <div
+        className="p-3 pt-8 cursor-pointer"
+        onClick={handleCardClick}
+      >
+        <h4 className="font-medium text-foreground line-clamp-1 hover:text-primary transition-colors">
+          {task.name}
+        </h4>
+        {task.description && (
+          <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
+            {task.description}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

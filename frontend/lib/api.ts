@@ -112,7 +112,7 @@ export const api = {
     use_rag?: boolean;
     project_id?: number;
     task_ids?: number[];
-  }, onChunk: (chunk: string) => void): Promise<void> => {
+  }, onChunk: (chunk: string) => void, onSessionId?: (sessionId: string) => void): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
       method: 'POST',
       headers: {
@@ -123,6 +123,12 @@ export const api = {
 
     if (!response.ok) {
       throw new Error('请求失败');
+    }
+
+    // 从响应头中获取 session_id
+    const sessionId = response.headers.get('X-Session-Id');
+    if (sessionId && onSessionId) {
+      onSessionId(sessionId);
     }
 
     const reader = response.body?.getReader();
@@ -144,7 +150,7 @@ export const api = {
     message: string;
     conversation_id?: string;
     event_context?: Array<{ event_id: number; text: string }>;
-  }, onChunk: (chunk: string) => void): Promise<void> => {
+  }, onChunk: (chunk: string) => void, onSessionId?: (sessionId: string) => void): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/api/chat/stream-with-context`, {
       method: 'POST',
       headers: {
@@ -155,6 +161,12 @@ export const api = {
 
     if (!response.ok) {
       throw new Error('请求失败');
+    }
+
+    // 从响应头中获取 session_id
+    const sessionId = response.headers.get('X-Session-Id');
+    if (sessionId && onSessionId) {
+      onSessionId(sessionId);
     }
 
     const reader = response.body?.getReader();
@@ -174,6 +186,29 @@ export const api = {
   getConversations: () => apiClient.get('/api/conversations'),
 
   deleteConversation: (id: string) => apiClient.delete(`/api/conversations/${id}`),
+
+  // 聊天历史记录
+  getChatHistory: (sessionId?: string, chatType?: string, limit?: number) =>
+    apiClient.get('/api/chat/history', {
+      params: {
+        ...(sessionId ? { session_id: sessionId } : {}),
+        ...(chatType ? { chat_type: chatType } : {}),
+        ...(limit ? { limit } : {}),
+      }
+    }),
+
+  // 创建新会话
+  createNewChat: (chatType?: string, contextId?: number) =>
+    apiClient.post('/api/chat/new', {
+      session_id: undefined,
+    }),
+
+  // 添加消息到会话
+  addMessageToSession: (sessionId: string, role: string, content: string) =>
+    apiClient.post(`/api/chat/session/${sessionId}/message`, {
+      role,
+      content,
+    }),
 
   // 应用使用分析
   getAppUsage: (params?: {
@@ -243,6 +278,16 @@ export const api = {
 
   getTaskChildren: (projectId: number, taskId: number) =>
     apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/children`),
+
+  // 任务进展管理
+  getTaskProgress: (projectId: number, taskId: number, params?: { limit?: number; offset?: number }) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/progress`, { params }),
+
+  getTaskProgressLatest: (projectId: number, taskId: number) =>
+    apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/progress/latest`),
+
+  generateTaskSummary: (projectId: number, taskId: number) =>
+    apiClient.post(`/api/projects/${projectId}/tasks/${taskId}/generate-summary`),
 
   // 上下文管理
   getContexts: (params?: { associated?: boolean; task_id?: number; limit?: number; offset?: number }) =>

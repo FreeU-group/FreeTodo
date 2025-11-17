@@ -1,6 +1,5 @@
 """截图相关路由"""
 
-import logging
 import os
 import time
 from datetime import datetime
@@ -46,7 +45,7 @@ async def get_screenshots(
         return [ScreenshotResponse(**result) for result in results]
 
     except Exception as e:
-        logging.error(f"获取截图列表失败: {e}")
+        deps.logger.error(f"获取截图列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -75,7 +74,7 @@ async def get_screenshot(screenshot_id: int):
                     "processing_time": ocr_result.processing_time,
                 }
     except Exception as e:
-        logging.warning(f"获取OCR结果失败: {e}")
+        deps.logger.warning(f"获取OCR结果失败: {e}")
 
     # screenshot已经是字典格式，直接使用
     result = screenshot.copy()
@@ -109,12 +108,33 @@ async def get_screenshot_image(screenshot_id: int, request: Request):
             raise HTTPException(status_code=404, detail="截图不存在")
 
         file_path = screenshot["file_path"]
+
+        # 检查文件是否存在
+        if not os.path.exists(file_path):
+            deps.logger.warning(f"截图文件不存在: screenshot_id={screenshot_id}, path={file_path}")
+            # 记录失败的查看截图行为
+            if deps.behavior_tracker is not None:
+                deps.behavior_tracker.track_action(
+                    action_type="view_screenshot",
+                    action_details={
+                        "screenshot_id": screenshot_id,
+                        "success": False,
+                        "error": "图片文件不存在",
+                    },
+                    user_agent=request.headers.get("user-agent", ""),
+                    ip_address=request.client.host if request.client else "",
+                    response_time=time.time() - start_time,
+                )
+            raise HTTPException(status_code=404, detail="图片文件不存在")
+
         return FileResponse(
             file_path,
             media_type="image/png",
             filename=f"screenshot_{screenshot_id}.png",
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         deps.logger.error(f"获取截图图像时发生错误: {e}")
         raise HTTPException(status_code=500, detail="服务器内部错误") from e

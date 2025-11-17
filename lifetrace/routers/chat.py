@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from lifetrace.routers import dependencies as deps
 from lifetrace.schemas.chat import (
+    AddMessageRequest,
     ChatMessage,
     ChatMessageWithContext,
     ChatResponse,
@@ -126,6 +127,26 @@ async def chat_with_llm_stream(message: ChatMessage):
             f"[stream] 收到聊天消息: {message.message}, project_id: {message.project_id}, task_ids: {message.task_ids}"
         )
 
+        # 确保有 session_id，如果没有则创建
+        session_id = message.conversation_id
+        if not session_id:
+            session_id = deps.generate_session_id()
+            deps.logger.info(f"[stream] 创建新会话: {session_id}")
+
+        # 检查数据库中是否存在该会话，如果不存在则创建
+        chat = deps.db_manager.get_chat_by_session_id(session_id)
+        if not chat:
+            # 根据是否有 project_id 判断聊天类型
+            chat_type = "project" if message.project_id else "event"
+            # 创建新的聊天会话
+            deps.db_manager.create_chat(
+                session_id=session_id,
+                chat_type=chat_type,
+                title=message.message[:50] if len(message.message) > 50 else message.message,
+                context_id=message.project_id if message.project_id else None,
+            )
+            deps.logger.info(f"[stream] 在数据库中创建会话: {session_id}, 类型: {chat_type}")
+
         # 使用RAG服务的流式处理方法，避免重复的意图识别
         rag_result = await deps.rag_service.process_query_stream(
             message.message, message.project_id, message.task_ids
@@ -144,7 +165,14 @@ async def chat_with_llm_stream(message: ChatMessage):
         messages = rag_result.get("messages", [])
         temperature = rag_result.get("temperature", 0.7)
 
-        # 3) 调用LLM流式API并逐块返回
+        # 保存用户消息到数据库
+        deps.db_manager.add_message(
+            session_id=session_id,
+            role="user",
+            content=message.message,
+        )
+
+        # 调用LLM流式API并逐块返回
         def token_generator():
             try:
                 if not deps.rag_service.llm_client.is_available():
@@ -173,6 +201,17 @@ async def chat_with_llm_stream(message: ChatMessage):
                         content = chunk.choices[0].delta.content
                         total_content += content
                         yield content
+
+                # 流式响应结束后，保存助手回复到数据库
+                if total_content:
+                    deps.db_manager.add_message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=total_content,
+                        token_count=usage_info.total_tokens if usage_info else None,
+                        model=deps.rag_service.llm_client.model,
+                    )
+                    deps.logger.info("[stream] 消息已保存到数据库")
 
                 # 流式响应结束后记录token使用量
                 if usage_info:
@@ -213,7 +252,11 @@ async def chat_with_llm_stream(message: ChatMessage):
                 deps.logger.error(f"[stream] 生成失败: {e}")
                 yield "\n[提示] 流式生成出现异常，已结束。"
 
-        headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers = {
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Session-Id": session_id,  # 返回 session_id 供前端使用
+        }
         return StreamingResponse(
             token_generator(), media_type="text/plain; charset=utf-8", headers=headers
         )
@@ -230,6 +273,23 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
         deps.logger.info(
             f"[stream-with-context] 收到消息: {message.message}, 上下文事件数: {len(message.event_context or [])}"
         )
+
+        # 确保有 session_id，如果没有则创建
+        session_id = message.conversation_id
+        if not session_id:
+            session_id = deps.generate_session_id()
+            deps.logger.info(f"[stream-with-context] 创建新会话: {session_id}")
+
+        # 检查数据库中是否存在该会话，如果不存在则创建
+        chat = deps.db_manager.get_chat_by_session_id(session_id)
+        if not chat:
+            # 创建新的聊天会话（事件助手类型）
+            deps.db_manager.create_chat(
+                session_id=session_id,
+                chat_type="event",
+                title=message.message[:50] if len(message.message) > 50 else message.message,
+            )
+            deps.logger.info(f"[stream-with-context] 在数据库中创建会话: {session_id}")
 
         # 构建上下文文本
         context_text = ""
@@ -270,6 +330,13 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
         messages = rag_result.get("messages", [])
         temperature = rag_result.get("temperature", 0.7)
 
+        # 保存用户消息到数据库
+        deps.db_manager.add_message(
+            session_id=session_id,
+            role="user",
+            content=message.message,
+        )
+
         # 调用LLM流式API并逐块返回
         def token_generator():
             try:
@@ -299,6 +366,17 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
                         content = chunk.choices[0].delta.content
                         total_content += content
                         yield content
+
+                # 流式响应结束后，保存助手回复到数据库
+                if total_content:
+                    deps.db_manager.add_message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=total_content,
+                        token_count=usage_info.total_tokens if usage_info else None,
+                        model=deps.rag_service.llm_client.model,
+                    )
+                    deps.logger.info("[stream-with-context] 消息已保存到数据库")
 
                 # 流式响应结束后记录token使用量
                 if usage_info:
@@ -330,7 +408,11 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
                 deps.logger.error(f"[stream-with-context] 生成失败: {e}")
                 yield "\n[提示] 流式生成出现异常，已结束。"
 
-        headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers = {
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Session-Id": session_id,  # 返回 session_id 供前端使用
+        }
         return StreamingResponse(
             token_generator(), media_type="text/plain; charset=utf-8", headers=headers
         )
@@ -364,6 +446,27 @@ async def create_new_chat(request: NewChatRequest = None):
         raise HTTPException(status_code=500, detail="创建新对话失败") from e
 
 
+@router.post("/session/{session_id}/message")
+async def add_message_to_session(session_id: str, request: AddMessageRequest):
+    """添加消息到会话（消息已在流式聊天中自动保存，此接口保持兼容性）"""
+    try:
+        # 消息在流式聊天接口中已经自动保存，这里只是为了API兼容性
+        # 如果需要手动保存，可以取消注释以下代码
+        # deps.db_manager.add_message(
+        #     session_id=session_id,
+        #     role=request.role,
+        #     content=request.content,
+        # )
+        return {
+            "success": True,
+            "message": "消息已保存",
+            "timestamp": datetime.now(),
+        }
+    except Exception as e:
+        deps.logger.error(f"保存消息失败: {e}")
+        raise HTTPException(status_code=500, detail="保存消息失败") from e
+
+
 @router.delete("/session/{session_id}")
 async def clear_chat_session(session_id: str):
     """清除指定会话的上下文"""
@@ -385,29 +488,23 @@ async def clear_chat_session(session_id: str):
 
 
 @router.get("/history")
-async def get_chat_history(session_id: str | None = Query(None)):
-    """获取聊天历史记录"""
+async def get_chat_history(
+    session_id: str | None = Query(None),
+    chat_type: str | None = Query(None, description="聊天类型过滤：event, project, general"),
+):
+    """获取聊天历史记录（从数据库读取）"""
     try:
         if session_id:
             # 返回指定会话的历史记录
-            context = deps.get_session_context(session_id)
+            messages = deps.db_manager.get_messages(session_id)
             return {
                 "session_id": session_id,
-                "history": context,
+                "history": messages,
                 "message": f"会话 {session_id} 的历史记录",
             }
         else:
-            # 返回所有会话的摘要信息
-            sessions_info = []
-            for sid, session_data in deps.chat_sessions.items():
-                sessions_info.append(
-                    {
-                        "session_id": sid,
-                        "created_at": session_data["created_at"],
-                        "last_active": session_data["last_active"],
-                        "message_count": len(session_data["context"]),
-                    }
-                )
+            # 返回所有会话的摘要信息（从数据库）
+            sessions_info = deps.db_manager.get_chat_summaries(chat_type=chat_type, limit=20)
             return {"sessions": sessions_info, "message": "所有会话摘要"}
     except Exception as e:
         deps.logger.error(f"获取聊天历史失败: {e}")

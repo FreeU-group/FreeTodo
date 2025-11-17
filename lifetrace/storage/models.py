@@ -26,9 +26,31 @@ class Event(Base):
     ai_title = Column(String(50))  # LLM生成的事件标题（≤10字）
     ai_summary = Column(Text)  # LLM生成的事件摘要（≤30字，支持markdown）
     task_id = Column(Integer, ForeignKey("tasks.id"))  # 关联的任务ID（可为空）
+    auto_association_attempted = Column(Boolean, default=False)  # 是否已尝试过自动关联
 
     def __repr__(self):
         return f"<Event(id={self.id}, app={self.app_name})>"
+
+
+class EventAssociation(Base):
+    """事件关联模型（事件与项目/任务的关联关系）"""
+
+    __tablename__ = "event_associations"
+
+    id = Column(Integer, primary_key=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False)  # 关联的事件ID
+    project_id = Column(Integer, ForeignKey("projects.id"))  # 关联的项目ID
+    task_id = Column(Integer, ForeignKey("tasks.id"))  # 关联的任务ID
+    project_confidence = Column(Float)  # 项目关联置信度
+    task_confidence = Column(Float)  # 任务关联置信度
+    reasoning = Column(Text)  # 关联推理过程
+    association_method = Column(String(50))  # 关联方法：auto, manual等
+    used_in_summary = Column(Boolean, default=False)  # 是否已用于任务摘要
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<EventAssociation(id={self.id}, event_id={self.event_id}, task_id={self.task_id})>"
 
 
 class Screenshot(Base):
@@ -197,3 +219,80 @@ class Task(Base):
 
     def __repr__(self):
         return f"<Task(id={self.id}, name={self.name}, project_id={self.project_id})>"
+
+
+class TaskProgress(Base):
+    """任务进展记录模型"""
+
+    __tablename__ = "task_progress"
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)  # 关联的任务ID
+    summary = Column(Text, nullable=False)  # 进展摘要内容
+    context_count = Column(Integer, default=0)  # 基于多少个上下文生成
+    generated_at = Column(DateTime, default=get_local_time, nullable=False)  # 生成时间
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<TaskProgress(id={self.id}, task_id={self.task_id}, generated_at={self.generated_at})>"
+
+
+class Chat(Base):
+    """聊天会话模型"""
+
+    __tablename__ = "chats"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(String(100), nullable=False, unique=True)  # 会话ID
+    chat_type = Column(String(50))  # 聊天类型：event, project, general等
+    title = Column(String(200))  # 会话标题
+    context_id = Column(Integer)  # 关联的上下文ID（可选）
+    extra_data = Column(Text)  # 额外数据（JSON格式）
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+    last_message_at = Column(DateTime)  # 最后一条消息的时间
+
+    def __repr__(self):
+        return f"<Chat(id={self.id}, session_id={self.session_id}, type={self.chat_type})>"
+
+
+class Message(Base):
+    """消息模型"""
+
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)  # 关联的聊天会话ID
+    role = Column(String(20), nullable=False)  # 消息角色：user, assistant, system
+    content = Column(Text, nullable=False)  # 消息内容
+    token_count = Column(Integer)  # token数量
+    model = Column(String(100))  # 使用的模型名称
+    extra_data = Column(Text)  # 额外数据（JSON格式）
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<Message(id={self.id}, chat_id={self.chat_id}, role={self.role})>"
+
+
+class TokenUsage(Base):
+    """Token使用量记录模型"""
+
+    __tablename__ = "token_usage"
+
+    id = Column(Integer, primary_key=True)
+    model = Column(String(100), nullable=False)  # 使用的模型名称
+    input_tokens = Column(Integer, nullable=False)  # 输入token数量
+    output_tokens = Column(Integer, nullable=False)  # 输出token数量
+    total_tokens = Column(Integer, nullable=False)  # 总token数量
+    endpoint = Column(String(200))  # API端点
+    response_type = Column(String(50))  # 响应类型
+    feature_type = Column(String(50))  # 功能类型
+    user_query_preview = Column(Text)  # 用户查询预览（前200字符）
+    query_length = Column(Integer)  # 查询长度
+    input_cost = Column(Float)  # 输入成本（元）
+    output_cost = Column(Float)  # 输出成本（元）
+    total_cost = Column(Float)  # 总成本（元）
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+
+    def __repr__(self):
+        return f"<TokenUsage(id={self.id}, model={self.model}, total_tokens={self.total_tokens}, cost={self.total_cost})>"

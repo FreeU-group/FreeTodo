@@ -49,19 +49,19 @@ jobs:
     confidence_threshold: 0.5
   task_context_mapper:
     name: 任务上下文映射  # 任务显示名称
-    enabled: false  # 是否启用任务上下文映射服务
+    enabled: false  # 是否启用任务上下文映射服务（默认关闭，需要时手动开启）
     interval: 60  # 检查间隔（秒）
     batch_size: 100  # 每次处理的上下文数量
     project_confidence_threshold: 0.7  # 项目置信度阈值，只有超过此阈值的项目关联才会被应用
     task_confidence_threshold: 0.7  # 任务置信度阈值，只有超过此阈值的任务关联才会被应用
   task_summary:
     name: 任务摘要生成  # 任务显示名称
-    enabled: false  # 是否启用任务摘要服务
+    enabled: false  # 是否启用任务摘要服务（默认关闭，需要时手动开启）
     interval: 3600  # 检查间隔（秒）
     min_new_contexts: 5  # 触发摘要的最小新上下文数量
   clean_data:
     name: 截图清理  # 任务显示名称
-    enabled: true  # 是否启用截图清理任务
+    enabled: false  # 是否启用截图清理任务（默认关闭，需要时手动开启）
     interval: 3600  # 检查间隔（秒），默认每小时检查一次
     max_screenshots: 10000  # 最大截图数量限制
     max_days: 30  # 数据保留天数（按日期清理旧数据）

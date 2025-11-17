@@ -3,13 +3,23 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Event, Screenshot, ChatMessage } from '@/lib/types';
 import { api } from '@/lib/api';
+
+// 会话历史类型
+interface SessionInfo {
+  session_id: string;
+  title?: string;
+  chat_type?: string;
+  created_at: string;
+  last_active: string;
+  message_count: number;
+}
 import { formatDateTime, formatDuration, calculateDuration } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/common/Card';
 import { FormField } from '@/components/common/Input';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Loading from '@/components/common/Loading';
-import { ChevronDown, ChevronUp, Square, Check, Search, Send, Plus, User, Bot, X, Activity, TrendingUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Square, Check, Search, Send, Plus, User, Bot, X, Activity, TrendingUp, ChevronRight, History } from 'lucide-react';
 import ScreenshotModal from '@/components/screenshot/ScreenshotModal';
 import { useSelectedEvents } from '@/lib/context/SelectedEventsContext';
 import { marked } from 'marked';
@@ -43,6 +53,9 @@ export default function EventsPage() {
   const [llmHealthy, setLlmHealthy] = useState(true);
   const [llmHealthChecked, setLlmHealthChecked] = useState(false);
   const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [sessionHistory, setSessionHistory] = useState<SessionInfo[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const pageSize = 10; // 每次加载10条
@@ -166,6 +179,13 @@ export default function EventsPage() {
               setChatLoading(false);
               isFirstChunk = false;
             }
+          },
+          (sessionId: string) => {
+            // 保存 session_id
+            if (!currentConversationId) {
+              setCurrentConversationId(sessionId);
+              console.log('获取到新的 session_id:', sessionId);
+            }
           }
         );
       } else {
@@ -197,6 +217,13 @@ export default function EventsPage() {
               setChatLoading(false);
               isFirstChunk = false;
             }
+          },
+          (sessionId: string) => {
+            // 保存 session_id
+            if (!currentConversationId) {
+              setCurrentConversationId(sessionId);
+              console.log('获取到新的 session_id:', sessionId);
+            }
           }
         );
       }
@@ -221,6 +248,49 @@ export default function EventsPage() {
   const createNewConversation = () => {
     setCurrentConversationId(null);
     setMessages([]);
+    setShowHistory(false); // 自动关闭历史面板
+  };
+
+  // 加载聊天历史（只加载事件助手类型的聊天记录，最多20条）
+  const loadChatHistory = async () => {
+    try {
+      const response = await api.getChatHistory(undefined, 'event', 20);
+      const sessions = (response.data.sessions || []) as SessionInfo[];
+
+      // 后端已按最后活跃时间排序，直接使用
+      setSessionHistory(sessions);
+      console.log('已加载聊天历史:', sessions.length, '条');
+    } catch (error) {
+      console.error('加载聊天历史失败:', error);
+      toast.error('加载聊天历史失败');
+    }
+  };
+
+  // 加载特定会话的历史消息
+  const loadSessionMessages = async (sessionId: string) => {
+    try {
+      const response = await api.getChatHistory(sessionId);
+      const history = (response.data.history || []) as Array<{
+        role: 'user' | 'assistant';
+        content: string;
+        timestamp?: string;
+      }>;
+
+      // 将历史消息转换为 ChatMessage 格式
+      const chatMessages: ChatMessage[] = history.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp || new Date().toISOString(),
+      }));
+
+      setMessages(chatMessages);
+      setCurrentConversationId(sessionId);
+      setShowHistory(false);
+      toast.success('已加载历史会话');
+    } catch (error) {
+      console.error('加载会话消息失败:', error);
+      toast.error('加载会话消息失败');
+    }
   };
 
   // 加载事件详情（包含截图）
@@ -914,10 +984,11 @@ export default function EventsPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setShowHistory(!showHistory);
-                  if (!showHistory && sessionHistory.length === 0) {
+                  if (!showHistory) {
+                    // 每次打开历史记录时都重新加载
                     loadChatHistory();
                   }
+                  setShowHistory(!showHistory);
                 }}
                 className="h-8 w-8 p-0"
                 title="历史记录"
@@ -945,7 +1016,53 @@ export default function EventsPage() {
             </div>
           </div>
 
-          {/* 消息列表 - 滚动条靠边 */}
+          {/* 历史记录区域 */}
+          {showHistory && (
+            <div className="border-b border-border bg-muted/30 flex-shrink-0">
+              <div className="px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">最近会话</h3>
+                </div>
+                {sessionHistory.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">暂无历史记录</p>
+                ) : (
+                  <div className="space-y-2 max-h-[180px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                    {sessionHistory.map((session) => {
+                      const timeAgo = formatDateTime(session.last_active);
+                      const displayTitle = session.title || `会话 ${session.session_id.slice(0, 8)}`;
+
+                      return (
+                        <button
+                          key={session.session_id}
+                          onClick={() => loadSessionMessages(session.session_id)}
+                          className="w-full text-left p-3 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate" title={displayTitle}>
+                                {displayTitle}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs text-muted-foreground">
+                                  {timeAgo}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {session.message_count} 条消息
+                                </span>
+                              </div>
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 消息列表 */}
           <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
             {messages.length === 0 ? (
               <div className="h-full flex items-center justify-center px-4">

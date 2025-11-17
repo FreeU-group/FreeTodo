@@ -63,3 +63,31 @@ class TaskWithChildren(TaskResponse):
 
     class Config:
         from_attributes = True
+
+
+class TaskProgressCreate(BaseModel):
+    """创建任务进展请求模型"""
+
+    summary: str = Field(..., min_length=1, description="进展摘要内容")
+    context_count: int = Field(0, ge=0, description="基于多少个上下文生成")
+
+
+class TaskProgressResponse(BaseModel):
+    """任务进展响应模型"""
+
+    id: int = Field(..., description="进展记录ID")
+    task_id: int = Field(..., description="任务ID")
+    summary: str = Field(..., description="进展摘要内容")
+    context_count: int = Field(..., description="基于多少个上下文生成")
+    generated_at: datetime = Field(..., description="生成时间")
+    created_at: datetime = Field(..., description="创建时间")
+
+    class Config:
+        from_attributes = True
+
+
+class TaskProgressListResponse(BaseModel):
+    """任务进展列表响应模型"""
+
+    total: int = Field(..., description="总数")
+    progress_list: list[TaskProgressResponse] = Field(..., description="进展记录列表")

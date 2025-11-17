@@ -8,8 +8,10 @@ from pydantic import BaseModel
 
 class ChatMessage(BaseModel):
     message: str
+    conversation_id: str | None = None  # 会话ID
     project_id: int | None = None  # 项目ID，用于过滤上下文
     task_ids: list[int] | None = None  # 选中的任务ID列表
+    use_rag: bool = True  # 是否使用RAG
 
 
 class ChatMessageWithContext(BaseModel):
@@ -35,3 +37,8 @@ class NewChatResponse(BaseModel):
     session_id: str
     message: str
     timestamp: datetime
+
+
+class AddMessageRequest(BaseModel):
+    role: str
+    content: str

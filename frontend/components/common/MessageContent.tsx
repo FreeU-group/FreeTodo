@@ -108,16 +108,23 @@ export default function MessageContent({ content, isMarkdown = true, isStreaming
   useEffect(() => {
     return () => {
       if (rootsRef.current.length > 0) {
-        rootsRef.current.forEach(({ root, element }) => {
-          try {
-            root.unmount();
-            // 移除标记
-            (element as HTMLElement).removeAttribute('data-root-mounted');
-          } catch {
-            // 忽略卸载错误
-          }
-        });
+        // 捕获当前的 roots，避免闭包问题
+        const rootsToCleanup = [...rootsRef.current];
         rootsRef.current = [];
+
+        // 使用 setTimeout 将卸载操作延迟到下一个事件循环
+        // 避免在 React 渲染期间同步卸载 root
+        setTimeout(() => {
+          rootsToCleanup.forEach(({ root, element }) => {
+            try {
+              root.unmount();
+              // 移除标记
+              (element as HTMLElement).removeAttribute('data-root-mounted');
+            } catch {
+              // 忽略卸载错误
+            }
+          });
+        }, 0);
       }
     };
   }, []);

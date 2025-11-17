@@ -67,7 +67,8 @@ class TokenUsageLogger:
             endpoint: API端点（如 /api/chat, /api/chat/stream）
             user_query: 用户查询内容（可选，用于分析）
             response_type: 响应类型（如 chat, search, classify）
-            feature_type: 功能类型（如 event_assistant, project_assistant, job_task_context_mapper, job_task_summary）
+            feature_type: 功能类型（如 event_assistant, project_assistant, job_task_context_mapper,
+                         job_task_summary（定时任务）, task_summary（手动触发））
             additional_info: 额外信息字典
         """
         try:

@@ -86,6 +86,50 @@ class DatabaseManager:
             except Exception as me:
                 logging.warning(f"检查/添加 events.task_id 列失败: {me}")
 
+            # 轻量级迁移：检查并创建/更新 task_progress 表
+            try:
+                if self.database_url.startswith("sqlite:///"):
+                    with self.engine.connect() as conn:
+                        # 检查表是否存在
+                        table_exists = conn.execute(
+                            text(
+                                "SELECT name FROM sqlite_master WHERE type='table' AND name='task_progress'"
+                            )
+                        ).fetchone()
+
+                        if table_exists:
+                            # 表存在，检查列
+                            cols = {
+                                row[1]: row
+                                for row in conn.execute(
+                                    text("PRAGMA table_info('task_progress')")
+                                ).fetchall()
+                            }
+
+                            # 检查并添加缺失的列
+                            if "generated_at" not in cols:
+                                # SQLite 不支持 ALTER TABLE 时使用 CURRENT_TIMESTAMP
+                                # 所以先添加为可空列
+                                conn.execute(
+                                    text(
+                                        "ALTER TABLE task_progress ADD COLUMN generated_at DATETIME"
+                                    )
+                                )
+                                # 然后为现有记录设置默认值（使用 created_at）
+                                conn.execute(
+                                    text(
+                                        "UPDATE task_progress SET generated_at = created_at WHERE generated_at IS NULL"
+                                    )
+                                )
+                                logging.info("已为 task_progress 表添加 generated_at 列")
+                        else:
+                            # 表不存在，create_all 已经创建了
+                            logging.info("task_progress 表已通过 create_all 创建")
+
+                        conn.commit()
+            except Exception as me:
+                logging.warning(f"检查/更新 task_progress 表失败: {me}")
+
             # 性能优化：添加关键索引
             self._create_performance_indexes()
 
@@ -803,6 +847,20 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             logging.error(f"更新截图处理状态失败: {e}")
 
+    def get_screenshot_count(self) -> int:
+        """获取截图总数
+
+        Returns:
+            截图总数
+        """
+        try:
+            with self.get_session() as session:
+                count = session.query(Screenshot).count()
+                return count
+        except SQLAlchemyError as e:
+            logging.error(f"获取截图总数失败: {e}")
+            return 0
+
     def get_ocr_results_by_screenshot(self, screenshot_id: int) -> list[dict[str, Any]]:
         """根据截图ID获取OCR结果"""
         try:
@@ -1389,6 +1447,138 @@ class DatabaseManager:
             logging.error(f"获取子任务失败: {e}")
             return []
 
+    # 任务进展管理
+    def create_task_progress(
+        self,
+        task_id: int,
+        summary: str,
+        context_count: int = 0,
+        generated_at: datetime | None = None,
+    ) -> int | None:
+        """创建任务进展记录
+
+        Args:
+            task_id: 任务ID
+            summary: 进展摘要内容
+            context_count: 基于多少个上下文生成
+            generated_at: 生成时间（可选，默认为当前时间）
+
+        Returns:
+            进展记录ID，失败返回None
+        """
+        try:
+            from lifetrace.storage.models import TaskProgress
+
+            with self.get_session() as session:
+                progress = TaskProgress(
+                    task_id=task_id,
+                    summary=summary,
+                    context_count=context_count,
+                    generated_at=generated_at or datetime.now(),
+                )
+                session.add(progress)
+                session.commit()
+                logging.info(f"创建任务进展记录成功: task_id={task_id}, progress_id={progress.id}")
+                return progress.id
+        except SQLAlchemyError as e:
+            logging.error(f"创建任务进展记录失败: {e}")
+            return None
+
+    def get_task_progress_list(
+        self,
+        task_id: int,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """获取任务的进展记录列表
+
+        Args:
+            task_id: 任务ID
+            limit: 返回数量限制
+            offset: 偏移量
+
+        Returns:
+            进展记录列表
+        """
+        try:
+            from lifetrace.storage.models import TaskProgress
+
+            with self.get_session() as session:
+                progress_list = (
+                    session.query(TaskProgress)
+                    .filter_by(task_id=task_id)
+                    .order_by(TaskProgress.generated_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+                    .all()
+                )
+                return [
+                    {
+                        "id": p.id,
+                        "task_id": p.task_id,
+                        "summary": p.summary,
+                        "context_count": p.context_count,
+                        "generated_at": p.generated_at,
+                        "created_at": p.created_at,
+                    }
+                    for p in progress_list
+                ]
+        except SQLAlchemyError as e:
+            logging.error(f"获取任务进展记录列表失败: {e}")
+            return []
+
+    def get_task_progress_latest(self, task_id: int) -> dict[str, Any] | None:
+        """获取任务最新的进展记录
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            最新的进展记录，无记录返回None
+        """
+        try:
+            from lifetrace.storage.models import TaskProgress
+
+            with self.get_session() as session:
+                progress = (
+                    session.query(TaskProgress)
+                    .filter_by(task_id=task_id)
+                    .order_by(TaskProgress.generated_at.desc())
+                    .first()
+                )
+                if progress:
+                    return {
+                        "id": progress.id,
+                        "task_id": progress.task_id,
+                        "summary": progress.summary,
+                        "context_count": progress.context_count,
+                        "generated_at": progress.generated_at,
+                        "created_at": progress.created_at,
+                    }
+                return None
+        except SQLAlchemyError as e:
+            logging.error(f"获取任务最新进展记录失败: {e}")
+            return None
+
+    def count_task_progress(self, task_id: int) -> int:
+        """统计任务的进展记录数量
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            进展记录数量
+        """
+        try:
+            from lifetrace.storage.models import TaskProgress
+
+            with self.get_session() as session:
+                count = session.query(TaskProgress).filter_by(task_id=task_id).count()
+                return count
+        except SQLAlchemyError as e:
+            logging.error(f"统计任务进展记录数量失败: {e}")
+            return 0
+
     # 上下文管理（事件与任务关联）
     def list_contexts(
         self,
@@ -1544,6 +1734,33 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             logging.error(f"获取上下文记录失败: {e}")
             return None
+
+    def mark_context_as_used_in_summary(self, event_id: int) -> bool:
+        """标记单个事件为已用于摘要
+
+        Args:
+            event_id: 事件ID
+
+        Returns:
+            是否成功
+        """
+        try:
+            with self.get_session() as session:
+                # 更新 event_associations 表
+                updated = (
+                    session.query(EventAssociation)
+                    .filter(EventAssociation.event_id == event_id)
+                    .update({EventAssociation.used_in_summary: True}, synchronize_session=False)
+                )
+
+                session.commit()
+                if updated > 0:
+                    logging.info(f"标记事件 {event_id} 为已用于摘要")
+                return True
+
+        except SQLAlchemyError as e:
+            logging.error(f"标记事件为已用于摘要失败: {e}")
+            return False
 
     def mark_contexts_used_in_summary(self, task_id: int, event_ids: list[int]) -> bool:
         """标记 event-task 关联为已用于摘要
