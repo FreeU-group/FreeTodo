@@ -70,6 +70,7 @@ export default function TimeAllocationPage() {
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(formatDate(startOfPeriod));
   const [endDate, setEndDate] = useState(formatDate(today));
+  const [selectedApp, setSelectedApp] = useState<string | null>(null);
 
   const loadData = async (s = startDate, e = endDate) => {
     setLoading(true);
@@ -172,6 +173,22 @@ export default function TimeAllocationPage() {
     });
 
     return categories;
+  };
+
+  // 获取单个应用的时间分布（分钟）
+  const getAppHourlyUsage = (appName: string): number[] => {
+    if (!data) return Array(24).fill(0);
+
+    return data.daily_distribution.map((hourData) => {
+      const appTime = hourData.apps[appName] || 0;
+      return Math.round(appTime / 60);
+    });
+  };
+
+  // 获取单个应用的最大使用时间（用于计算高度）
+  const getAppMaxUsage = (appName: string): number => {
+    const usage = getAppHourlyUsage(appName);
+    return Math.max(...usage, 1);
   };
 
   if (loading) {
@@ -310,6 +327,47 @@ export default function TimeAllocationPage() {
             </CardContent>
           </Card>
 
+          {/* 单个应用时间分布 */}
+          {selectedApp && (
+            <Card className="mb-6">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>应用时间分布 - {getAppDisplayName(selectedApp)}</CardTitle>
+                  <Button variant="outline" size="sm" onClick={() => setSelectedApp(null)}>
+                    关闭
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="relative h-64 grid gap-1 items-end" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
+                  {Array.from({ length: 24 }, (_, i) => {
+                    const usage = getAppHourlyUsage(selectedApp);
+                    const hourUsage = usage[i];
+                    const maxUsage = getAppMaxUsage(selectedApp);
+                    const height = maxUsage > 0 ? (hourUsage / maxUsage) * 100 : 0;
+
+                    return (
+                      <div key={i} className="flex flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
+                        <div className="w-full relative" style={{ height: '200px' }}>
+                          {hourUsage > 0 && (
+                            <div
+                              className="absolute bottom-0 left-0 right-0 bg-primary hover:opacity-90 transition-opacity rounded-t"
+                              style={{ height: `${height}%`, minHeight: '2px' }}
+                              title={`${i}时: ${hourUsage}分钟`}
+                            />
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1" style={{ height: '20px', display: 'flex', alignItems: 'center' }}>
+                          {i % 4 === 0 ? `${i}时` : ''}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 应用使用详情 */}
           <Card>
             <CardHeader>
@@ -324,10 +382,17 @@ export default function TimeAllocationPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {data.app_details.map((app, index) => {
                     const iconPath = getAppIcon(app.app_name);
+                    const isSelected = selectedApp === app.app_name;
+                    const appHourlyUsage = getAppHourlyUsage(app.app_name);
+                    const appMaxUsage = getAppMaxUsage(app.app_name);
+
                     return (
                       <div
                         key={index}
-                        className="rounded-lg border border-border p-4 hover:shadow-md transition-shadow bg-card"
+                        className={`rounded-lg border p-4 hover:shadow-md transition-all cursor-pointer bg-card ${
+                          isSelected ? 'border-primary ring-2 ring-primary/20' : 'border-border'
+                        }`}
+                        onClick={() => setSelectedApp(app.app_name)}
                       >
                         <div className="flex flex-col items-center gap-3">
                           {/* 应用图标 */}
@@ -354,13 +419,31 @@ export default function TimeAllocationPage() {
                           </div>
 
                           {/* 应用名称 */}
-                          <div className="text-center">
+                          <div className="text-center w-full">
                             <div className="font-semibold text-sm text-foreground truncate w-full">
                               {getAppDisplayName(app.app_name)}
                             </div>
                             <div className="text-xs text-muted-foreground mt-1">
                               {formatMinutes(app.total_time)}
                             </div>
+                          </div>
+
+                          {/* 迷你时间分布图 */}
+                          <div className="w-full h-12 flex items-end gap-0.5 px-1">
+                            {appHourlyUsage.map((usage, hourIndex) => {
+                              const height = appMaxUsage > 0 ? (usage / appMaxUsage) * 100 : 0;
+                              return (
+                                <div
+                                  key={hourIndex}
+                                  className="flex-1 bg-primary/70 rounded-t-sm transition-all hover:bg-primary"
+                                  style={{
+                                    height: `${height}%`,
+                                    minHeight: usage > 0 ? '2px' : '0'
+                                  }}
+                                  title={`${hourIndex}时: ${usage}分钟`}
+                                />
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
