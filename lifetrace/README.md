@@ -1017,21 +1017,6 @@ from lifetrace.routers import my_feature
 app.include_router(my_feature.router)
 ```
 
-### 数据库迁移
-
-使用 Alembic 进行数据库迁移：
-
-```bash
-# 创建迁移
-alembic revision --autogenerate -m "Add new table"
-
-# 执行迁移
-alembic upgrade head
-
-# 回滚迁移
-alembic downgrade -1
-```
-
 ### 测试
 
 ```bash
