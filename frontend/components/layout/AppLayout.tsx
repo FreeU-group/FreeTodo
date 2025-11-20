@@ -9,7 +9,10 @@ import { SelectedEventsProvider } from '@/lib/context/SelectedEventsContext';
 import { Sidebar, SidebarContent, SidebarHeader, SidebarNav } from '@/components/ui/sidebar-nav';
 import type { SidebarNavItem } from '@/components/ui/sidebar-nav';
 import ThemeToggle from '@/components/common/ThemeToggle';
+import LanguageToggle from '@/components/common/LanguageToggle';
 import SettingsModal from '@/components/common/SettingsModal';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 // 动态导入页面组件以避免 SSR 问题
 const EventsPage = dynamic(() => import('@/app/page'), { ssr: false });
@@ -18,13 +21,13 @@ const TimeAllocationPage = dynamic(() => import('@/app/time-allocation/page'), {
 
 type MenuType = 'events' | 'project-management' | 'scheduler' | 'time-allocation' | 'cost-tracking';
 
-// 所有菜单项配置（包含路由路径）
-const allMenuItems: (SidebarNavItem & { path: string })[] = [
-  { id: 'project-management', label: '项目管理', icon: FolderKanban, path: '/project-management' },
-  { id: 'events', label: '事件管理', icon: Calendar, path: '/' },
-  { id: 'time-allocation', label: '时间分配', icon: BarChart3, path: '/time-allocation' },
-  { id: 'scheduler', label: '定时任务', icon: Clock, path: '/scheduler' },
-  { id: 'cost-tracking', label: '费用统计', icon: DollarSign, path: '/cost-tracking' },
+// 定义基础菜单项（不含翻译）
+const baseMenuItems: (Omit<SidebarNavItem, 'label'> & { path: string; labelKey: string })[] = [
+  { id: 'project-management', labelKey: 'projectManagement', icon: FolderKanban, path: '/project-management' },
+  { id: 'events', labelKey: 'events', icon: Calendar, path: '/' },
+  { id: 'time-allocation', labelKey: 'timeAllocation', icon: BarChart3, path: '/time-allocation' },
+  { id: 'scheduler', labelKey: 'scheduler', icon: Clock, path: '/scheduler' },
+  { id: 'cost-tracking', labelKey: 'costTracking', icon: DollarSign, path: '/cost-tracking' },
 ];
 
 interface AppLayoutInnerProps {
@@ -34,6 +37,8 @@ interface AppLayoutInnerProps {
 function AppLayoutInner({ children }: AppLayoutInnerProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [activeMenu, setActiveMenu] = useState<MenuType>('events');
   const [showScheduler, setShowScheduler] = useState(false);
   const [showCostTracking, setShowCostTracking] = useState(false);
@@ -61,19 +66,25 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
     setIsSettingsOpen(true);
   };
 
-  // 根据设置过滤菜单项
-  const menuItems = allMenuItems.filter(item => {
-    if (item.id === 'scheduler') {
-      return showScheduler;
-    }
-    if (item.id === 'cost-tracking') {
-      return showCostTracking;
-    }
-    if (item.id === 'project-management') {
-      return showProjectManagement;
-    }
-    return true;
-  });
+  // 根据设置过滤菜单项并添加翻译
+  const menuItems: SidebarNavItem[] = baseMenuItems
+    .filter(item => {
+      if (item.id === 'scheduler') {
+        return showScheduler;
+      }
+      if (item.id === 'cost-tracking') {
+        return showCostTracking;
+      }
+      if (item.id === 'project-management') {
+        return showProjectManagement;
+      }
+      return true;
+    })
+    .map(item => ({
+      id: item.id,
+      label: t.menu[item.labelKey as keyof typeof t.menu],
+      icon: item.icon,
+    }));
 
   // 从 localStorage 读取定时任务、费用统计和项目管理显示设置
   useEffect(() => {
@@ -139,7 +150,7 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
   useEffect(() => {
     if (pathname) {
       // 按路径长度降序排序，确保先匹配更具体的路径
-      const sortedMenuItems = [...allMenuItems].sort((a, b) => b.path.length - a.path.length);
+      const sortedMenuItems = [...baseMenuItems].sort((a, b) => b.path.length - a.path.length);
       const currentMenuItem = sortedMenuItems.find(item => {
         // 精确匹配或者路径前缀匹配（但需要确保是完整的路径段）
         if (item.path === '/') {
@@ -155,7 +166,7 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
 
   // 处理菜单项点击 - 使用路由导航
   const handleMenuClick = (itemId: string) => {
-    const menuItem = allMenuItems.find(item => item.id === itemId);
+    const menuItem = baseMenuItems.find(item => item.id === itemId);
     if (menuItem) {
       router.push(menuItem.path);
     }
@@ -204,8 +215,8 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-base font-semibold text-foreground leading-tight">LifeTrace</h1>
-              <p className="text-xs text-muted-foreground leading-tight truncate">智能生活记录系统</p>
+              <h1 className="text-base font-semibold text-foreground leading-tight">{t.layout.appTitle}</h1>
+              <p className="text-xs text-muted-foreground leading-tight truncate">{t.layout.appSubtitle}</p>
             </div>
           </div>
         </SidebarHeader>
@@ -228,8 +239,8 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
           <button
             onClick={toggleSidebar}
             className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label={isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
-            title={isSidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+            aria-label={isSidebarCollapsed ? t.layout.expandSidebar : t.layout.collapseSidebar}
+            title={isSidebarCollapsed ? t.layout.expandSidebar : t.layout.collapseSidebar}
           >
             {isSidebarCollapsed ? (
               <PanelLeft className="h-5 w-5" />
@@ -238,15 +249,16 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
             )}
           </button>
 
-          {/* 右侧：主题切换和设置 */}
-          <div className="flex items-center gap-5">
+          {/* 右侧：主题切换、语言切换和设置 */}
+          <div className="flex items-center gap-2">
             <ThemeToggle />
+            <LanguageToggle />
 
             <button
               onClick={onSettingsClick}
               className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label="设置"
-              title="设置"
+              aria-label={t.layout.settings}
+              title={t.layout.settings}
             >
               <Settings className="h-5 w-5" />
             </button>

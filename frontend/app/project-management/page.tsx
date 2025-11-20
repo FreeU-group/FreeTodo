@@ -9,8 +9,12 @@ import CreateProjectModal from '@/components/project/CreateProjectModal';
 import { Project } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 export default function ProjectManagementPage() {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,7 +28,7 @@ export default function ProjectManagementPage() {
       setProjects(response.data.projects || []);
     } catch (error) {
       console.error('加载项目列表失败:', error);
-      toast.error('加载项目列表失败');
+      toast.error(t.project.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -49,18 +53,18 @@ export default function ProjectManagementPage() {
 
   // 处理删除项目
   const handleDeleteProject = async (projectId: number) => {
-    if (!confirm('确定要删除这个项目吗？此操作不可恢复。')) {
+    if (!confirm(t.project.deleteConfirm)) {
       return;
     }
 
     try {
       await api.deleteProject(projectId);
-      toast.success('项目删除成功');
+      toast.success(t.project.deleteSuccess);
       // 刷新列表
       loadProjects();
     } catch (error) {
       console.error('删除项目失败:', error);
-      toast.error('删除项目失败');
+      toast.error(t.project.deleteFailed);
     }
   };
 
@@ -75,14 +79,14 @@ export default function ProjectManagementPage() {
         {/* 页面头部 */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">项目管理</h1>
+            <h1 className="text-3xl font-bold text-foreground">{t.project.title}</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              管理您的项目，跟踪目标和进度
+              {t.project.subtitle}
             </p>
           </div>
           <Button onClick={handleCreateProject} className="gap-2">
             <Plus className="h-5 w-5" />
-            创建项目
+            {t.project.create}
           </Button>
         </div>
 
@@ -96,14 +100,14 @@ export default function ProjectManagementPage() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <FolderOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
-              还没有项目
+              {t.project.noProjects}
             </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-              创建您的第一个项目，开始管理您的任务和目标
+              {t.project.noProjectsHint}
             </p>
             <Button onClick={handleCreateProject} className="gap-2">
               <Plus className="h-5 w-5" />
-              创建第一个项目
+              {t.project.createFirst}
             </Button>
           </div>
         ) : (
@@ -131,4 +135,3 @@ export default function ProjectManagementPage() {
     </div>
   );
 }
-

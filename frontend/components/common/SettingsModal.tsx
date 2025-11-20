@@ -7,6 +7,8 @@ import Input from './Input';
 import Button from './Button';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -28,6 +30,8 @@ interface ConfigSettings {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [settings, setSettings] = useState<ConfigSettings>({
     llmKey: '',
     baseUrl: '',
@@ -126,7 +130,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   const handleTest = async () => {
     if (!settings.llmKey || !settings.baseUrl) {
-      setMessage({ type: 'error', text: '请先填写 API Key 和 Base URL' });
+      setMessage({ type: 'error', text: t.settings.apiKeyRequired });
       return;
     }
 
@@ -140,17 +144,17 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       });
 
       if (response.data.success) {
-        setMessage({ type: 'success', text: '✓ API 配置验证成功！' });
+        setMessage({ type: 'success', text: t.settings.testSuccess });
       } else {
         setMessage({
           type: 'error',
-          text: `✗ API 配置验证失败: ${response.data.error || '未知错误'}`
+          text: `${t.settings.testFailed}: ${response.data.error || 'Unknown error'}`
         });
       }
     } catch (error) {
       console.error('测试配置失败:', error);
-      const errorMsg = error instanceof Error ? error.message : '网络连接失败';
-      setMessage({ type: 'error', text: `✗ 测试失败: ${errorMsg}` });
+      const errorMsg = error instanceof Error ? error.message : 'Network error';
+      setMessage({ type: 'error', text: `${t.settings.testFailed}: ${errorMsg}` });
     } finally {
       setTesting(false);
     }
@@ -345,11 +349,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       >
         {/* Header */}
         <div className="sticky top-0 flex items-center justify-between border-b bg-background px-4 py-3">
-          <h2 className="text-lg font-bold text-foreground">设置</h2>
+          <h2 className="text-lg font-bold text-foreground">{t.settings.title}</h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-foreground transition-colors hover:bg-muted"
-            aria-label="关闭"
+            aria-label={t.common.close}
           >
             <X className="h-5 w-5" />
           </button>
@@ -372,43 +376,43 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-muted-foreground">加载配置中...</div>
+              <div className="text-muted-foreground">{t.common.loading}</div>
             </div>
           ) : (
             <>
               {/* LLM 配置 */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">LLM 配置</CardTitle>
+                  <CardTitle className="text-base">{t.settings.llmConfig}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     <div>
                       <label className="mb-1 block text-sm font-medium text-foreground">
-                        API Key <span className="text-red-500">*</span>
+                        {t.settings.apiKey} <span className="text-red-500">*</span>
                       </label>
                       <Input
                         type="password"
                         className="px-3 py-2 h-9"
-                        placeholder="输入您的 API Key"
+                        placeholder={t.settings.apiKey}
                         value={settings.llmKey}
                         onChange={(e) => handleChange('llmKey', e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        如何获取 API Key？请访问{' '}
+                        {t.settings.apiKeyHint}{' '}
                         <a
                           href="https://bailian.console.aliyun.com/?tab=api#/api"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-primary hover:underline"
                         >
-                          阿里云百炼控制台
+                          {t.settings.apiKeyLink}
                         </a>
                       </p>
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium text-foreground">
-                        Base URL <span className="text-red-500">*</span>
+                        {t.settings.baseUrl} <span className="text-red-500">*</span>
                       </label>
                       <Input
                         type="text"
@@ -421,7 +425,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <div className="grid grid-cols-3 gap-3">
                       <div className="col-span-1">
                         <label className="mb-1 block text-sm font-medium text-foreground">
-                          模型
+                          {t.settings.model}
                         </label>
                         <Input
                           type="text"
@@ -433,7 +437,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       </div>
                       <div>
                         <label className="mb-1 block text-sm font-medium text-foreground">
-                          Temperature
+                          {t.settings.temperature}
                         </label>
                         <Input
                           type="number"
@@ -447,7 +451,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       </div>
                       <div>
                         <label className="mb-1 block text-sm font-medium text-foreground">
-                          Max Tokens
+                          {t.settings.maxTokens}
                         </label>
                         <Input
                           type="number"
@@ -466,7 +470,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         disabled={testing || !settings.llmKey || !settings.baseUrl}
                         className="w-full h-9"
                       >
-                        {testing ? '测试中...' : '测试 API 连接'}
+                        {testing ? t.common.testing : t.settings.testConnection}
                       </Button>
                     </div>
                   </div>
@@ -476,17 +480,17 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {/* 基础设置 */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">基础设置</CardTitle>
+                  <CardTitle className="text-base">{t.settings.basicSettings}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-foreground">
-                          启用录制
+                          {t.settings.enableRecording}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          开启屏幕录制和截图功能
+                          {t.settings.enableRecordingDesc}
                         </p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -504,7 +508,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       <div className="space-y-3">
                         <div>
                           <label className="mb-1 block text-sm font-medium text-foreground">
-                            截图间隔（秒）
+                            {t.settings.screenshotInterval}
                           </label>
                           <Input
                             type="number"
@@ -516,10 +520,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-foreground">
-                              启用黑名单
+                              {t.settings.enableBlacklist}
                             </p>
                             <p className="text-xs text-muted-foreground mt-0.5">
-                              开启后可以设置不需要截图的应用
+                              {t.settings.enableBlacklistDesc}
                             </p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
@@ -535,7 +539,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         {settings.blacklistEnabled && (
                           <div>
                             <label className="mb-1 block text-sm font-medium text-foreground">
-                              应用黑名单
+                              {t.settings.appBlacklist}
                             </label>
                             <div className="border border-input rounded-md px-2 py-1.5 min-h-[38px] flex flex-wrap gap-1.5 items-center bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
                               {settings.blacklistApps.map((app) => (
@@ -548,7 +552,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                                     type="button"
                                     onClick={() => handleRemoveBlacklistApp(app)}
                                     className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-                                    aria-label={`删除 ${app}`}
+                                    aria-label={`${t.common.delete} ${app}`}
                                   >
                                     <X className="h-3 w-3" />
                                   </button>
@@ -557,14 +561,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                               <input
                                 type="text"
                                 className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder:text-muted-foreground px-1"
-                                placeholder={settings.blacklistApps.length === 0 ? "输入应用名称后按回车添加" : "继续添加..."}
+                                placeholder={t.settings.blacklistPlaceholder}
                                 value={blacklistInput}
                                 onChange={(e) => setBlacklistInput(e.target.value)}
                                 onKeyDown={handleBlacklistKeyDown}
                               />
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
-                              这些应用的窗口将不会被截图记录，输入应用名称后按回车添加（例如：微信、QQ、钉钉）
+                              {t.settings.blacklistDesc}
                             </p>
                           </div>
                         )}
@@ -578,15 +582,15 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {false && (
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">对话设置</CardTitle>
+                    <CardTitle className="text-base">{t.settings.chatSettings}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-foreground">启用上下文</p>
+                          <p className="text-sm font-medium text-foreground">{t.settings.enableContext}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            开启后发送消息时附带历史上下文
+                            {t.settings.enableContextDesc}
                           </p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
@@ -603,7 +607,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       {settings.chatContextEnabled && (
                         <div>
                           <label className="mb-1 block text-sm font-medium text-foreground">
-                            上下文轮次
+                            {t.settings.contextRounds}
                           </label>
                           <Input
                             type="number"
@@ -619,7 +623,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             }}
                           />
                           <p className="text-xs text-muted-foreground mt-1">
-                            附带最近 {settings.chatContextRounds} 轮历史对话作为上下文（最多 20 轮）
+                            {t.settings.contextRoundsDesc.replace('{rounds}', String(settings.chatContextRounds))}
                           </p>
                         </div>
                       )}
@@ -631,16 +635,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {/* 开发者选项 */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">开发者选项</CardTitle>
+                  <CardTitle className="text-base">{t.settings.developerOptions}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="block text-sm font-medium text-foreground">
-                        显示定时任务
+                        {t.settings.showScheduler}
                       </label>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        开启后在侧边栏显示定时任务菜单
+                        {t.settings.showSchedulerDesc}
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -657,10 +661,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="block text-sm font-medium text-foreground">
-                        显示费用统计
+                        {t.settings.showCostTracking}
                       </label>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        开启后在侧边栏显示 LLM 费用统计菜单
+                        {t.settings.showCostTrackingDesc}
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -677,10 +681,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="block text-sm font-medium text-foreground">
-                        显示项目管理
+                        {t.settings.showProjectManagement}
                       </label>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        开启后在侧边栏显示项目管理菜单
+                        {t.settings.showProjectManagementDesc}
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -699,14 +703,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               {/* 操作按钮 */}
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={handleCancel} disabled={saving} className="h-9">
-                  取消
+                  {t.common.cancel}
                 </Button>
                 <Button
                   onClick={handleSave}
                   disabled={saving}
                   className="h-9"
                 >
-                  {saving ? '保存中...' : '保存'}
+                  {saving ? t.common.saving : t.common.save}
                 </Button>
               </div>
             </>

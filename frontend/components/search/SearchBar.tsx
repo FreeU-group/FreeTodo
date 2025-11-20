@@ -5,6 +5,8 @@ import { Search } from 'lucide-react';
 import { SearchType } from '@/lib/types';
 import Button from '../common/Button';
 import { FormField } from '../common/Input';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface SearchBarProps {
   onSearch: (params: {
@@ -17,6 +19,8 @@ interface SearchBarProps {
 }
 
 export default function SearchBar({ onSearch }: SearchBarProps) {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [searchType, setSearchType] = useState<SearchType>('event');
   const [query, setQuery] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -29,10 +33,10 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
   };
 
   const searchTypes: { value: SearchType; label: string }[] = [
-    { value: 'traditional', label: '传统搜索' },
-    { value: 'semantic', label: '语义搜索' },
-    { value: 'multimodal', label: '多模态搜索' },
-    { value: 'event', label: '事件搜索' },
+    { value: 'traditional', label: t.search.traditional },
+    { value: 'semantic', label: t.search.semantic },
+    { value: 'multimodal', label: t.search.multimodal },
+    { value: 'event', label: t.search.event },
   ];
 
   return (
@@ -59,21 +63,21 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-5">
         <div className="md:col-span-2">
           <FormField
-            label="搜索关键词"
-            placeholder="输入要搜索的内容..."
+            label={t.search.keyword}
+            placeholder={t.search.keywordPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           {searchType === 'event' && (
             <p className="mt-1 text-xs font-medium text-muted-foreground">
-              事件搜索以"事件"为粒度（同一前台应用连续使用的一组截图）
+              {t.search.eventSearchHint}
             </p>
           )}
         </div>
 
         <div>
           <FormField
-            label="开始日期"
+            label={t.search.startDate}
             type="date"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
@@ -82,7 +86,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
 
         <div>
           <FormField
-            label="结束日期"
+            label={t.search.endDate}
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
@@ -91,8 +95,8 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
 
         <div>
           <FormField
-            label="应用名称"
-            placeholder="过滤应用..."
+            label={t.search.appName}
+            placeholder={t.search.filterApp}
             value={appName}
             onChange={(e) => setAppName(e.target.value)}
           />
@@ -101,7 +105,7 @@ export default function SearchBar({ onSearch }: SearchBarProps) {
         <div className="flex items-end md:col-span-5 md:justify-end">
           <Button type="submit" className="w-full md:w-auto">
             <Search className="mr-2 h-4 w-4" />
-            搜索
+            {t.common.search}
           </Button>
         </div>
       </form>
