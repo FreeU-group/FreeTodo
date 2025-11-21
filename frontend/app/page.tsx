@@ -272,7 +272,7 @@ export default function EventsPage() {
       console.error('加载聊天历史失败:', error);
       toast.error('加载聊天历史失败');
     }
-  };
+  }; 
 
   // 加载特定会话的历史消息
   const loadSessionMessages = async (sessionId: string) => {
