@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, FolderOpen, ChevronRight, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, FolderOpen, ChevronRight, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock, LayoutList, Map } from 'lucide-react';
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import Input from '@/components/common/Input';
 import { Card, CardContent } from '@/components/common/Card';
+import Tabs from '@/components/common/Tabs';
 import TaskBoard from '@/components/task/TaskBoard';
 import CreateTaskModal from '@/components/task/CreateTaskModal';
 import { Project, Task } from '@/lib/types';
@@ -131,6 +132,9 @@ export default function ProjectDetailPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 视图控制：'board' 或 'roadmap'
+  const [activeView, setActiveView] = useState<'board' | 'roadmap'>('board');
 
   // 滚动到聊天底部
   const scrollToBottom = () => {
@@ -501,8 +505,21 @@ export default function ProjectDetailPage() {
               )}
             </div>
 
-            {/* 任务统计面板 */}
-            {!loading && tasks.length > 0 && (
+            {/* 视图切换 Tabs */}
+            {project && (
+              <Tabs
+                tabs={[
+                  { id: 'board', label: '任务看板', icon: LayoutList },
+                  { id: 'roadmap', label: '路线图', icon: Map },
+                ]}
+                activeTab={activeView}
+                onTabChange={(tabId) => setActiveView(tabId as 'board' | 'roadmap')}
+                className="mb-6"
+              />
+            )}
+
+            {/* 任务统计面板 - 只在看板视图显示 */}
+            {!loading && tasks.length > 0 && activeView === 'board' && (
               <TaskStats tasks={tasks} />
             )}
           </div>
@@ -520,8 +537,8 @@ export default function ProjectDetailPage() {
               <TaskEmptyState
                 onCreateTask={() => handleCreateTask()}
               />
-            ) : (
-              // 任务看板
+            ) : activeView === 'board' ? (
+              // 任务看板视图
               <TaskBoard
                 tasks={tasks}
                 onEdit={handleEditTask}
@@ -531,6 +548,17 @@ export default function ProjectDetailPage() {
                 selectedTaskIds={selectedTasks}
                 onToggleSelect={handleToggleTaskSelect}
               />
+            ) : (
+              // 路线图视图 - 待实现
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
+                  <Map className="w-12 h-12 text-muted-foreground" />
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-2">路线图视图</h3>
+                <p className="text-muted-foreground text-center max-w-md">
+                  路线图视图正在开发中，敬请期待
+                </p>
+              </div>
             )}
           </div>
         </div>
