@@ -53,7 +53,7 @@ dependencies = [
     # Windows specific dependencies (only install on Windows)
     "pywin32>=306; sys_platform == 'win32'",
     "open-clip-torch>=3.2.0",
-    "loguru>=0.7.3",
+    "loguru>=0.7.3"
 ]
 
 # Ruff 配置 - Python linter 和 formatter
@@ -110,5 +110,6 @@ index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.4.0",
     "ruff>=0.14.4",
 ]
