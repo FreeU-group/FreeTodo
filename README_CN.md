@@ -349,7 +349,7 @@ LifeTrace 社区的存在离不开像您这样的众多友善志愿者。我们�
   </tr>
   <tr>
     <td align="center">
-      <img src=".github/assets/wechat.jpg" alt="微信二维码" width="200"/>
+      <img src=".github/assets/wechat.png" alt="微信二维码" width="200"/>
       <br/>
       <em>扫码加入微信群</em>
     </td>

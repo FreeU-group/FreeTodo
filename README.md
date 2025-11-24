@@ -337,7 +337,7 @@ Connect with us and other LifeTrace users! Scan the QR codes below to join our c
   </tr>
   <tr>
     <td align="center">
-      <img src=".github/assets/wechat.jpg" alt="WeChat QR Code" width="200"/>
+      <img src=".github/assets/wechat.png" alt="WeChat QR Code" width="200"/>
       <br/>
       <em>Scan to join WeChat group</em>
     </td>

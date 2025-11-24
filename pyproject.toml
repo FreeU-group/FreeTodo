@@ -10,7 +10,6 @@ dependencies = [
     "uvicorn[standard]>=0.20.0",
     "pydantic>=2.0.0",
     "sqlalchemy>=2.0.0",
-    "alembic>=1.10.0",
     # Screenshot and image processing
     "mss>=9.0.0",
     "Pillow>=10.0.0",
@@ -54,7 +53,7 @@ dependencies = [
     # Windows specific dependencies (only install on Windows)
     "pywin32>=306; sys_platform == 'win32'",
     "open-clip-torch>=3.2.0",
-    "loguru>=0.7.3"
+    "loguru>=0.7.3",
 ]
 
 # Ruff 配置 - Python linter 和 formatter
