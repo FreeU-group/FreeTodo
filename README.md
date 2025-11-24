@@ -1,16 +1,16 @@
-![LifeTrace Logo](.github/assets/rhn8yu8l.png)
+![LifeTrace Logo](.github/assets/lifetrace_logo.png)
 
-![GitHub stars](https://img.shields.io/github/stars/tangyuanbo1/LifeTrace_app?style=social) ![GitHub forks](https://img.shields.io/github/forks/tangyuanbo1/LifeTrace_app?style=social) ![GitHub issues](https://img.shields.io/github/issues/tangyuanbo1/LifeTrace_app) ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
+![GitHub stars](https://img.shields.io/github/stars/FreeU-group/LifeTrace?style=social) ![GitHub forks](https://img.shields.io/github/forks/FreeU-group/LifeTrace?style=social) ![GitHub issues](https://img.shields.io/github/issues/FreeU-group/LifeTrace) ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
 **Language**: [English](README.md) | [中文](README_CN.md)
 
-[📖 Documentation](https://freeyou.club/lifetrace/introduction.html) • [🚀 Quick Start](#deployment-and-configuration) • [💡 Features](#core-features) • [🔧 Development](#development-guide) • [🤝 Contributing](#contributing)
+[📖 Documentation](https://freeyou.club/lifetrace/introduction.html) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 Development](#development-guide) • [🤝 Contributing](#contributing)
 
 # LifeTrace - Intelligent Life Recording System
 
 ## Project Overview
 
-LifeTrace is an AI-based intelligent life recording system that can automatically manage your personal task context. Through technologies such as automatic screenshots, OCR text recognition, vector retrieval, and multimodal search, LifeTrace helps you record, organize, and retrieve daily activity traces.
+`LifeTrace` is an AI-based intelligent life recording system that can automatically manage your personal task context. Through technologies such as automatic screenshots, OCR text recognition, vector retrieval, and multimodal search, LifeTrace helps you record, organize, and retrieve daily activity traces.
 
 ## Core Features
 
@@ -19,23 +19,30 @@ LifeTrace is an AI-based intelligent life recording system that can automaticall
 - **Smart Event Management**: Automatically aggregate screenshots into intelligent events based on context
 - **Time Allocation Analysis**: Visualize app usage time distribution with 24-hour charts and app categorization
 - **Information Retrieval**: Help users trace back and retrieve important information fragments from the past
-<!-- - **Multimodal Search**: Supports text, image, and semantic search -->
-<!-- - **Vector Database**: Efficient vector storage and retrieval based on ChromaDB -->
 - **Web API Service**: Provides complete RESTful API interfaces
 - **Frontend Integration**: Supports integration with various frontend frameworks
 
-## Get started
+## Quick Start
 
 ### Environment Requirements
+
+**Backend**:
+
 - Python 3.13+
 - Supported OS: Windows, macOS
 - Optional: CUDA support (for GPU acceleration)
+
+**Frontend**:
+
+- Node.js 20+
+- pnpm package manager
 
 ### Install Dependencies
 
 This project uses [uv](https://github.com/astral-sh/uv) for fast and reliable dependency management.
 
 **Install uv:**
+
 ```bash
 # macOS/Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -45,6 +52,7 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 **Install dependencies and sync environment:**
+
 ```bash
 # Sync dependencies from pyproject.toml and uv.lock
 uv sync
@@ -57,20 +65,11 @@ source .venv/bin/activate
 .venv\Scripts\activate
 ```
 
-### Configuration
-
-**Before starting the server, configure settings:**
-
-```bash
-# Copy default config file (Windows)
-copy lifetrace\config\default_config.yaml lifetrace\config\config.yaml
-
-# Copy default config file (macOS/Linux)
-cp lifetrace/config/default_config.yaml lifetrace/config/config.yaml
-```
+### Start the Backend Service
 
 > **Note**: On first run, the system will automatically create `config.yaml` from `default_config.yaml` if it doesn't exist. You can customize your settings by editing `lifetrace/config/config.yaml`.
 
+<<<<<<< HEAD
 ### Database Migration
 
 **Apply database migrations (first time skip this step):**
@@ -85,6 +84,8 @@ alembic upgrade head
 
 ### Start the Backend Service
 
+=======
+>>>>>>> e605d4d (feat(doc): add contributing, frontend and backend guidelines.)
 **Start the server:**
 
 ```bash
@@ -101,6 +102,7 @@ The frontend is required to use LifeTrace. Start the frontend development server
 
 ```bash
 cd frontend
+
 pnpm install
 pnpm dev
 ```
@@ -141,6 +143,9 @@ For more details, see: [frontend/README.md](frontend/README.md)
 ```
 ├── .github/                    # GitHub repository assets
 │   ├── assets/                 # Static assets (images for README)
+│   ├── BACKEND_GUIDELINES.md   # Backend development guidelines
+│   ├── FRONTEND_GUIDELINES.md  # Frontend development guidelines
+│   ├── CONTRIBUTING.md         # Contributing guidelines
 │   └── ...                     # Other GitHub repository files
 ├── lifetrace/                  # Core backend modules
 │   ├── server.py               # Web API service
@@ -303,21 +308,27 @@ For more details, see: [frontend/README.md](frontend/README.md)
 
 The LifeTrace community is possible thanks to thousands of kind volunteers like you. We welcome all contributions to the community and are excited to welcome you aboard.
 
-> Please follow these steps to contribute.
-
 **Recent Contributions:**
 
-![GitHub contributors](https://img.shields.io/github/contributors/tangyuanbo1/LifeTrace_app) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/tangyuanbo1/LifeTrace_app) ![GitHub last commit](https://img.shields.io/github/last-commit/tangyuanbo1/LifeTrace_app)
+![GitHub contributors](https://img.shields.io/github/contributors/FreeU-group/LifeTrace) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/FreeU-group/LifeTrace) ![GitHub last commit](https://img.shields.io/github/last-commit/FreeU-group/LifeTrace)
 
-**How to contribute:**
+### 📚 Contributing Guidelines
+
+We have comprehensive contributing guidelines to help you get started:
+
+- **[Contributing Guidelines](.github/CONTRIBUTING.md)** - Complete guide on how to contribute
+- **[Backend Development Guidelines](.github/BACKEND_GUIDELINES.md)** - Python/FastAPI coding standards
+- **[Frontend Development Guidelines](.github/FRONTEND_GUIDELINES.md)** - TypeScript/React coding standards
+
+### 🚀 Quick Start for Contributors
 
 1. **🍴 Fork the project** - Create your own copy of the repository
 2. **🌿 Create a feature branch** - `git checkout -b feature/amazing-feature`
-3. **💾 Commit your changes** - `git commit -m 'Add some amazing feature'`
+3. **💾 Commit your changes** - `git commit -m 'feat: add some amazing feature'`
 4. **📤 Push to the branch** - `git push origin feature/amazing-feature`
 5. **🔄 Create a Pull Request** - Submit your changes for review
 
-**Areas where you can contribute:**
+### 🎯 Areas Where You Can Contribute
 
 - 🐛 **Bug Reports** - Help us identify and fix issues
 - 💡 **Feature Requests** - Suggest new functionality
@@ -326,10 +337,12 @@ The LifeTrace community is possible thanks to thousands of kind volunteers like 
 - 🎨 **UI/UX** - Enhance the user interface
 - 🔧 **Code** - Implement new features and improvements
 
-**Getting Started:**
+### 🔰 Getting Started
 
-- Check out our [Contributing Guidelines](CONTRIBUTING.md)
+- Check out our **[Contributing Guidelines](.github/CONTRIBUTING.md)** for detailed instructions
 - Look for issues labeled `good first issue` or `help wanted`
+- Follow **[Backend Guidelines](.github/BACKEND_GUIDELINES.md)** for Python/FastAPI development
+- Follow **[Frontend Guidelines](.github/FRONTEND_GUIDELINES.md)** for TypeScript/React development
 - Join our community discussions in Issues and Pull Requests
 
 We appreciate all contributions, no matter how small! 🙏
@@ -365,11 +378,11 @@ Connect with us and other LifeTrace users! Scan the QR codes below to join our c
 
 ## Document
 
-We use deepwiki to manage our docs, please ref to this [**website.**](https://deepwiki.com/tangyuanbo1/LifeTrace_app/6.2-deployment-and-setup)
+We use deepwiki to manage our docs, please ref to this [**website.**](https://deepwiki.com/FreeU-group/LifeTrace/6.2-deployment-and-setup)
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=tangyuanbo1/LifeTrace_app&type=Timeline)](https://www.star-history.com/#tangyuanbo1/LifeTrace_app&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=FreeU-group/LifeTrace&type=Timeline)](https://www.star-history.com/#FreeU-group/LifeTrace&Timeline)
 
 ## License
 
@@ -378,7 +391,7 @@ Copyright © 2025 LifeTrace.org
 The content of this repository is bound by the following licenses:
 
 • The computer software is licensed under the [Apache License 2.0](LICENSE).
-• The learning resources in the `/doc` directory including their subdirectories thereon are copyright © 2025 LifeTrace.org
+• The learning resources in this project are copyright © 2025 LifeTrace.org
 
 ### Apache License 2.0
 

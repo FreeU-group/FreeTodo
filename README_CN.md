@@ -1,16 +1,17 @@
-![LifeTrace Logo](.github/assets/rhn8yu8l.png)
 
-![GitHub stars](https://img.shields.io/github/stars/tangyuanbo1/LifeTrace_app?style=social) ![GitHub forks](https://img.shields.io/github/forks/tangyuanbo1/LifeTrace_app?style=social) ![GitHub issues](https://img.shields.io/github/issues/tangyuanbo1/LifeTrace_app) ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
+![LifeTrace Logo](.github/assets/lifetrace_logo.png)
+
+![GitHub stars](https://img.shields.io/github/stars/FreeU-group/LifeTrace?style=social) ![GitHub forks](https://img.shields.io/github/forks/FreeU-group/LifeTrace?style=social) ![GitHub issues](https://img.shields.io/github/issues/FreeU-group/LifeTrace) ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
 **语言**: [English](README.md) | [中文](README_CN.md)
 
-[📖 文档](https://freeyou.club/lifetrace/introduction.html) • [🚀 快速开始](#快速开始) • [💡 功能特性](#核心功能) • [🏗️ 架构说明](ARCHITECTURE.md) • [📡 API 文档](README_API.md) • [🔧 开发指南](#开发指南) • [🤝 贡献指南](#贡献)
+[📖 文档](https://freeyou.club/lifetrace/introduction.html) • [🚀 快速开始](#快速开始) • [💡 功能特性](#核心功能) • [🔧 开发指南](#开发指南) • [🤝 贡献指南](#贡献)
 
 # LifeTrace - 智能生活记录系统
 
 ## 项目概述
 
-LifeTrace 是一个基于 AI 的智能生活记录系统，可以自动管理您的个人任务上下文。通过自动截图、OCR 文本识别、向量检索和多模态搜索等技术，LifeTrace 帮助您记录、组织和检索日常活动轨迹。
+`LifeTrace` 是一个基于 AI 的智能生活记录系统，可以自动管理您的个人任务上下文。通过自动截图、OCR 文本识别、向量检索和多模态搜索等技术，LifeTrace 帮助您记录、组织和检索日常活动轨迹。
 
 ## 核心功能
 
@@ -19,8 +20,6 @@ LifeTrace 是一个基于 AI 的智能生活记录系统，可以自动管理您
 - **智能事件管理**：基于上下文自动将截图聚合为智能事件
 - **时间分配分析**：可视化展示应用使用时间分布，支持24小时分布图表和应用分类
 - **信息回溯检索**：帮助用户回溯和检索过去重要的信息碎片
-<!-- - **多模态搜索**：支持文本、图像和语义搜索 -->
-<!-- - **向量数据库**：基于 ChromaDB 的高效向量存储和检索 -->
 - **Web API 服务**：提供完整的 RESTful API 接口
 - **前端集成**：支持与各种前端框架集成
 
@@ -46,7 +45,7 @@ LifeTrace 采用**前后端分离**架构：
 
 **前端**:
 
-- Node.js 18+
+- Node.js 20+
 - pnpm 包管理器
 
 ### 安装依赖
@@ -77,33 +76,9 @@ source .venv/bin/activate
 .venv\Scripts\activate
 ```
 
-### 配置设置
-
-**在启动服务器之前，需要配置设置：**
-
-```bash
-# 复制默认配置文件（Windows）
-copy lifetrace\config\default_config.yaml lifetrace\config\config.yaml
-
-# 复制默认配置文件（macOS/Linux）
-cp lifetrace/config/default_config.yaml lifetrace/config/config.yaml
-```
+### 启动后端服务
 
 > **注意**：首次运行时，如果 `config.yaml` 不存在，系统会自动从 `default_config.yaml` 创建。您可以通过编辑 `lifetrace/config/config.yaml` 来自定义设置。
-
-### 数据库迁移
-
-**应用数据库迁移（首次运行跳过此步骤）：**
-
-```bash
-# 进入 lifetrace 目录
-cd lifetrace
-
-# 升级到最新版本
-alembic upgrade head
-```
-
-### 启动后端服务
 
 **启动服务器：**
 
@@ -164,6 +139,9 @@ pnpm dev
 ```
 ├── .github/                    # GitHub 仓库资源
 │   ├── assets/                 # 静态资源（README 图片）
+│   ├── BACKEND_GUIDELINES.md   # 后端开发规范
+│   ├── FRONTEND_GUIDELINES.md  # 前端开发规范
+│   ├── CONTRIBUTING.md         # 贡献指南
 │   └── ...                     # 其他 GitHub 仓库文件
 ├── lifetrace/                  # 核心后端模块
 │   ├── server.py               # Web API 服务
@@ -326,21 +304,27 @@ pnpm dev
 
 LifeTrace 社区的存在离不开像您这样的众多友善志愿者。我们欢迎所有对社区的贡献，并很高兴欢迎您的加入。
 
-> 请按照以下步骤进行贡献。
-
 **最近的贡献：**
 
-![GitHub contributors](https://img.shields.io/github/contributors/tangyuanbo1/LifeTrace_app) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/tangyuanbo1/LifeTrace_app) ![GitHub last commit](https://img.shields.io/github/last-commit/tangyuanbo1/LifeTrace_app)
+![GitHub contributors](https://img.shields.io/github/contributors/FreeU-group/LifeTrace) ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/FreeU-group/LifeTrace) ![GitHub last commit](https://img.shields.io/github/last-commit/FreeU-group/LifeTrace)
 
-**如何贡献：**
+### 📚 贡献指南
+
+我们提供了完整的贡献指南帮助您开始：
+
+- **[贡献指南](.github/CONTRIBUTING_CN.md)** - 完整的贡献流程和规范
+- **[后端开发规范](.github/BACKEND_GUIDELINES_CN.md)** - Python/FastAPI 编码规范
+- **[前端开发规范](.github/FRONTEND_GUIDELINES_CN.md)** - TypeScript/React 编码规范
+
+### 🚀 快速开始贡献
 
 1. **🍴 Fork 项目** - 创建您自己的仓库副本
 2. **🌿 创建功能分支** - `git checkout -b feature/amazing-feature`
-3. **💾 提交您的更改** - `git commit -m 'Add some amazing feature'`
+3. **💾 提交您的更改** - `git commit -m 'feat: 添加某个很棒的功能'`
 4. **📤 推送到分支** - `git push origin feature/amazing-feature`
 5. **🔄 创建 Pull Request** - 提交您的更改以供审核
 
-**您可以贡献的领域：**
+### 🎯 您可以贡献的领域
 
 - 🐛 **错误报告** - 帮助我们识别和修复问题
 - 💡 **功能请求** - 建议新功能
@@ -349,10 +333,12 @@ LifeTrace 社区的存在离不开像您这样的众多友善志愿者。我们�
 - 🎨 **UI/UX** - 增强用户界面
 - 🔧 **代码** - 实现新功能和改进
 
-**开始贡献：**
+### 🔰 开始贡献
 
-- 查看我们的[贡献指南](CONTRIBUTING.md)
+- 查看我们的 **[贡献指南](.github/CONTRIBUTING_CN.md)** 了解详细说明
 - 寻找标记为 `good first issue` 或 `help wanted` 的问题
+- 后端开发请遵循 **[后端开发规范](.github/BACKEND_GUIDELINES_CN.md)**
+- 前端开发请遵循 **[前端开发规范](.github/FRONTEND_GUIDELINES_CN.md)**
 - 在 Issues 和 Pull Requests 中加入我们的社区讨论
 
 我们感谢所有贡献，无论大小！🙏
@@ -388,11 +374,11 @@ LifeTrace 社区的存在离不开像您这样的众多友善志愿者。我们�
 
 ## 文档
 
-我们使用 deepwiki 管理文档，请参考此[**网站**](https://deepwiki.com/tangyuanbo1/LifeTrace_app/6.2-deployment-and-setup)。
+我们使用 deepwiki 管理文档，请参考此[**网站**](https://deepwiki.com/FreeU-group/LifeTrace/6.2-deployment-and-setup)。
 
 ## Star 历史
 
-[![Star History Chart](https://api.star-history.com/svg?repos=tangyuanbo1/LifeTrace_app&type=Timeline)](https://www.star-history.com/#tangyuanbo1/LifeTrace_app&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=FreeU-group/LifeTrace&type=Timeline)](https://www.star-history.com/#FreeU-group/LifeTrace&Timeline)
 
 ## 许可证
 
@@ -401,7 +387,7 @@ LifeTrace 社区的存在离不开像您这样的众多友善志愿者。我们�
 本仓库的内容受以下许可证约束：
 
 • 计算机软件根据 [Apache License 2.0](LICENSE) 许可。
-• `/doc` 目录及其子目录中的学习资源版权所有 © 2025 LifeTrace.org
+• 本项目中学习资源版权所有 © 2025 LifeTrace.org
 
 ### Apache License 2.0
 

@@ -96,8 +96,8 @@ LifeTrace API 采用模块化架构设计，主要包含以下几个层次：
 #### 1. 克隆项目
 
 ```bash
-git clone https://github.com/tangyuanbo1/LifeTrace_app.git
-cd LifeTrace_app
+git clone https://github.com/FreeU-group/LifeTrace.git
+cd LifeTrace
 ```
 
 #### 2. 安装 uv 包管理器（推荐）
@@ -1166,8 +1166,8 @@ logging:
 ## 支持与社区
 
 - **文档网站**: https://freeyou.club/lifetrace/
-- **GitHub**: https://github.com/tangyuanbo1/LifeTrace_app
-- **问题反馈**: [GitHub Issues](https://github.com/tangyuanbo1/LifeTrace_app/issues)
+- **GitHub**: https://github.com/FreeU-group/LifeTrace
+- **问题反馈**: [GitHub Issues](https://github.com/FreeU-group/LifeTrace/issues)
 
 加入我们的社区：
 

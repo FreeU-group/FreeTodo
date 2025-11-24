@@ -189,8 +189,8 @@ GET    /api/projects/{project_id}/tasks/{task_id}/children   # 获取子任务
 
 ### 9.1 启动服务器
 ```bash
-cd /Users/liji/Documents/LifeTrace_app
-PYTHONPATH=/Users/liji/Documents/LifeTrace_app uv run python lifetrace/server.py
+cd /Users/liji/Documents/LifeTrace
+PYTHONPATH=/Users/liji/Documents/LifeTrace uv run python lifetrace/server.py
 ```
 
 ### 9.2 运行测试
@@ -261,4 +261,3 @@ PYTHONPATH=/Users/liji/Documents/LifeTrace_app uv run python lifetrace/server.py
 6. **完整测试** - 所有功能都经过充分测试
 
 所有功能都已成功实现并通过测试，可以投入使用！🎉
-

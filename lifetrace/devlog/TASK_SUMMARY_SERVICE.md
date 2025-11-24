@@ -126,7 +126,7 @@ TaskSummaryService(
 
 ```bash
 # 启动服务器
-cd /Users/ailln/Workspace/github/lifetrace-app
+cd lifetrace-
 python lifetrace/server.py
 ```
 
