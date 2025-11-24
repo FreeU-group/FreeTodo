@@ -181,15 +181,32 @@ class LifeTraceConfig:
                 return default
         return value
 
-    def set(self, key: str, value):
-        """设置配置值"""
-        keys = key.split(".")
-        config = self._config
-        for k in keys[:-1]:
-            if k not in config:
-                config[k] = {}
-            config = config[k]
-        config[keys[-1]] = value
+    def set(self, key: str, value, persist: bool = True):
+        """设置配置值
+
+        Args:
+            key: 配置键（支持点号分隔的嵌套键）
+            value: 配置值
+            persist: 是否持久化到配置文件，默认为True
+        """
+        with self._config_lock:
+            keys = key.split(".")
+            config = self._config
+            for k in keys[:-1]:
+                if k not in config:
+                    config[k] = {}
+                config = config[k]
+            config[keys[-1]] = value
+
+            # 如果需要持久化，保存到配置文件
+            if persist:
+                try:
+                    with open(self.config_path, "w", encoding="utf-8") as f:
+                        yaml.dump(self._config, f, allow_unicode=True, sort_keys=False)
+                    logger.debug(f"配置已保存到文件: {key} = {value}")
+                except Exception as e:
+                    logger.error(f"保存配置到文件失败: {e}")
+                    raise
 
     @property
     def base_dir(self) -> str:
