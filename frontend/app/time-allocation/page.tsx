@@ -8,6 +8,18 @@ import Loading from '@/components/common/Loading';
 import { Clock } from 'lucide-react';
 import { useLocaleStore } from '@/lib/store/locale';
 import { useTranslations } from '@/lib/i18n';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent
+} from '@/components/ui/chart';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid
+} from 'recharts';
 // Note: Using img tag instead of Next.js Image for dynamic app icons
 
 interface AppUsageDetail {
@@ -233,15 +245,6 @@ export default function TimeAllocationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 计算每小时的总使用时间（分钟）
-  const getHourlyTotal = (hour: number): number => {
-    if (!data) return 0;
-    const hourData = data.daily_distribution.find((h) => h.hour === hour);
-    if (!hourData) return 0;
-    const totalSeconds = Object.values(hourData.apps).reduce((sum, time) => sum + time, 0);
-    return Math.round(totalSeconds / 60);
-  };
-
   // 获取每小时的最大使用时间（用于计算柱状图高度）
   const getMaxHourlyUsage = (): number => {
     if (!data) return 0;
@@ -251,23 +254,33 @@ export default function TimeAllocationPage() {
     }), 1);
   };
 
+  // 计算合适的坐标轴最大值（向上取整到整数刻度）
+  const getNiceMaxValue = (maxValue: number): number => {
+    if (maxValue <= 0) return 5;
+
+    // 计算数量级
+    const magnitude = Math.pow(10, Math.floor(Math.log10(maxValue)));
+    const normalized = maxValue / magnitude;
+
+    // 根据归一化值选择合适的上限
+    let niceValue: number;
+    if (normalized <= 1) {
+      niceValue = 1;
+    } else if (normalized <= 2) {
+      niceValue = 2;
+    } else if (normalized <= 5) {
+      niceValue = 5;
+    } else {
+      niceValue = 10;
+    }
+
+    return Math.ceil(niceValue * magnitude);
+  };
+
   // 获取分类翻译
   const getCategoryLabel = (category: string): string => {
     const categoryKey = category as keyof typeof t.timeAllocation.categories;
     return t.timeAllocation.categories[categoryKey] || category;
-  };
-
-  // 获取类别颜色映射
-  const getCategoryColor = (category: string): string => {
-    const colorMap: { [key: string]: string } = {
-      'social': 'bg-yellow-500',
-      'browser': 'bg-blue-500',
-      'development': 'bg-purple-500',
-      'file_management': 'bg-green-500',
-      'office': 'bg-orange-500',
-      'other': 'bg-gray-500',
-    };
-    return colorMap[category] || 'bg-gray-500';
   };
 
   // 获取每个小时每个类别的使用时间（分钟）
@@ -347,6 +360,48 @@ export default function TimeAllocationPage() {
   const categories = data ? categorizeApps(data.app_details) : {};
   const maxUsage = getMaxHourlyUsage();
 
+  // 准备图表数据和配置
+  const chartData = Array.from({ length: 24 }, (_, i) => {
+    const categoryUsage = getHourlyCategoryUsage(i);
+    return {
+      hour: i,
+      hourLabel: t.timeAllocation.hourLabel.replace('{hour}', i.toString()),
+      social: categoryUsage['social'] || 0,
+      browser: categoryUsage['browser'] || 0,
+      development: categoryUsage['development'] || 0,
+      file_management: categoryUsage['file_management'] || 0,
+      office: categoryUsage['office'] || 0,
+      other: categoryUsage['other'] || 0,
+    };
+  });
+
+  const chartConfig = {
+    social: {
+      label: getCategoryLabel('social'),
+      color: 'var(--chart-1)',
+    },
+    browser: {
+      label: getCategoryLabel('browser'),
+      color: 'var(--chart-2)',
+    },
+    development: {
+      label: getCategoryLabel('development'),
+      color: 'var(--chart-3)',
+    },
+    file_management: {
+      label: getCategoryLabel('file_management'),
+      color: 'var(--chart-4)',
+    },
+    office: {
+      label: getCategoryLabel('office'),
+      color: 'var(--chart-5)',
+    },
+    other: {
+      label: getCategoryLabel('other'),
+      color: 'var(--chart-6)',
+    },
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
@@ -408,72 +463,72 @@ export default function TimeAllocationPage() {
               <CardTitle>{t.timeAllocation.hourlyDistribution}</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {/* 图表：使用等宽24列网格，保证每小时柱宽一致且底部对齐 */}
-                <div className="relative h-64 grid gap-1 items-end" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
-                  {Array.from({ length: 24 }, (_, i) => {
-                    const hourUsage = getHourlyTotal(i);
-                    const categoryUsage = getHourlyCategoryUsage(i);
-                    const height = maxUsage > 0 ? (hourUsage / maxUsage) * 100 : 0;
-
-                    // 按固定顺序排列类别，确保堆叠顺序一致（从下到上）
-                    const categoryOrder = ['social', 'browser', 'development', 'file_management', 'office', 'other'];
-                    const sortedCategories = categoryOrder.filter(cat => categoryUsage[cat] && categoryUsage[cat] > 0);
-
-                    return (
-                      <div key={i} className="flex flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
-                        <div className="w-full relative" style={{ height: '200px' }}>
-                          {sortedCategories.length > 0 && (
-                            <div className="absolute bottom-0 left-0 right-0 flex flex-col-reverse" style={{ height: `${height}%`, minHeight: hourUsage > 0 ? '2px' : '0' }}>
-                              {sortedCategories.map((category, idx) => {
-                                const categoryMinutes = categoryUsage[category];
-                                const categoryHeightPercent = hourUsage > 0 ? (categoryMinutes / hourUsage) * 100 : 0;
-                                const isTop = idx === sortedCategories.length - 1;
-
-                                return (
-                                  <div
-                                    key={category}
-                                    className={`w-full ${getCategoryColor(category)} hover:opacity-90 transition-opacity`}
-                                    style={{
-                                      height: `${categoryHeightPercent}%`,
-                                      minHeight: categoryMinutes > 0 ? '2px' : '0',
-                                      borderRadius: isTop ? '4px 4px 0 0' : '0',
-                                    }}
-                                    title={`${t.timeAllocation.hourLabel.replace('{hour}', String(i))} ${getCategoryLabel(category)}: ${categoryMinutes}${locale === 'zh-CN' ? '分钟' : ' min'}`}
-                                  />
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1" style={{ height: '20px', display: 'flex', alignItems: 'center' }}>
-                          {i % 4 === 0 ? t.timeAllocation.hourLabel.replace('{hour}', i.toString()) : ''}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <ChartContainer config={chartConfig} className="h-[400px] w-full">
+                <BarChart data={chartData} margin={{ top: 20, right: 10, left: 10, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="hour"
+                    tickLine={false}
+                    axisLine={true}
+                    tickFormatter={(value) => value % 4 === 0 ? t.timeAllocation.hourLabel.replace('{hour}', value.toString()) : ''}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={true}
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => `${value}${locale === 'zh' ? '分' : 'min'}`}
+                    domain={[0, getNiceMaxValue(maxUsage)]}
+                  />
+                  <ChartTooltip
+                    content={<ChartTooltipContent
+                      hideLabel={true}
+                      hideIndicator={false}
+                      indicator="dot"
+                      formatter={(value, name) => [`${value}${locale === 'zh' ? '分钟' : ' min'}`, chartConfig[name as keyof typeof chartConfig]?.label || name]}
+                    />}
+                  />
+                  <Bar dataKey="social" stackId="a" fill="var(--color-social)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="browser" stackId="a" fill="var(--color-browser)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="development" stackId="a" fill="var(--color-development)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="file_management" stackId="a" fill="var(--color-file_management)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="office" stackId="a" fill="var(--color-office)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="other" stackId="a" fill="var(--color-other)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ChartContainer>
 
                 {/* 图例 */}
-                <div className="flex flex-wrap gap-4 pt-4 border-t">
-                  {Object.entries(categories).map(([category, apps]) => {
+              <div className="flex flex-wrap gap-4 pt-4 border-t mt-4">
+                {(['social', 'browser', 'development', 'file_management', 'office', 'other'] as const).map((category) => {
+                  const apps = categories[category] || [];
+                  if (apps.length === 0) return null;
                     const categoryTime = apps.reduce((sum, app) => sum + app.total_time, 0);
+                  const bgColor = chartConfig[category]?.color || 'var(--chart-6)';
                     return (
                       <div key={category} className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded ${getCategoryColor(category)}`} />
+                      <div
+                        className="w-4 h-4 rounded"
+                        style={{
+                          backgroundColor: bgColor,
+                        }}
+                      />
                         <span className="text-sm text-muted-foreground">
                           {getCategoryLabel(category)} {formatMinutes(categoryTime)}
                         </span>
                       </div>
                     );
                   })}
-                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* 单个应用时间分布 */}
-          {selectedApp && (
+          {selectedApp && (() => {
+            const selectedAppData = data.app_details.find(app => app.app_name === selectedApp);
+            const appCategory = selectedAppData?.category || 'other';
+            const appColor = chartConfig[appCategory as keyof typeof chartConfig]?.color || 'var(--chart-6)';
+
+            return (
             <Card className="mb-6">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -484,34 +539,53 @@ export default function TimeAllocationPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="relative h-64 grid gap-1 items-end" style={{ gridTemplateColumns: 'repeat(24, minmax(0, 1fr))' }}>
-                  {Array.from({ length: 24 }, (_, i) => {
-                    const usage = getAppHourlyUsage(selectedApp);
-                    const hourUsage = usage[i];
-                    const maxUsage = getAppMaxUsage(selectedApp);
-                    const height = maxUsage > 0 ? (hourUsage / maxUsage) * 100 : 0;
-
-                    return (
-                      <div key={i} className="flex flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
-                        <div className="w-full relative" style={{ height: '200px' }}>
-                          {hourUsage > 0 && (
-                            <div
-                              className="absolute bottom-0 left-0 right-0 bg-primary hover:opacity-90 transition-opacity rounded-t"
-                              style={{ height: `${height}%`, minHeight: '2px' }}
-                              title={`${t.timeAllocation.hourLabel.replace('{hour}', String(i))}: ${hourUsage}${locale === 'zh-CN' ? '分钟' : ' min'}`}
-                            />
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-1" style={{ height: '20px', display: 'flex', alignItems: 'center' }}>
-                          {i % 4 === 0 ? t.timeAllocation.hourLabel.replace('{hour}', String(i)) : ''}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                  <ChartContainer
+                    config={{
+                      usage: {
+                        label: t.timeAllocation.usageTime,
+                        color: appColor,
+                      }
+                    }}
+                    className="h-[400px] w-full"
+                  >
+                    <BarChart
+                      data={Array.from({ length: 24 }, (_, i) => ({
+                        hour: i,
+                        hourLabel: t.timeAllocation.hourLabel.replace('{hour}', i.toString()),
+                        usage: getAppHourlyUsage(selectedApp)[i],
+                      }))}
+                      margin={{ top: 20, right: 10, left: 10, bottom: 20 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis
+                        dataKey="hour"
+                        tickLine={false}
+                        axisLine={true}
+                        tickFormatter={(value) => value % 4 === 0 ? t.timeAllocation.hourLabel.replace('{hour}', value.toString()) : ''}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={true}
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(value) => `${value}${locale === 'zh' ? '分' : 'min'}`}
+                        domain={[0, getNiceMaxValue(getAppMaxUsage(selectedApp))]}
+                      />
+                      <ChartTooltip
+                        content={<ChartTooltipContent
+                          hideLabel={true}
+                          hideIndicator={false}
+                          indicator="dot"
+                          formatter={(value) => [`${value}${locale === 'zh' ? '分钟' : ' min'}`, t.timeAllocation.usageTime]}
+                        />}
+                      />
+                      <Bar dataKey="usage" fill="var(--color-usage)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ChartContainer>
               </CardContent>
             </Card>
-          )}
+            );
+          })()}
 
           {/* 应用使用详情 */}
           <Card>
@@ -530,6 +604,8 @@ export default function TimeAllocationPage() {
                     const isSelected = selectedApp === app.app_name;
                     const appHourlyUsage = getAppHourlyUsage(app.app_name);
                     const appMaxUsage = getAppMaxUsage(app.app_name);
+                    const appCategory = app.category || 'other';
+                    const categoryColor = chartConfig[appCategory as keyof typeof chartConfig]?.color || 'var(--chart-6)';
 
                     return (
                       <div
@@ -563,7 +639,7 @@ export default function TimeAllocationPage() {
                                       parent.appendChild(fallback);
                                     }
                                   }
-                                } catch (error) {/* 静默处理，无需控制台输出 */}
+                                } catch {/* 静默处理，无需控制台输出 */}
                               }}
                             />
                           </div>
@@ -585,12 +661,16 @@ export default function TimeAllocationPage() {
                               return (
                                 <div
                                   key={hourIndex}
-                                  className="flex-1 bg-primary/70 rounded-t-sm transition-all hover:bg-primary"
+                                  className="flex-1 rounded-t-sm transition-all"
                                   style={{
+                                    backgroundColor: categoryColor,
+                                    opacity: 0.8,
                                     height: `${height}%`,
                                     minHeight: usage > 0 ? '2px' : '0'
                                   }}
-                                  title={`${t.timeAllocation.hourLabel.replace('{hour}', String(hourIndex))}: ${usage}${locale === 'zh-CN' ? '分钟' : ' min'}`}
+                                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}
+                                  title={`${t.timeAllocation.hourLabel.replace('{hour}', String(hourIndex))}: ${usage}${locale === 'zh' ? '分钟' : ' min'}`}
                                 />
                               );
                             })}
