@@ -2,12 +2,16 @@
 
 import Image from 'next/image';
 import { Settings } from 'lucide-react';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface HeaderProps {
   onSettingsClick: () => void;
 }
 
 export default function Header({ onSettingsClick }: HeaderProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background shadow-sm">
       <div className="flex h-12 items-center justify-between w-full px-8">
@@ -29,7 +33,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
         <button
           onClick={onSettingsClick}
           className="rounded-lg p-2 text-foreground transition-colors hover:bg-muted"
-          aria-label="设置"
+          aria-label={t.ariaLabel.settings}
         >
           <Settings className="h-5 w-5" />
         </button>

@@ -447,7 +447,7 @@ export default function TimeAllocationPage() {
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1" style={{ height: '20px', display: 'flex', alignItems: 'center' }}>
-                          {i % 4 === 0 ? `${i}时` : ''}
+                          {i % 4 === 0 ? t.timeAllocation.hourLabel.replace('{hour}', i.toString()) : ''}
                         </div>
                       </div>
                     );

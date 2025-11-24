@@ -13,6 +13,8 @@ import { Project, Task } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
 import MessageContent from '@/components/common/MessageContent';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -32,6 +34,9 @@ interface SessionSummary {
 
 // 任务统计组件
 function TaskStats({ tasks }: { tasks: Task[] }) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
+
   const stats = {
     total: tasks.length,
     pending: tasks.filter((t) => t.status === 'pending').length,
@@ -47,31 +52,31 @@ function TaskStats({ tasks }: { tasks: Task[] }) {
       <Card>
         <CardContent className="pt-4">
           <div className="text-2xl font-bold text-foreground">{stats.total}</div>
-          <p className="text-xs text-muted-foreground mt-1">总任务数</p>
+          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.totalTasks}</p>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="pt-4">
           <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          <p className="text-xs text-muted-foreground mt-1">待办</p>
+          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.pending}</p>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="pt-4">
           <div className="text-2xl font-bold text-blue-600">{stats.in_progress}</div>
-          <p className="text-xs text-muted-foreground mt-1">进行中</p>
+          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.inProgress}</p>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="pt-4">
           <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-          <p className="text-xs text-muted-foreground mt-1">已完成</p>
+          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.completed}</p>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="pt-4">
           <div className="text-2xl font-bold text-primary">{completionRate}%</div>
-          <p className="text-xs text-muted-foreground mt-1">完成率</p>
+          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.completionRate}</p>
         </CardContent>
       </Card>
     </div>
@@ -84,19 +89,22 @@ function TaskEmptyState({
 }: {
   onCreateTask: () => void;
 }) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
+
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
         <FolderOpen className="w-12 h-12 text-muted-foreground" />
       </div>
-      <h3 className="text-xl font-semibold text-foreground mb-2">还没有任务</h3>
+      <h3 className="text-xl font-semibold text-foreground mb-2">{t.projectDetail.noTasks}</h3>
       <p className="text-muted-foreground mb-8 text-center max-w-md">
-        开始创建第一个任务，让项目管理变得井井有条
+        {t.projectDetail.noTasksDesc}
       </p>
       <div className="flex gap-3">
         <Button onClick={onCreateTask} className="gap-2">
           <Plus className="h-5 w-5" />
-          创建任务
+          {t.projectDetail.createTask}
         </Button>
       </div>
     </div>
@@ -106,6 +114,8 @@ function TaskEmptyState({
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const projectId = parseInt((params?.id as string) || '0');
 
   const [project, setProject] = useState<Project | null>(null);
@@ -184,10 +194,10 @@ export default function ProjectDetailPage() {
       setMessages(loadedMessages);
       setCurrentConversationId(sessionId);
       setShowHistory(false);
-      toast.success('会话已加载');
+      toast.success(t.projectDetail.sessionLoaded);
     } catch (error) {
       console.error('加载会话失败:', error);
-      toast.error('加载会话失败');
+      toast.error(t.projectDetail.sessionLoadFailed);
     } finally {
       setChatLoading(false);
     }
@@ -198,13 +208,13 @@ export default function ProjectDetailPage() {
     let message = '';
     switch (action) {
       case 'summary':
-        message = '总结一下这个项目的当前进展';
+        message = t.projectDetail.projectSummaryDesc;
         break;
       case 'next':
-        message = '接下来我应该做什么任务？';
+        message = t.projectDetail.nextStepDesc;
         break;
       case 'help':
-        message = '帮我分析一下项目中的瓶颈';
+        message = t.projectDetail.bottleneckAnalysisDesc;
         break;
     }
     setInputMessage(message);
@@ -220,7 +230,7 @@ export default function ProjectDetailPage() {
     }
 
     if (!llmHealthy) {
-      toast.error('LLM 服务未配置或不可用，请前往设置页面配置 API Key');
+      toast.error(t.toast.llmServiceError);
       return;
     }
 
@@ -238,7 +248,7 @@ export default function ProjectDetailPage() {
 
     const assistantMessage: ChatMessage = {
       role: 'assistant',
-      content: '正在思考...',
+      content: t.eventsPage.thinkingDots,
       timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, assistantMessage]);
@@ -300,7 +310,7 @@ export default function ProjectDetailPage() {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = {
           ...newMessages[newMessages.length - 1],
-          content: '抱歉，发送消息失败，请重试。',
+          content: t.eventsPage.sendFailed,
         };
         return newMessages;
       });
@@ -318,7 +328,7 @@ export default function ProjectDetailPage() {
       setCurrentConversationId(sessionId);
       setMessages([]);
       setShowHistory(false); // 自动折叠最近会话
-      toast.success('新会话已创建');
+      toast.success(t.projectDetail.sessionCreated);
     } catch (error) {
       console.error('创建新会话失败:', error);
       setCurrentConversationId(null);
@@ -334,7 +344,7 @@ export default function ProjectDetailPage() {
       setProject(response.data);
     } catch (error) {
       console.error('加载项目信息失败:', error);
-      toast.error('加载项目信息失败');
+      toast.error(t.project.loadFailed);
     }
   };
 
@@ -350,7 +360,7 @@ export default function ProjectDetailPage() {
       setTasks(response.data.tasks || []);
     } catch (error) {
       console.error('加载任务列表失败:', error);
-      toast.error('加载任务列表失败');
+      toast.error(t.task.createFailed);
     } finally {
       setLoading(false);
     }
@@ -380,17 +390,17 @@ export default function ProjectDetailPage() {
 
   // 处理删除任务
   const handleDeleteTask = async (taskId: number) => {
-    if (!confirm('确定要删除这个任务吗？此操作将同时删除所有子任务且不可恢复。')) {
+    if (!confirm(t.projectDetail.deleteTaskConfirm)) {
       return;
     }
 
     try {
       await api.deleteTask(projectId, taskId);
-      toast.success('任务删除成功');
+      toast.success(t.task.deleteSuccess);
       loadTasks();
     } catch (error) {
       console.error('删除任务失败:', error);
-      toast.error('删除任务失败');
+      toast.error(t.task.deleteFailed);
     }
   };
 
@@ -398,11 +408,11 @@ export default function ProjectDetailPage() {
   const handleTaskStatusChange = async (taskId: number, newStatus: string) => {
     try {
       await api.updateTask(projectId, taskId, { status: newStatus });
-      toast.success('任务状态已更新');
+      toast.success(t.projectDetail.taskStatusUpdated);
       loadTasks();
     } catch (error) {
       console.error('更新任务状态失败:', error);
-      toast.error('更新任务状态失败');
+      toast.error(t.projectDetail.taskStatusUpdateFailed);
     }
   };
 
@@ -447,19 +457,19 @@ export default function ProjectDetailPage() {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins} 分钟前`;
-    if (diffHours < 24) return `${diffHours} 小时前`;
-    if (diffDays < 7) return `${diffDays} 天前`;
-    return date.toLocaleDateString('zh-CN');
+    if (diffMins < 1) return t.projectDetail.justNow;
+    if (diffMins < 60) return t.projectDetail.minutesAgo.replace('{count}', String(diffMins));
+    if (diffHours < 24) return t.projectDetail.hoursAgo.replace('{count}', String(diffHours));
+    if (diffDays < 7) return t.projectDetail.daysAgo.replace('{count}', String(diffDays));
+    return date.toLocaleDateString(locale === 'zh' ? 'zh-CN' : 'en-US');
   };
 
   if (!project && !loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
-        <p className="text-muted-foreground mb-4">项目不存在</p>
+        <p className="text-muted-foreground mb-4">{t.projectDetail.projectNotFound}</p>
         <Button onClick={() => router.push('/project-management')}>
-          返回项目列表
+          {t.projectDetail.backToList}
         </Button>
       </div>
     );
@@ -482,7 +492,7 @@ export default function ProjectDetailPage() {
                 className="gap-2 mb-4"
               >
                 <ArrowLeft className="h-4 w-4" />
-                返回项目列表
+                {t.projectDetail.backToList}
               </Button>
 
               {project && (
@@ -495,7 +505,7 @@ export default function ProjectDetailPage() {
                   </div>
                   <Button onClick={() => handleCreateTask()} className="gap-2">
                     <Plus className="h-5 w-5" />
-                    创建任务
+                    {t.projectDetail.createTask}
                   </Button>
                 </div>
               )}
@@ -560,7 +570,7 @@ export default function ProjectDetailPage() {
                 size="sm"
                 onClick={() => setIsChatCollapsed(false)}
                 className="h-8 w-8 p-0 rounded-lg hover:bg-accent"
-                title="展开 AI 助手"
+                title={t.eventsPage.expandAssistant}
               >
                 <Bot className="h-4 w-4" />
               </Button>
@@ -576,7 +586,7 @@ export default function ProjectDetailPage() {
               <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center">
                 <Bot className="w-4 h-4" />
               </div>
-              <h2 className="text-sm font-semibold text-foreground">项目助手</h2>
+              <h2 className="text-sm font-semibold text-foreground">{t.projectDetail.projectAssistant}</h2>
             </div>
             <div className="flex items-center gap-1">
               <Button
@@ -590,7 +600,7 @@ export default function ProjectDetailPage() {
                   }
                 }}
                 className="h-8 w-8 p-0"
-                title="历史记录"
+                title={t.eventsPage.history}
               >
                 <History className="h-4 w-4" />
               </Button>
@@ -599,7 +609,7 @@ export default function ProjectDetailPage() {
                 size="sm"
                 onClick={createNewConversation}
                 className="h-8 w-8 p-0"
-                title="新建对话"
+                title={t.eventsPage.newChat}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -608,7 +618,7 @@ export default function ProjectDetailPage() {
                 size="sm"
                 onClick={() => setIsChatCollapsed(true)}
                 className="h-8 w-8 p-0"
-                title="收起对话"
+                title={t.eventsPage.collapseChat}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -620,17 +630,17 @@ export default function ProjectDetailPage() {
             <div className="border-b border-border bg-muted/30 flex-shrink-0">
               <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">最近会话</h3>
-                  {historyLoading && <span className="text-xs text-muted-foreground">加载中...</span>}
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">{t.eventsPage.recentSessions}</h3>
+                  {historyLoading && <span className="text-xs text-muted-foreground">{t.common.loading}</span>}
                 </div>
                 {sessionHistory.length === 0 && !historyLoading ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">暂无历史记录</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">{t.eventsPage.noHistory}</p>
                 ) : (
                   <div className="space-y-2 max-h-[240px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                     {sessionHistory.map((session) => {
                       const timeAgo = formatDateTime(session.last_active);
                       // 使用 title，如果没有则显示会话ID的前8位
-                      const displayTitle = session.title || `会话 ${session.session_id.slice(0, 8)}`;
+                      const displayTitle = session.title || t.projectDetail.sessionIdShort.replace('{id}', session.session_id.slice(0, 8));
 
                       return (
                         <button
@@ -649,7 +659,7 @@ export default function ProjectDetailPage() {
                                   {timeAgo}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {session.message_count} 条消息
+                                  {t.eventsPage.messagesCount.replace('{count}', String(session.message_count))}
                                 </span>
                               </div>
                             </div>
@@ -680,10 +690,10 @@ export default function ProjectDetailPage() {
                         </div>
                         <div className="flex-1 text-left">
                           <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300 mb-1">
-                            LLM 服务未配置
+                            {t.eventsPage.llmNotConfigured}
                           </h3>
                           <p className="text-xs text-orange-700 dark:text-orange-400 mb-2">
-                            聊天功能需要配置 API Key 才能使用。请点击右上角设置按钮进行配置。
+                            {t.eventsPage.llmConfigHint}
                           </p>
                         </div>
                       </div>
@@ -692,7 +702,7 @@ export default function ProjectDetailPage() {
 
                   {/* 欢迎标题 */}
                   <h1 className="text-2xl font-bold text-foreground my-8">
-                    项目助手为您服务
+                    {t.projectDetail.projectAssistantServing}
                   </h1>
 
                   {/* 快捷选项 */}
@@ -713,8 +723,8 @@ export default function ProjectDetailPage() {
                         <Activity className="w-5 h-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">项目进展</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">总结项目当前进展</p>
+                        <p className="text-sm font-medium text-foreground">{t.projectDetail.projectSummary}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t.projectDetail.projectSummaryDesc}</p>
                       </div>
                     </button>
 
@@ -734,8 +744,8 @@ export default function ProjectDetailPage() {
                         <TrendingUp className="w-5 h-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">下一步</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">建议下一步要做的任务</p>
+                        <p className="text-sm font-medium text-foreground">{t.projectDetail.nextStep}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t.projectDetail.nextStepDesc}</p>
                       </div>
                     </button>
 
@@ -755,8 +765,8 @@ export default function ProjectDetailPage() {
                         <Search className="w-5 h-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">瓶颈分析</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">分析项目中的瓶颈</p>
+                        <p className="text-sm font-medium text-foreground">{t.projectDetail.bottleneckAnalysis}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t.projectDetail.bottleneckAnalysisDesc}</p>
                       </div>
                     </button>
                   </div>
@@ -785,9 +795,9 @@ export default function ProjectDetailPage() {
                       }`}
                     >
                       {message.role === 'assistant' ? (
-                        message.content === '正在思考...' ? (
+                        message.content === t.eventsPage.thinkingDots ? (
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
-                            <span className="animate-pulse">正在思考</span>
+                            <span className="animate-pulse">{t.eventsPage.thinking}</span>
                             <span className="flex gap-0.5">
                               <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
                               <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
@@ -824,13 +834,13 @@ export default function ProjectDetailPage() {
             <div className="border-t border-border px-4 py-3 flex-shrink-0 bg-muted/30">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">
-                  已选择 {selectedTasksData.length} 个任务
+                  {t.projectDetail.selectedTasks.replace('{count}', String(selectedTasksData.length))}
                 </span>
                 <button
                   onClick={handleClearSelectedTasks}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  清除
+                  {t.eventsPage.clearEvents}
                 </button>
               </div>
               <div className="space-y-1.5 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
@@ -842,7 +852,7 @@ export default function ProjectDetailPage() {
                     <span className="truncate flex-1 text-primary font-medium">
                       {task.name}
                       <span className="ml-1 text-primary/70 font-normal">
-                        ({task.status === 'pending' ? '待办' : task.status === 'in_progress' ? '进行中' : task.status === 'completed' ? '已完成' : '已取消'})
+                        ({task.status === 'pending' ? t.projectDetail.pending : task.status === 'in_progress' ? t.projectDetail.inProgress : task.status === 'completed' ? t.projectDetail.completed : t.task.cancelled})
                       </span>
                     </span>
                     <button
@@ -869,7 +879,7 @@ export default function ProjectDetailPage() {
                   sendMessage();
                 }
               }}
-              placeholder="输入消息..."
+              placeholder={t.eventsPage.inputPlaceholder}
               className="flex-1"
               disabled={chatLoading}
             />

@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 export interface SidebarNavItem {
   id: string;
@@ -20,6 +22,9 @@ interface SidebarNavProps {
 }
 
 export function SidebarNav({ items, activeItem, onItemClick, className }: SidebarNavProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, itemId: string) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -28,7 +33,7 @@ export function SidebarNav({ items, activeItem, onItemClick, className }: Sideba
   };
 
   return (
-    <nav className={cn('flex flex-col gap-1.5', className)} role="navigation" aria-label="主导航">
+    <nav className={cn('flex flex-col gap-1.5', className)} role="navigation" aria-label={t.ariaLabel.mainNav}>
       {items.map((item) => {
         const Icon = item.icon;
         const isActive = activeItem === item.id;

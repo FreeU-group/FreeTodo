@@ -262,7 +262,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         // 如果返回了错误信息
         setMessage({
           type: 'error',
-          text: response.data.error || '保存失败'
+          text: response.data.error || t.common.error
         });
       }
     } catch (error) {
@@ -632,7 +632,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     {settings.chatContextEnabled && (
                       <div>
                         <label className="mb-1 block text-sm font-medium text-foreground">
-                          上下文轮次
+                          {t.settings.contextRounds}
                         </label>
                         <Input
                           type="number"
@@ -648,7 +648,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           }}
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          附带最近 {settings.chatContextRounds} 轮历史对话作为上下文（最多 20 轮）
+                          {t.settings.contextRoundsDesc.replace('{rounds}', settings.chatContextRounds.toString())}
                         </p>
                       </div>
                     )}

@@ -21,7 +21,7 @@ import { FormField } from '@/components/common/Input';
 import Button from '@/components/common/Button';
 import Input from '@/components/common/Input';
 import Loading from '@/components/common/Loading';
-import { ChevronDown, ChevronUp, Square, Check, Search, Send, Plus, User, Bot, X, Activity, TrendingUp, ChevronRight, History } from 'lucide-react';
+import { ChevronDown, ChevronUp, Square, Check, Search, Send, Plus, User, Bot, X, Activity, ChevronRight, History } from 'lucide-react';
 import ScreenshotModal from '@/components/screenshot/ScreenshotModal';
 import { useSelectedEvents } from '@/lib/context/SelectedEventsContext';
 import { marked } from 'marked';
@@ -831,7 +831,7 @@ export default function EventsPage() {
                                           </>
                                         )}
                                         {duration !== null ? (
-                                          <span> ({t.eventsPage.duration} {formatDuration(duration)})</span>
+                                          <span> ({t.eventsPage.duration} {formatDuration(duration, t.time)})</span>
                                         ) : (
                                           <span className="text-green-600 dark:text-green-400"> ({t.eventsPage.inProgress})</span>
                                         )}
@@ -876,7 +876,7 @@ export default function EventsPage() {
                                                 <div className="relative rounded-md overflow-hidden border border-border bg-muted w-32 h-32 shadow-sm">
                                                   <img
                                                     src={api.getScreenshotImage(screenshot.id)}
-                                                    alt={`截图 ${index + 1}`}
+                                                    alt={t.screenshot.screenshotNumber.replace('{number}', String(index + 1))}
                                                     className="w-full h-full object-cover"
                                                     loading="lazy"
                                                   />
@@ -1041,7 +1041,7 @@ export default function EventsPage() {
                   <div className="space-y-2 max-h-[180px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                     {sessionHistory.map((session) => {
                       const timeAgo = formatDateTime(session.last_active);
-                      const displayTitle = session.title || `会话 ${session.session_id.slice(0, 8)}`;
+                      const displayTitle = session.title || t.eventsPage.sessionIdShort.replace('{id}', session.session_id.slice(0, 8));
 
                       return (
                         <button
@@ -1126,50 +1126,6 @@ export default function EventsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">{t.eventsPage.digitalMirror}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{t.eventsPage.digitalMirrorDesc}</p>
-                      </div>
-                    </button>
-
-                    {/* 应用分析 */}
-                    <button
-                      onClick={() => handleQuickAction('analytics')}
-                      className={`flex items-center gap-3 p-4 rounded-lg border transition-colors text-left group ${
-                        activeQuickAction === 'analytics'
-                          ? 'border-primary bg-primary/10 hover:bg-primary/15'
-                          : 'border-border bg-card hover:bg-muted/50'
-                      }`}
-                    >
-                      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
-                        activeQuickAction === 'analytics'
-                          ? 'bg-primary/20'
-                          : 'bg-primary/10 group-hover:bg-primary/20'
-                      }`}>
-                        <TrendingUp className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">应用分析</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">分析应用使用情况和趋势</p>
-                      </div>
-                    </button>
-
-                    {/* 内容搜索 */}
-                    <button
-                      onClick={() => handleQuickAction('search')}
-                      className={`flex items-center gap-3 p-4 rounded-lg border transition-colors text-left group ${
-                        activeQuickAction === 'search'
-                          ? 'border-primary bg-primary/10 hover:bg-primary/15'
-                          : 'border-border bg-card hover:bg-muted/50'
-                      }`}
-                    >
-                      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
-                        activeQuickAction === 'search'
-                          ? 'bg-primary/20'
-                          : 'bg-primary/10 group-hover:bg-primary/20'
-                      }`}>
-                        <Search className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">内容搜索</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">搜索包含特定内容的截图</p>
                       </div>
                     </button>
                   </div>
