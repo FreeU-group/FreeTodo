@@ -2,12 +2,16 @@
 
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface ScreenshotIdButtonProps {
   screenshotId: number;
 }
 
 export default function ScreenshotIdButton({ screenshotId }: ScreenshotIdButtonProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const [isHovering, setIsHovering] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -21,7 +25,7 @@ export default function ScreenshotIdButton({ screenshotId }: ScreenshotIdButtonP
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
-        截图ID: {screenshotId}
+        {t.screenshot.screenshotId}: {screenshotId}
       </button>
 
       {/* 悬停时显示的图片 - 显示在左侧事件时间轴区域中心，不遮挡右侧对话框 */}
@@ -41,20 +45,20 @@ export default function ScreenshotIdButton({ screenshotId }: ScreenshotIdButtonP
           <div className="bg-card border border-border rounded-lg shadow-xl p-4 pointer-events-auto">
             {/* 图片内容 */}
             <div className="flex flex-col items-center">
-              <div className="text-xs text-muted-foreground mb-2 font-medium">截图 ID: {screenshotId}</div>
+              <div className="text-xs text-muted-foreground mb-2 font-medium">{t.screenshot.screenshotId}: {screenshotId}</div>
               {!imageLoaded && !imageError && (
                 <div className="w-96 h-72 flex items-center justify-center bg-muted rounded">
-                  <span className="text-sm text-muted-foreground">加载中...</span>
+                  <span className="text-sm text-muted-foreground">{t.common.loading}</span>
                 </div>
               )}
               {imageError && (
                 <div className="w-96 h-72 flex items-center justify-center bg-muted rounded">
-                  <span className="text-sm text-muted-foreground">图片加载失败</span>
+                  <span className="text-sm text-muted-foreground">{t.screenshot.imageLoadFailed}</span>
                 </div>
               )}
               <img
                 src={imageUrl}
-                alt={`截图 ${screenshotId}`}
+                alt={t.screenshot.screenshotNumber.replace('{number}', String(screenshotId))}
                 className={`max-w-full max-h-[75vh] rounded ${imageLoaded ? 'block' : 'hidden'}`}
                 onLoad={() => setImageLoaded(true)}
                 onError={() => setImageError(true)}

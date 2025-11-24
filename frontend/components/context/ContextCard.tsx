@@ -4,6 +4,8 @@ import { Context } from '@/lib/types';
 import { Card, CardContent } from '@/components/common/Card';
 import { Clock, Monitor, FileText, Link2, Link2Off } from 'lucide-react';
 import Button from '@/components/common/Button';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 
@@ -16,10 +18,14 @@ interface ContextCardProps {
 }
 
 export default function ContextCard({ context, onAssociate, onUnassociate }: ContextCardProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
+
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     try {
-      return dayjs(dateString).format('YYYY年MM月DD日 HH:mm:ss');
+      const format = locale === 'zh' ? 'YYYY年MM月DD日 HH:mm:ss' : 'YYYY-MM-DD HH:mm:ss';
+      return dayjs(dateString).format(format);
     } catch {
       return dateString;
     }
@@ -29,7 +35,7 @@ export default function ContextCard({ context, onAssociate, onUnassociate }: Con
     if (!context.start_time) return '-';
     const start = dayjs(context.start_time);
     const end = context.end_time ? dayjs(context.end_time) : null;
-    
+
     if (end) {
       const duration = end.diff(start, 'minute');
       return `${start.format('HH:mm')} - ${end.format('HH:mm')} (${duration}分钟)`;
@@ -82,7 +88,7 @@ export default function ContextCard({ context, onAssociate, onUnassociate }: Con
           {/* 创建时间 */}
           {context.created_at && (
             <div className="text-xs text-muted-foreground">
-              记录于 {formatDate(context.created_at)}
+              {t.contextCard.recordedAt} {formatDate(context.created_at)}
             </div>
           )}
 
@@ -95,7 +101,7 @@ export default function ContextCard({ context, onAssociate, onUnassociate }: Con
                 className="gap-2"
               >
                 <Link2 className="h-4 w-4" />
-                关联至此任务
+                {t.contextCard.associate}
               </Button>
             )}
             {onUnassociate && (
@@ -106,7 +112,7 @@ export default function ContextCard({ context, onAssociate, onUnassociate }: Con
                 className="gap-2"
               >
                 <Link2Off className="h-4 w-4" />
-                取消关联
+                {t.contextCard.unassociate}
               </Button>
             )}
           </div>
@@ -115,4 +121,3 @@ export default function ContextCard({ context, onAssociate, onUnassociate }: Con
     </Card>
   );
 }
-

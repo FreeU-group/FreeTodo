@@ -66,24 +66,6 @@ frontend/
 npm install -g pnpm
 ```
 
-**使用 Homebrew (macOS)**:
-
-```bash
-brew install pnpm
-```
-
-**使用官方安装脚本 (macOS/Linux)**:
-
-```bash
-curl -fsSL https://get.pnpm.io/install.sh | sh -
-```
-
-**Windows (PowerShell)**:
-
-```powershell
-iwr https://get.pnpm.io/install.ps1 -useb | iex
-```
-
 更多安装方式请参考 [pnpm 官方文档](https://pnpm.io/installation)。
 
 ### 安装依赖
@@ -215,6 +197,7 @@ const response = await api.sendChatMessage({
 ```
 
 #### Card
+
 ```tsx
 <Card>
   <CardHeader>
@@ -227,11 +210,13 @@ const response = await api.sendChatMessage({
 ```
 
 #### Loading
+
 ```tsx
 <Loading text="加载中..." size="md" />
 ```
 
 #### Pagination
+
 ```tsx
 <Pagination
   currentPage={page}
@@ -243,12 +228,15 @@ const response = await api.sendChatMessage({
 ### 业务组件
 
 #### ScreenshotCard
+
 展示截图卡片，包含缩略图、应用信息、时间等。
 
 #### ScreenshotModal
+
 截图详情弹窗，显示完整图片和 OCR 文本。
 
 #### SearchBar
+
 搜索栏组件，支持多种搜索模式切换。
 
 ## 类型定义
@@ -303,11 +291,13 @@ module.exports = {
 ## 代码规范
 
 ### 命名约定
+
 - 组件文件: PascalCase (如 `ScreenshotCard.tsx`)
 - 工具函数: camelCase (如 `formatDateTime`)
 - 常量: UPPER_SNAKE_CASE (如 `API_BASE_URL`)
 
 ### 导入顺序
+
 1. React 相关
 2. 第三方库
 3. 本地组件
@@ -316,6 +306,7 @@ module.exports = {
 6. 样式
 
 ### TypeScript
+
 - 优先使用 `interface` 而非 `type`
 - 明确定义所有 props 类型
 - 避免使用 `any`
@@ -323,15 +314,18 @@ module.exports = {
 ## 性能优化
 
 ### 图片优化
+
 - 使用 Next.js Image 组件（计划中）
 - 懒加载
 - 缩略图优先
 
 ### 代码分割
+
 - 路由级别自动分割
 - 动态导入大型组件
 
 ### 缓存策略
+
 - API 响应缓存
 - 图片浏览器缓存
 

@@ -15,15 +15,25 @@ export function formatDateTime(date: string | Date, format = 'YYYY-MM-DD HH:mm:s
 }
 
 // 格式化相对时间
-export function formatRelativeTime(date: string | Date): string {
+export function formatRelativeTime(date: string | Date, timeTranslations?: any): string {
   const now = dayjs();
   const target = dayjs(date);
   const diff = now.diff(target, 'second');
 
-  if (diff < 60) return '刚刚';
-  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)} 天前`;
+  // 如果没有提供翻译，使用中文默认值（向后兼容）
+  if (!timeTranslations) {
+    if (diff < 60) return '刚刚';
+    if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)} 天前`;
+    return target.format('YYYY-MM-DD HH:mm');
+  }
+
+  // 使用提供的翻译
+  if (diff < 60) return timeTranslations.justNow;
+  if (diff < 3600) return timeTranslations.minutesAgo.replace('{count}', Math.floor(diff / 60).toString());
+  if (diff < 86400) return timeTranslations.hoursAgo.replace('{count}', Math.floor(diff / 3600).toString());
+  if (diff < 604800) return timeTranslations.daysAgo.replace('{count}', Math.floor(diff / 86400).toString());
 
   return target.format('YYYY-MM-DD HH:mm');
 }
@@ -38,7 +48,7 @@ export function calculateDuration(startTime: string, endTime: string): number {
 }
 
 // 格式化时长
-export function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number, timeTranslations?: any): string {
   // 不足1秒算1秒
   if (seconds < 1) {
     seconds = 1;
@@ -50,16 +60,25 @@ export function formatDuration(seconds: number): string {
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
 
-  // 构建显示结果，只显示非零的单位
-  const parts = [];
+  // 如果没有提供翻译，使用中文默认值（向后兼容）
+  if (!timeTranslations) {
+    const parts = [];
+    if (days > 0) parts.push(`${days} 天`);
+    if (hours > 0) parts.push(`${hours} 小时`);
+    if (minutes > 0) parts.push(`${minutes} 分钟`);
+    if (secs > 0) parts.push(`${secs} 秒`);
+    return parts.length > 0 ? parts.join(' ') : '1 秒';
+  }
 
-  if (days > 0) parts.push(`${days} 天`);
-  if (hours > 0) parts.push(`${hours} 小时`);
-  if (minutes > 0) parts.push(`${minutes} 分钟`);
-  if (secs > 0) parts.push(`${secs} 秒`);
+  // 使用提供的翻译
+  const parts = [];
+  if (days > 0) parts.push(`${days} ${timeTranslations.days}`);
+  if (hours > 0) parts.push(`${hours} ${timeTranslations.hours}`);
+  if (minutes > 0) parts.push(`${minutes} ${timeTranslations.minutes}`);
+  if (secs > 0) parts.push(`${secs} ${timeTranslations.seconds}`);
 
   // 如果所有单位都是0（理论上不会发生，因为最小是1秒），返回"1 秒"
-  return parts.length > 0 ? parts.join(' ') : '1 秒';
+  return parts.length > 0 ? parts.join(' ') : `1 ${timeTranslations.seconds}`;
 }
 
 // 截断文本

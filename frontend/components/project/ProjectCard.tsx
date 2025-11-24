@@ -6,8 +6,8 @@ import { Project } from '@/lib/types';
 import { Calendar, Target, Trash2, Edit2 } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
-
-dayjs.locale('zh-cn');
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface ProjectCardProps {
   project: Project;
@@ -17,10 +17,14 @@ interface ProjectCardProps {
 
 export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
   const router = useRouter();
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
 
   const formatDate = (dateString: string) => {
     try {
-      return dayjs(dateString).format('YYYY年MM月DD日 HH:mm');
+      // 根据语言设置 dayjs locale
+      dayjs.locale(locale === 'zh' ? 'zh-cn' : 'en');
+      return dayjs(dateString).format(t.project.dateFormat);
     } catch {
       return dateString;
     }
@@ -41,7 +45,7 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
   };
 
   return (
-    <Card 
+    <Card
       className="hover:shadow-md transition-shadow cursor-pointer"
       onClick={handleCardClick}
     >
@@ -58,11 +62,11 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="h-4 w-4" />
-          <span>创建于 {formatDate(project.created_at)}</span>
+          <span>{t.project.createdAt} {formatDate(project.created_at)}</span>
         </div>
       </CardContent>
 
@@ -73,7 +77,7 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
           >
             <Edit2 className="h-4 w-4" />
-            编辑
+            {t.project.editButton}
           </button>
         )}
         {onDelete && (
@@ -82,11 +86,10 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors"
           >
             <Trash2 className="h-4 w-4" />
-            删除
+            {t.project.deleteButton}
           </button>
         )}
       </CardFooter>
     </Card>
   );
 }
-

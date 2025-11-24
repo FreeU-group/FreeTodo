@@ -7,6 +7,8 @@ import { formatDateTime } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '../common/Card';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface ScreenshotModalProps {
   screenshot: Screenshot;
@@ -15,6 +17,8 @@ interface ScreenshotModalProps {
 }
 
 export default function ScreenshotModal({ screenshot, screenshots, onClose }: ScreenshotModalProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const allScreenshots = screenshots || [screenshot];
   const initialIndex = allScreenshots.findIndex((s) => s.id === screenshot.id);
   const [currentIndex, setCurrentIndex] = useState(initialIndex >= 0 ? initialIndex : 0);
@@ -86,7 +90,7 @@ export default function ScreenshotModal({ screenshot, screenshots, onClose }: Sc
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-4 py-3">
-          <CardTitle className="text-xl">截图详情</CardTitle>
+          <CardTitle className="text-xl">{t.screenshot.title}</CardTitle>
           <button
             onClick={onClose}
             className={cn(
@@ -96,7 +100,7 @@ export default function ScreenshotModal({ screenshot, screenshots, onClose }: Sc
               'transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
             )}
-            aria-label="关闭"
+            aria-label={t.ariaLabel.close}
           >
             <X className="h-5 w-5" />
           </button>
@@ -110,7 +114,7 @@ export default function ScreenshotModal({ screenshot, screenshots, onClose }: Sc
               <img
                 key={currentScreenshot.id}
                 src={api.getScreenshotImage(currentScreenshot.id)}
-                alt="截图详情"
+                alt={t.screenshot.title}
                 className="w-full h-auto object-contain"
               />
 
@@ -138,7 +142,7 @@ export default function ScreenshotModal({ screenshot, screenshots, onClose }: Sc
                       'hover:bg-background hover:scale-105',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
                     )}
-                    aria-label="上一张"
+                    aria-label={t.ariaLabel.previous}
                   >
                     <ChevronLeft className="h-5 w-5" />
                   </button>
@@ -156,7 +160,7 @@ export default function ScreenshotModal({ screenshot, screenshots, onClose }: Sc
                       'hover:bg-background hover:scale-105',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
                     )}
-                    aria-label="下一张"
+                    aria-label={t.ariaLabel.next}
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>
@@ -167,30 +171,30 @@ export default function ScreenshotModal({ screenshot, screenshots, onClose }: Sc
             {/* 详细信息卡片 */}
             <Card className="rounded-none border-x-0 border-b-0 p-0">
               <CardHeader className="px-4 pt-4">
-                <CardTitle className="text-base">详细信息</CardTitle>
+                <CardTitle className="text-base">{t.screenshot.detailedInfo}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 px-4 pb-4">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <div className="text-sm font-medium text-muted-foreground">时间</div>
+                    <div className="text-sm font-medium text-muted-foreground">{t.screenshot.time}</div>
                     <div className="text-sm text-foreground">
                       {formatDateTime(currentScreenshot.created_at, 'YYYY-MM-DD HH:mm:ss')}
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-sm font-medium text-muted-foreground">应用</div>
+                    <div className="text-sm font-medium text-muted-foreground">{t.screenshot.app}</div>
                     <div className="text-sm text-foreground">
-                      {currentScreenshot.app_name || '未知'}
+                      {currentScreenshot.app_name || t.screenshot.unknown}
                     </div>
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <div className="text-sm font-medium text-muted-foreground">窗口标题</div>
+                    <div className="text-sm font-medium text-muted-foreground">{t.screenshot.windowTitle}</div>
                     <div className="text-sm text-foreground">
-                      {currentScreenshot.window_title || '无'}
+                      {currentScreenshot.window_title || t.screenshot.none}
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-sm font-medium text-muted-foreground">尺寸</div>
+                    <div className="text-sm font-medium text-muted-foreground">{t.screenshot.size}</div>
                     <div className="text-sm text-foreground">
                       {currentScreenshot.width} × {currentScreenshot.height}
                     </div>
@@ -200,7 +204,7 @@ export default function ScreenshotModal({ screenshot, screenshots, onClose }: Sc
                 {/* OCR 结果 */}
                 {currentScreenshot.ocr_result?.text_content && (
                   <div className="space-y-2 pt-4 border-t border-border">
-                    <div className="text-sm font-medium text-muted-foreground">OCR 识别结果</div>
+                    <div className="text-sm font-medium text-muted-foreground">{t.screenshot.ocrResult}</div>
                     <div className="rounded-md border border-border bg-muted/50 p-4 max-h-64 overflow-y-auto">
                       <pre className="whitespace-pre-wrap text-sm text-foreground leading-relaxed font-mono">
                         {currentScreenshot.ocr_result.text_content}
