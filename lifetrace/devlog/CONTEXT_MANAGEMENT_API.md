@@ -134,7 +134,7 @@ curl -X GET "http://127.0.0.1:8000/api/contexts/307"
 }
 ```
 
-**注意**: 
+**注意**:
 - `task_id` 可以为 `null`，表示解除关联
 - 如果指定了 `task_id`，会验证任务是否存在
 
@@ -357,8 +357,8 @@ curl -X GET "http://127.0.0.1:8000/api/contexts?associated=false&limit=1" | \
 ## 启动服务器
 
 ```bash
-cd /Users/liji/Documents/LifeTrace_app
-PYTHONPATH=/Users/liji/Documents/LifeTrace_app uv run python lifetrace/server.py
+cd /Users/liji/Documents/LifeTrace
+PYTHONPATH=/Users/liji/Documents/LifeTrace uv run python lifetrace/server.py
 ```
 
 服务器将在 `http://127.0.0.1:8000` 启动。
@@ -410,4 +410,3 @@ PYTHONPATH=/Users/liji/Documents/LifeTrace_app uv run python lifetrace/server.py
 6. **自动迁移** - 无需手动数据库操作
 
 所有功能都已经过完整测试，可以投入使用！🎉
-

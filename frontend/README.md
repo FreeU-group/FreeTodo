@@ -61,21 +61,25 @@ frontend/
 如果还没有安装 pnpm，可以使用以下方法：
 
 **使用 npm 安装**:
+
 ```bash
 npm install -g pnpm
 ```
 
 **使用 Homebrew (macOS)**:
+
 ```bash
 brew install pnpm
 ```
 
 **使用官方安装脚本 (macOS/Linux)**:
+
 ```bash
 curl -fsSL https://get.pnpm.io/install.sh | sh -
 ```
 
 **Windows (PowerShell)**:
+
 ```powershell
 iwr https://get.pnpm.io/install.ps1 -useb | iex
 ```
@@ -161,6 +165,7 @@ const response = await api.sendChatMessage({
 ### 2. 搜索功能
 
 支持多种搜索模式：
+
 - **传统搜索**: 基于文本匹配
 - **语义搜索**: 基于向量相似度
 - **多模态搜索**: 结合文本和图像
@@ -185,11 +190,13 @@ const response = await api.sendChatMessage({
 ### 5. 数据分析
 
 **行为分析** (`/analytics`):
+
 - 用户行为统计
 - 时间分布图表
 - 操作类型分布
 
 **应用使用** (`/app-usage`):
+
 - 应用使用时长统计
 - 每日使用趋势
 - 小时分布热力图
@@ -200,6 +207,7 @@ const response = await api.sendChatMessage({
 ### 通用组件
 
 #### Button
+
 ```tsx
 <Button variant="primary" size="md" onClick={handleClick}>
   点击我

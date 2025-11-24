@@ -12,6 +12,8 @@ import {
   Clock,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface Job {
   id: string;
@@ -30,6 +32,8 @@ interface SchedulerStatus {
 }
 
 export default function SchedulerPage() {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [status, setStatus] = useState<SchedulerStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,7 +56,7 @@ export default function SchedulerPage() {
       const response = await api.getSchedulerJobs();
       setJobs(response.data.jobs);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误');
+      setError(err instanceof Error ? err.message : t.common.unknownError);
     } finally {
       setLoading(false);
     }
@@ -79,11 +83,11 @@ export default function SchedulerPage() {
     try {
       setError(null);
       await api.pauseSchedulerJob(jobId);
-      setSuccess(`任务 ${jobId} 已暂停`);
+      setSuccess(t.scheduler.taskPaused.replace('{id}', jobId));
       loadJobs();
       loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误');
+      setError(err instanceof Error ? err.message : t.common.unknownError);
     }
   };
 
@@ -92,28 +96,28 @@ export default function SchedulerPage() {
     try {
       setError(null);
       await api.resumeSchedulerJob(jobId);
-      setSuccess(`任务 ${jobId} 已恢复`);
+      setSuccess(t.scheduler.taskResumed.replace('{id}', jobId));
       loadJobs();
       loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误');
+      setError(err instanceof Error ? err.message : t.common.unknownError);
     }
   };
 
   // 删除任务
   const handleDeleteJob = async (jobId: string) => {
-    if (!confirm(`确定要删除任务 ${jobId} 吗？`)) {
+    if (!confirm(t.scheduler.deleteConfirm.replace('{id}', jobId))) {
       return;
     }
 
     try {
       setError(null);
       await api.deleteSchedulerJob(jobId);
-      setSuccess(`任务 ${jobId} 已删除`);
+      setSuccess(t.scheduler.taskDeleted.replace('{id}', jobId));
       loadJobs();
       loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误');
+      setError(err instanceof Error ? err.message : t.common.unknownError);
     }
   };
 
@@ -152,7 +156,7 @@ export default function SchedulerPage() {
     const hours = intervalHours ? parseInt(intervalHours) : undefined;
 
     if (!seconds && !minutes && !hours) {
-      setError('请至少设置一个时间间隔');
+      setError(t.scheduler.intervalRequired);
       return;
     }
 
@@ -168,13 +172,13 @@ export default function SchedulerPage() {
       handleCloseEditDialog();
       loadJobs();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误');
+      setError(err instanceof Error ? err.message : t.common.unknownError);
     }
   };
 
   // 全部暂停
   const handlePauseAll = async () => {
-    if (!confirm('确定要暂停所有任务吗？')) {
+    if (!confirm(t.scheduler.pauseAllConfirm)) {
       return;
     }
 
@@ -185,13 +189,13 @@ export default function SchedulerPage() {
       loadJobs();
       loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误');
+      setError(err instanceof Error ? err.message : t.common.unknownError);
     }
   };
 
   // 全部启动
   const handleResumeAll = async () => {
-    if (!confirm('确定要启动所有任务吗？')) {
+    if (!confirm(t.scheduler.resumeAllConfirm)) {
       return;
     }
 
@@ -202,7 +206,7 @@ export default function SchedulerPage() {
       loadJobs();
       loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '未知错误');
+      setError(err instanceof Error ? err.message : t.common.unknownError);
     }
   };
 
@@ -210,7 +214,7 @@ export default function SchedulerPage() {
   const formatNextRunTime = (nextRunTime: string | null) => {
     if (!nextRunTime) return '-';
     const date = new Date(nextRunTime);
-    return date.toLocaleString('zh-CN', {
+    return date.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -224,9 +228,9 @@ export default function SchedulerPage() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* 页面标题 */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">定时任务管理</h1>
+          <h1 className="text-3xl font-bold mb-2">{t.scheduler.title}</h1>
           <p className="text-gray-600 dark:text-gray-400">
-            管理和监控所有定时任务的执行状态
+            {t.scheduler.subtitle}
           </p>
         </div>
 
@@ -265,7 +269,7 @@ export default function SchedulerPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                调度器状态
+                {t.scheduler.schedulerStatus}
               </p>
               <div className="flex items-center gap-2">
                 {status.running ? (
@@ -274,21 +278,21 @@ export default function SchedulerPage() {
                   <XCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
                 )}
                 <span className="text-2xl font-bold">
-                  {status.running ? '运行中' : '已停止'}
+                  {status.running ? t.scheduler.running : t.scheduler.stopped}
                 </span>
               </div>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                总任务数
+                {t.scheduler.totalJobs}
               </p>
               <p className="text-2xl font-bold">{status.total_jobs}</p>
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                运行中任务
+                {t.scheduler.runningJobs}
               </p>
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {status.running_jobs}
@@ -297,7 +301,7 @@ export default function SchedulerPage() {
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                已暂停任务
+                {t.scheduler.pausedJobs}
               </p>
               <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                 {status.paused_jobs}
@@ -313,14 +317,14 @@ export default function SchedulerPage() {
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-yellow-600 dark:text-yellow-400 hover:border-yellow-400 dark:hover:border-yellow-500"
           >
             <Pause className="w-4 h-4" />
-            全部暂停
+            {t.scheduler.pauseAll}
           </button>
           <button
             onClick={handleResumeAll}
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-green-600 dark:text-green-400 hover:border-green-400 dark:hover:border-green-500"
           >
             <Play className="w-4 h-4" />
-            全部启动
+            {t.scheduler.resumeAll}
           </button>
           <button
             onClick={() => {
@@ -330,7 +334,7 @@ export default function SchedulerPage() {
             className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
             <RefreshCw className="w-4 h-4" />
-            刷新
+            {t.scheduler.refresh}
           </button>
         </div>
 
@@ -341,22 +345,22 @@ export default function SchedulerPage() {
               <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    任务名称
+                    {t.scheduler.taskName}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    任务ID
+                    {t.scheduler.taskId}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    触发器
+                    {t.scheduler.trigger}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    下次运行时间
+                    {t.scheduler.nextRunTime}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    状态
+                    {t.scheduler.status}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    操作
+                    {t.scheduler.actions}
                   </th>
                 </tr>
               </thead>
@@ -372,7 +376,7 @@ export default function SchedulerPage() {
                 ) : jobs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                      暂无任务
+                      {t.scheduler.noTasks}
                     </td>
                   </tr>
                 ) : (
@@ -403,11 +407,11 @@ export default function SchedulerPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {job.pending ? (
                           <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                            运行中
+                            {t.scheduler.running}
                           </span>
                         ) : (
                           <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300">
-                            已暂停
+                            {t.scheduler.paused}
                           </span>
                         )}
                       </td>
@@ -416,7 +420,7 @@ export default function SchedulerPage() {
                           <button
                             onClick={() => handleOpenEditDialog(job)}
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                            title="编辑间隔"
+                            title={t.scheduler.edit}
                           >
                             <Edit2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                           </button>
@@ -424,7 +428,7 @@ export default function SchedulerPage() {
                             <button
                               onClick={() => handlePauseJob(job.id)}
                               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                              title="暂停"
+                              title={t.scheduler.pause}
                             >
                               <Pause className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                             </button>
@@ -432,7 +436,7 @@ export default function SchedulerPage() {
                             <button
                               onClick={() => handleResumeJob(job.id)}
                               className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                              title="恢复"
+                              title={t.scheduler.resume}
                             >
                               <Play className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                             </button>
@@ -440,7 +444,7 @@ export default function SchedulerPage() {
                           <button
                             onClick={() => handleDeleteJob(job.id)}
                             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                            title="删除"
+                            title={t.common.delete}
                           >
                             <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
                           </button>
@@ -459,16 +463,16 @@ export default function SchedulerPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold">编辑任务间隔</h2>
+                <h2 className="text-xl font-semibold">{t.scheduler.editInterval}</h2>
               </div>
               <div className="px-6 py-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                  任务: {editingJob?.id}
+                  {t.scheduler.task}: {editingJob?.id}
                 </p>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      小时
+                      {t.scheduler.hours}
                     </label>
                     <input
                       type="number"
@@ -480,7 +484,7 @@ export default function SchedulerPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      分钟
+                      {t.scheduler.minutes}
                     </label>
                     <input
                       type="number"
@@ -493,7 +497,7 @@ export default function SchedulerPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">
-                      秒
+                      {t.scheduler.seconds}
                     </label>
                     <input
                       type="number"
@@ -511,13 +515,13 @@ export default function SchedulerPage() {
                   onClick={handleCloseEditDialog}
                   className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
-                  取消
+                  {t.common.cancel}
                 </button>
                 <button
                   onClick={handleUpdateInterval}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  保存
+                  {t.common.save}
                 </button>
               </div>
             </div>

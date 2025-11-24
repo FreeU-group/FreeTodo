@@ -10,6 +10,7 @@ dependencies = [
     "uvicorn[standard]>=0.20.0",
     "pydantic>=2.0.0",
     "sqlalchemy>=2.0.0",
+    "alembic>=1.10.0",
     # Screenshot and image processing
     "mss>=9.0.0",
     "Pillow>=10.0.0",
@@ -77,13 +78,15 @@ exclude = [
 [tool.ruff.lint]
 # 启用的规则集
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "PLR",  # Pylint refactoring (包含复杂度检查)
+    "C90",  # mccabe (复杂度检查)
 ]
 
 # 忽略的规则
@@ -91,6 +94,24 @@ ignore = [
     "E501",  # 行太长（已经通过 line-length 控制）
     "B008",  # 不要在函数调用中使用可变默认参数
 ]
+
+# Pylint 复杂度配置
+[tool.ruff.lint.pylint]
+# 函数最大语句数（软限制：50，硬限制：100）
+max-statements = 50
+# 函数最大参数数
+max-args = 7
+# 函数最大返回语句数
+max-returns = 6
+# 函数最大分支数
+max-branches = 12
+# 类中最大公共方法数（帮助控制单个文件大小）
+max-public-methods = 20
+
+# McCabe 复杂度配置
+[tool.ruff.lint.mccabe]
+# 最大圈复杂度（软限制：10，硬限制：15）
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 # 测试文件可以使用 assert

@@ -77,6 +77,25 @@ APP_ICON_MAPPING = {
     "spotify": "spotify.png",
     "vlc.exe": "vlc.png",
     "vlc": "vlc.png",
+    # macOS 应用
+    "finder": "explorer.png",
+    "访达": "explorer.png",
+    "iterm2": "vscode.png",
+    "iterm": "vscode.png",
+    "terminal": "vscode.png",
+    "cursor": "cursor.png",
+    "cursor.exe": "cursor.png",
+    "chatgpt": "chrome.png",
+    "chatgpt atlas": "chrome.png",
+    "chatgpt desktop": "chrome.png",
+    "atlas": "chrome.png",  # ChatGPT Atlas 的简称
+    # 飞书相关
+    "feishu": "feishu.png",
+    "feishu.exe": "feishu.png",
+    "lark": "feishu.png",
+    "lark.exe": "feishu.png",
+    "飞书": "feishu.png",
+    "飞书会议": "feishu.png",
     # 系统工具
     "explorer.exe": "explorer.png",
     "explorer": "explorer.png",

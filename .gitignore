@@ -55,6 +55,3 @@ frontend/.vercel
 
 # Chatgpt
 AGENTS.md
-
-# electron 打包
-desktop/

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Event, Screenshot, ChatMessage } from '@/lib/types';
 import { api } from '@/lib/api';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 // 会话历史类型
 interface SessionInfo {
@@ -35,6 +37,8 @@ function formatDate(date: Date) {
 }
 
 export default function EventsPage() {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [events, setEvents] = useState<Event[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -104,13 +108,13 @@ export default function EventsPage() {
     let message = '';
     switch (action) {
       case 'timeline':
-        message = '我今天做了什么？';
+        message = t.eventsPage.todayActivity;
         break;
       case 'analytics':
-        message = '分析过去的一周我的应用使用情况';
+        message = t.eventsPage.weekAnalytics;
         break;
       case 'search':
-        message = '搜索包含特定内容的截图';
+        message = t.eventsPage.searchContent;
         break;
     }
     setInputMessage(message);
@@ -127,7 +131,7 @@ export default function EventsPage() {
     }
 
     if (!llmHealthy) {
-      toast.error('LLM 服务未配置或不可用，请前往设置页面配置 API Key');
+      toast.error(t.eventsPage.llmConfigHint);
       return;
     }
 
@@ -146,7 +150,7 @@ export default function EventsPage() {
     // 创建助手消息占位（显示 loading 提示）
     const assistantMessage: ChatMessage = {
       role: 'assistant',
-      content: '正在思考...',
+      content: t.eventsPage.thinkingDots,
       timestamp: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, assistantMessage]);
@@ -242,7 +246,7 @@ export default function EventsPage() {
         const newMessages = [...prev];
         newMessages[newMessages.length - 1] = {
           ...newMessages[newMessages.length - 1],
-          content: '抱歉，发送消息失败，请重试。',
+          content: t.eventsPage.sendFailed,
         };
         return newMessages;
       });
@@ -269,10 +273,10 @@ export default function EventsPage() {
       setSessionHistory(sessions);
       console.log('已加载聊天历史:', sessions.length, '条');
     } catch (error) {
-      console.error('加载聊天历史失败:', error);
-      toast.error('加载聊天历史失败');
+      console.error(t.eventsPage.loadHistoryFailed, error);
+      toast.error(t.eventsPage.loadHistoryFailed);
     }
-  }; 
+  };
 
   // 加载特定会话的历史消息
   const loadSessionMessages = async (sessionId: string) => {
@@ -294,10 +298,10 @@ export default function EventsPage() {
       setMessages(chatMessages);
       setCurrentConversationId(sessionId);
       setShowHistory(false);
-      toast.success('已加载历史会话');
+      toast.success(t.eventsPage.sessionLoaded);
     } catch (error) {
-      console.error('加载会话消息失败:', error);
-      toast.error('加载会话消息失败');
+      console.error(t.eventsPage.loadSessionFailed, error);
+      toast.error(t.eventsPage.loadSessionFailed);
     }
   };
 
@@ -632,16 +636,12 @@ export default function EventsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 只在组件挂载时执行一次
 
-  const chatWidth = isChatCollapsed ? '64px' : '33.3333%';
-  const timelineWidth = isChatCollapsed ? 'calc(100% - 64px)' : '66.6667%';
-
   return (
     <div className="flex h-full overflow-hidden relative">
       {/* 左侧事件管理区域 - 占2/3或更宽 */}
-      <div
-        className="flex flex-col overflow-hidden p-4 border-r transition-[width] duration-300 ease-in-out min-w-0"
-        style={{ width: timelineWidth }}
-      >
+      <div className={`flex flex-col overflow-hidden p-4 border-r transition-all duration-300 ${
+        isChatCollapsed ? 'flex-1' : 'w-2/3'
+      }`}>
         {/* 选中事件提示 */}
         {selectedEvents.size > 0 && (
           <div className={`mb-4 flex items-center justify-between rounded-lg px-4 py-3 border ${
@@ -652,8 +652,8 @@ export default function EventsPage() {
             <div className="flex items-center gap-2">
               <Check className={`h-5 w-5 ${selectedEvents.size >= 10 ? 'text-destructive' : 'text-primary'}`} />
               <span className={`font-medium ${selectedEvents.size >= 10 ? 'text-destructive' : 'text-primary'}`}>
-                已选择 {selectedEvents.size} / 10 个事件
-                {selectedEvents.size >= 10 && <span className="ml-2">（已达上限）</span>}
+                {t.eventsPage.selectLimit.replace('{count}', String(selectedEvents.size))}
+                {selectedEvents.size >= 10 && <span className="ml-2">{t.eventsPage.limitReached}</span>}
               </span>
             </div>
             <Button
@@ -664,7 +664,7 @@ export default function EventsPage() {
                 setSelectedEventsData([]);
               }}
             >
-              清空选择
+              {t.eventsPage.clearSelection}
             </Button>
           </div>
         )}
@@ -675,33 +675,33 @@ export default function EventsPage() {
           <form onSubmit={handleSearch} className="flex flex-col gap-4 sm:flex-row sm:items-end">
             <div className="flex-1 grid grid-cols-1 gap-4 sm:grid-cols-4">
               <FormField
-                label="开始日期"
+                label={t.searchBar.startDate}
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
               <FormField
-                label="结束日期"
+                label={t.searchBar.endDate}
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
               <FormField
-                label="应用名称"
-                placeholder="过滤应用..."
+                label={t.searchBar.appName}
+                placeholder={t.searchBar.appPlaceholder}
                 value={appName}
                 onChange={(e) => setAppName(e.target.value)}
               />
               <FormField
-                label="关键词搜索"
-                placeholder="搜索事件内容..."
+                label={t.searchBar.keyword}
+                placeholder={t.searchBar.keywordPlaceholder}
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
               />
             </div>
             <Button type="submit" className="sm:w-24 w-full flex items-center justify-center gap-2">
               <Search className="h-4 w-4" />
-              <span className="hidden sm:inline">搜索</span>
+              <span className="hidden sm:inline">{t.common.search}</span>
             </Button>
           </form>
         </CardContent>
@@ -711,10 +711,10 @@ export default function EventsPage() {
       <Card className="flex-1 overflow-hidden flex flex-col">
         <CardHeader className="flex-shrink-0 pb-4">
           <div className="flex items-center justify-between gap-4">
-            <CardTitle className="text-lg">事件时间轴</CardTitle>
+            <CardTitle className="text-lg">{t.eventsPage.eventTimeline}</CardTitle>
             {!loading && (
               <div className="text-sm text-muted-foreground">
-                共找到 {totalCount} 个事件{events.length < totalCount && `（已加载 ${events.length} 个）`}
+                {t.eventsPage.found} {totalCount} {t.eventsPage.events}{events.length < totalCount && `（${t.eventsPage.loaded} ${events.length} ${locale === 'zh' ? '个' : ''}）`}
               </div>
             )}
           </div>
@@ -723,11 +723,11 @@ export default function EventsPage() {
         <div className="border-t border-border" />
         <CardContent className="flex-1 overflow-y-auto pt-4" data-scroll-container>
           {loading ? (
-            <Loading text="正在加载事件数据..." />
+            <Loading text={t.eventsPage.loadingEvents} />
           ) : events.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground font-medium">
-              <p>暂无事件数据</p>
-              <p className="mt-2 text-sm">尝试调整搜索条件或检查录制服务是否正常运行</p>
+              <p>{t.eventsPage.noEventsFound}</p>
+              <p className="mt-2 text-sm">{t.eventsPage.adjustSearch}</p>
             </div>
           ) : (
               <div className="space-y-6">
@@ -751,10 +751,10 @@ export default function EventsPage() {
                           )}
                           <div className="text-left">
                             <div className="text-sm font-medium text-foreground">
-                              {formatDateTime(date + 'T00:00:00', 'YYYY年MM月DD日')}
+                              {formatDateTime(date + 'T00:00:00', t.eventsPage.dateFormat)}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {eventCount} 个事件
+                              {t.eventsPage.eventsInDay.replace('{count}', String(eventCount))}
                             </div>
                           </div>
                         </div>
@@ -799,7 +799,7 @@ export default function EventsPage() {
                                         ? 'opacity-100'
                                         : 'opacity-0 group-hover:opacity-100'
                                     } hover:bg-muted`}
-                                    aria-label={isSelected ? '取消选择' : '选择'}
+                                    aria-label={isSelected ? t.eventsPage.unselect : t.eventsPage.select}
                                   >
                                     {isSelected ? (
                                       <Check className="h-5 w-5 text-primary" />
@@ -814,7 +814,7 @@ export default function EventsPage() {
                                       {/* 标题和应用标签 */}
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <h3 className="text-base font-semibold text-foreground">
-                                          {event.window_title || '未知窗口'}
+                                          {event.window_title || t.eventsPage.unknownWindow}
                                         </h3>
                                         <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                                           {event.app_name}
@@ -831,9 +831,9 @@ export default function EventsPage() {
                                           </>
                                         )}
                                         {duration !== null ? (
-                                          <span> (持续 {formatDuration(duration)})</span>
+                                          <span> ({t.eventsPage.duration} {formatDuration(duration)})</span>
                                         ) : (
-                                          <span className="text-green-600 dark:text-green-400"> (进行中)</span>
+                                          <span className="text-green-600 dark:text-green-400"> ({t.eventsPage.inProgress})</span>
                                         )}
                                       </div>
 
@@ -844,7 +844,7 @@ export default function EventsPage() {
                                           __html: renderMarkdown(
                                             event.ai_summary ||
                                             (allOcrText?.slice(0, 100) + (allOcrText?.length > 100 ? '...' : '')) ||
-                                            '暂无描述'
+                                            t.eventsPage.noDescription
                                           )
                                         }}
                                       />
@@ -893,7 +893,7 @@ export default function EventsPage() {
                                           })}
                                           {/* 总数显示在右下角 */}
                                           <div className="absolute bottom-0 right-0 rounded-md bg-black/70 px-2 py-1 text-xs font-semibold text-white z-[60] pointer-events-none">
-                                            {screenshots.length} 张
+                                            {t.eventsPage.screenshots.replace('{count}', String(screenshots.length))}
                                           </div>
                                         </div>
                                       </div>
@@ -915,15 +915,15 @@ export default function EventsPage() {
           {!loading && hasMore && (
             <div className="mt-6 flex justify-center">
               {loadingMore ? (
-                <div className="text-sm text-muted-foreground">加载中...</div>
+                <div className="text-sm text-muted-foreground">{t.eventsPage.loadingMore}</div>
               ) : (
-                <div className="text-sm text-muted-foreground">滚动到底部自动加载更多</div>
+                <div className="text-sm text-muted-foreground">{t.eventsPage.scrollToLoad}</div>
               )}
             </div>
           )}
           {!loading && !hasMore && events.length > 0 && (
             <div className="mt-6 text-center text-sm text-muted-foreground">
-              已加载全部事件
+              {t.eventsPage.allEventsLoaded}
             </div>
           )}
         </CardContent>
@@ -960,10 +960,9 @@ export default function EventsPage() {
       </div>
 
       {/* 右侧聊天区域 - 占1/3或窄列 */}
-      <div
-        className="bg-card flex flex-col flex-shrink-0 h-full overflow-hidden transition-[width] duration-300 ease-in-out"
-        style={{ width: chatWidth }}
-      >
+      <div className={`bg-card flex flex-col flex-shrink-0 h-full overflow-hidden transition-all duration-300 ${
+        isChatCollapsed ? 'w-16' : 'w-1/3'
+      }`}>
         {/* 折叠状态：显示展开按钮 */}
         {isChatCollapsed && (
           <div className="flex flex-col items-center h-full">
@@ -974,7 +973,7 @@ export default function EventsPage() {
                 size="sm"
                 onClick={() => setIsChatCollapsed(false)}
                 className="h-8 w-8 p-0 rounded-lg hover:bg-accent"
-                title="展开 AI 助手"
+                title={t.eventsPage.expandAssistant}
               >
                 <Bot className="h-4 w-4" />
               </Button>
@@ -990,7 +989,7 @@ export default function EventsPage() {
               <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center">
                 <Bot className="w-4 h-4" />
               </div>
-              <h2 className="text-sm font-semibold text-foreground">事件助手</h2>
+              <h2 className="text-sm font-semibold text-foreground">{t.eventsPage.chatAssistant}</h2>
             </div>
             <div className="flex items-center gap-1">
               <Button
@@ -1004,7 +1003,7 @@ export default function EventsPage() {
                   setShowHistory(!showHistory);
                 }}
                 className="h-8 w-8 p-0"
-                title="历史记录"
+                title={t.eventsPage.history}
               >
                 <History className="h-4 w-4" />
               </Button>
@@ -1013,7 +1012,7 @@ export default function EventsPage() {
                 size="sm"
                 onClick={createNewConversation}
                 className="h-8 w-8 p-0"
-                title="新建对话"
+                title={t.eventsPage.newChat}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -1022,7 +1021,7 @@ export default function EventsPage() {
                 size="sm"
                 onClick={() => setIsChatCollapsed(true)}
                 className="h-8 w-8 p-0"
-                title="收起对话"
+                title={t.eventsPage.collapseChat}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -1034,10 +1033,10 @@ export default function EventsPage() {
             <div className="border-b border-border bg-muted/30 flex-shrink-0">
               <div className="px-4 py-3">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">最近会话</h3>
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase">{t.eventsPage.recentSessions}</h3>
                 </div>
                 {sessionHistory.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">暂无历史记录</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">{t.eventsPage.noHistory}</p>
                 ) : (
                   <div className="space-y-2 max-h-[180px] overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                     {sessionHistory.map((session) => {
@@ -1060,7 +1059,7 @@ export default function EventsPage() {
                                   {timeAgo}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {session.message_count} 条消息
+                                  {t.eventsPage.messagesCount.replace('{count}', String(session.message_count))}
                                 </span>
                               </div>
                             </div>
@@ -1091,10 +1090,10 @@ export default function EventsPage() {
                         </div>
                         <div className="flex-1 text-left">
                           <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300 mb-1">
-                            LLM 服务未配置
+                            {t.eventsPage.llmNotConfigured}
                           </h3>
                           <p className="text-xs text-orange-700 dark:text-orange-400 mb-2">
-                            聊天功能需要配置 API Key 才能使用。请点击右上角设置按钮进行配置。
+                            {t.eventsPage.llmConfigHint}
                           </p>
                         </div>
                       </div>
@@ -1103,7 +1102,7 @@ export default function EventsPage() {
 
                   {/* 欢迎标题 */}
                   <h1 className="text-2xl font-bold text-foreground my-8">
-                    我可以帮您做什么？
+                    {t.eventsPage.howCanIHelp}
                   </h1>
 
                   {/* 快捷选项 */}
@@ -1125,8 +1124,52 @@ export default function EventsPage() {
                         <Activity className="w-5 h-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">数字镜像</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">查看今天的活动时间线</p>
+                        <p className="text-sm font-medium text-foreground">{t.eventsPage.digitalMirror}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{t.eventsPage.digitalMirrorDesc}</p>
+                      </div>
+                    </button>
+
+                    {/* 应用分析 */}
+                    <button
+                      onClick={() => handleQuickAction('analytics')}
+                      className={`flex items-center gap-3 p-4 rounded-lg border transition-colors text-left group ${
+                        activeQuickAction === 'analytics'
+                          ? 'border-primary bg-primary/10 hover:bg-primary/15'
+                          : 'border-border bg-card hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                        activeQuickAction === 'analytics'
+                          ? 'bg-primary/20'
+                          : 'bg-primary/10 group-hover:bg-primary/20'
+                      }`}>
+                        <TrendingUp className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">应用分析</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">分析应用使用情况和趋势</p>
+                      </div>
+                    </button>
+
+                    {/* 内容搜索 */}
+                    <button
+                      onClick={() => handleQuickAction('search')}
+                      className={`flex items-center gap-3 p-4 rounded-lg border transition-colors text-left group ${
+                        activeQuickAction === 'search'
+                          ? 'border-primary bg-primary/10 hover:bg-primary/15'
+                          : 'border-border bg-card hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                        activeQuickAction === 'search'
+                          ? 'bg-primary/20'
+                          : 'bg-primary/10 group-hover:bg-primary/20'
+                      }`}>
+                        <Search className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">内容搜索</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">搜索包含特定内容的截图</p>
                       </div>
                     </button>
                   </div>
@@ -1156,9 +1199,9 @@ export default function EventsPage() {
                       }`}
                     >
                       {message.role === 'assistant' ? (
-                        message.content === '正在思考...' ? (
+                        message.content === t.eventsPage.thinkingDots ? (
                           <span className="inline-flex items-center gap-1 text-muted-foreground">
-                            <span className="animate-pulse">正在思考</span>
+                            <span className="animate-pulse">{t.eventsPage.thinking}</span>
                             <span className="flex gap-0.5">
                               <span className="animate-bounce" style={{ animationDelay: '0ms' }}>.</span>
                               <span className="animate-bounce" style={{ animationDelay: '150ms' }}>.</span>
@@ -1178,14 +1221,14 @@ export default function EventsPage() {
 
                       {message.sources && message.sources.length > 0 && (
                         <div className="mt-2 border-t border-border/50 pt-2">
-                          <p className="font-medium text-xs text-muted-foreground mb-1.5">相关截图:</p>
+                          <p className="font-medium text-xs text-muted-foreground mb-1.5">{t.eventsPage.relatedScreenshots}</p>
                           <div className="flex flex-wrap gap-1.5">
                             {message.sources.slice(0, 2).map((source, i: number) => (
                               <span
                                 key={i}
                                 className="inline-flex items-center rounded-md bg-background/80 px-2 py-0.5 text-[10px] font-medium text-foreground border border-border/50"
                               >
-                                {(source as { app_name?: string }).app_name || '未知应用'}
+                                {(source as { app_name?: string }).app_name || t.eventsPage.unknownApp}
                               </span>
                             ))}
                           </div>
@@ -1212,7 +1255,7 @@ export default function EventsPage() {
             <div className="border-t border-border px-4 py-3 flex-shrink-0 bg-muted/30">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-medium text-muted-foreground">
-                  已选择 {selectedEventsData.length} 个事件
+                  {t.eventsPage.selectedEvents.replace('{count}', String(selectedEventsData.length))}
                 </span>
                 <button
                   onClick={() => {
@@ -1221,7 +1264,7 @@ export default function EventsPage() {
                   }}
                   className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  清除
+                  {t.eventsPage.clearEvents}
                 </button>
               </div>
               <div className="space-y-1.5 max-h-24 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
@@ -1231,9 +1274,9 @@ export default function EventsPage() {
                     className="flex items-center justify-between rounded-md bg-background px-2 py-1.5 text-xs border-2 border-primary/50 hover:border-primary transition-colors shadow-sm"
                   >
                     <span className="truncate flex-1 text-primary font-semibold">
-                      {event.window_title || '未知窗口'} - {event.app_name}
+                      {event.window_title || t.eventsPage.unknownWindow} - {event.app_name}
                       <span className="ml-1 text-primary/60">
-                        ({event.screenshot_count || 0}张)
+                        ({t.eventsPage.screenshots.replace('{count}', String(event.screenshot_count || 0))})
                       </span>
                     </span>
                     <button
@@ -1265,7 +1308,7 @@ export default function EventsPage() {
                   sendMessage();
                 }
               }}
-              placeholder="输入消息..."
+              placeholder={t.eventsPage.inputPlaceholder}
               className="flex-1"
               disabled={chatLoading}
             />
@@ -1274,6 +1317,7 @@ export default function EventsPage() {
               disabled={chatLoading || !inputMessage.trim()}
               size="sm"
               className="h-9 px-3"
+              aria-label={t.eventsPage.send}
             >
               <Send className="h-4 w-4" />
             </Button>
