@@ -7,6 +7,8 @@ import Button from '@/components/common/Button';
 import { Project, ProjectCreate } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface CreateProjectModalProps {
   isOpen: boolean;
@@ -21,6 +23,8 @@ export default function CreateProjectModal({
   onSuccess,
   project,
 }: CreateProjectModalProps) {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [formData, setFormData] = useState<ProjectCreate>({
     name: '',
     goal: '',
@@ -52,9 +56,9 @@ export default function CreateProjectModal({
     const newErrors: { name?: string; goal?: string } = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = '项目名称不能为空';
+      newErrors.name = t.project.nameRequired;
     } else if (formData.name.length > 200) {
-      newErrors.name = '项目名称不能超过200个字符';
+      newErrors.name = t.project.nameTooLong;
     }
 
     setErrors(newErrors);
@@ -76,22 +80,22 @@ export default function CreateProjectModal({
           name: formData.name.trim(),
           goal: formData.goal?.trim() || undefined,
         });
-        toast.success('项目更新成功');
+        toast.success(t.project.updateSuccess);
       } else {
         // 创建模式
         await api.createProject({
           name: formData.name.trim(),
           goal: formData.goal?.trim() || undefined,
         });
-        toast.success('项目创建成功');
+        toast.success(t.project.createSuccess);
       }
 
       onSuccess?.();
       onClose();
     } catch (error) {
       console.error('保存项目失败:', error);
-      const errorMsg = error instanceof Error ? error.message : '未知错误';
-      toast.error(isEditMode ? `更新项目失败: ${errorMsg}` : `创建项目失败: ${errorMsg}`);
+      const errorMsg = error instanceof Error ? error.message : t.common.unknownError;
+      toast.error(isEditMode ? `${t.project.updateFailed}: ${errorMsg}` : `${t.project.createFailed}: ${errorMsg}`);
     } finally {
       setSaving(false);
     }
@@ -119,12 +123,12 @@ export default function CreateProjectModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-lg font-bold text-foreground">
-            {isEditMode ? '编辑项目' : '创建新项目'}
+            {isEditMode ? t.project.edit : t.project.create}
           </h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-foreground transition-colors hover:bg-muted"
-            aria-label="关闭"
+            aria-label={t.common.close}
             disabled={saving}
           >
             <X className="h-5 w-5" />
@@ -135,11 +139,11 @@ export default function CreateProjectModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
-              项目名称 <span className="text-red-500">*</span>
+              {t.project.name} <span className="text-red-500">*</span>
             </label>
             <Input
               type="text"
-              placeholder="输入项目名称"
+              placeholder={t.project.namePlaceholder}
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
               disabled={saving}
@@ -152,10 +156,10 @@ export default function CreateProjectModal({
 
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
-              项目目标
+              {t.project.goal}
             </label>
             <textarea
-              placeholder="用一句话描述项目目标（可选）"
+              placeholder={t.project.goalPlaceholder}
               value={formData.goal}
               onChange={(e) => handleChange('goal', e.target.value)}
               disabled={saving}
@@ -172,10 +176,10 @@ export default function CreateProjectModal({
               onClick={onClose}
               disabled={saving}
             >
-              取消
+              {t.common.cancel}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? '保存中...' : isEditMode ? '保存' : '创建'}
+              {saving ? t.common.saving : isEditMode ? t.common.save : t.common.create}
             </Button>
           </div>
         </form>
@@ -183,4 +187,3 @@ export default function CreateProjectModal({
     </div>
   );
 }
-

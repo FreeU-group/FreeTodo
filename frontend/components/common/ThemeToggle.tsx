@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react';
 import { Sun, Moon, Monitor } from 'lucide-react';
 import { useThemeStore } from '@/lib/store/theme';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 export default function ThemeToggle() {
   const { theme, setTheme } = useThemeStore();
+  const { locale } = useLocaleStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -18,22 +21,24 @@ export default function ThemeToggle() {
     );
   }
 
+  const t = useTranslations(locale);
+
   const themes = [
-    { value: 'light' as const, icon: Sun, label: '浅色' },
-    { value: 'dark' as const, icon: Moon, label: '深色' },
-    { value: 'system' as const, icon: Monitor, label: '跟随系统' },
+    { value: 'light' as const, icon: Sun, label: t.theme.light },
+    { value: 'dark' as const, icon: Moon, label: t.theme.dark },
+    { value: 'system' as const, icon: Monitor, label: t.theme.system },
   ];
 
   return (
     <button
       onClick={() => {
-        const currentIndex = themes.findIndex((t) => t.value === theme);
+        const currentIndex = themes.findIndex((themeItem) => themeItem.value === theme);
         const nextIndex = (currentIndex + 1) % themes.length;
         setTheme(themes[nextIndex].value);
       }}
       className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      title={`当前主题: ${themes.find((t) => t.value === theme)?.label}`}
-      aria-label={`当前主题: ${themes.find((t) => t.value === theme)?.label}`}
+      title={`${t.layout.currentTheme}: ${themes.find((themeItem) => themeItem.value === theme)?.label}`}
+      aria-label={`${t.layout.currentTheme}: ${themes.find((themeItem) => themeItem.value === theme)?.label}`}
     >
       {theme === 'light' && <Sun className="h-5 w-5" />}
       {theme === 'dark' && <Moon className="h-5 w-5" />}

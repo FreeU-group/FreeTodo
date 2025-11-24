@@ -5,6 +5,8 @@
  */
 
 import { toast as sonnerToast } from 'sonner';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 /**
  * Toast 配置选项
@@ -31,6 +33,14 @@ const DEFAULT_CONFIG = {
     duration: 3000, // 信息消息 3 秒后消失
   },
 };
+
+/**
+ * 获取翻译文本
+ */
+function getT() {
+  const locale = useLocaleStore.getState().locale;
+  return useTranslations(locale);
+}
 
 /**
  * 统一的 Toast 通知工具
@@ -80,8 +90,9 @@ export const toast = {
    * 配置保存成功通知
    */
   configSaved: () => {
-    return toast.success('配置保存成功', {
-      description: '配置已成功更新并生效',
+    const t = getT();
+    return toast.success(t.toast.configSaved, {
+      description: t.toast.configSavedDesc,
       duration: DEFAULT_CONFIG.success.duration,
     });
   },
@@ -90,8 +101,9 @@ export const toast = {
    * 配置保存失败通知
    */
   configSaveFailed: (error?: string) => {
-    return toast.error('配置保存失败', {
-      description: error || '请重试',
+    const t = getT();
+    return toast.error(t.toast.configSaveFailed, {
+      description: error || t.toast.configSaveFailedDesc,
       duration: DEFAULT_CONFIG.error.duration,
     });
   },
@@ -100,8 +112,9 @@ export const toast = {
    * 配置加载失败通知
    */
   configLoadFailed: (error?: string) => {
-    return toast.error('加载配置失败', {
-      description: error || '网络错误',
+    const t = getT();
+    return toast.error(t.toast.configLoadFailed, {
+      description: error || t.toast.configLoadFailedDesc,
       duration: DEFAULT_CONFIG.error.duration,
     });
   },
@@ -110,8 +123,9 @@ export const toast = {
    * 事件选择达到上限通知
    */
   eventLimitReached: () => {
-    return toast.warning('已达到选择上限', {
-      description: '最多可选择 10 个事件',
+    const t = getT();
+    return toast.warning(t.toast.eventLimitReached, {
+      description: t.toast.eventLimitReachedDesc,
       duration: DEFAULT_CONFIG.warning.duration,
     });
   },
