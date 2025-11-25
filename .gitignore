@@ -57,6 +57,5 @@ frontend/.vercel
 AGENTS.md
 
 # electron 打包
-desktop/app/build
 desktop/app/list
 desktop/app/node_modules

@@ -21,6 +21,7 @@
       "package.json"
     ],
     "mac": {
+      "icon": "build/lifetrace_mac_icon.icns",
       "category": "public.app-category.productivity",
       "target": [
         {
