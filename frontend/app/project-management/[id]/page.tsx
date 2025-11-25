@@ -14,6 +14,7 @@ import { Project, Task } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
 import MessageContent from '@/components/common/MessageContent';
+import TaskRoadMap from '@/components/task/TaskRoadMap';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -549,16 +550,8 @@ export default function ProjectDetailPage() {
                 onToggleSelect={handleToggleTaskSelect}
               />
             ) : (
-              // 路线图视图 - 待实现
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mb-6">
-                  <Map className="w-12 h-12 text-muted-foreground" />
-                </div>
-                <h3 className="text-xl font-semibold text-foreground mb-2">路线图视图</h3>
-                <p className="text-muted-foreground text-center max-w-md">
-                  路线图视图正在开发中，敬请期待
-                </p>
-              </div>
+              // 路线图视图
+              <TaskRoadMap tasks={tasks} onTaskClick={(task) => router.push(`/project-management/${projectId}/tasks/${task.id}`)} />
             )}
           </div>
         </div>
