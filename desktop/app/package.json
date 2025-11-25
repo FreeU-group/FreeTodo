@@ -1,0 +1,53 @@
+{
+  "name": "lifetrace",
+  "version": "1.0.0",
+  "description": "LifeTrace desktop shell",
+  "main": "main.js",
+  "scripts": {
+    "dev": "electron .",
+    "dist": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "build": {
+    "productName": "LifeTrace",
+    "executableName": "LifeTrace",
+    "artifactName": "LifeTrace-${version}-${arch}.${ext}",
+    "appId": "com.lifetrace.app",
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "LifeTrace"
+    },
+    "extraResources": [
+      {
+        "from": "../resources/frontend",
+        "to": "resources/frontend"
+      },
+      {
+        "from": "../resources/backend",
+        "to": "resources/backend"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^39.2.0",
+    "electron-builder": "^26.0.12"
+  }
+}
