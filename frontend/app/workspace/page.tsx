@@ -295,8 +295,8 @@ ${markdown}
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="gap-2">
+                <DropdownMenuTrigger asChild disabled={isAiEditing}>
+                  <Button variant="outline" className="gap-2" disabled={isAiEditing}>
                     <FileText className="h-4 w-4" />
                     <span className="max-w-[200px] truncate">{currentFile?.name ?? "选择文件"}</span>
                     <ChevronDown className="h-4 w-4 opacity-50" />
@@ -311,7 +311,7 @@ ${markdown}
                         key={file.path}
                         onClick={() => handleFileSwitch(file)}
                         className="flex items-center gap-2"
-                        disabled={file.path === currentFile?.path}
+                        disabled={file.path === currentFile?.path || isAiEditing}
                       >
                         <FileText className="h-4 w-4" />
                         <div className="flex-1 truncate">
