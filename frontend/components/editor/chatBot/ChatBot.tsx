@@ -54,6 +54,8 @@ type ChatBotProps = {
 	currentFileName?: string;
 	onCollapse?: () => void;
 	selectedContext?: string;
+	onAttachFile?: () => void;
+	attachedFiles?: Array<{ name: string; path: string }>;
 };
 
 const createId = () =>
@@ -80,11 +82,11 @@ const MessageAvatar = ({ role }: { role: ChatMessage["role"] }) => (
 );
 
 
-export function ChatBot({ copy, className, onAiEditRequest, isAiEditing, currentFileName, onCollapse, selectedContext }: ChatBotProps) {
+export function ChatBot({ copy, className, onAiEditRequest, isAiEditing, currentFileName, onCollapse, selectedContext, onAttachFile, attachedFiles }: ChatBotProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [composerValue, setComposerValue] = useState("");
 	const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
-	const [isThinking, setIsThinking] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 	const [showSelectedContext, setShowSelectedContext] = useState(true);
 
 	const pendingReplyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -247,19 +249,51 @@ export function ChatBot({ copy, className, onAiEditRequest, isAiEditing, current
 						</div>
 					</ScrollArea>
 				</section>
-              {selectedContext && showSelectedContext && (
-				<div className="px-4 py-2 border-b bg-blue-50 dark:bg-blue-950/20">
-					<div className="flex items-center justify-between gap-2 mb-1">
-						<div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
-							<Sparkles className="h-3 w-3" />
-							<span className="font-medium">Selected Context:</span>
+
+				{/* Context Display Section */}
+				<div className="space-y-2">
+					{selectedContext && showSelectedContext && (
+						<div className="px-4 py-2 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+							<div className="flex items-center justify-between gap-2 mb-1">
+								<div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+									<Sparkles className="h-3 w-3" />
+									<span className="font-medium">Selected Text:</span>
+								</div>
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => setShowSelectedContext(false)}
+									className="h-6 w-6 p-0 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+								>
+									<X className="h-3 w-3" />
+								</Button>
+							</div>
+							<div className="text-xs text-muted-foreground bg-white dark:bg-gray-900 p-2 rounded border border-blue-200 dark:border-blue-800 max-h-20 overflow-y-auto">
+								{selectedContext}
+							</div>
 						</div>
-					</div>
-					<div className="text-xs text-muted-foreground bg-white dark:bg-gray-900 p-2 rounded border border-blue-200 dark:border-blue-800 max-h-20 overflow-y-auto">
-						{selectedContext}
-					</div>
+					)}
+
+					{attachedFiles && attachedFiles.length > 0 && (
+						<div className="px-4 py-2 border rounded-lg bg-purple-50 dark:bg-purple-950/20">
+							<div className="flex items-center gap-2 mb-2 text-xs text-purple-600 dark:text-purple-400">
+								<Paperclip className="h-3 w-3" />
+								<span className="font-medium">Attached Files ({attachedFiles.length}):</span>
+							</div>
+							<div className="flex flex-wrap gap-2">
+								{attachedFiles.map((file, index) => (
+									<div
+										key={index}
+										className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-white dark:bg-gray-900 rounded border border-purple-200 dark:border-purple-800"
+									>
+										<span className="truncate max-w-[150px]">{file.name}</span>
+									</div>
+								))}
+							</div>
+						</div>
+					)}
 				</div>
-			)}
+
 				<section className="flex flex-col rounded-3xl border border-border/70 bg-background/70">
 
 
@@ -290,8 +324,19 @@ export function ChatBot({ copy, className, onAiEditRequest, isAiEditing, current
 									))}
 								</DropdownMenuContent>
 							</DropdownMenu>
-							<Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border">
+              <Button 
+								variant="ghost" 
+								size="icon" 
+								className="h-10 w-10 rounded-full border relative"
+                onClick={onAttachFile}
+								disabled={!onAttachFile}
+							>
 								<Paperclip className="h-4 w-4" />
+								{attachedFiles && attachedFiles.length > 0 && (
+									<span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+										{attachedFiles.length}
+									</span>
+								)}
 							</Button>
 							{onAiEditRequest && (
 								<Button

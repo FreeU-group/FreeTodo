@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Save, Loader2, ChevronDown, FileText, MessageSquareMore } from "lucide-react";
+import { Save, Loader2, ChevronDown, FileText, MessageSquareMore, Check, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { getWorkspaceOwnerId } from "@/lib/workspace/owner";
@@ -43,6 +43,8 @@ export default function WorkspacePage() {
   const [isChatbotCollapsed, setIsChatbotCollapsed] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [selectedText, setSelectedText] = useState('')
+  const [attachedFiles, setAttachedFiles] = useState<Array<{ name: string; path: string }>>([])
+  const [showFileDialog, setShowFileDialog] = useState(false)
   const chatbotRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -259,6 +261,20 @@ ${markdown}
     );
   }, []);
 
+  // Handle file attachment
+  const handleAttachFile = useCallback(() => {
+    setShowFileDialog(true);
+  }, []);
+
+  const handleFileSelect = useCallback((file: WorkspaceFileSummary) => {
+    setAttachedFiles(prev => {
+      if (prev.some(f => f.path === file.path)) {
+        return prev.filter(f => f.path !== file.path);
+      }
+      return [...prev, { name: file.name, path: file.path }];
+    });
+  }, []);
+
   // Handle chatbot resize
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -405,6 +421,8 @@ ${markdown}
                 currentFileName={currentFile?.name}
                 onCollapse={() => setIsChatbotCollapsed(true)}
                 selectedContext={selectedText}
+                onAttachFile={handleAttachFile}
+                attachedFiles={attachedFiles}
               />
             </div>
           </div>
@@ -427,6 +445,69 @@ ${markdown}
           </div>
         )}
       </div>
+
+      {/* File Selection Modal */}
+      {showFileDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setShowFileDialog(false)}>
+          <div className="relative w-full max-w-2xl mx-4 bg-background border rounded-lg shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b">
+              <button
+                onClick={() => setShowFileDialog(false)}
+                className="absolute right-4 top-4 rounded-sm opacity-70 hover:opacity-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <h2 className="text-lg font-semibold">Attach Files as Context</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Select files to include as context for the AI assistant
+              </p>
+            </div>
+            <div className="p-6 max-h-[400px] overflow-y-auto">
+              <div className="space-y-1">
+                {files.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    No files available
+                  </div>
+                ) : (
+                  files.map((file) => {
+                    const isAttached = attachedFiles.some(f => f.path === file.path);
+                    return (
+                      <button
+                        key={file.path}
+                        onClick={() => handleFileSelect(file)}
+                        className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border transition-colors ${
+                          isAttached
+                            ? 'border-primary bg-primary/10 hover:bg-primary/20'
+                            : 'border-border hover:bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 shrink-0" />
+                          <div className="text-left min-w-0">
+                            <div className="font-medium truncate">{file.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{file.path}</div>
+                          </div>
+                        </div>
+                        {isAttached && (
+                          <Check className="h-4 w-4 text-primary shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+            <div className="flex justify-between items-center p-6 border-t">
+              <div className="text-sm text-muted-foreground">
+                {attachedFiles.length} file{attachedFiles.length !== 1 ? 's' : ''} selected
+              </div>
+              <Button onClick={() => setShowFileDialog(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
