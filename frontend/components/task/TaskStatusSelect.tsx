@@ -4,37 +4,39 @@ import { useState, useRef, useEffect } from 'react';
 import { TaskStatus } from '@/lib/types';
 import { Circle, CircleDot, CheckCircle2, XCircle, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface TaskStatusSelectProps {
   status: TaskStatus;
   onChange: (newStatus: TaskStatus) => void;
 }
 
-const statusOptions = [
+const getStatusOptions = (t: ReturnType<typeof useTranslations>) => [
   {
     value: 'pending' as TaskStatus,
-    label: '待办',
+    label: t.task.pending,
     icon: Circle,
     color: 'text-gray-500',
     bgColor: 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700',
   },
   {
     value: 'in_progress' as TaskStatus,
-    label: '进行中',
+    label: t.task.inProgress,
     icon: CircleDot,
     color: 'text-blue-500',
     bgColor: 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50',
   },
   {
     value: 'completed' as TaskStatus,
-    label: '已完成',
+    label: t.task.completed,
     icon: CheckCircle2,
     color: 'text-green-500',
     bgColor: 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50',
   },
   {
     value: 'cancelled' as TaskStatus,
-    label: '已取消',
+    label: t.task.cancelled,
     icon: XCircle,
     color: 'text-red-500',
     bgColor: 'bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50',
@@ -42,9 +44,12 @@ const statusOptions = [
 ];
 
 export default function TaskStatusSelect({ status, onChange }: TaskStatusSelectProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const statusOptions = getStatusOptions(t);
   const currentOption = statusOptions.find((opt) => opt.value === status) || statusOptions[0];
   const CurrentIcon = currentOption.icon;
 
@@ -113,4 +118,3 @@ export default function TaskStatusSelect({ status, onChange }: TaskStatusSelectP
     </div>
   );
 }
-

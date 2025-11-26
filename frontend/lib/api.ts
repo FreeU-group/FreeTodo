@@ -122,7 +122,7 @@ export const api = {
     });
 
     if (!response.ok) {
-      throw new Error('请求失败');
+      throw new Error('Request failed');
     }
 
     // 从响应头中获取 session_id
@@ -160,7 +160,7 @@ export const api = {
     });
 
     if (!response.ok) {
-      throw new Error('请求失败');
+      throw new Error('Request failed');
     }
 
     // 从响应头中获取 session_id

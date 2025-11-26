@@ -7,6 +7,8 @@ import { FormField } from '@/components/common/Input';
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import { formatDuration } from '@/lib/utils';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 // 格式化日期为 YYYY-MM-DD（使用本地时区）
 function formatDate(date: Date) {
@@ -24,6 +26,8 @@ interface AppUsageData {
 }
 
 export default function AppUsagePage() {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const [usageData, setUsageData] = useState<AppUsageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState('');
@@ -64,27 +68,27 @@ export default function AppUsagePage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="mb-6 text-3xl font-bold text-foreground">应用使用分析</h1>
+      <h1 className="mb-6 text-3xl font-bold text-foreground">{t.eventsPage.appAnalytics}</h1>
 
       {/* 搜索表单 */}
       <Card className="mb-6">
         <CardContent className="pt-6">
           <form onSubmit={handleSearch} className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <FormField
-              label="开始日期"
+              label={t.searchBar.startDate}
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
             <FormField
-              label="结束日期"
+              label={t.searchBar.endDate}
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
             <div className="flex items-end">
               <Button type="submit" className="w-full">
-                查询
+                {t.timeAllocation.query}
               </Button>
             </div>
           </form>
@@ -94,14 +98,14 @@ export default function AppUsagePage() {
       {/* 使用数据 */}
       <Card>
         <CardHeader>
-          <CardTitle>应用使用统计</CardTitle>
+          <CardTitle>{t.timeAllocation.appUsageDetails}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <Loading text="加载中..." />
+            <Loading text={t.common.loading} />
           ) : usageData.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground font-medium">
-              暂无数据
+              {t.timeAllocation.noData}
             </div>
           ) : (
             <div className="space-y-4">
@@ -120,8 +124,8 @@ export default function AppUsagePage() {
                     />
                   </div>
                   <div className="flex items-center justify-between text-sm font-medium text-muted-foreground">
-                    <span>使用时长: {formatDuration(app.total_time || 0)}</span>
-                    <span>截图数: {app.screenshot_count}</span>
+                    <span>{t.timeAllocation.usageTime}: {formatDuration(app.total_time || 0, t.time)}</span>
+                    <span>{t.eventsPage.screenshots.replace('{count}', String(app.screenshot_count))}</span>
                   </div>
                 </div>
               ))}

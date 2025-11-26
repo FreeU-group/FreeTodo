@@ -210,8 +210,8 @@ curl -X DELETE "http://127.0.0.1:8000/api/projects/1"
 ## 启动服务器
 
 ```bash
-cd /Users/liji/Documents/LifeTrace_app
-PYTHONPATH=/Users/liji/Documents/LifeTrace_app uv run python lifetrace/server.py
+cd /Users/liji/Documents/LifeTrace
+PYTHONPATH=/Users/liji/Documents/LifeTrace uv run python lifetrace/server.py
 ```
 
 服务器将在 `http://127.0.0.1:8000` 启动。
@@ -229,4 +229,3 @@ PYTHONPATH=/Users/liji/Documents/LifeTrace_app uv run python lifetrace/server.py
 3. **时间戳**: created_at 和 updated_at 由数据库自动管理
 4. **排序**: 项目列表按创建时间倒序排列
 5. **错误处理**: 所有端点都包含适当的错误处理和日志记录
-

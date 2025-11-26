@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Screenshot } from '@/lib/types';
 import { formatDateTime, truncateText } from '@/lib/utils';
 import { api } from '@/lib/api';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface ScreenshotCardProps {
   screenshot: Screenshot;
@@ -11,6 +13,8 @@ interface ScreenshotCardProps {
 }
 
 export default function ScreenshotCard({ screenshot, onClick }: ScreenshotCardProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const [imageError, setImageError] = useState(false);
 
   // 获取得分显示
@@ -18,7 +22,7 @@ export default function ScreenshotCard({ screenshot, onClick }: ScreenshotCardPr
     if (screenshot.is_semantic_result && screenshot.semantic_score !== undefined) {
       return (
         <div className="absolute right-2 top-2 rounded-full bg-primary px-2 py-1 text-xs font-medium text-primary-foreground shadow-lg">
-          相关度: {(screenshot.semantic_score * 100).toFixed(1)}%
+          {t.screenshot.relevance}: {(screenshot.semantic_score * 100).toFixed(1)}%
         </div>
       );
     }
@@ -30,9 +34,9 @@ export default function ScreenshotCard({ screenshot, onClick }: ScreenshotCardPr
 
       return (
         <div className="absolute right-2 top-2 rounded-lg bg-red-500 px-2 py-1 text-xs font-medium text-white shadow-lg">
-          <div>综合: {combinedScore}%</div>
+          <div>{t.screenshot.combined}: {combinedScore}%</div>
           <div className="text-[10px] opacity-90">
-            文本: {textScore}% | 图像: {imageScore}%
+            {t.screenshot.text}: {textScore}% | {t.screenshot.image}: {imageScore}%
           </div>
         </div>
       );
@@ -44,10 +48,10 @@ export default function ScreenshotCard({ screenshot, onClick }: ScreenshotCardPr
   // 获取结果类型标签
   const getResultLabel = () => {
     if (screenshot.is_semantic_result) {
-      return <span className="text-xs font-medium text-primary">(语义匹配)</span>;
+      return <span className="text-xs font-medium text-primary">{t.screenshot.semanticMatch}</span>;
     }
     if (screenshot.is_multimodal_result) {
-      return <span className="text-xs font-medium text-destructive">(多模态匹配)</span>;
+      return <span className="text-xs font-medium text-destructive">{t.screenshot.multimodalMatch}</span>;
     }
     return null;
   };
@@ -70,7 +74,7 @@ export default function ScreenshotCard({ screenshot, onClick }: ScreenshotCardPr
         {!imageError ? (
           <img
             src={api.getScreenshotImage(screenshot.id)}
-            alt="截图"
+            alt={t.screenshot.screenshot}
             className="h-full w-full object-cover transition-transform group-hover:scale-105"
             onError={() => setImageError(true)}
             loading="lazy"
@@ -91,7 +95,7 @@ export default function ScreenshotCard({ screenshot, onClick }: ScreenshotCardPr
                   d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                 />
               </svg>
-              <p className="mt-2 text-sm font-medium">图片加载失败</p>
+              <p className="mt-2 text-sm font-medium">{t.screenshot.imageLoadFailed}</p>
             </div>
           </div>
         )}
@@ -103,7 +107,7 @@ export default function ScreenshotCard({ screenshot, onClick }: ScreenshotCardPr
           {formatDateTime(screenshot.created_at, 'YYYY-MM-DD HH:mm:ss')}
         </div>
         <div className="mb-2 flex items-center gap-2">
-          <div className="font-medium text-foreground">{screenshot.app_name || '未知应用'}</div>
+          <div className="font-medium text-foreground">{screenshot.app_name || t.eventsPage.unknownApp}</div>
           {getResultLabel()}
         </div>
         {screenshot.text_content && (

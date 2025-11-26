@@ -2,6 +2,8 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from './Button';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface PaginationProps {
   currentPage: number;
@@ -16,6 +18,8 @@ export default function Pagination({
   onPageChange,
   className = '',
 }: PaginationProps) {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const maxVisiblePages = 7;
 
   const getPageNumbers = () => {
@@ -69,7 +73,7 @@ export default function Pagination({
         disabled={currentPage <= 1}
       >
         <ChevronLeft className="h-4 w-4" />
-        <span className="ml-1">上一页</span>
+        <span className="ml-1">{t.common.prev}</span>
       </Button>
 
       <div className="flex items-center gap-1">
@@ -105,12 +109,12 @@ export default function Pagination({
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= totalPages}
       >
-        <span className="mr-1">下一页</span>
+        <span className="mr-1">{t.common.next}</span>
         <ChevronRight className="h-4 w-4" />
       </Button>
 
       <div className="ml-4 rounded-lg border border-border bg-background px-3 py-1 text-sm font-semibold text-foreground dark:bg-card">
-        第 {currentPage} 页，共 {totalPages} 页
+        {t.common.page.replace('{current}', String(currentPage)).replace('{total}', String(totalPages))}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { Task, TaskStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Circle, CircleDot, CheckCircle2, XCircle, Edit2, Trash2, Square, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 import {
   DndContext,
   DragEndEvent,
@@ -29,10 +31,10 @@ interface TaskBoardProps {
   className?: string;
 }
 
-const columns = [
+const getColumns = (t: ReturnType<typeof useTranslations>) => [
   {
     status: 'pending' as TaskStatus,
-    label: '待办',
+    label: t.task.pending,
     icon: Circle,
     color: 'text-muted-foreground',
     bgColor: 'bg-muted/30',
@@ -40,7 +42,7 @@ const columns = [
   },
   {
     status: 'in_progress' as TaskStatus,
-    label: '进行中',
+    label: t.task.inProgress,
     icon: CircleDot,
     color: 'text-blue-600 dark:text-blue-400',
     bgColor: 'bg-blue-500/5',
@@ -48,7 +50,7 @@ const columns = [
   },
   {
     status: 'completed' as TaskStatus,
-    label: '已完成',
+    label: t.task.completed,
     icon: CheckCircle2,
     color: 'text-green-600 dark:text-green-400',
     bgColor: 'bg-green-500/5',
@@ -56,7 +58,7 @@ const columns = [
   },
   {
     status: 'cancelled' as TaskStatus,
-    label: '已取消',
+    label: t.task.cancelled,
     icon: XCircle,
     color: 'text-destructive',
     bgColor: 'bg-destructive/5',
@@ -74,7 +76,12 @@ export default function TaskBoard({
   onToggleSelect,
   className,
 }: TaskBoardProps) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // 获取国际化的列配置
+  const columns = getColumns(t);
 
   // 配置拖拽传感器
   const sensors = useSensors(
@@ -229,6 +236,8 @@ function DroppableColumn({
   selectedTaskIds?: Set<number>;
   onToggleSelect?: (task: Task, selected: boolean) => void;
 }) {
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const { setNodeRef, isOver } = useDroppable({ id });
 
   return (
@@ -244,7 +253,7 @@ function DroppableColumn({
     >
       {tasks.length === 0 ? (
         <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-          {isOver ? '放在这里' : '暂无任务'}
+          {isOver ? t.projectDetail.dropHere : t.projectDetail.noTasksInColumn}
         </div>
       ) : (
         tasks.map((task) => (
@@ -326,6 +335,8 @@ function TaskCard({
   projectId?: number;
 }) {
   const router = useRouter();
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
 
   // 点击卡片内容区域 - 跳转到任务详情
   const handleCardClick = () => {
@@ -358,7 +369,7 @@ function TaskCard({
             'p-1 hover:bg-accent rounded transition-colors',
             isSelected ? 'text-primary' : 'text-muted-foreground'
           )}
-          title={isSelected ? '取消选择' : '选择任务'}
+          title={isSelected ? t.projectDetail.unselectTask : t.projectDetail.selectTask}
         >
           <SelectIcon className="h-4 w-4" />
         </button>
@@ -371,7 +382,7 @@ function TaskCard({
               onEdit(task);
             }}
             className="p-1 hover:bg-accent rounded transition-colors"
-            title="编辑"
+            title={t.common.edit}
           >
             <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
@@ -381,7 +392,7 @@ function TaskCard({
               onDelete(task.id);
             }}
             className="p-1 hover:bg-destructive/10 rounded transition-colors"
-            title="删除"
+            title={t.common.delete}
           >
             <Trash2 className="h-3.5 w-3.5 text-destructive" />
           </button>

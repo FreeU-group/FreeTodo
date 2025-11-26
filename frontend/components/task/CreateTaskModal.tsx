@@ -7,6 +7,8 @@ import Button from '@/components/common/Button';
 import { Task, TaskCreate, TaskStatus } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -17,13 +19,6 @@ interface CreateTaskModalProps {
   parentTaskId?: number; // 如果传入，则创建子任务
 }
 
-const statusOptions: { value: TaskStatus; label: string }[] = [
-  { value: 'pending', label: '待办' },
-  { value: 'in_progress', label: '进行中' },
-  { value: 'completed', label: '已完成' },
-  { value: 'cancelled', label: '已取消' },
-];
-
 export default function CreateTaskModal({
   isOpen,
   onClose,
@@ -32,6 +27,8 @@ export default function CreateTaskModal({
   task,
   parentTaskId,
 }: CreateTaskModalProps) {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [formData, setFormData] = useState<TaskCreate>({
     name: '',
     description: '',
@@ -43,6 +40,13 @@ export default function CreateTaskModal({
 
   const isEditMode = !!task;
   const isSubtask = !!parentTaskId;
+
+  const statusOptions: { value: TaskStatus; label: string }[] = [
+    { value: 'pending', label: t.task.pending },
+    { value: 'in_progress', label: t.task.inProgress },
+    { value: 'completed', label: t.task.completed },
+    { value: 'cancelled', label: t.task.cancelled },
+  ];
 
   // 当模态框打开时，初始化表单数据
   useEffect(() => {
@@ -70,9 +74,9 @@ export default function CreateTaskModal({
     const newErrors: { name?: string } = {};
 
     if (!formData.name.trim()) {
-      newErrors.name = '任务名称不能为空';
+      newErrors.name = t.task.nameRequired;
     } else if (formData.name.length > 200) {
-      newErrors.name = '任务名称不能超过200个字符';
+      newErrors.name = t.task.nameTooLong;
     }
 
     setErrors(newErrors);
@@ -96,7 +100,7 @@ export default function CreateTaskModal({
           status: formData.status,
           parent_task_id: formData.parent_task_id,
         });
-        toast.success('任务更新成功');
+        toast.success(t.task.updateSuccess);
       } else {
         // 创建模式
         await api.createTask(projectId, {
@@ -105,15 +109,15 @@ export default function CreateTaskModal({
           status: formData.status,
           parent_task_id: formData.parent_task_id,
         });
-        toast.success(isSubtask ? '子任务创建成功' : '任务创建成功');
+        toast.success(isSubtask ? t.task.createSubtaskSuccess : t.task.createSuccess);
       }
 
       onSuccess?.();
       onClose();
     } catch (error) {
       console.error('保存任务失败:', error);
-      const errorMsg = error instanceof Error ? error.message : '未知错误';
-      toast.error(isEditMode ? `更新任务失败: ${errorMsg}` : `创建任务失败: ${errorMsg}`);
+      const errorMsg = error instanceof Error ? error.message : t.common.unknownError;
+      toast.error(isEditMode ? `${t.task.updateFailed}: ${errorMsg}` : `${t.task.createFailed}: ${errorMsg}`);
     } finally {
       setSaving(false);
     }
@@ -141,12 +145,12 @@ export default function CreateTaskModal({
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-lg font-bold text-foreground">
-            {isEditMode ? '编辑任务' : isSubtask ? '创建子任务' : '创建任务'}
+            {isEditMode ? t.task.edit : isSubtask ? t.task.createSubtask : t.task.create}
           </h2>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-foreground transition-colors hover:bg-muted"
-            aria-label="关闭"
+            aria-label={t.common.close}
             disabled={saving}
           >
             <X className="h-5 w-5" />
@@ -157,11 +161,11 @@ export default function CreateTaskModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
-              任务名称 <span className="text-red-500">*</span>
+              {t.task.name} <span className="text-red-500">*</span>
             </label>
             <Input
               type="text"
-              placeholder="输入任务名称"
+              placeholder={t.task.namePlaceholder}
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
               disabled={saving}
@@ -174,10 +178,10 @@ export default function CreateTaskModal({
 
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
-              任务描述
+              {t.task.description}
             </label>
             <textarea
-              placeholder="输入任务描述（可选）"
+              placeholder={t.task.descriptionPlaceholder}
               value={formData.description}
               onChange={(e) => handleChange('description', e.target.value)}
               disabled={saving}
@@ -188,7 +192,7 @@ export default function CreateTaskModal({
 
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
-              任务状态
+              {t.task.status}
             </label>
             <select
               value={formData.status}
@@ -212,10 +216,10 @@ export default function CreateTaskModal({
               onClick={onClose}
               disabled={saving}
             >
-              取消
+              {t.common.cancel}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? '保存中...' : isEditMode ? '保存' : '创建'}
+              {saving ? t.common.saving : isEditMode ? t.common.save : t.common.create}
             </Button>
           </div>
         </form>
@@ -223,4 +227,3 @@ export default function CreateTaskModal({
     </div>
   );
 }
-

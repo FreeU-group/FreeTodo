@@ -10,6 +10,8 @@ import ContextList from '@/components/context/ContextList';
 import { Task, Project, Context, TaskProgress } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import ReactMarkdown from 'react-markdown';
@@ -20,6 +22,8 @@ dayjs.locale('zh-cn');
 export default function TaskDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const projectId = parseInt((params?.id as string) || '0');
   const taskId = parseInt((params?.taskId as string) || '0');
 
@@ -96,11 +100,11 @@ export default function TaskDetailPage() {
     setIsGenerating(true);
     try {
       await api.generateTaskSummary(projectId, taskId);
-      toast.success('任务进展摘要已生成');
+      toast.success(t.taskDetail.progressGenerated);
       // 重新加载进展列表
       await loadTaskProgress();
     } catch (error) {
-      const errorMsg = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || '生成进展摘要失败';
+      const errorMsg = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || t.taskDetail.progressGenerateFailed;
       toast.error(errorMsg);
     } finally {
       setIsGenerating(false);
@@ -127,13 +131,13 @@ export default function TaskDetailPage() {
   const handleAssociateContext = async (contextId: number) => {
     try {
       await api.updateContext(contextId, { task_id: taskId });
-      toast.success('上下文已关联到任务');
+      toast.success(t.taskDetail.contextAssociated);
       // 刷新列表
       loadAssociatedContexts();
       loadUnassociatedContexts();
     } catch (error) {
       console.error('关联上下文失败:', error);
-      toast.error('关联上下文失败');
+      toast.error(t.taskDetail.contextAssociateFailed);
     }
   };
 
@@ -141,20 +145,21 @@ export default function TaskDetailPage() {
   const handleUnassociateContext = async (contextId: number) => {
     try {
       await api.updateContext(contextId, { task_id: null });
-      toast.success('已取消关联');
+      toast.success(t.taskDetail.contextUnassociated);
       // 刷新列表
       loadAssociatedContexts();
       loadUnassociatedContexts();
     } catch (error) {
       console.error('取消关联失败:', error);
-      toast.error('取消关联失败');
+      toast.error(t.taskDetail.contextUnassociateFailed);
     }
   };
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
     try {
-      return dayjs(dateString).format('YYYY年MM月DD日 HH:mm');
+      const format = locale === 'zh' ? 'YYYY年MM月DD日 HH:mm' : 'YYYY-MM-DD HH:mm';
+      return dayjs(dateString).format(format);
     } catch {
       return dateString;
     }
@@ -171,9 +176,9 @@ export default function TaskDetailPage() {
   if (!task) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
-        <p className="text-muted-foreground mb-4">任务不存在</p>
+        <p className="text-muted-foreground mb-4">{t.taskDetail.taskNotFound}</p>
         <Button onClick={() => router.push(`/project-management/${projectId}`)}>
-          返回项目详情
+          {t.taskDetail.backToProject}
         </Button>
       </div>
     );
@@ -190,7 +195,7 @@ export default function TaskDetailPage() {
             className="gap-2 mb-4"
           >
             <ArrowLeft className="h-4 w-4" />
-            返回项目详情
+            {t.taskDetail.backToProject}
           </Button>
 
           <div className="flex items-start justify-between">
@@ -198,7 +203,7 @@ export default function TaskDetailPage() {
               <h1 className="text-3xl font-bold text-foreground">{task.name}</h1>
               {project && (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  项目：{project.name}
+                  {t.taskDetail.project}: {project.name}
                 </p>
               )}
             </div>
@@ -216,7 +221,7 @@ export default function TaskDetailPage() {
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              任务信息
+              {t.taskDetail.taskInfo}
             </button>
             <button
               onClick={() => setActiveTab('contexts')}
@@ -226,7 +231,7 @@ export default function TaskDetailPage() {
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              关联上下文
+              {t.taskDetail.associatedContexts}
               {contexts.length > 0 && (
                 <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full">
                   {contexts.length}
@@ -244,7 +249,7 @@ export default function TaskDetailPage() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-primary" />
-                  <CardTitle>任务进展</CardTitle>
+                  <CardTitle>{t.taskDetail.taskProgress}</CardTitle>
                 </div>
                 <Button
                   variant="outline"
@@ -254,13 +259,13 @@ export default function TaskDetailPage() {
                   className="gap-2"
                 >
                   <RefreshCw className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                  手动更新
+                  {t.taskDetail.manualUpdate}
                 </Button>
               </CardHeader>
               <CardContent>
                 {!latestProgress ? (
                   <div className="text-center py-8">
-                    <p className="text-muted-foreground mb-4">暂无任务进展记录</p>
+                    <p className="text-muted-foreground mb-4">{t.taskDetail.noProgress}</p>
                     <Button
                       variant="outline"
                       onClick={handleGenerateProgress}
@@ -268,14 +273,14 @@ export default function TaskDetailPage() {
                       className="gap-2"
                     >
                       <RefreshCw className={`h-4 w-4 ${isGenerating ? 'animate-spin' : ''}`} />
-                      生成第一条进展
+                      {t.taskDetail.generateFirstProgress}
                     </Button>
                   </div>
                 ) : (
                   <div>
                     <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
-                      <span>更新于 {formatDate(latestProgress.generated_at)}</span>
-                      <span>基于 {latestProgress.context_count} 个上下文</span>
+                      <span>{t.taskDetail.updatedAt} {formatDate(latestProgress.generated_at)}</span>
+                      <span>{t.taskDetail.basedOnContexts.replace('{count}', latestProgress.context_count.toString())}</span>
                     </div>
                     <div className="prose prose-sm max-w-none dark:prose-invert">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -290,40 +295,40 @@ export default function TaskDetailPage() {
             {/* 任务信息 */}
             <Card>
               <CardHeader>
-                <CardTitle>任务详情</CardTitle>
+                <CardTitle>{t.taskDetail.taskDetails}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {task.description && (
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">描述</label>
+                    <label className="text-sm font-medium text-muted-foreground">{t.task.description}</label>
                     <p className="mt-1 text-foreground">{task.description}</p>
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">状态</label>
+                    <label className="text-sm font-medium text-muted-foreground">{t.task.status}</label>
                     <p className="mt-1 text-foreground">
-                      {task.status === 'pending' && '待办'}
-                      {task.status === 'in_progress' && '进行中'}
-                      {task.status === 'completed' && '已完成'}
-                      {task.status === 'cancelled' && '已取消'}
+                      {task.status === 'pending' && t.task.pending}
+                      {task.status === 'in_progress' && t.task.inProgress}
+                      {task.status === 'completed' && t.task.completed}
+                      {task.status === 'cancelled' && t.task.cancelled}
                     </p>
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">创建时间</label>
+                    <label className="text-sm font-medium text-muted-foreground">{t.taskDetail.createdAt}</label>
                     <p className="mt-1 text-foreground">{formatDate(task.created_at)}</p>
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">更新时间</label>
+                    <label className="text-sm font-medium text-muted-foreground">{t.taskDetail.updatedAt2}</label>
                     <p className="mt-1 text-foreground">{formatDate(task.updated_at)}</p>
                   </div>
 
                   <div>
-                    <label className="text-sm font-medium text-muted-foreground">关联上下文数</label>
-                    <p className="mt-1 text-foreground">{contexts.length} 个</p>
+                    <label className="text-sm font-medium text-muted-foreground">{t.taskDetail.contextCount}</label>
+                    <p className="mt-1 text-foreground">{contexts.length} {t.taskDetail.countUnit}</p>
                   </div>
                 </div>
               </CardContent>
@@ -335,12 +340,12 @@ export default function TaskDetailPage() {
             {/* 已关联的上下文 */}
             <Card>
               <CardHeader>
-                <CardTitle>已关联的上下文 ({contexts.length})</CardTitle>
+                <CardTitle>{t.taskDetail.linkedContexts} ({contexts.length})</CardTitle>
               </CardHeader>
               <CardContent>
                 {contexts.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
-                    暂无关联的上下文
+                    {t.taskDetail.noLinkedContexts}
                   </p>
                 ) : (
                   <ContextList
@@ -354,12 +359,12 @@ export default function TaskDetailPage() {
             {/* 未关联的上下文 */}
             <Card>
               <CardHeader>
-                <CardTitle>可关联的上下文 ({unassociatedContexts.length})</CardTitle>
+                <CardTitle>{t.taskDetail.availableContexts} ({unassociatedContexts.length})</CardTitle>
               </CardHeader>
               <CardContent>
                 {unassociatedContexts.length === 0 ? (
                   <p className="text-center text-muted-foreground py-8">
-                    暂无可关联的上下文
+                    {t.taskDetail.noAvailableContexts}
                   </p>
                 ) : (
                   <ContextList

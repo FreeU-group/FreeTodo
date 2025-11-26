@@ -164,6 +164,9 @@ async def update_job_interval(job_id: str, request: JobIntervalUpdateRequest):
         )
 
         if success:
+            # 同步更新配置文件中的间隔
+            _sync_job_interval_to_config(job_id, request.seconds, request.minutes, request.hours)
+
             interval_parts = []
             if request.hours:
                 interval_parts.append(f"{request.hours}小时")
@@ -232,11 +235,25 @@ async def pause_all_jobs():
     """暂停所有任务"""
     try:
         scheduler_manager = get_scheduler_manager()
-        paused_count = scheduler_manager.pause_all_jobs()
+
+        # 获取所有任务列表
+        jobs = scheduler_manager.get_all_jobs()
+        paused_jobs = []
+
+        # 逐个暂停任务并同步配置
+        for job in jobs:
+            if job.next_run_time is not None:  # 只暂停未暂停的任务
+                try:
+                    scheduler_manager.pause_job(job.id)
+                    # 同步更新配置文件
+                    _sync_job_enabled_to_config(job.id, False)
+                    paused_jobs.append(job.id)
+                except Exception as e:
+                    logger.error(f"暂停任务 {job.id} 失败: {e}")
 
         return JobOperationResponse(
             success=True,
-            message=f"已暂停 {paused_count} 个任务",
+            message=f"已暂停 {len(paused_jobs)} 个任务",
         )
     except Exception as e:
         logger.error(f"批量暂停任务失败: {e}")
@@ -248,11 +265,25 @@ async def resume_all_jobs():
     """恢复所有任务"""
     try:
         scheduler_manager = get_scheduler_manager()
-        resumed_count = scheduler_manager.resume_all_jobs()
+
+        # 获取所有任务列表
+        jobs = scheduler_manager.get_all_jobs()
+        resumed_jobs = []
+
+        # 逐个恢复任务并同步配置
+        for job in jobs:
+            if job.next_run_time is None:  # 只恢复已暂停的任务
+                try:
+                    scheduler_manager.resume_job(job.id)
+                    # 同步更新配置文件
+                    _sync_job_enabled_to_config(job.id, True)
+                    resumed_jobs.append(job.id)
+                except Exception as e:
+                    logger.error(f"恢复任务 {job.id} 失败: {e}")
 
         return JobOperationResponse(
             success=True,
-            message=f"已恢复 {resumed_count} 个任务",
+            message=f"已恢复 {len(resumed_jobs)} 个任务",
         )
     except Exception as e:
         logger.error(f"批量恢复任务失败: {e}")
@@ -272,6 +303,7 @@ def _sync_job_enabled_to_config(job_id: str, enabled: bool):
         "ocr_job": "jobs.ocr.enabled",
         "task_context_mapper_job": "jobs.task_context_mapper.enabled",
         "task_summary_job": "jobs.task_summary.enabled",
+        "clean_data_job": "jobs.clean_data.enabled",
     }
 
     if job_id in job_config_map:
@@ -281,3 +313,41 @@ def _sync_job_enabled_to_config(job_id: str, enabled: bool):
             logger.info(f"已同步任务 {job_id} 的启用状态到配置: {enabled}")
         except Exception as e:
             logger.error(f"同步任务启用状态到配置失败: {e}")
+
+
+def _sync_job_interval_to_config(
+    job_id: str, seconds: int | None = None, minutes: int | None = None, hours: int | None = None
+):
+    """同步任务的执行间隔到配置文件
+
+    Args:
+        job_id: 任务ID
+        seconds: 秒数
+        minutes: 分钟数
+        hours: 小时数
+    """
+    # 定义任务ID到配置路径的映射
+    job_config_map = {
+        "recorder_job": "jobs.recorder.interval",
+        "ocr_job": "jobs.ocr.interval",
+        "task_context_mapper_job": "jobs.task_context_mapper.interval",
+        "task_summary_job": "jobs.task_summary.interval",
+        "clean_data_job": "jobs.clean_data.interval",
+    }
+
+    if job_id in job_config_map:
+        config_key = job_config_map[job_id]
+        try:
+            # 计算总间隔秒数
+            total_seconds = 0
+            if seconds:
+                total_seconds += seconds
+            if minutes:
+                total_seconds += minutes * 60
+            if hours:
+                total_seconds += hours * 3600
+
+            config.set(config_key, total_seconds)
+            logger.info(f"已同步任务 {job_id} 的执行间隔到配置: {total_seconds}秒")
+        except Exception as e:
+            logger.error(f"同步任务执行间隔到配置失败: {e}")

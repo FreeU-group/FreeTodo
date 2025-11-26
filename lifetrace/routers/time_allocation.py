@@ -50,7 +50,7 @@ async def get_time_allocation(
         # 应用分类逻辑（优先匹配社交类应用）
         def categorize_app(app_name: str) -> str:
             if not app_name:
-                return "其他"
+                return "other"
 
             app_lower = app_name.lower().strip()
 
@@ -78,7 +78,7 @@ async def get_time_allocation(
                 "腾讯会议",
             ]
             if any(keyword in app_lower for keyword in social_keywords):
-                return "社交"
+                return "social"
 
             # 浏览器
             browser_keywords = [
@@ -93,7 +93,7 @@ async def get_time_allocation(
                 "brave",
             ]
             if any(keyword in app_lower for keyword in browser_keywords):
-                return "浏览器"
+                return "browser"
 
             # 开发工具
             dev_keywords = [
@@ -117,12 +117,12 @@ async def get_time_allocation(
                 "sourcetree",
             ]
             if any(keyword in app_lower for keyword in dev_keywords):
-                return "开发工具"
+                return "development"
 
             # 文件管理
             file_keywords = ["explorer", "文件", "file", "finder", "nautilus", "dolphin", "thunar"]
             if any(keyword in app_lower for keyword in file_keywords):
-                return "文件管理"
+                return "file_management"
 
             # Office 办公软件
             office_keywords = [
@@ -136,10 +136,10 @@ async def get_time_allocation(
                 "outlook",
             ]
             if any(keyword in app_lower for keyword in office_keywords):
-                return "办公软件"
+                return "office"
 
             # 其他
-            return "其他"
+            return "other"
 
         for app_name, app_data in app_usage_summary.items():
             app_details.append(

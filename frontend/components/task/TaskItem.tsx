@@ -6,6 +6,8 @@ import { Task, TaskStatus } from '@/lib/types';
 import { ChevronRight, ChevronDown, Plus, Edit2, Trash2, Circle, CircleDot, CheckCircle2, XCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import TaskStatusSelect from './TaskStatusSelect';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface TaskItemProps {
   task: Task & { children?: Task[] };
@@ -17,32 +19,32 @@ interface TaskItemProps {
   projectId?: number; // 添加项目ID参数
 }
 
-const statusConfig = {
+const getStatusConfig = (t: ReturnType<typeof useTranslations>) => ({
   pending: {
-    label: '待办',
+    label: t.task.pending,
     icon: Circle,
     color: 'text-gray-500',
     bgColor: 'bg-gray-100 dark:bg-gray-800',
   },
   in_progress: {
-    label: '进行中',
+    label: t.task.inProgress,
     icon: CircleDot,
     color: 'text-blue-500',
     bgColor: 'bg-blue-100 dark:bg-blue-900/30',
   },
   completed: {
-    label: '已完成',
+    label: t.task.completed,
     icon: CheckCircle2,
     color: 'text-green-500',
     bgColor: 'bg-green-100 dark:bg-green-900/30',
   },
   cancelled: {
-    label: '已取消',
+    label: t.task.cancelled,
     icon: XCircle,
     color: 'text-red-500',
     bgColor: 'bg-red-100 dark:bg-red-900/30',
   },
-};
+});
 
 export default function TaskItem({
   task,
@@ -54,8 +56,11 @@ export default function TaskItem({
   projectId,
 }: TaskItemProps) {
   const router = useRouter();
+  const locale = useLocaleStore((state) => state.locale);
+  const t = useTranslations(locale);
   const [isExpanded, setIsExpanded] = useState(true);
   const hasChildren = task.children && task.children.length > 0;
+  const statusConfig = getStatusConfig(t);
   const config = statusConfig[task.status as TaskStatus];
   const StatusIcon = config.icon;
 
@@ -117,7 +122,7 @@ export default function TaskItem({
             </button>
             {hasChildren && (
               <span className="flex-shrink-0 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                {task.children!.length} 个子任务
+                {t.projectDetail.subtasksCount.replace('{count}', String(task.children!.length))}
               </span>
             )}
           </div>
@@ -133,21 +138,21 @@ export default function TaskItem({
           <button
             onClick={() => onCreateSubtask(task.id)}
             className="p-2 hover:bg-accent rounded-md transition-colors"
-            title="创建子任务"
+            title={t.task.createSubtask}
           >
             <Plus className="h-4 w-4 text-muted-foreground" />
           </button>
           <button
             onClick={() => onEdit(task)}
             className="p-2 hover:bg-accent rounded-md transition-colors"
-            title="编辑任务"
+            title={t.task.edit}
           >
             <Edit2 className="h-4 w-4 text-muted-foreground" />
           </button>
           <button
             onClick={() => onDelete(task.id)}
             className="p-2 hover:bg-destructive/10 rounded-md transition-colors"
-            title="删除任务"
+            title={t.task.delete}
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </button>

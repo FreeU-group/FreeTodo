@@ -10,6 +10,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useLocaleStore } from '@/lib/store/locale';
+import { useTranslations } from '@/lib/i18n';
 
 interface FeatureCost {
   input_tokens: number;
@@ -48,17 +50,9 @@ interface CostStats {
   end_date: string;
 }
 
-const FEATURE_NAME_MAP: Record<string, string> = {
-  event_assistant: '事件助手',
-  event_summary: '事件摘要',
-  project_assistant: '项目助手',
-  job_task_context_mapper: '任务上下文映射',
-  job_task_summary: '任务摘要生成',
-  task_summary: '任务摘要生成（手动）',
-  unknown: '未知功能',
-};
-
 export default function CostTrackingPage() {
+  const { locale } = useLocaleStore();
+  const t = useTranslations(locale);
   const [stats, setStats] = useState<CostStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +67,7 @@ export default function CostTrackingPage() {
       const response = await api.getCostStats(days);
       setStats(response.data.data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败');
+      setError(err instanceof Error ? err.message : t.costTracking.loadFailed);
     } finally {
       setLoading(false);
     }
@@ -96,7 +90,12 @@ export default function CostTrackingPage() {
     if (num === undefined || num === null || isNaN(num)) {
       return '0';
     }
-    return num.toLocaleString('zh-CN');
+    return num.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US');
+  };
+
+  // 获取功能名称
+  const getFeatureName = (featureId: string) => {
+    return t.costTracking.featureNames[featureId as keyof typeof t.costTracking.featureNames] || featureId;
   };
 
   // 获取最近7天的数据（用于趋势图）
@@ -117,9 +116,9 @@ export default function CostTrackingPage() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       {/* 页面标题 */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">费用统计</h1>
+        <h1 className="text-3xl font-bold mb-2">{t.costTracking.title}</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          查看 LLM 使用情况和费用统计
+          {t.costTracking.subtitle}
         </p>
       </div>
 
@@ -127,23 +126,23 @@ export default function CostTrackingPage() {
       <div className="mb-6 flex items-center gap-4">
         <div className="flex items-center gap-2">
           <Calendar className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-          <span className="text-sm text-gray-600 dark:text-gray-400">统计周期:</span>
+          <span className="text-sm text-gray-600 dark:text-gray-400">{t.costTracking.statisticsPeriod}:</span>
         </div>
         <select
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
           className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
-          <option value={7}>最近 7 天</option>
-          <option value={30}>最近 30 天</option>
-          <option value={90}>最近 90 天</option>
+          <option value={7}>{t.costTracking.last7Days}</option>
+          <option value={30}>{t.costTracking.last30Days}</option>
+          <option value={90}>{t.costTracking.last90Days}</option>
         </select>
         <button
           onClick={loadCostStats}
           className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         >
           <RefreshCw className="w-4 h-4" />
-          刷新
+          {t.costTracking.refresh}
         </button>
       </div>
 
@@ -165,7 +164,7 @@ export default function CostTrackingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">总费用</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t.costTracking.totalCost}</p>
                 <DollarSign className="w-5 h-5 text-green-600 dark:text-green-400" />
               </div>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400">
@@ -175,7 +174,7 @@ export default function CostTrackingPage() {
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">总 Token 数</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t.costTracking.totalTokens}</p>
                 <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <p className="text-3xl font-bold">
@@ -185,7 +184,7 @@ export default function CostTrackingPage() {
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">总请求数</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{t.costTracking.totalRequests}</p>
                 <TrendingUp className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <p className="text-3xl font-bold">
@@ -197,29 +196,29 @@ export default function CostTrackingPage() {
           {/* 按功能分类 */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 mb-6">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold">功能费用明细</h2>
+              <h2 className="text-xl font-semibold">{t.costTracking.featureCostDetails}</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      功能
+                      {t.costTracking.feature}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      ID
+                      {t.costTracking.featureId}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      输入 Token
+                      {t.costTracking.inputTokens}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      输出 Token
+                      {t.costTracking.outputTokens}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      请求数
+                      {t.costTracking.requests}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      费用
+                      {t.costTracking.cost}
                     </th>
                   </tr>
                 </thead>
@@ -233,7 +232,7 @@ export default function CostTrackingPage() {
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium">
-                            {FEATURE_NAME_MAP[feature] || feature}
+                            {getFeatureName(feature)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -263,29 +262,29 @@ export default function CostTrackingPage() {
           {/* 按模型分类 */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700 mb-6">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-semibold">模型费用明细</h2>
+              <h2 className="text-xl font-semibold">{t.costTracking.modelCostDetails}</h2>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      模型
+                      {t.costTracking.model}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      输入 Token
+                      {t.costTracking.inputTokens}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      输出 Token
+                      {t.costTracking.outputTokens}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      输入费用
+                      {t.costTracking.inputCost}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      输出费用
+                      {t.costTracking.outputCost}
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      总费用
+                      {t.costTracking.totalCostLabel}
                     </th>
                   </tr>
                 </thead>
@@ -326,7 +325,7 @@ export default function CostTrackingPage() {
           {recentData.length > 0 && (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow border border-gray-200 dark:border-gray-700">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold">每日费用趋势</h2>
+                <h2 className="text-xl font-semibold">{t.costTracking.dailyCostTrend}</h2>
               </div>
               <div className="p-6">
                 <div className="space-y-4">
