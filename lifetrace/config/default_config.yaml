@@ -11,6 +11,14 @@ base_dir: data
 database_path: lifetrace.db
 screenshots_dir: screenshots/
 
+# 工作区配置
+workspace:
+  dir: lifetrace/notes
+  allowed_extensions:
+    - .md
+    - .markdown
+  lock_timeout_seconds: 300
+
 # 日志配置
 logging:
   level: INFO

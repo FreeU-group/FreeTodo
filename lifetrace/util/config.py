@@ -245,6 +245,34 @@ class LifeTraceConfig:
         return log_path
 
     @property
+    def workspace_dir(self) -> str:
+        """工作区根目录"""
+        workspace_dir = self.get("workspace.dir", "workspace")
+        if not os.path.isabs(workspace_dir):
+            workspace_dir = os.path.join(self.base_dir, workspace_dir)
+        os.makedirs(workspace_dir, exist_ok=True)
+        return workspace_dir
+
+    @property
+    def workspace_allowed_extensions(self) -> list[str]:
+        """允许编辑的文件扩展名（统一为小写）"""
+        exts = self.get("workspace.allowed_extensions", [".md", ".markdown"]) or []
+        normalized = []
+        for ext in exts:
+            if not ext:
+                continue
+            ext = ext.lower()
+            if not ext.startswith("."):
+                ext = f".{ext}"
+            normalized.append(ext)
+        return normalized or [".md", ".markdown"]
+
+    @property
+    def workspace_lock_timeout_seconds(self) -> int:
+        """工作区锁默认过期时间（秒）"""
+        return int(self.get("workspace.lock_timeout_seconds", 300) or 300)
+
+    @property
     def vector_db_enabled(self) -> bool:
         return self.get("vector_db.enabled", True)
 

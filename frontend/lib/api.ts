@@ -54,7 +54,7 @@ export const api = {
     top_k?: number;
     use_rerank?: boolean;
     retrieve_k?: number;
-    filters?: any;
+    filters?: Record<string, unknown>;
   }) => apiClient.post('/api/semantic-search', params),
 
   eventSearch: (params: {
@@ -198,7 +198,7 @@ export const api = {
     }),
 
   // 创建新会话
-  createNewChat: (chatType?: string, contextId?: number) =>
+  createNewChat: () =>
     apiClient.post('/api/chat/new', {
       session_id: undefined,
     }),
@@ -231,7 +231,7 @@ export const api = {
   // 配置相关
   getConfig: () => apiClient.get('/api/get-config'),
 
-  saveConfig: (config: any) => apiClient.post('/api/save-config', config),
+  saveConfig: (config: Record<string, unknown>) => apiClient.post('/api/save-config', config),
 
   testLlmConfig: (config: { llmKey: string; baseUrl: string; model?: string }) =>
     apiClient.post('/api/test-llm-config', config),
@@ -332,4 +332,38 @@ export const api = {
 
   getCostConfig: () =>
     apiClient.get('/api/cost-tracking/config'),
+
+  // 工作区文件管理
+  getWorkspaceFiles: () => apiClient.get('/api/workspace/files'),
+
+  getWorkspaceFile: (path: string) =>
+    apiClient.get('/api/workspace/file', { params: { path } }),
+
+  saveWorkspaceFile: (payload: {
+    path: string;
+    content: string;
+    actor?: 'human' | 'ai';
+    lock_id?: string | null;
+    last_known_modification?: string | Date | null;
+  }) => apiClient.put('/api/workspace/file', {
+    actor: 'human',
+    ...payload,
+  }),
+
+  acquireWorkspaceLock: (payload: {
+    path: string;
+    owner: string;
+    mode: 'human' | 'ai';
+    duration_seconds?: number;
+  }) => apiClient.post('/api/workspace/lock', payload),
+
+  releaseWorkspaceLock: (payload: {
+    path: string;
+    owner: string;
+    lock_id?: string | null;
+    force?: boolean;
+  }) => apiClient.post('/api/workspace/lock/release', payload),
+
+  getWorkspaceLock: (path: string) =>
+    apiClient.get('/api/workspace/lock', { params: { path } }),
 };

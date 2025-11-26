@@ -6,18 +6,15 @@ import {
 	AtSign,
 	Bot,
 	ChevronDown,
-	Circle,
-	Link2,
 	Loader2,
 	MessageSquareMore,
 	Paperclip,
 	Send,
 	Sparkles,
 	User,
-	Wand2
+	X,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -28,7 +25,6 @@ import {
 } from "@/components/ui/card";
 import {
 	DropdownMenu,
-	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuLabel,
@@ -55,6 +51,11 @@ type ComposerMode = "auto" | "manual";
 type ChatBotProps = {
 	copy: ChatPanelCopy;
 	className?: string;
+	onAiEditRequest?: (instruction: string) => void;
+	isAiEditing?: boolean;
+	currentFileName?: string;
+	onCollapse?: () => void;
+	selectedContext?: string;
 };
 
 const createId = () =>
@@ -62,32 +63,12 @@ const createId = () =>
 		? crypto.randomUUID()
 		: Math.random().toString(36).slice(2);
 
-const sourceFilters = ["All sources", "Current editor", "Workspace memory"] as const;
-
 const contextOptions = [
 	{ id: "workspace", label: "Workspace summary", hint: "Latest editor focus" },
 	{ id: "events", label: "Recent events", hint: "Timeline insights" },
 	{ id: "tasks", label: "Open tasks", hint: "Pending todos" }
 ];
 
-const quickPrompts = [
-	{
-		title: "Summarize my edits",
-		description: "Provide a short recap of the changes I made today"
-	},
-	{
-		title: "Create test checklist",
-		description: "List the scenarios I should verify before merging"
-	},
-	{
-		title: "Generate release notes",
-		description: "Draft a friendly summary for teammates"
-	},
-	{
-		title: "Plan next actions",
-		description: "Suggest what I should tackle after this task"
-	}
-];
 
 const MessageAvatar = ({ role }: { role: ChatMessage["role"] }) => (
 	<div
@@ -100,27 +81,19 @@ const MessageAvatar = ({ role }: { role: ChatMessage["role"] }) => (
 	</div>
 );
 
-const ContextPill = ({ label }: { label: string }) => (
-	<span className="inline-flex items-center gap-1 rounded-full border border-dashed border-border/80 px-3 py-1 text-xs font-medium text-muted-foreground">
-		<AtSign className="h-3.5 w-3.5" />
-		{label}
-	</span>
-);
 
-export function ChatBot({ copy, className }: ChatBotProps) {
+export function ChatBot({ copy, className, onAiEditRequest, isAiEditing, currentFileName, onCollapse, selectedContext }: ChatBotProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [composerValue, setComposerValue] = useState("");
 	const [composerMode, setComposerMode] = useState<ComposerMode>("auto");
-	const [sourceFilter, setSourceFilter] = useState<(typeof sourceFilters)[number]>(sourceFilters[0]);
 	const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
 	const [isThinking, setIsThinking] = useState(false);
+	const [showSelectedContext, setShowSelectedContext] = useState(true);
 
 	const pendingReplyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const scrollAnchorRef = useRef<HTMLDivElement>(null);
 
   const isSendDisabled = composerValue.trim().length === 0 || isThinking;
-  
-  const [isChatbotOpen, setIsChatbotOpen] = useState(true);
 
 	useEffect(() => {
 		return () => {
@@ -140,9 +113,6 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 		);
 	};
 
-	const handleSuggestionClick = (title: string) => {
-		setComposerValue(title);
-	};
 
 	const handleSendMessage = () => {
 		if (isSendDisabled) {
@@ -150,6 +120,15 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 		}
 
 		const trimmed = composerValue.trim();
+		
+		// Handle /edit command for AI editing
+		if (trimmed.startsWith('/edit') && onAiEditRequest) {
+			const instruction = trimmed.replace('/edit', '').trim() || 'Improve this document';
+			onAiEditRequest(instruction);
+			setComposerValue("");
+			return;
+		}
+		
 		const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 		const userMessage: ChatMessage = {
@@ -190,12 +169,6 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 	);
 
   return (
-    <div>
-      {
-        !isChatbotOpen ? <Button onClick={()=> setIsChatbotOpen(true)}>
-          Open ChatBot
-        </Button>
-          : (
     <Card className={cn("flex max-h-full flex-col border-border/70 bg-card/90 shadow-xl", className)}>
 			<CardHeader className="gap-4 border-b border-border/70 pb-6">
 				<div className="flex items-center justify-between gap-3">
@@ -208,12 +181,13 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 							<CardDescription>{copy.description}</CardDescription>
 						</div>
                   </div>
-                  <Button onClick={() => setIsChatbotOpen(false)}>
-                    Close ChatBot
-          </Button>
-					<Badge variant="outline" className="rounded-full border-primary/40 bg-primary/5 text-xs text-primary">
-						Labs
-					</Badge>
+                  <div className="flex items-center gap-2">
+                    {onCollapse && (
+                      <Button onClick={onCollapse} variant="ghost" size="icon" className="h-8 w-8">
+                        <ChevronDown className="h-4 w-4 rotate-270" />
+                      </Button>
+                    )}
+                  </div>
 				</div>
 				<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 					{selectedContexts.length > 0 && (
@@ -222,11 +196,16 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 							{selectedContexts.length} context{selectedContexts.length > 1 ? "s" : ""} active
 						</span>
 					)}
+					{isAiEditing && (
+						<span className="inline-flex items-center gap-2 rounded-full border border-primary/70 bg-primary/10 px-3 py-1 text-primary">
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+							AI editing {currentFileName}...
+						</span>
+					)}
 				</div>
       </CardHeader>
-      
 
-      <CardContent className="flex min-h-[70vh] flex-col gap-5">
+      <CardContent className="flex min-h-[80vh] flex-col gap-5">
         {/* 对话历史部分 */}
         <section className="flex flex-1 flex-col rounded-3xl border border-border/60 bg-card/70">
 					<ScrollArea className="flex-1 px-6 py-4 max-h-screen">
@@ -271,7 +250,19 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 						</div>
 					</ScrollArea>
 				</section>
-
+              {selectedContext && showSelectedContext && (
+				<div className="px-4 py-2 border-b bg-blue-50 dark:bg-blue-950/20">
+					<div className="flex items-center justify-between gap-2 mb-1">
+						<div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+							<Sparkles className="h-3 w-3" />
+							<span className="font-medium">Selected Context:</span>
+						</div>
+					</div>
+					<div className="text-xs text-muted-foreground bg-white dark:bg-gray-900 p-2 rounded border border-blue-200 dark:border-blue-800 max-h-20 overflow-y-auto">
+						{selectedContext}
+					</div>
+				</div>
+			)}
 				<section className="flex flex-col rounded-3xl border border-border/70 bg-background/70">
 					<div className="flex items-center justify-between border-b border-border/60 px-6 py-3 text-xs uppercase tracking-wide text-muted-foreground">
 						<div className="flex items-center gap-2">
@@ -293,11 +284,6 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 							</Button>
 						</div>
 						<div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-							<span className="inline-flex items-center gap-1">
-								<Link2 className="h-3.5 w-3.5" />
-								{sourceFilter}
-							</span>
-							<Separator orientation="vertical" className="h-4" />
 							<span>Shift+Enter for newline</span>
 						</div>
 					</div>
@@ -332,6 +318,27 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 							<Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border">
 								<Paperclip className="h-4 w-4" />
 							</Button>
+							{onAiEditRequest && (
+								<Button
+									onClick={() => onAiEditRequest('Improve this document')}
+									disabled={isAiEditing}
+									variant="ghost"
+									size="sm"
+									className="rounded-full border border-dashed"
+								>
+									{isAiEditing ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											AI处理中...
+										</>
+									) : (
+										<>
+											<Sparkles className="mr-2 h-4 w-4" />
+											AI编辑
+										</>
+									)}
+								</Button>
+							)}
 						</div>
 
 						<Button onClick={handleSendMessage} disabled={isSendDisabled} className="rounded-full px-6 shadow-lg">
@@ -351,10 +358,6 @@ export function ChatBot({ copy, className }: ChatBotProps) {
 				</section>
 			</CardContent>
 		</Card>
-        )
-      }
-    </div>
-
 	);
 }
 

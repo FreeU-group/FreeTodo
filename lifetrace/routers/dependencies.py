@@ -15,6 +15,7 @@ vector_service = None
 rag_service = None
 behavior_tracker = None
 config = None
+workspace_manager = None
 
 # 会话管理
 chat_sessions = defaultdict(dict)
@@ -85,13 +86,15 @@ def init_dependencies(
     rag_svc,
     cfg,
     is_llm_config,
+    workspace_mgr=None,
 ):
     """初始化全局依赖"""
     global ocr_processor, vector_service
-    global rag_service, config, is_llm_configured
+    global rag_service, config, is_llm_configured, workspace_manager
 
     ocr_processor = ocr_proc
     vector_service = vec_service
     rag_service = rag_svc
     config = cfg
     is_llm_configured = is_llm_config
+    workspace_manager = workspace_mgr

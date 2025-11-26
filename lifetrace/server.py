@@ -26,9 +26,11 @@ from lifetrace.routers import (
     task,
     time_allocation,
     vector,
+    workspace,
 )
 from lifetrace.routers import config as config_router
 from lifetrace.routers import dependencies as deps
+from lifetrace.storage.workspace_manager import WorkspaceManager
 from lifetrace.util.config import config
 from lifetrace.util.config_watcher import ConfigChangeType, get_config_watcher
 from lifetrace.util.llm_config_handler import get_llm_config_handler
@@ -121,6 +123,13 @@ is_llm_configured = config.is_configured()
 config_status = "已配置" if is_llm_configured else "未配置，需要引导配置"
 logger.info(f"LLM配置状态: {config_status}")
 
+# 初始化工作区管理器
+workspace_manager = WorkspaceManager(
+    config.workspace_dir,
+    config.workspace_allowed_extensions,
+    config.workspace_lock_timeout_seconds,
+)
+
 # 初始化路由依赖
 deps.init_dependencies(
     ocr_processor,
@@ -128,6 +137,7 @@ deps.init_dependencies(
     rag_service,
     config,
     is_llm_configured,
+    workspace_manager,
 )
 
 
@@ -150,6 +160,7 @@ app.include_router(rag.router)
 app.include_router(scheduler.router)
 app.include_router(cost_tracking.router)
 app.include_router(time_allocation.router)
+app.include_router(workspace.router)
 
 
 if __name__ == "__main__":

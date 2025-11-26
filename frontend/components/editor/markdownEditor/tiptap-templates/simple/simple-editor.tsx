@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
 
 // --- Tiptap Core Extensions ---
@@ -69,11 +69,25 @@ import { useCursorVisibility } from "@/hooks/tiptapHooks/use-cursor-visibility"
 
 // --- Lib ---
 import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap/tiptap-utils"
+import { cn } from "@/lib/utils"
 
 // --- Styles ---
 import "@/components/editor/markdownEditor/tiptap-templates/simple/simple-editor.scss"
 
 import content from "@/components/editor/markdownEditor/tiptap-templates/simple/data/content.json"
+import { marked } from "marked"
+import TurndownService from "turndown"
+
+marked.setOptions({ gfm: true, breaks: true })
+
+export interface SimpleEditorProps {
+  markdown?: string
+  onMarkdownChange?: (markdown: string) => void
+  onDirtyChange?: (dirty: boolean) => void
+  readOnly?: boolean
+  className?: string
+  onSelectionChange?: (selectedText: string) => void
+}
 
 const MainToolbarContent = ({
   onHighlighterClick,
@@ -183,13 +197,45 @@ const MobileToolbarContent = ({
   </>
 )
 
-export function SimpleEditor() {
+export function SimpleEditor({
+  markdown,
+  onMarkdownChange,
+  onDirtyChange,
+  readOnly = false,
+  className,
+  onSelectionChange,
+}: SimpleEditorProps = {}) {
   const isMobile = useIsBreakpoint()
   const { height } = useWindowSize()
   const [mobileView, setMobileView] = useState<"main" | "highlighter" | "link">(
     "main"
   )
   const toolbarRef = useRef<HTMLDivElement>(null)
+  const lastSyncedMarkdown = useRef<string>("")
+  const isApplyingExternalContent = useRef(false)
+
+  const turndown = useMemo(() => {
+    const instance = new TurndownService({
+      headingStyle: "atx",
+      codeBlockStyle: "fenced",
+    })
+    instance.addRule("lineBreak", {
+      filter: "br",
+      replacement: () => "  \n",
+    })
+    return instance
+  }, [])
+
+  const markdownToHtml = useCallback((value: string | undefined) => {
+    if (!value) return "<p></p>"
+    const parsed = marked.parse(value)
+    return typeof parsed === "string" ? parsed : "<p></p>"
+  }, [])
+
+  const htmlToMarkdown = useCallback(
+    (value: string) => turndown.turndown(value || ""),
+    [turndown]
+  )
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -231,19 +277,109 @@ export function SimpleEditor() {
     content,
   })
 
-  const rect = useCursorVisibility({
-    editor,
-    overlayHeight: toolbarRef.current?.getBoundingClientRect().height ?? 0,
-  })
+  const [toolbarHeight, setToolbarHeight] = useState(0)
 
   useEffect(() => {
-    if (!isMobile && mobileView !== "main") {
-      setMobileView("main")
+    const element = toolbarRef.current
+    if (!element) {
+      return
     }
-  }, [isMobile, mobileView])
+
+    const updateHeight = () => {
+      const rect = element.getBoundingClientRect()
+      setToolbarHeight(rect.height)
+    }
+
+    updateHeight()
+
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver((entries) => {
+        if (!entries.length) return
+        setToolbarHeight(entries[0].contentRect.height)
+      })
+      observer.observe(element)
+      return () => observer.disconnect()
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", updateHeight)
+      return () => window.removeEventListener("resize", updateHeight)
+    }
+  }, [])
+
+  const rect = useCursorVisibility({
+    editor,
+    overlayHeight: toolbarHeight,
+  })
+
+  const activeMobileView = isMobile ? mobileView : "main"
+
+  useEffect(() => {
+    if (!editor) return
+    editor.setEditable(!readOnly)
+  }, [editor, readOnly])
+
+  // Track text selection
+  useEffect(() => {
+    if (!editor || !onSelectionChange) return
+
+    const handleSelectionUpdate = () => {
+      const { from, to } = editor.state.selection
+      if (from !== to) {
+        const selectedText = editor.state.doc.textBetween(from, to, ' ')
+        onSelectionChange(selectedText)
+      } else {
+        onSelectionChange('')
+      }
+    }
+
+    editor.on('selectionUpdate', handleSelectionUpdate)
+
+    return () => {
+      editor.off('selectionUpdate', handleSelectionUpdate)
+    }
+  }, [editor, onSelectionChange])
+
+  useEffect(() => {
+    if (!editor || markdown === undefined) return
+    if (markdown === lastSyncedMarkdown.current) {
+      return
+    }
+    isApplyingExternalContent.current = true
+    editor.commands.setContent(markdownToHtml(markdown), { emitUpdate: false })
+    lastSyncedMarkdown.current = markdown
+    onDirtyChange?.(false)
+    // Extend the lock to ensure editor update handler doesn't fire immediately
+    const timer = setTimeout(() => {
+      isApplyingExternalContent.current = false
+    }, 50)
+    return () => clearTimeout(timer)
+  }, [editor, markdown, markdownToHtml, onDirtyChange])
+
+  useEffect(() => {
+    if (!editor) return
+    const handler = () => {
+      if (isApplyingExternalContent.current) {
+        return
+      }
+      const html = editor.getHTML()
+      const nextMarkdown = htmlToMarkdown(html)
+      
+      // Only mark as dirty if markdown actually changed
+      if (nextMarkdown !== lastSyncedMarkdown.current) {
+        lastSyncedMarkdown.current = nextMarkdown
+        onMarkdownChange?.(nextMarkdown)
+        onDirtyChange?.(true)
+      }
+    }
+    editor.on("update", handler)
+    return () => {
+      editor.off("update", handler)
+    }
+  }, [editor, htmlToMarkdown, onDirtyChange, onMarkdownChange])
 
   return (
-    <div className="simple-editor-wrapper">
+    <div className={cn("simple-editor-wrapper", className)}>
       <EditorContext.Provider value={{ editor }}>
         <div className="simple-editor-scroll">
           <Toolbar
@@ -256,15 +392,15 @@ export function SimpleEditor() {
                 : {}),
             }}
           >
-            {mobileView === "main" ? (
+            {activeMobileView === "main" ? (
               <MainToolbarContent
-                onHighlighterClick={() => setMobileView("highlighter")}
-                onLinkClick={() => setMobileView("link")}
+                onHighlighterClick={() => isMobile && setMobileView("highlighter")}
+                onLinkClick={() => isMobile && setMobileView("link")}
                 isMobile={isMobile}
               />
             ) : (
               <MobileToolbarContent
-                type={mobileView === "highlighter" ? "highlighter" : "link"}
+                type={activeMobileView === "highlighter" ? "highlighter" : "link"}
                 onBack={() => setMobileView("main")}
               />
             )}
