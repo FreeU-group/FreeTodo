@@ -374,7 +374,7 @@ ${markdown}
             </div>
           )}
 
-          <div className="mx-auto flex w-full max-h-[80vh] max-w-5xl flex-1">
+          <div className="mx-auto flex w-full max-h-[80vh] flex-1">
             <SimpleEditor
               key={currentFile?.path || 'no-file'}
               markdown={markdown}

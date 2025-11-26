@@ -46,8 +46,6 @@ interface ChatMessage {
 
 type ChatPanelCopy = Translation["workspace"]["chatPanel"];
 
-type ComposerMode = "auto" | "manual";
-
 type ChatBotProps = {
 	copy: ChatPanelCopy;
 	className?: string;
@@ -85,7 +83,6 @@ const MessageAvatar = ({ role }: { role: ChatMessage["role"] }) => (
 export function ChatBot({ copy, className, onAiEditRequest, isAiEditing, currentFileName, onCollapse, selectedContext }: ChatBotProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [composerValue, setComposerValue] = useState("");
-	const [composerMode, setComposerMode] = useState<ComposerMode>("auto");
 	const [selectedContexts, setSelectedContexts] = useState<string[]>([]);
 	const [isThinking, setIsThinking] = useState(false);
 	const [showSelectedContext, setShowSelectedContext] = useState(true);
@@ -264,29 +261,7 @@ export function ChatBot({ copy, className, onAiEditRequest, isAiEditing, current
 				</div>
 			)}
 				<section className="flex flex-col rounded-3xl border border-border/70 bg-background/70">
-					<div className="flex items-center justify-between border-b border-border/60 px-6 py-3 text-xs uppercase tracking-wide text-muted-foreground">
-						<div className="flex items-center gap-2">
-							<Button
-								size="sm"
-								variant={composerMode === "auto" ? "default" : "ghost"}
-								className={cn("rounded-full px-4", composerMode !== "auto" && "bg-transparent text-muted-foreground")}
-								onClick={() => setComposerMode("auto")}
-							>
-								Auto
-							</Button>
-							<Button
-								size="sm"
-								variant={composerMode === "manual" ? "default" : "ghost"}
-								className={cn("rounded-full px-4", composerMode !== "manual" && "bg-transparent text-muted-foreground")}
-								onClick={() => setComposerMode("manual")}
-							>
-								Manual
-							</Button>
-						</div>
-						<div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-							<span>Shift+Enter for newline</span>
-						</div>
-					</div>
+
 
 					<Textarea
 						value={composerValue}
