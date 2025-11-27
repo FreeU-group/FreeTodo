@@ -33,5 +33,6 @@ lerna-debug.log*
 
 # Electron
 out
+release
 *.log
 

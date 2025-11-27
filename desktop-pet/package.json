@@ -7,10 +7,12 @@
     "dev": "concurrently \"npm run dev:vite\" \"wait-on http://localhost:5174 && npm run dev:electron\"",
     "dev:vite": "vite",
     "dev:electron": "npm run build:electron && electron .",
-    "build": "npm run build:electron && npm run build:vite",
+    "build": "npm run build:electron && npm run build:vite && npm run build:pack",
     "build:vite": "vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "preview": "vite preview"
+    "build:pack": "electron-builder",
+    "preview": "vite preview",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "react": "19.2.0",
@@ -28,5 +30,43 @@
     "vite": "^6.0.5",
     "wait-on": "^8.0.1"
   },
-  "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad"
+  "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad",
+  "build": {
+    "appId": "com.lifetrace.desktop-pet",
+    "productName": "LifeTrace 桌宠",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "LifeTrace-桌宠-${version}-portable.exe"
+    }
+  }
 }
