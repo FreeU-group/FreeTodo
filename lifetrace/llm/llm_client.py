@@ -13,25 +13,35 @@ logger = get_logger()
 
 
 class LLMClient:
-    """LLM客户端，用于与OpenAI兼容的API进行交互"""
+    """LLM客户端，用于与OpenAI兼容的API进行交互（单例模式）"""
+
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        """实现单例模式"""
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self):
         """
         初始化LLM客户端，从配置文件读取所有配置
         """
-        self._initialize_client()
-        # 初始化token使用量记录器，传入config对象以获取价格配置
-        setup_token_logger(config)
+        # 只初始化一次
+        if not LLMClient._initialized:
+            self._initialize_client()
+            # 初始化token使用量记录器，传入config对象以获取价格配置
+            setup_token_logger(config)
+            LLMClient._initialized = True
 
     def _initialize_client(self):
         """内部方法：初始化或重新初始化客户端"""
         try:
             # 从配置文件读取配置
-            self.api_key = config.llm_api_key
-            self.base_url = (
-                config.llm_base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
-            )
-            self.model = config.llm_model or "qwen3-max"
+            self.api_key = config.get("llm.api_key")
+            self.base_url = config.get("llm.base_url")
+            self.model = config.get("llm.model")
 
             # 检查关键配置是否为空或默认占位符
             invalid_values = [
@@ -252,64 +262,57 @@ class LLMClient:
             logger.error(f"LLM解析失败: {e}")
             return self._rule_based_parse(user_query)
 
+    def _build_context_text(self, context_data: list[dict[str, Any]]) -> str:
+        """构建上下文文本用于摘要生成"""
+        MAX_OCR_TEXT_LENGTH = 200
+        MAX_DISPLAYED_RECORDS = 10
+
+        if not context_data:
+            return "没有找到相关的历史记录数据。"
+
+        context_parts = [f"找到 {len(context_data)} 条相关记录:"]
+
+        for i, record in enumerate(context_data[:MAX_DISPLAYED_RECORDS]):
+            timestamp = record.get("timestamp", "未知时间")
+            if timestamp and timestamp != "未知时间":
+                try:
+                    from datetime import datetime
+
+                    dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    timestamp = dt.strftime("%Y-%m-%d %H:%M")
+                except:  # noqa: E722
+                    pass
+
+            app_name = record.get("app_name", "未知应用")
+            ocr_text = record.get("ocr_text", "无文本内容")
+            window_title = record.get("window_title", "")
+            screenshot_id = record.get("screenshot_id") or record.get("id")
+
+            if len(ocr_text) > MAX_OCR_TEXT_LENGTH:
+                ocr_text = ocr_text[:MAX_OCR_TEXT_LENGTH] + "..."
+
+            record_text = f"{i + 1}. [{app_name}] {timestamp}"
+            if window_title:
+                record_text += f" - {window_title}"
+            if screenshot_id:
+                record_text += f" [截图ID: {screenshot_id}]"
+            record_text += f"\n   内容: {ocr_text}"
+
+            context_parts.append(record_text)
+
+        if len(context_data) > MAX_DISPLAYED_RECORDS:
+            context_parts.append(f"... 还有 {len(context_data) - MAX_DISPLAYED_RECORDS} 条记录")
+
+        return "\n\n".join(context_parts)
+
     def generate_summary(self, query: str, context_data: list[dict[str, Any]]) -> str:
-        """
-        生成基于查询和上下文数据的总结
-
-        Args:
-            query: 用户的查询
-            context_data: 上下文数据列表
-
-        Returns:
-            生成的总结文本
-        """
+        """生成基于查询和上下文数据的总结"""
         if not self.is_available():
             logger.warning("LLM客户端不可用，使用规则总结")
             return self._fallback_summary(query, context_data)
 
-        # 构建系统提示，指导LLM生成结构化、重点突出的总结
         system_prompt = get_prompt("llm_client", "summary_generation")
-
-        # 构建用户提示，包含原始查询和检索结果
-        if not context_data:
-            context_text = "没有找到相关的历史记录数据。"
-        else:
-            # 构建上下文文本
-            context_parts = [f"找到 {len(context_data)} 条相关记录:"]
-
-            for i, record in enumerate(context_data[:10]):  # 最多显示10条
-                timestamp = record.get("timestamp", "未知时间")
-                if timestamp and timestamp != "未知时间":
-                    try:
-                        from datetime import datetime
-
-                        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                        timestamp = dt.strftime("%Y-%m-%d %H:%M")
-                    except:  # noqa: E722
-                        pass
-
-                app_name = record.get("app_name", "未知应用")
-                ocr_text = record.get("ocr_text", "无文本内容")
-                window_title = record.get("window_title", "")
-                screenshot_id = record.get("screenshot_id") or record.get("id")  # 获取截图ID
-
-                # 截断过长的文本
-                if len(ocr_text) > 200:
-                    ocr_text = ocr_text[:200] + "..."
-
-                record_text = f"{i + 1}. [{app_name}] {timestamp}"
-                if window_title:
-                    record_text += f" - {window_title}"
-                if screenshot_id:
-                    record_text += f" [截图ID: {screenshot_id}]"
-                record_text += f"\n   内容: {ocr_text}"
-
-                context_parts.append(record_text)
-
-            if len(context_data) > 10:
-                context_parts.append(f"... 还有 {len(context_data) - 10} 条记录")
-
-            context_text = "\n\n".join(context_parts)
+        context_text = self._build_context_text(context_data)
 
         user_prompt = f"""
 用户查询：{query}
@@ -331,7 +334,6 @@ class LLMClient:
                 extra_body={"enable_thinking": True},
             )
 
-            # 记录token使用量
             if hasattr(response, "usage") and response.usage:
                 log_token_usage(
                     model=self.model,
@@ -346,7 +348,6 @@ class LLMClient:
 
             result = response.choices[0].message.content.strip()
 
-            # 记录LLM响应到日志
             logger.info("=== LLM总结生成响应 ===")
             logger.info(f"用户查询: {query}")
             logger.info(f"LLM回复: {result}")

@@ -1,6 +1,5 @@
 """
-APScheduler 调度器管理模块
-用于管理 LifeTrace 的定时任务，包括 recorder 和 ocr
+APScheduler 调度器管理模块，用于管理 LifeTrace 的定时任务
 """
 
 import os
@@ -14,6 +13,7 @@ from apscheduler.events import (
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
@@ -41,22 +41,20 @@ class SchedulerManager:
         jobstores = {"default": SQLAlchemyJobStore(url=f"sqlite:///{scheduler_db_path}")}
 
         # 配置执行器（线程池）
-        max_workers = config.scheduler_max_workers
-        executors = {
-            "default": ThreadPoolExecutor(max_workers=max_workers),
-        }
+        max_workers = config.get("scheduler.max_workers")
+        executors = {"default": ThreadPoolExecutor(max_workers=max_workers)}
 
         # 调度器配置
         job_defaults = {
-            "coalesce": config.get("scheduler.coalesce", True),  # 合并错过的任务
-            "max_instances": config.get("scheduler.max_instances", 1),  # 同一任务同时只能有一个实例
+            "coalesce": config.get("scheduler.coalesce"),  # 合并错过的任务
+            "max_instances": config.get("scheduler.max_instances"),  # 同一任务同时只能有一个实例
             "misfire_grace_time": config.get(
-                "scheduler.misfire_grace_time", 60
+                "scheduler.misfire_grace_time"
             ),  # 错过触发时间的容忍度（秒）
         }
 
         # 创建调度器
-        timezone = config.scheduler_timezone
+        timezone = config.get("scheduler.timezone")
         self.scheduler = BackgroundScheduler(
             jobstores=jobstores,
             executors=executors,
@@ -272,8 +270,6 @@ class SchedulerManager:
             return False
 
         try:
-            from apscheduler.triggers.interval import IntervalTrigger
-
             # 构建间隔参数
             interval_kwargs = {}
             if seconds is not None:

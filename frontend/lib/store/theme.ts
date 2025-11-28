@@ -1,67 +1,68 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
-type Theme = 'light' | 'dark' | 'system';
+export type Theme = 'light' | 'dark' | 'system';
 
 interface ThemeState {
   theme: Theme;
+  _hasHydrated: boolean;
   setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
+  setHasHydrated: (state: boolean) => void;
 }
 
-export const useThemeStore = create<ThemeState>((set) => ({
-  theme: 'system',
-  setTheme: (theme) => {
-    set({ theme });
-    applyTheme(theme);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('lifetrace-theme', theme);
-    }
-  },
-  toggleTheme: () => {
-    set((state) => {
-      const newTheme = state.theme === 'light' ? 'dark' : 'light';
-      applyTheme(newTheme);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('lifetrace-theme', newTheme);
-      }
-      return { theme: newTheme };
+// 自定义存储：直接使用 'theme' key
+const themeStorage = {
+  getItem: () => {
+    if (typeof window === 'undefined') return null;
+
+    const theme = localStorage.getItem('theme') || 'system';
+
+    return JSON.stringify({
+      state: {
+        theme,
+        _hasHydrated: false,
+      },
     });
   },
-}));
+  setItem: (_name: string, value: string) => {
+    if (typeof window === 'undefined') return;
 
-function applyTheme(theme: Theme) {
-  if (typeof window === 'undefined') return;
+    try {
+      const data = JSON.parse(value);
+      const state = data.state || data;
 
-  const root = document.documentElement;
+      if (state.theme) {
+        localStorage.setItem('theme', state.theme);
+      }
 
-  if (theme === 'system') {
-    const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-    root.classList.remove('light', 'dark');
-    root.classList.add(systemTheme);
-  } else {
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
-  }
-}
-
-// 初始化主题
-if (typeof window !== 'undefined') {
-  const stored = localStorage.getItem('lifetrace-theme') as Theme | null;
-  if (stored && ['light', 'dark', 'system'].includes(stored)) {
-    applyTheme(stored);
-    useThemeStore.setState({ theme: stored });
-  } else {
-    applyTheme('system');
-  }
-
-  // 监听系统主题变化
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-  mediaQuery.addEventListener('change', () => {
-    const currentTheme = useThemeStore.getState().theme;
-    if (currentTheme === 'system') {
-      applyTheme('system');
+      // 清理旧的 key
+      localStorage.removeItem('lifetrace-theme');
+      localStorage.removeItem('theme-storage');
+      localStorage.removeItem('ui-config-storage');
+    } catch (e) {
+      console.error('Error saving theme:', e);
     }
-  });
-}
+  },
+  removeItem: () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('theme');
+  },
+};
+
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set) => ({
+      theme: 'system',
+      _hasHydrated: false,
+      setTheme: (theme) => set({ theme }),
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
+    }),
+    {
+      name: 'theme-config',
+      storage: createJSONStorage(() => themeStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
+    }
+  )
+);

@@ -224,6 +224,18 @@ export default function SchedulerPage() {
     });
   };
 
+  // 获取任务名称（根据 key 翻译）
+  const getJobName = (job: Job) => {
+    if (!job.name) return job.id;
+    // 如果 jobNames 中有对应的翻译，则使用翻译
+    const translatedName = t.scheduler.jobNames[job.name as keyof typeof t.scheduler.jobNames];
+    if (translatedName) {
+      return translatedName;
+    }
+    // 否则直接返回原名称（向后兼容）
+    return job.name;
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* 页面标题 */}
@@ -345,10 +357,10 @@ export default function SchedulerPage() {
               <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t.scheduler.taskName}
+                    {t.scheduler.jobName}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    {t.scheduler.taskId}
+                    {t.scheduler.jobId}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     {t.scheduler.trigger}
@@ -384,16 +396,11 @@ export default function SchedulerPage() {
                     <tr key={job.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                          {job.name || job.id}
+                          {getJobName(job)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm text-gray-600 dark:text-gray-400">{job.id}</span>
-                          <code className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-900 px-2 py-1 rounded">
-                            {job.func}
-                          </code>
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">{job.id}</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-sm">{job.trigger}</span>

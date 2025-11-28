@@ -9,7 +9,6 @@ from lifetrace.jobs.ocr import SimpleOCRProcessor
 from lifetrace.llm.rag_service import RAGService
 from lifetrace.llm.vector_service import create_vector_service
 from lifetrace.routers import (
-    behavior,
     chat,
     context,
     cost_tracking,
@@ -30,12 +29,10 @@ from lifetrace.routers import (
 from lifetrace.routers import config as config_router
 from lifetrace.routers import dependencies as deps
 from lifetrace.util.config import config
-from lifetrace.util.config_watcher import ConfigChangeType, get_config_watcher
-from lifetrace.util.llm_config_handler import get_llm_config_handler
 from lifetrace.util.logging_config import get_logger, setup_logging
 
 # 使用处理后的日志路径配置
-logging_config = config.get("logging", {}).copy()
+logging_config = config.get("logging").copy()
 logging_config["log_path"] = config.log_path
 setup_logging(logging_config)
 
@@ -43,32 +40,18 @@ logger = get_logger()
 
 # 全局管理器实例
 job_manager = None
-config_watcher = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global job_manager, config_watcher
+    global job_manager
 
     # 启动逻辑
     logger.info("Web服务器启动")
 
-    # 初始化配置监听管理器
-    config_watcher = get_config_watcher()
-
-    # 初始化 LLM 配置处理器
-    llm_config_handler = get_llm_config_handler(deps, config)
-
     # 初始化任务管理器
     job_manager = get_job_manager()
-
-    # 注册配置变更处理器
-    config_watcher.register_handler(ConfigChangeType.LLM, llm_config_handler)
-    config_watcher.register_handler(ConfigChangeType.JOBS, job_manager)
-
-    # 启动配置文件监听
-    config_watcher.start_watching()
 
     # 启动所有后台任务
     job_manager.start_all()
@@ -81,10 +64,6 @@ async def lifespan(app: FastAPI):
     # 停止所有后台任务
     if job_manager:
         job_manager.stop_all()
-
-    # 停止配置文件监听
-    if config_watcher:
-        config_watcher.stop_watching()
 
 
 app = FastAPI(
@@ -114,7 +93,9 @@ vector_service = create_vector_service(config)
 
 # 初始化RAG服务 - 从配置文件读取API配置
 rag_service = RAGService()
-logger.info(f"RAG服务初始化完成 - 模型: {config.llm_model}, Base URL: {config.llm_base_url}")
+logger.info(
+    f"RAG服务初始化完成 - 模型: {config.get('llm.model')}, Base URL: {config.get('llm.base_url')}"
+)
 
 # 全局配置状态标志
 is_llm_configured = config.is_configured()
@@ -142,7 +123,6 @@ app.include_router(ocr.router)
 app.include_router(vector.router)
 app.include_router(system.router)
 app.include_router(logs.router)
-app.include_router(behavior.router)
 app.include_router(project.router)
 app.include_router(task.router)
 app.include_router(context.router)
@@ -153,13 +133,17 @@ app.include_router(time_allocation.router)
 
 
 if __name__ == "__main__":
-    logger.info(f"启动服务器: http://{config.server_host}:{config.server_port}")
-    logger.info(f"调试模式: {'开启' if config.server_debug else '关闭'}")
+    server_host = config.get("server.host")
+    server_port = config.get("server.port")
+    server_debug = config.get("server.debug")
+
+    logger.info(f"启动服务器: http://{server_host}:{server_port}")
+    logger.info(f"调试模式: {'开启' if server_debug else '关闭'}")
     uvicorn.run(
         "lifetrace.server:app",
-        host=config.server_host,
-        port=config.server_port,
-        reload=config.server_debug,
-        access_log=config.server_debug,
-        log_level="debug" if config.server_debug else "info",
+        host=server_host,
+        port=server_port,
+        reload=server_debug,
+        access_log=server_debug,
+        log_level="debug" if server_debug else "info",
     )

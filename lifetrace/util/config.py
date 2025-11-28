@@ -1,10 +1,8 @@
-import copy
 import os
+import re
 import shutil
 import sys
 import threading
-import time
-from collections.abc import Callable
 from pathlib import Path
 
 import yaml
@@ -13,14 +11,100 @@ from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
 
-# 尝试导入watchdog，如果不可用则优雅降级
-try:
-    from watchdog.events import FileSystemEventHandler
-    from watchdog.observers import Observer
 
-    WATCHDOG_AVAILABLE = True
-except ImportError:
-    WATCHDOG_AVAILABLE = False
+def backend_to_frontend_key(backend_key: str) -> str:
+    """将后端配置键转换为前端格式（驼峰命名）
+
+    将点和下划线都视为分隔符，转换为驼峰命名。
+    例如：
+    - jobs.recorder.params.auto_exclude_self -> jobsRecorderParamsAutoExcludeSelf
+    - llm.api_key -> llmApiKey
+    - ui.theme -> uiTheme
+
+    Args:
+        backend_key: 后端配置键（如 jobs.recorder.params.auto_exclude_self）
+
+    Returns:
+        前端配置键（驼峰形式，如 jobsRecorderParamsAutoExcludeSelf）
+    """
+    # 将点和下划线都替换为空格，然后分割
+    parts = re.split(r"[._]", backend_key)
+    # 第一个部分保持小写，其余部分首字母大写
+    if not parts:
+        return backend_key
+    return parts[0].lower() + "".join(word.capitalize() for word in parts[1:])
+
+
+def _process_nested_path_parts(parts: list[str], i: int, result: list[str]) -> int:
+    """处理嵌套的配置路径部分"""
+    # 如果是 clean_data，特殊处理
+    if i < len(parts) and i > 0 and parts[i - 1] == "clean" and parts[i] == "data":
+        result[-1] = result[-1] + "_data"
+        i += 1
+
+    # 第三级路径（如 params）
+    if i < len(parts) and parts[i] in ["params"]:
+        result.append("." + parts[i])
+        i += 1
+
+        # 第四级路径（如 blacklist）
+        if i < len(parts) and parts[i] in ["blacklist", "auto"]:
+            result.append("." + parts[i])
+            i += 1
+            # 剩余部分用下划线连接
+            if i < len(parts):
+                result[-1] = result[-1] + "_" + "_".join(parts[i:])
+        # 剩余部分用下划线连接
+        elif i < len(parts):
+            result.append("." + "_".join(parts[i:]))
+    # 剩余部分用下划线连接
+    elif i < len(parts):
+        result.append("." + "_".join(parts[i:]))
+
+    return i
+
+
+def frontend_to_backend_key(frontend_key: str) -> str:
+    """将前端配置键转换为后端格式（下划线命名）
+
+    将驼峰命名转换回下划线命名，同时识别原本是点分隔的路径部分。
+    例如：
+    - jobsRecorderParamsAutoExcludeSelf -> jobs.recorder.params.auto_exclude_self
+    - llmApiKey -> llm.api_key
+    - uiTheme -> ui.theme
+    """
+    # 在大写字母前插入下划线，然后转小写
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", frontend_key)
+    snake_case = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+    # 常见的顶级路径段
+    path_segments = ["jobs", "llm", "ui", "server", "chat", "vector", "logging", "scheduler"]
+    # 常见的二级路径
+    second_level_segments = ["recorder", "clean", "ocr", "task"]
+
+    for segment in path_segments:
+        if not snake_case.startswith(segment + "_"):
+            continue
+
+        parts = snake_case.split("_")
+        result = [parts[0]]  # 第一部分（如 jobs）
+
+        i = 1
+        if i >= len(parts):
+            return "".join(result)
+
+        # 第二级路径（如 recorder）
+        if parts[i] in second_level_segments:
+            result.append("." + parts[i])
+            i += 1
+            i = _process_nested_path_parts(parts, i, result)
+        else:
+            # 第二级直接是配置项
+            result.append("." + "_".join(parts[i:]))
+
+        return "".join(result)
+
+    return snake_case
 
 
 class LifeTraceConfig:
@@ -34,13 +118,8 @@ class LifeTraceConfig:
 
         self._config = self._load_config()
 
-        # 配置热重载相关
-        self._callbacks = []  # 配置变更回调列表
-        self._config_lock = threading.RLock()  # 线程安全锁
-        self._observer = None  # watchdog观察者
-        self._watching = False  # 是否正在监听
-        self._last_reload_time = 0  # 最后重载时间（用于防抖）
-        self._debounce_delay = 0.5  # 防抖延迟（秒）
+        # 线程安全锁（用于 set 方法）
+        self._config_lock = threading.RLock()
 
     def _get_application_path(self) -> str:
         """获取应用程序路径，兼容PyInstaller打包"""
@@ -70,15 +149,93 @@ class LifeTraceConfig:
         # 如果两者都不存在，返回config.yaml的路径
         return project_config
 
+    def _get_all_keys(self, config_dict: dict, prefix: str = "") -> set:
+        """递归获取配置字典中的所有键（使用点分隔的完整路径）
+
+        Args:
+            config_dict: 配置字典
+            prefix: 键前缀（用于递归）
+
+        Returns:
+            包含所有键路径的集合
+        """
+        keys = set()
+        for key, value in config_dict.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            keys.add(full_key)
+            if isinstance(value, dict):
+                # 递归获取嵌套字典的键
+                keys.update(self._get_all_keys(value, full_key))
+        return keys
+
+    def _validate_config_completeness(self):
+        """验证 config.yaml 是否包含 default_config.yaml 中的所有键
+
+        如果 config.yaml 缺少某些键，则抛出异常并停止程序
+        """
+        # 获取 default_config.yaml 路径
+        config_dir = os.path.dirname(self.config_path)
+        default_config_path = os.path.join(config_dir, "default_config.yaml")
+
+        # 检查 default_config.yaml 是否存在
+        if not os.path.exists(default_config_path):
+            logger.warning(f"默认配置文件不存在: {default_config_path}，跳过完整性检查")
+            return
+
+        try:
+            # 加载 default_config.yaml
+            with open(default_config_path, encoding="utf-8") as f:
+                default_config = yaml.safe_load(f)
+                if not default_config:
+                    logger.warning("默认配置文件为空，跳过完整性检查")
+                    return
+
+            # 加载 config.yaml
+            with open(self.config_path, encoding="utf-8") as f:
+                current_config = yaml.safe_load(f)
+                if not current_config:
+                    raise ValueError(f"配置文件内容为空: {self.config_path}")
+
+            # 获取所有键
+            default_keys = self._get_all_keys(default_config)
+            current_keys = self._get_all_keys(current_config)
+
+            # 检查缺失的键
+            missing_keys = default_keys - current_keys
+
+            if missing_keys:
+                # 按字母顺序排序缺失的键，便于阅读
+                sorted_missing_keys = sorted(missing_keys)
+                error_message = (
+                    f"❌ 配置文件不完整！\n\n"
+                    f"config.yaml 缺少以下配置项（共 {len(missing_keys)} 个）：\n\n"
+                )
+                for key in sorted_missing_keys:
+                    error_message += f"  - {key}\n"
+                error_message += (
+                    f"\n请检查并更新 config.yaml（参考 default_config.yaml），"
+                    f"或删除 config.yaml 让系统重新生成。\n\n"
+                    f">> 默认配置文件路径: {default_config_path}\n"
+                    f">> 当前配置文件路径: {self.config_path}\n"
+                )
+
+                logger.error(error_message)
+                sys.exit(1)
+
+            logger.info(f"✅ 配置文件完整性检查通过，共 {len(default_keys)} 个配置项")
+
+        except yaml.YAMLError as e:
+            raise ValueError(f"配置文件格式错误: {e}") from e
+        except Exception as e:
+            if isinstance(e, ValueError) and "配置文件不完整" in str(e):
+                # 重新抛出我们自己的错误
+                sys.exit(1)
+            raise RuntimeError(f"配置完整性检查失败: {e}") from e
+
     def _init_config_file(self):
         """初始化配置文件
         检查config.yaml是否存在，如果不存在则从default_config.yaml复制
         """
-        # 如果config.yaml已存在，无需初始化
-        if os.path.exists(self.config_path):
-            logger.debug(f"配置文件已存在: {self.config_path}")
-            return
-
         # 获取default_config.yaml路径
         config_dir = os.path.dirname(self.config_path)
         default_config_path = os.path.join(config_dir, "default_config.yaml")
@@ -90,9 +247,15 @@ class LifeTraceConfig:
                 "请确保 default_config.yaml 文件存在于 config 目录中"
             )
 
-        try:
-            # 复制default_config.yaml到config.yaml
+        # 如果config.yaml已存在，检查完整性
+        if os.path.exists(self.config_path):
+            logger.debug(f"配置文件已存在: {self.config_path}")
+            # 验证配置文件完整性
+            self._validate_config_completeness()
+            return
 
+        # 如果config.yaml不存在，从default_config.yaml复制
+        try:
             shutil.copy2(default_config_path, self.config_path)
             logger.info(f"已从默认配置创建配置文件: {self.config_path}")
         except Exception as e:
@@ -170,15 +333,31 @@ class LifeTraceConfig:
         except Exception as e:
             raise RuntimeError(f"保存配置文件失败: {e}") from e
 
-    def get(self, key: str, default=None):
-        """获取配置值"""
+    def get(self, key: str):
+        """获取配置值
+
+        Args:
+            key: 配置键（支持点号分隔的嵌套键）
+
+        Returns:
+            配置值
+
+        Raises:
+            KeyError: 如果配置键不存在
+        """
         keys = key.split(".")
         value = self._config
-        for k in keys:
+        for i, k in enumerate(keys):
             if isinstance(value, dict) and k in value:
                 value = value[k]
             else:
-                return default
+                # 构建已访问的路径，用于错误提示
+                visited_path = ".".join(keys[:i]) if i > 0 else "root"
+                raise KeyError(
+                    f"配置键 '{key}' 不存在。"
+                    f"在路径 '{visited_path}' 中找不到键 '{k}'。"
+                    f"请检查配置文件 {self.config_path}"
+                )
         return value
 
     def set(self, key: str, value, persist: bool = True):
@@ -220,7 +399,7 @@ class LifeTraceConfig:
     @property
     def database_path(self) -> str:
         """数据库路径"""
-        db_path = self.get("database_path", "lifetrace.db")
+        db_path = self.get("database_path")
         # 如果是相对路径，基于base_dir拼接
         if not os.path.isabs(db_path):
             db_path = os.path.join(self.base_dir, db_path)
@@ -229,7 +408,7 @@ class LifeTraceConfig:
     @property
     def screenshots_dir(self) -> str:
         """截图目录路径"""
-        screenshots_dir = self.get("screenshots_dir", "screenshots")
+        screenshots_dir = self.get("screenshots_dir")
         if not os.path.isabs(screenshots_dir):
             # 如果是相对路径，先转换为相对于项目根目录的路径
             screenshots_dir = os.path.join(self.base_dir, screenshots_dir)
@@ -238,77 +417,20 @@ class LifeTraceConfig:
     @property
     def log_path(self) -> str:
         """日志目录路径"""
-        log_path = self.get("logging.log_path", "logs/")
+        log_path = self.get("logging.log_path")
         if not os.path.isabs(log_path):
             # 如果是相对路径，基于base_dir拼接
             log_path = os.path.join(self.base_dir, log_path)
         return log_path
 
     @property
-    def vector_db_enabled(self) -> bool:
-        return self.get("vector_db.enabled", True)
-
-    @property
-    def vector_db_collection_name(self) -> str:
-        return self.get("vector_db.collection_name", "lifetrace_ocr")
-
-    @property
-    def vector_db_embedding_model(self) -> str:
-        return self.get("vector_db.embedding_model", "shibing624/text2vec-base-chinese")
-
-    @property
-    def vector_db_rerank_model(self) -> str:
-        return self.get("vector_db.rerank_model", "BAAI/bge-reranker-base")
-
-    @property
     def vector_db_persist_directory(self) -> str:
-        persist_dir = self.get("vector_db.persist_directory", "vector_db")
+        persist_dir = self.get("vector_db.persist_directory")
         if not os.path.isabs(persist_dir):
             return os.path.join(self.base_dir, persist_dir)
         return persist_dir
 
-    # LLM配置属性
-    @property
-    def llm_api_key(self) -> str:
-        """LLM 密钥"""
-        return self.get("llm.api_key", "")
-
-    @property
-    def llm_base_url(self) -> str:
-        """LLM API基础URL"""
-        return self.get("llm.base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-
-    @property
-    def llm_model(self) -> str:
-        """LLM模型名称"""
-        return self.get("llm.model", "qwen3-max")
-
-    @property
-    def llm_temperature(self) -> float:
-        """LLM温度参数"""
-        return self.get("llm.temperature", 0.7)
-
-    @property
-    def llm_max_tokens(self) -> int:
-        """LLM最大token数"""
-        return self.get("llm.max_tokens", 2048)
-
-    # 服务器配置属性
-    @property
-    def server_host(self) -> str:
-        """服务器主机地址"""
-        return self.get("server.host", "127.0.0.1")
-
-    @property
-    def server_port(self) -> int:
-        """服务器端口"""
-        return self.get("server.port", 8000)
-
-    @property
-    def server_debug(self) -> bool:
-        """服务器调试模式"""
-        return self.get("server.debug", False)
-
+    # LLM价格相关属性（需要特殊处理逻辑）
     @property
     def llm_input_token_price(self) -> float:
         """LLM输入token价格（元/千token）
@@ -316,19 +438,33 @@ class LifeTraceConfig:
         根据当前使用的模型从model_prices中获取价格，
         如果找不到对应模型的价格，则使用default价格
         """
-        model_prices = self.get("llm.model_prices", {})
-        current_model = self.llm_model
+        model_prices = self.get("llm.model_prices")
+        current_model = self.get("llm.model")
 
         # 先尝试获取当前模型的价格
         if current_model in model_prices:
-            return model_prices[current_model].get("input_price", 0.0)
+            if "input_price" not in model_prices[current_model]:
+                raise KeyError(
+                    f"配置键 'llm.model_prices.{current_model}.input_price' 不存在。"
+                    f"请检查配置文件 {self.config_path}"
+                )
+            return model_prices[current_model]["input_price"]
 
         # 如果没有找到，使用默认价格
-        if "default" in model_prices:
-            return model_prices["default"].get("input_price", 0.0)
+        if "default" not in model_prices:
+            raise KeyError(
+                f"配置键 'llm.model_prices.default' 不存在。"
+                f"请在配置文件中为模型 '{current_model}' 配置价格，或配置默认价格。"
+                f"请检查配置文件 {self.config_path}"
+            )
 
-        # 兼容旧的配置方式
-        return self.get("llm.input_token_price", 0.0)
+        if "input_price" not in model_prices["default"]:
+            raise KeyError(
+                f"配置键 'llm.model_prices.default.input_price' 不存在。"
+                f"请检查配置文件 {self.config_path}"
+            )
+
+        return model_prices["default"]["input_price"]
 
     @property
     def llm_output_token_price(self) -> float:
@@ -337,44 +473,43 @@ class LifeTraceConfig:
         根据当前使用的模型从model_prices中获取价格，
         如果找不到对应模型的价格，则使用default价格
         """
-        model_prices = self.get("llm.model_prices", {})
-        current_model = self.llm_model
+        model_prices = self.get("llm.model_prices")
+        current_model = self.get("llm.model")
 
         # 先尝试获取当前模型的价格
         if current_model in model_prices:
-            return model_prices[current_model].get("output_price", 0.0)
+            if "output_price" not in model_prices[current_model]:
+                raise KeyError(
+                    f"配置键 'llm.model_prices.{current_model}.output_price' 不存在。"
+                    f"请检查配置文件 {self.config_path}"
+                )
+            return model_prices[current_model]["output_price"]
 
         # 如果没有找到，使用默认价格
-        if "default" in model_prices:
-            return model_prices["default"].get("output_price", 0.0)
+        if "default" not in model_prices:
+            raise KeyError(
+                f"配置键 'llm.model_prices.default' 不存在。"
+                f"请在配置文件中为模型 '{current_model}' 配置价格，或配置默认价格。"
+                f"请检查配置文件 {self.config_path}"
+            )
 
-        # 兼容旧的配置方式
-        return self.get("llm.output_token_price", 0.0)
+        if "output_price" not in model_prices["default"]:
+            raise KeyError(
+                f"配置键 'llm.model_prices.default.output_price' 不存在。"
+                f"请检查配置文件 {self.config_path}"
+            )
 
-    # 调度器配置属性
-    @property
-    def scheduler_enabled(self) -> bool:
-        """是否启用调度器"""
-        return self.get("scheduler.enabled", True)
+        return model_prices["default"]["output_price"]
 
+    # 调度器配置属性（需要路径拼接）
     @property
     def scheduler_database_path(self) -> str:
         """调度器数据库路径"""
-        db_path = self.get("scheduler.database_path", "scheduler.db")
+        db_path = self.get("scheduler.database_path")
         # 如果是相对路径，基于base_dir拼接
         if not os.path.isabs(db_path):
             db_path = os.path.join(self.base_dir, db_path)
         return db_path
-
-    @property
-    def scheduler_max_workers(self) -> int:
-        """调度器最大工作线程数"""
-        return self.get("scheduler.max_workers", 10)
-
-    @property
-    def scheduler_timezone(self) -> str:
-        """调度器时区"""
-        return self.get("scheduler.timezone", "Asia/Shanghai")
 
     def is_configured(self) -> bool:
         """检查LLM配置是否已完成
@@ -382,8 +517,8 @@ class LifeTraceConfig:
         Returns:
             bool: 如果llm_key和base_url都已配置（不是占位符或空），返回True
         """
-        llm_key = self.llm_api_key
-        base_url = self.llm_base_url
+        llm_key = self.get("llm.api_key")
+        base_url = self.get("llm.base_url")
         # 检查是否为空或占位符
         invalid_values = [
             "",
@@ -394,142 +529,30 @@ class LifeTraceConfig:
         ]
         return llm_key not in invalid_values and base_url not in invalid_values
 
-    # ==================== 配置热重载相关方法 ====================
-
     def reload(self) -> bool:
         """重新加载配置文件
+        注意：仅用于前端主动刷新配置，不会自动监听文件变化
 
         Returns:
             bool: 是否成功重载
         """
         try:
             with self._config_lock:
-                # 保存旧配置的深拷贝
-                old_config = copy.deepcopy(self._config)
+                # 验证配置文件完整性
+                self._validate_config_completeness()
 
                 # 重新加载配置
                 new_config = self._load_config()
-
-                # 检查配置是否有变化
-                if new_config == old_config:
-                    logger.debug("配置文件未发生变化，跳过重载")
-                    return True
 
                 # 更新配置
                 self._config = new_config
 
                 logger.info("配置文件已重新加载")
-
-                # 触发回调
-                for callback in self._callbacks:
-                    try:
-                        callback(old_config, new_config)
-                    except Exception as e:
-                        logger.error(f"配置变更回调执行失败: {e}")
-
                 return True
 
         except Exception as e:
             logger.error(f"配置重载失败: {e}")
             return False
-
-    def register_callback(self, callback: Callable[[dict, dict], None]):
-        """注册配置变更回调
-
-        Args:
-            callback: 回调函数，接收两个参数：(old_config, new_config)
-        """
-        if callback not in self._callbacks:
-            self._callbacks.append(callback)
-            logger.debug(f"已注册配置变更回调: {callback.__name__}")
-
-    def unregister_callback(self, callback: Callable[[dict, dict], None]):
-        """取消注册配置变更回调
-
-        Args:
-            callback: 要取消的回调函数
-        """
-        if callback in self._callbacks:
-            self._callbacks.remove(callback)
-            logger.debug(f"已取消配置变更回调: {callback.__name__}")
-
-    def start_watching(self):
-        """启动配置文件监听"""
-        if not WATCHDOG_AVAILABLE:
-            logger.warning("watchdog库不可用，无法启动配置文件监听")
-            return False
-
-        if self._watching:
-            logger.debug("配置文件监听已在运行")
-            return True
-
-        try:
-            # 创建配置文件监听处理器
-            event_handler = ConfigFileEventHandler(self)
-
-            # 创建观察者
-            self._observer = Observer()
-
-            # 监听配置文件所在目录
-            config_dir = os.path.dirname(self.config_path)
-            if not config_dir:
-                config_dir = "."
-
-            self._observer.schedule(event_handler, config_dir, recursive=False)
-            self._observer.start()
-
-            self._watching = True
-            logger.info(f"已启动配置文件监听: {self.config_path}")
-            return True
-
-        except Exception as e:
-            logger.error(f"启动配置文件监听失败: {e}")
-            return False
-
-    def stop_watching(self):
-        """停止配置文件监听"""
-        if not self._watching:
-            return
-
-        try:
-            if self._observer:
-                self._observer.stop()
-                self._observer.join(timeout=2)
-                self._observer = None
-
-            self._watching = False
-            logger.info("已停止配置文件监听")
-
-        except Exception as e:
-            logger.error(f"停止配置文件监听失败: {e}")
-
-    def _should_reload(self) -> bool:
-        """检查是否应该重载配置（防抖）"""
-        current_time = time.time()
-        if current_time - self._last_reload_time < self._debounce_delay:
-            return False
-        self._last_reload_time = current_time
-        return True
-
-
-class ConfigFileEventHandler(FileSystemEventHandler):
-    """配置文件变更事件处理器"""
-
-    def __init__(self, config: LifeTraceConfig):
-        super().__init__()
-        self.config = config
-
-    def on_modified(self, event):
-        """文件修改事件"""
-        if event.is_directory:
-            return
-
-        # 只处理配置文件的修改
-        if os.path.abspath(event.src_path) == os.path.abspath(self.config.config_path):
-            if self.config._should_reload():
-                logger.info(f"检测到配置文件变更: {event.src_path}")
-                # 延迟一小段时间，确保文件写入完成
-                threading.Timer(0.1, self.config.reload).start()
 
 
 # 全局配置实例

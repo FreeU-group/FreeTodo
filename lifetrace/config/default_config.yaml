@@ -1,5 +1,11 @@
 # LifeTrace 默认配置文件
 
+# ！！！重要提示：
+# 请勿编辑此文件 default_config.yaml，所有配置都应在 config.yaml 中进行设置
+# 如果 config.yaml 不存在，系统会自动从 default_config.yaml 复制并生成
+# 如果 config.yaml 存在，系统会自动验证完整性，如果不完整，系统会自动提示并退出
+# 当此提示出现在 config.yaml 中时，请忽略
+
 # 服务器配置
 server:
   host: 127.0.0.1
@@ -29,43 +35,56 @@ scheduler:
 # 定时任务
 jobs:
   recorder:
-    name: '屏幕录制'  # 任务显示名称
+    id: recorder  # 任务ID
+    name: '屏幕录制'  # 任务显示名称（中文）
     enabled: true  # 是否启用录制器任务
     interval: 10 # 截图间隔（秒）
-    screens: all  # 截图屏幕：all 或屏幕编号列表
-    auto_exclude_self: true # 自动排除 LifeTrace 自身窗口
-    deduplicate: true  # 启用截图去重（通过文件哈希避免保存重复截图）
-    hash_threshold: 5  # 图像哈希去重阈值（汉明距离），值越小越严格
-    blacklist:
-      enabled: false # 是否启用黑名单功能
-      apps: ["微信"]  # 应用黑名单，使用友好名称，例如: ["微信", "QQ", "钉钉"]
-      windows: []  # 窗口标题黑名单，例如: ["记事本", "计算器"]
+    params:
+      screens: all  # 截图屏幕：all 或屏幕编号列表
+      auto_exclude_self: true # 自动排除 LifeTrace 自身窗口
+      deduplicate: true  # 启用截图去重（通过文件哈希避免保存重复截图）
+      hash_threshold: 5  # 图像哈希去重阈值（汉明距离），值越小越严格
+      file_io_timeout: 15  # 文件I/O操作超时时间（秒）
+      db_timeout: 20  # 数据库操作超时时间（秒）
+      window_info_timeout: 5  # 获取窗口信息超时时间（秒）
+      blacklist:
+        enabled: false # 是否启用黑名单功能
+        apps: ["微信"]  # 应用黑名单，使用友好名称，例如: ["微信", "QQ", "钉钉"]
+        windows: []  # 窗口标题黑名单，例如: ["记事本", "计算器"]
   ocr:
-    name: OCR识别  # 任务显示名称
+    id: ocr  # 任务ID
+    name: OCR识别  # 任务显示名称（中文）
     enabled: true  # 是否启用OCR任务
     interval: 10  # 数据库检查间隔（秒）
-    use_gpu: false
-    language: ["ch", "en"]
-    confidence_threshold: 0.5
+    params:
+      use_gpu: false
+      language: ["ch", "en"]
+      confidence_threshold: 0.5
   task_context_mapper:
-    name: 任务上下文映射  # 任务显示名称
+    id: task_context_mapper  # 任务ID
+    name: 任务上下文映射  # 任务显示名称（中文）
     enabled: false  # 是否启用任务上下文映射服务（默认关闭，需要时手动开启）
     interval: 60  # 检查间隔（秒）
-    batch_size: 100  # 每次处理的上下文数量
-    project_confidence_threshold: 0.7  # 项目置信度阈值，只有超过此阈值的项目关联才会被应用
-    task_confidence_threshold: 0.7  # 任务置信度阈值，只有超过此阈值的任务关联才会被应用
+    params:
+      batch_size: 100  # 每次处理的上下文数量
+      project_confidence_threshold: 0.7  # 项目置信度阈值，只有超过此阈值的项目关联才会被应用
+      task_confidence_threshold: 0.7  # 任务置信度阈值，只有超过此阈值的任务关联才会被应用
   task_summary:
-    name: 任务摘要生成  # 任务显示名称
+    id: task_summary  # 任务ID
+    name: 任务摘要生成  # 任务显示名称（中文）
     enabled: false  # 是否启用任务摘要服务（默认关闭，需要时手动开启）
     interval: 3600  # 检查间隔（秒）
-    min_new_contexts: 5  # 触发摘要的最小新上下文数量
+    params:
+      min_new_contexts: 5  # 触发摘要的最小新上下文数量
   clean_data:
-    name: 截图清理  # 任务显示名称
+    id: clean_data  # 任务ID
+    name: 截图清理  # 任务显示名称（中文）
     enabled: false  # 是否启用截图清理任务（默认关闭，需要时手动开启）
     interval: 3600  # 检查间隔（秒），默认每小时检查一次
-    max_screenshots: 10000  # 最大截图数量限制
-    max_days: 30  # 数据保留天数（按日期清理旧数据）
-    delete_file_only: true  # 只删除文件（true），还是同时删除记录（false）
+    params:
+      max_screenshots: 10000  # 最大截图数量限制
+      max_days: 30  # 数据保留天数（按日期清理旧数据）
+      delete_file_only: true  # 只删除文件（true），还是同时删除记录（false）
 
 # 向量数据库配置
 vector_db:

@@ -16,34 +16,34 @@ interface SettingsModalProps {
 }
 
 interface ConfigSettings {
-  llmKey: string;
-  baseUrl: string;
-  model: string;
-  temperature: number;
-  maxTokens: number;
-  recordEnabled: boolean;
-  recordInterval: number;
-  blacklistEnabled: boolean;
-  blacklistApps: string[];
-  chatContextEnabled: boolean;
-  chatContextRounds: number;
+  llmApiKey: string;
+  llmBaseUrl: string;
+  llmModel: string;
+  llmTemperature: number;
+  llmMaxTokens: number;
+  jobsRecorderEnabled: boolean;
+  jobsRecorderInterval: number;
+  jobsRecorderParamsBlacklistEnabled: boolean;
+  jobsRecorderParamsBlacklistApps: string[];
+  chatEnableHistory: boolean;
+  chatHistoryLimit: number;
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const { locale } = useLocaleStore();
   const t = useTranslations(locale);
   const [settings, setSettings] = useState<ConfigSettings>({
-    llmKey: '',
-    baseUrl: '',
-    model: 'qwen3-max',
-    temperature: 0.7,
-    maxTokens: 2048,
-    recordEnabled: true,
-    recordInterval: 5,
-    blacklistEnabled: false,
-    blacklistApps: [],
-    chatContextEnabled: true,
-    chatContextRounds: 3,
+    llmApiKey: '',
+    llmBaseUrl: '',
+    llmModel: 'qwen3-max',
+    llmTemperature: 0.7,
+    llmMaxTokens: 2048,
+    jobsRecorderEnabled: true,
+    jobsRecorderInterval: 5,
+    jobsRecorderParamsBlacklistEnabled: false,
+    jobsRecorderParamsBlacklistApps: [],
+    chatEnableHistory: true,
+    chatHistoryLimit: 3,
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,10 +56,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [showProjectManagement, setShowProjectManagement] = useState(false);
   const [initialShowProjectManagement, setInitialShowProjectManagement] = useState(false); // 记录初始值
   const [blacklistInput, setBlacklistInput] = useState(''); // 黑名单输入框的值
-  const [initialLlmConfig, setInitialLlmConfig] = useState<{ llmKey: string; baseUrl: string; model: string }>({
-    llmKey: '',
-    baseUrl: '',
-    model: 'qwen3-max',
+  const [initialLlmConfig, setInitialLlmConfig] = useState<{ llmApiKey: string; llmBaseUrl: string; llmModel: string }>({
+    llmApiKey: '',
+    llmBaseUrl: '',
+    llmModel: 'qwen3-max',
   }); // 记录初始 LLM 配置
 
   // 加载配置
@@ -93,30 +93,30 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       if (response.data.success) {
         const config = response.data.config;
         // 处理黑名单应用列表
-        const apps = config.blacklistApps || [];
+        const apps = config.jobsRecorderParamsBlacklistApps || [];
         const blacklistAppsArray = Array.isArray(apps) ? apps : (typeof apps === 'string' ? apps.split(',').map((s: string) => s.trim()).filter((s: string) => s) : []);
 
         const newSettings = {
-          llmKey: config.llmKey || '',
-          baseUrl: config.baseUrl || '',
-          model: config.model || 'qwen3-max',
-          temperature: config.temperature || 0.7,
-          maxTokens: config.maxTokens || 2048,
-          recordEnabled: config.recordingEnabled ?? config.recordEnabled ?? config.record?.enabled ?? true,
-          recordInterval: config.recordInterval || 5,
-          blacklistEnabled: config.blacklistEnabled ?? false,
-          blacklistApps: blacklistAppsArray,
-          chatContextEnabled: config.chatContextEnabled ?? true,
-          chatContextRounds: config.chatContextRounds || 3,
+          llmApiKey: config.llmApiKey || '',
+          llmBaseUrl: config.llmBaseUrl || '',
+          llmModel: config.llmModel || 'qwen3-max',
+          llmTemperature: config.llmTemperature || 0.7,
+          llmMaxTokens: config.llmMaxTokens || 2048,
+          jobsRecorderEnabled: config.jobsRecorderEnabled ?? true,
+          jobsRecorderInterval: config.jobsRecorderInterval || 5,
+          jobsRecorderParamsBlacklistEnabled: config.jobsRecorderParamsBlacklistEnabled ?? false,
+          jobsRecorderParamsBlacklistApps: blacklistAppsArray,
+          chatEnableHistory: config.chatEnableHistory ?? true,
+          chatHistoryLimit: config.chatHistoryLimit || 3,
         };
 
         setSettings(newSettings);
 
         // 记录初始 LLM 配置
         setInitialLlmConfig({
-          llmKey: newSettings.llmKey,
-          baseUrl: newSettings.baseUrl,
-          model: newSettings.model,
+          llmApiKey: newSettings.llmApiKey,
+          llmBaseUrl: newSettings.llmBaseUrl,
+          llmModel: newSettings.llmModel,
         });
       }
     } catch (error) {
@@ -129,7 +129,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const handleTest = async () => {
-    if (!settings.llmKey || !settings.baseUrl) {
+    if (!settings.llmApiKey || !settings.llmBaseUrl) {
       setMessage({ type: 'error', text: t.settings.apiKeyRequired });
       return;
     }
@@ -138,9 +138,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setMessage(null);
     try {
       const response = await api.testLlmConfig({
-        llmKey: settings.llmKey,
-        baseUrl: settings.baseUrl,
-        model: settings.model,
+        llmApiKey: settings.llmApiKey,
+        llmBaseUrl: settings.llmBaseUrl,
+        llmModel: settings.llmModel,
       });
 
       if (response.data.success) {
@@ -165,13 +165,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setMessage(null);
     try {
       // 检查是否有 LLM 配置
-      const hasLlmConfig = settings.llmKey && settings.baseUrl;
+      const hasLlmConfig = settings.llmApiKey && settings.llmBaseUrl;
 
       // 检查 LLM 配置是否发生变化
       const llmConfigChanged = hasLlmConfig && (
-        settings.llmKey !== initialLlmConfig.llmKey ||
-        settings.baseUrl !== initialLlmConfig.baseUrl ||
-        settings.model !== initialLlmConfig.model
+        settings.llmApiKey !== initialLlmConfig.llmApiKey ||
+        settings.llmBaseUrl !== initialLlmConfig.llmBaseUrl ||
+        settings.llmModel !== initialLlmConfig.llmModel
       );
 
       let response;
@@ -179,21 +179,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         // 如果有 LLM 配置，使用 save-and-init-llm 接口
         // 该接口会保存配置并重新初始化 LLM 客户端
         response = await api.saveAndInitLlm({
-          llmKey: settings.llmKey,
-          baseUrl: settings.baseUrl,
-          model: settings.model,
+          llmApiKey: settings.llmApiKey,
+          llmBaseUrl: settings.llmBaseUrl,
+          llmModel: settings.llmModel,
         });
 
         // 同时保存其他配置
         await api.saveConfig({
-          temperature: settings.temperature,
-          maxTokens: settings.maxTokens,
-          recordEnabled: settings.recordEnabled,
-          recordInterval: settings.recordInterval,
-          blacklistEnabled: settings.blacklistEnabled,
-          blacklistApps: settings.blacklistApps,
-          chatContextEnabled: settings.chatContextEnabled,
-          chatContextRounds: settings.chatContextRounds,
+          llmTemperature: settings.llmTemperature,
+          llmMaxTokens: settings.llmMaxTokens,
+          jobsRecorderEnabled: settings.jobsRecorderEnabled,
+          jobsRecorderInterval: settings.jobsRecorderInterval,
+          jobsRecorderParamsBlacklistEnabled: settings.jobsRecorderParamsBlacklistEnabled,
+          jobsRecorderParamsBlacklistApps: settings.jobsRecorderParamsBlacklistApps,
+          chatEnableHistory: settings.chatEnableHistory,
+          chatHistoryLimit: settings.chatHistoryLimit,
         });
       } else {
         // 如果没有 LLM 配置，使用普通的保存接口
@@ -281,10 +281,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   // 添加黑名单应用
   const handleAddBlacklistApp = (app: string) => {
     const trimmedApp = app.trim();
-    if (trimmedApp && !settings.blacklistApps.includes(trimmedApp)) {
+    if (trimmedApp && !settings.jobsRecorderParamsBlacklistApps.includes(trimmedApp)) {
       setSettings((prev) => ({
         ...prev,
-        blacklistApps: [...prev.blacklistApps, trimmedApp]
+        jobsRecorderParamsBlacklistApps: [...prev.jobsRecorderParamsBlacklistApps, trimmedApp]
       }));
     }
   };
@@ -293,7 +293,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const handleRemoveBlacklistApp = (app: string) => {
     setSettings((prev) => ({
       ...prev,
-      blacklistApps: prev.blacklistApps.filter(a => a !== app)
+      jobsRecorderParamsBlacklistApps: prev.jobsRecorderParamsBlacklistApps.filter(a => a !== app)
     }));
   };
 
@@ -303,9 +303,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       e.preventDefault();
       handleAddBlacklistApp(blacklistInput);
       setBlacklistInput('');
-    } else if (e.key === 'Backspace' && !blacklistInput && settings.blacklistApps.length > 0) {
+    } else if (e.key === 'Backspace' && !blacklistInput && settings.jobsRecorderParamsBlacklistApps.length > 0) {
       // 如果输入框为空且按下 Backspace，删除最后一个标签
-      const lastApp = settings.blacklistApps[settings.blacklistApps.length - 1];
+      const lastApp = settings.jobsRecorderParamsBlacklistApps[settings.jobsRecorderParamsBlacklistApps.length - 1];
       handleRemoveBlacklistApp(lastApp);
     }
   };
@@ -395,8 +395,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         type="password"
                         className="px-3 py-2 h-9"
                         placeholder={t.settings.apiKey}
-                        value={settings.llmKey}
-                        onChange={(e) => handleChange('llmKey', e.target.value)}
+                        value={settings.llmApiKey}
+                        onChange={(e) => handleChange('llmApiKey', e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground mt-1">
                         {t.settings.apiKeyHint}{' '}
@@ -418,8 +418,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         type="text"
                         className="px-3 py-2 h-9"
                         placeholder="https://api.example.com/v1"
-                        value={settings.baseUrl}
-                        onChange={(e) => handleChange('baseUrl', e.target.value)}
+                        value={settings.llmBaseUrl}
+                        onChange={(e) => handleChange('llmBaseUrl', e.target.value)}
                       />
                     </div>
                     <div className="grid grid-cols-3 gap-3">
@@ -431,8 +431,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           type="text"
                           className="px-3 py-2 h-9"
                           placeholder="qwen3-max"
-                          value={settings.model}
-                          onChange={(e) => handleChange('model', e.target.value)}
+                          value={settings.llmModel}
+                          onChange={(e) => handleChange('llmModel', e.target.value)}
                         />
                       </div>
                       <div>
@@ -445,8 +445,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           min="0"
                           max="2"
                           className="px-3 py-2 h-9"
-                          value={settings.temperature}
-                          onChange={(e) => handleChange('temperature', parseFloat(e.target.value))}
+                          value={settings.llmTemperature}
+                          onChange={(e) => handleChange('llmTemperature', parseFloat(e.target.value))}
                         />
                       </div>
                       <div>
@@ -456,8 +456,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <Input
                           type="number"
                           className="px-3 py-2 h-9"
-                          value={settings.maxTokens}
-                          onChange={(e) => handleChange('maxTokens', parseInt(e.target.value))}
+                          value={settings.llmMaxTokens}
+                          onChange={(e) => handleChange('llmMaxTokens', parseInt(e.target.value))}
                         />
                       </div>
                     </div>
@@ -467,7 +467,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       <Button
                         variant="outline"
                         onClick={handleTest}
-                        disabled={testing || !settings.llmKey || !settings.baseUrl}
+                        disabled={testing || !settings.llmApiKey || !settings.llmBaseUrl}
                         className="w-full h-9"
                       >
                         {testing ? t.common.testing : t.settings.testConnection}
@@ -497,14 +497,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                         <input
                           type="checkbox"
                           className="sr-only peer"
-                          checked={settings.recordEnabled}
-                          onChange={(e) => handleChange('recordEnabled', e.target.checked)}
+                          checked={settings.jobsRecorderEnabled}
+                          onChange={(e) => handleChange('jobsRecorderEnabled', e.target.checked)}
                         />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                       </label>
                     </div>
 
-                    {settings.recordEnabled && (
+                    {settings.jobsRecorderEnabled && (
                       <div className="space-y-3">
                         <div>
                           <label className="mb-1 block text-sm font-medium text-foreground">
@@ -513,8 +513,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           <Input
                             type="number"
                             className="px-3 py-2 h-9"
-                            value={settings.recordInterval}
-                            onChange={(e) => handleChange('recordInterval', parseInt(e.target.value))}
+                            value={settings.jobsRecorderInterval}
+                            onChange={(e) => handleChange('jobsRecorderInterval', parseInt(e.target.value))}
                           />
                         </div>
                         <div className="flex items-center justify-between">
@@ -530,19 +530,19 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             <input
                               type="checkbox"
                               className="sr-only peer"
-                              checked={settings.blacklistEnabled}
-                              onChange={(e) => handleChange('blacklistEnabled', e.target.checked)}
+                              checked={settings.jobsRecorderParamsBlacklistEnabled}
+                              onChange={(e) => handleChange('jobsRecorderParamsBlacklistEnabled', e.target.checked)}
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                           </label>
                         </div>
-                        {settings.blacklistEnabled && (
+                        {settings.jobsRecorderParamsBlacklistEnabled && (
                           <div>
                             <label className="mb-1 block text-sm font-medium text-foreground">
                               {t.settings.appBlacklist}
                             </label>
                             <div className="border border-input rounded-md px-2 py-1.5 min-h-[38px] flex flex-wrap gap-1.5 items-center bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-                              {settings.blacklistApps.map((app) => (
+                              {settings.jobsRecorderParamsBlacklistApps.map((app) => (
                                 <span
                                   key={app}
                                   className="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-primary/10 text-primary rounded-md border border-primary/20"
@@ -594,17 +594,17 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           </p>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input
+                            <input
                             type="checkbox"
                             className="sr-only peer"
-                            checked={settings.chatContextEnabled}
-                            onChange={(e) => handleChange('chatContextEnabled', e.target.checked)}
+                            checked={settings.chatEnableHistory}
+                            onChange={(e) => handleChange('chatEnableHistory', e.target.checked)}
                           />
                           <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary/20 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                         </label>
                       </div>
 
-                      {settings.chatContextEnabled && (
+                      {settings.chatEnableHistory && (
                         <div>
                           <label className="mb-1 block text-sm font-medium text-foreground">
                             {t.settings.contextRounds}
@@ -614,22 +614,22 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                             min="1"
                             max="20"
                             className="px-3 py-2 h-9"
-                            value={settings.chatContextRounds}
+                            value={settings.chatHistoryLimit}
                             onChange={(e) => {
                               const value = parseInt(e.target.value);
                               if (value >= 1 && value <= 20) {
-                                handleChange('chatContextRounds', value);
+                                handleChange('chatHistoryLimit', value);
                               }
                             }}
                           />
                           <p className="text-xs text-muted-foreground mt-1">
-                            {t.settings.contextRoundsDesc.replace('{rounds}', String(settings.chatContextRounds))}
+                            {t.settings.contextRoundsDesc.replace('{rounds}', String(settings.chatHistoryLimit))}
                           </p>
                         </div>
                       )}
                     </div>
 
-                    {settings.chatContextEnabled && (
+                    {settings.chatEnableHistory && (
                       <div>
                         <label className="mb-1 block text-sm font-medium text-foreground">
                           {t.settings.contextRounds}
@@ -639,16 +639,16 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                           min="1"
                           max="20"
                           className="px-3 py-2 h-9"
-                          value={settings.chatContextRounds}
+                          value={settings.chatHistoryLimit}
                           onChange={(e) => {
                             const value = parseInt(e.target.value);
                             if (value >= 1 && value <= 20) {
-                              handleChange('chatContextRounds', value);
+                              handleChange('chatHistoryLimit', value);
                             }
                           }}
                         />
                         <p className="text-xs text-muted-foreground mt-1">
-                          {t.settings.contextRoundsDesc.replace('{rounds}', settings.chatContextRounds.toString())}
+                          {t.settings.contextRoundsDesc.replace('{rounds}', settings.chatHistoryLimit.toString())}
                         </p>
                       </div>
                     )}

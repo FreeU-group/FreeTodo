@@ -29,107 +29,97 @@ class RAGService:
 
         logger.info("RAG服务初始化完成")
 
+    def _handle_direct_query(
+        self, user_query: str, intent_result: dict, start_time: datetime
+    ) -> dict[str, Any]:
+        """处理不需要数据库查询的直接回复"""
+        logger.info(f"用户意图不需要数据库查询: {intent_result['intent_type']}")
+        if self.llm_client.is_available():
+            response_text = self._generate_direct_response(user_query, intent_result)
+        else:
+            response_text = self._fallback_direct_response(user_query, intent_result)
+
+        processing_time = (datetime.now() - start_time).total_seconds()
+        return {
+            "success": True,
+            "response": response_text,
+            "query_info": {
+                "original_query": user_query,
+                "intent_classification": intent_result,
+                "requires_database": False,
+            },
+            "performance": {
+                "processing_time_seconds": processing_time,
+                "timestamp": start_time.isoformat(),
+            },
+        }
+
+    def _get_statistics_if_needed(
+        self, query_type: str, user_query: str, parsed_query
+    ) -> dict | None:
+        """根据查询类型获取统计信息"""
+        if query_type != "statistics" and "统计" not in user_query:
+            return None
+
+        if isinstance(parsed_query, QueryConditions):
+            conditions = parsed_query
+        else:
+            conditions = QueryConditions(
+                start_date=parsed_query.get("start_date"),
+                end_date=parsed_query.get("end_date"),
+                app_names=parsed_query.get("app_names", []),
+                keywords=parsed_query.get("keywords", []),
+            )
+        return self.retrieval_service.get_statistics(conditions)
+
+    def _build_context_for_query(
+        self, query_type: str, user_query: str, retrieved_data: list, stats: dict | None
+    ) -> str:
+        """根据查询类型构建上下文"""
+        logger.info("开始构建上下文")
+        if query_type == "statistics":
+            return self.context_builder.build_statistics_context(user_query, retrieved_data, stats)
+        if query_type == "search":
+            return self.context_builder.build_search_context(user_query, retrieved_data)
+        return self.context_builder.build_summary_context(user_query, retrieved_data)
+
     async def process_query(self, user_query: str, max_results: int = 50) -> dict[str, Any]:
-        """
-        处理用户查询的完整RAG流水线
-
-        Args:
-            user_query: 用户的自然语言查询
-            max_results: 最大检索结果数量
-
-        Returns:
-            包含生成结果和相关信息的字典
-        """
+        """处理用户查询的完整RAG流水线"""
         start_time = datetime.now()
 
         try:
-            # 1. 意图识别
             logger.info(f"开始处理查询: {user_query}")
             intent_result = self.llm_client.classify_intent(user_query)
 
-            # 如果不需要数据库查询，直接使用LLM生成回复
+            # 不需要数据库查询时直接返回
             if not intent_result.get("needs_database", True):
-                logger.info(f"用户意图不需要数据库查询: {intent_result['intent_type']}")
-                if self.llm_client.is_available():
-                    response_text = self._generate_direct_response(user_query, intent_result)
-                else:
-                    response_text = self._fallback_direct_response(user_query, intent_result)
+                return self._handle_direct_query(user_query, intent_result, start_time)
 
-                processing_time = (datetime.now() - start_time).total_seconds()
-                return {
-                    "success": True,
-                    "response": response_text,
-                    "query_info": {
-                        "original_query": user_query,
-                        "intent_classification": intent_result,
-                        "requires_database": False,
-                    },
-                    "performance": {
-                        "processing_time_seconds": processing_time,
-                        "timestamp": start_time.isoformat(),
-                    },
-                }
-
-            # 2. 查询解析（仅当需要数据库查询时）
+            # 查询解析和检索
             logger.info("需要数据库查询，开始查询解析")
             parsed_query = self.query_parser.parse_query(user_query)
-            # 确定查询类型
             query_type = "statistics" if "统计" in user_query else "search"
 
-            # 3. 数据检索 - 使用已解析的查询条件，避免重复解析
             logger.info("开始数据检索")
-            logger.info(f"解析后的查询条件: {parsed_query}")
-
             retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, max_results)
 
-            # 4. 获取统计信息（如果需要）
-            stats = None
-            if query_type == "statistics" or "统计" in user_query:
-                # 安全地访问parsed_query的属性
-                if isinstance(parsed_query, QueryConditions):
-                    start_date = parsed_query.start_date
-                    end_date = parsed_query.end_date
-                    app_names = parsed_query.app_names
-                    keywords = parsed_query.keywords or []
-                else:
-                    # 如果parsed_query是字典，从字典中获取值
-                    start_date = parsed_query.get("start_date")
-                    end_date = parsed_query.get("end_date")
-                    app_names = parsed_query.get("app_names", [])
-                    keywords = parsed_query.get("keywords", [])
+            # 获取统计和构建上下文
+            stats = self._get_statistics_if_needed(query_type, user_query, parsed_query)
+            context_text = self._build_context_for_query(
+                query_type, user_query, retrieved_data, stats
+            )
 
-                conditions = QueryConditions(
-                    start_date=start_date,
-                    end_date=end_date,
-                    app_names=app_names,
-                    keywords=keywords,
-                )
-                stats = self.retrieval_service.get_statistics(conditions)
-
-            # 5. 上下文构建
-            logger.info("开始构建上下文")
-            if query_type == "statistics":
-                context_text = self.context_builder.build_statistics_context(
-                    user_query, retrieved_data, stats
-                )
-            elif query_type == "search":
-                context_text = self.context_builder.build_search_context(user_query, retrieved_data)
-            else:
-                context_text = self.context_builder.build_summary_context(
-                    user_query, retrieved_data
-                )
-
-            # 6. LLM生成
+            # LLM生成
             logger.info("开始LLM生成")
             if self.llm_client.is_available():
                 response_text = self.llm_client.generate_summary(user_query, retrieved_data)
             else:
                 response_text = self._fallback_response(user_query, retrieved_data, stats)
 
-            # 7. 构建响应
             processing_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"查询处理完成，耗时 {processing_time:.2f} 秒")
 
-            result = {
+            return {
                 "success": True,
                 "response": response_text,
                 "query_info": {
@@ -154,24 +144,13 @@ class RAGService:
                 "statistics": stats,
             }
 
-            logger.info(f"查询处理完成，耗时 {processing_time:.2f} 秒")
-            return result
-
         except Exception as e:
             logger.error(f"RAG查询处理失败: {e}")
-            # 安全地构建错误信息
-            error_query_info = {"original_query": user_query}
-            try:
-                if "parsed_query" in locals():
-                    error_query_info["error"] = str(e)
-            except:  # noqa: E722
-                pass
-
             return {
                 "success": False,
                 "error": str(e),
                 "response": "抱歉，处理您的查询时出现了错误。请稍后重试。",
-                "query_info": error_query_info,
+                "query_info": {"original_query": user_query},
                 "performance": {
                     "processing_time_seconds": (datetime.now() - start_time).total_seconds(),
                     "timestamp": start_time.isoformat(),
@@ -218,113 +197,98 @@ class RAGService:
         temperature_direct: float = 0.7,
         temperature_rag: float = 0.3,
     ) -> Generator[str]:
-        """
-        流式处理用户查询：执行完整的RAG流程，并在生成阶段逐token（或逐chunk）yield 文本。
-        当底层LLM不支持真流式时，将按段返回；当不可用时，返回备用文本。
-        在流式输出完成后，调用 post_stream_decision 进行后续判定/记录。
-        """
+        """流式处理用户查询，逐token yield 文本"""
         try:
-            # 1) 意图识别
             intent_result = self.llm_client.classify_intent(user_query)
             needs_db = intent_result.get("needs_database", True)
 
-            # 2) 不需要数据库：直接对话
+            # 不需要数据库：直接对话
             if not needs_db:
-                if not self.llm_client.is_available():
-                    # LLM不可用，直接返回备用文本
-                    fallback_text = self._fallback_direct_response(user_query, intent_result)
-                    yield fallback_text
-                    # 完整输出后处理
-                    self.post_stream_decision(user_query, fallback_text)
-                    return
-                # 系统提示与 _generate_direct_response 保持一致
-                intent_type = intent_result.get("intent_type", "general_chat")
-                if intent_type == "system_help":
-                    system_prompt = get_prompt("rag", "system_help")
-                else:
-                    system_prompt = get_prompt("rag", "general_chat")
-                messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query},
-                ]
-                output_chunks: list[str] = []
-                for text in self.llm_client.stream_chat(
-                    messages=messages, temperature=temperature_direct
-                ):
-                    if text:
-                        output_chunks.append(text)
-                        yield text
-                # 完整输出后处理
-                self.post_stream_decision(user_query, "".join(output_chunks))
+                yield from self._stream_direct_response(
+                    user_query, intent_result, temperature_direct
+                )
                 return
 
-            # 3) 需要数据库：解析 + 检索 + 构建上下文
-            parsed_query = self.query_parser.parse_query(user_query)
-            query_type = "statistics" if "统计" in user_query else "search"
-            retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, max_results)
+            # 需要数据库：检索 + 生成
+            yield from self._stream_with_retrieval(user_query, max_results, temperature_rag)
 
-            stats = None
-            if query_type == "statistics" or "统计" in user_query:
-                # 兼容 QueryConditions 或 dict
-                if isinstance(parsed_query, QueryConditions):
-                    conditions = parsed_query
-                else:
-                    conditions = QueryConditions(
-                        start_date=parsed_query.get("start_date"),
-                        end_date=parsed_query.get("end_date"),
-                        app_names=parsed_query.get("app_names"),
-                        keywords=parsed_query.get("keywords", []),
-                    )
-                try:
-                    stats = self.retrieval_service.get_statistics(conditions)
-                except Exception:
-                    stats = None
-
-            # 上下文构建
-            if query_type == "statistics":
-                context_text = self.context_builder.build_statistics_context(
-                    user_query, retrieved_data, stats
-                )
-            elif query_type == "search":
-                context_text = self.context_builder.build_search_context(user_query, retrieved_data)
-            else:
-                context_text = self.context_builder.build_summary_context(
-                    user_query, retrieved_data
-                )
-
-            # LLM 不可用时，返回规则备选
-            if not self.llm_client.is_available():
-                fallback_text = self._fallback_response(user_query, retrieved_data, stats)
-                yield fallback_text
-                # 完整输出后处理
-                self.post_stream_decision(user_query, fallback_text)
-                return
-
-            # 4) 生成阶段：流式输出
-            system_prompt = get_prompt("rag", "history_analysis")
-            user_prompt = get_prompt(
-                "rag", "user_query_template", query=user_query, context=context_text
-            )
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ]
-            output_chunks: list[str] = []
-            for text in self.llm_client.stream_chat(messages=messages, temperature=temperature_rag):
-                if text:
-                    output_chunks.append(text)
-                    yield text
-            # 完整输出后处理
-            self.post_stream_decision(user_query, "".join(output_chunks))
         except Exception as e:
             logger.error(f"RAG 流式处理失败: {e}")
             error_text = "\n[提示] 流式处理出现异常，已结束。"
             yield error_text
-            # 异常情况下也做一次后处理
             try:
                 self.post_stream_decision(user_query, error_text)
             except Exception:
                 pass
+
+    def _stream_direct_response(
+        self, user_query: str, intent_result: dict, temperature: float
+    ) -> Generator[str]:
+        """流式处理直接对话（不需要数据库）"""
+        if not self.llm_client.is_available():
+            fallback_text = self._fallback_direct_response(user_query, intent_result)
+            yield fallback_text
+            self.post_stream_decision(user_query, fallback_text)
+            return
+
+        intent_type = intent_result.get("intent_type", "general_chat")
+        system_prompt = get_prompt(
+            "rag", "system_help" if intent_type == "system_help" else "general_chat"
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_query},
+        ]
+
+        output_chunks: list[str] = []
+        for text in self.llm_client.stream_chat(messages=messages, temperature=temperature):
+            if text:
+                output_chunks.append(text)
+                yield text
+        self.post_stream_decision(user_query, "".join(output_chunks))
+
+    def _stream_with_retrieval(
+        self, user_query: str, max_results: int, temperature: float
+    ) -> Generator[str]:
+        """流式处理带检索的查询"""
+        parsed_query = self.query_parser.parse_query(user_query)
+        query_type = "statistics" if "统计" in user_query else "search"
+        retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, max_results)
+
+        # 获取统计信息
+        stats = None
+        if query_type == "statistics" or "统计" in user_query:
+            try:
+                stats = self._get_statistics_if_needed(query_type, user_query, parsed_query)
+            except Exception:
+                stats = None
+
+        # 构建上下文
+        context_text = self._build_context_for_query(query_type, user_query, retrieved_data, stats)
+
+        # LLM 不可用时返回备选
+        if not self.llm_client.is_available():
+            fallback_text = self._fallback_response(user_query, retrieved_data, stats)
+            yield fallback_text
+            self.post_stream_decision(user_query, fallback_text)
+            return
+
+        # 流式生成
+        system_prompt = get_prompt("rag", "history_analysis")
+        user_prompt = get_prompt(
+            "rag", "user_query_template", query=user_query, context=context_text
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        output_chunks: list[str] = []
+        for text in self.llm_client.stream_chat(messages=messages, temperature=temperature):
+            if text:
+                output_chunks.append(text)
+                yield text
+        self.post_stream_decision(user_query, "".join(output_chunks))
 
     def get_query_suggestions(self, partial_query: str = "") -> list[str]:
         """
@@ -618,6 +582,181 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
         else:
             return "我理解您的问题，但可能需要更多信息才能提供准确的回答。您可以尝试更具体的查询，比如搜索特定内容或统计使用情况。"
 
+    def _get_task_status_emoji(self, status: str) -> str:
+        """获取任务状态对应的 emoji"""
+        return {
+            "pending": "⏳",
+            "in_progress": "🔄",
+            "completed": "✅",
+            "cancelled": "❌",
+        }.get(status, "📝")
+
+    def _format_task_line(self, task: dict, truncate_desc: bool = True) -> str:
+        """格式化单个任务行"""
+        MAX_TASK_DESCRIPTION_LENGTH = 50
+        status = task.get("status", "pending")
+        status_emoji = self._get_task_status_emoji(status)
+        task_line = f"{status_emoji} [{status}] {task.get('name', '未命名任务')}"
+
+        if task.get("description"):
+            description = task.get("description")
+            if truncate_desc and len(description) > MAX_TASK_DESCRIPTION_LENGTH:
+                description = description[:MAX_TASK_DESCRIPTION_LENGTH] + "..."
+            task_line += f"\n   描述: {description}"
+        return task_line
+
+    def _get_project_tasks_info(
+        self, project_id: int, task_ids: list[int] | None
+    ) -> tuple[dict | None, str, str | None]:
+        """获取项目和任务信息"""
+        project_info = project_mgr.get_project(project_id)
+        logger.info(f"[stream] 获取到项目信息: {project_info}")
+
+        tasks_info_str = "暂无任务"
+        selected_tasks_info_str = None
+
+        # 获取所有任务
+        tasks = task_mgr.list_tasks(project_id, limit=100)
+        if tasks:
+            tasks_info_str = "\n".join(
+                self._format_task_line(task, truncate_desc=True) for task in tasks
+            )
+            logger.info(f"[stream] 获取到 {len(tasks)} 个任务")
+        else:
+            logger.info(f"[stream] 项目 {project_id} 暂无任务")
+
+        # 获取选中任务的详细信息
+        if task_ids:
+            selected_tasks = []
+            for task_id in task_ids:
+                task = task_mgr.get_task(task_id)
+                if task:
+                    selected_tasks.append(self._format_task_line(task, truncate_desc=False))
+            if selected_tasks:
+                selected_tasks_info_str = "\n\n".join(selected_tasks)
+                logger.info(f"[stream] 获取到 {len(selected_tasks)} 个选中的任务")
+
+        return project_info, tasks_info_str, selected_tasks_info_str
+
+    def _append_history_messages(self, messages: list, session_id: str, history_limit: int) -> None:
+        """添加历史对话消息"""
+        try:
+            history_messages = chat_mgr.get_messages(session_id, limit=history_limit * 2)
+            for msg in history_messages:
+                if msg["role"] in ["user", "assistant"]:
+                    messages.append({"role": msg["role"], "content": msg["content"]})
+            if history_messages:
+                logger.info(f"[stream] 添加了 {len(history_messages)} 条历史消息")
+        except Exception as e:
+            logger.warning(f"[stream] 获取历史消息失败: {e}")
+
+    def _get_system_prompt_for_project(
+        self,
+        project_info: dict,
+        tasks_info_str: str,
+        selected_tasks_info_str: str | None,
+        with_data: bool = False,
+    ) -> str:
+        """获取项目对话的系统提示词"""
+        project_name = project_info.get("name", "未命名项目")
+        project_goal = project_info.get("goal", "暂无目标描述")
+
+        if with_data:
+            if selected_tasks_info_str:
+                return get_prompt(
+                    "project_assistant",
+                    "system_prompt_with_data_and_selected_tasks",
+                    project_name=project_name,
+                    project_goal=project_goal,
+                    selected_tasks_info=selected_tasks_info_str,
+                    tasks_info=tasks_info_str,
+                )
+            return get_prompt(
+                "project_assistant",
+                "system_prompt_with_data",
+                project_name=project_name,
+                project_goal=project_goal,
+                tasks_info=tasks_info_str,
+            )
+
+        if selected_tasks_info_str:
+            return get_prompt(
+                "project_assistant",
+                "system_prompt_with_selected_tasks",
+                project_name=project_name,
+                project_goal=project_goal,
+                selected_tasks_info=selected_tasks_info_str,
+                tasks_info=tasks_info_str,
+            )
+        return get_prompt(
+            "project_assistant",
+            "system_prompt",
+            project_name=project_name,
+            project_goal=project_goal,
+            tasks_info=tasks_info_str,
+        )
+
+    def _build_messages_without_db(
+        self,
+        user_query: str,
+        intent_result: dict,
+        project_info: dict | None,
+        tasks_info_str: str,
+        selected_tasks_info_str: str | None,
+    ) -> list[dict]:
+        """构建不需要数据库查询的消息"""
+        intent_type = intent_result.get("intent_type", "general_chat")
+
+        if project_info:
+            system_prompt = self._get_system_prompt_for_project(
+                project_info, tasks_info_str, selected_tasks_info_str, with_data=False
+            )
+        elif intent_type == "system_help":
+            system_prompt = get_prompt("rag", "system_help")
+        else:
+            system_prompt = get_prompt("rag", "general_chat")
+
+        return [{"role": "system", "content": system_prompt}]
+
+    def _build_messages_with_db(
+        self,
+        user_query: str,
+        project_id: int | None,
+        project_info: dict | None,
+        tasks_info_str: str,
+        selected_tasks_info_str: str | None,
+    ) -> list[dict]:
+        """构建需要数据库查询的消息"""
+        parsed_query = self.query_parser.parse_query(user_query)
+        if project_id:
+            parsed_query.project_id = project_id
+
+        query_type = "statistics" if "统计" in user_query else "search"
+        retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 500)
+
+        # 构建上下文
+        if query_type == "statistics":
+            stats = None
+            if isinstance(parsed_query, QueryConditions):
+                stats = self.retrieval_service.get_statistics(parsed_query)
+            context_text = self.context_builder.build_statistics_context(
+                user_query, retrieved_data, stats
+            )
+        else:
+            context_text = self.context_builder.build_search_context(user_query, retrieved_data)
+        logger.debug(f"构建的上下文内容: {context_text}")
+
+        # 确定系统内容
+        if project_info:
+            project_context = self._get_system_prompt_for_project(
+                project_info, tasks_info_str, selected_tasks_info_str, with_data=True
+            )
+            system_content = f"{project_context}\n\n{context_text}"
+        else:
+            system_content = context_text
+
+        return [{"role": "system", "content": system_content}]
+
     async def process_query_stream(
         self,
         user_query: str,
@@ -625,213 +764,44 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
         task_ids: list[int] | None = None,
         session_id: str | None = None,
     ) -> dict[str, Any]:
-        """
-        为流式接口处理查询，返回构建好的messages和temperature
-        避免重复的意图识别调用
-
-        Args:
-            user_query: 用户查询
-            project_id: 可选的项目ID，用于过滤上下文
-            task_ids: 可选的任务ID列表，表示选中的任务
-            session_id: 可选的会话ID，用于获取历史对话
-        """
+        """为流式接口处理查询，返回构建好的messages和temperature"""
         try:
-            # 1. 意图识别
             logger.info(
-                f"[stream] 开始处理查询: {user_query}, project_id: {project_id}, task_ids: {task_ids}, session_id: {session_id}"
+                f"[stream] 开始处理查询: {user_query}, project_id: {project_id}, "
+                f"task_ids: {task_ids}, session_id: {session_id}"
             )
             intent_result = self.llm_client.classify_intent(user_query)
             needs_db = intent_result.get("needs_database", True)
 
-            messages = []
-            temperature = 0.7
-
             # 获取历史对话配置
-            chat_config = config.get("chat", {})
-            enable_history = chat_config.get("enable_history", True)
-            history_limit = chat_config.get("history_limit", 10)
-            logger.info(
-                f"[stream] 历史对话配置: enable_history={enable_history}, history_limit={history_limit}"
-            )
+            enable_history = config.get("chat.enable_history")
+            history_limit = config.get("chat.history_limit")
 
-            # 获取项目信息（如果提供了 project_id）
-            project_info = None
-            tasks_info_str = "暂无任务"
-            selected_tasks_info_str = None
-
+            # 获取项目和任务信息
+            project_info, tasks_info_str, selected_tasks_info_str = None, "暂无任务", None
             if project_id:
-                project_info = project_mgr.get_project(project_id)
-                logger.info(f"[stream] 获取到项目信息: {project_info}")
+                project_info, tasks_info_str, selected_tasks_info_str = (
+                    self._get_project_tasks_info(project_id, task_ids)
+                )
 
-                # 获取项目的任务列表
-                tasks = task_mgr.list_tasks(project_id, limit=100)
-                if tasks:
-                    # 格式化任务信息
-                    tasks_list = []
-                    for task in tasks:
-                        status_emoji = {
-                            "pending": "⏳",
-                            "in_progress": "🔄",
-                            "completed": "✅",
-                            "cancelled": "❌",
-                        }.get(task.get("status", "pending"), "📝")
-
-                        task_line = f"{status_emoji} [{task.get('status', 'pending')}] {task.get('name', '未命名任务')}"
-                        if task.get("description"):
-                            # 限制描述为前50个字符
-                            description = task.get("description")
-                            if len(description) > 50:
-                                description = description[:50] + "..."
-                            task_line += f"\n   描述: {description}"
-                        tasks_list.append(task_line)
-
-                    tasks_info_str = "\n".join(tasks_list)
-                    logger.info(f"[stream] 获取到 {len(tasks)} 个任务")
-                else:
-                    logger.info(f"[stream] 项目 {project_id} 暂无任务")
-
-                # 如果提供了选中的任务ID，获取这些任务的详细信息
-                if task_ids and len(task_ids) > 0:
-                    selected_tasks_list = []
-                    for task_id in task_ids:
-                        task = task_mgr.get_task(task_id)
-                        if task:
-                            status_emoji = {
-                                "pending": "⏳",
-                                "in_progress": "🔄",
-                                "completed": "✅",
-                                "cancelled": "❌",
-                            }.get(task.get("status", "pending"), "📝")
-
-                            # 选中的任务显示完整描述（不限制字符）
-                            task_line = f"{status_emoji} [{task.get('status', 'pending')}] {task.get('name', '未命名任务')}"
-                            if task.get("description"):
-                                task_line += f"\n   描述: {task.get('description')}"
-                            selected_tasks_list.append(task_line)
-
-                    if selected_tasks_list:
-                        selected_tasks_info_str = "\n\n".join(selected_tasks_list)
-                        logger.info(f"[stream] 获取到 {len(selected_tasks_list)} 个选中的任务")
-
-            if not needs_db:
-                # 不需要数据库查询的情况（不会检索历史数据）
-                intent_type = intent_result.get("intent_type", "general_chat")
-
-                # 如果是项目对话，使用项目助手提示词（无历史数据版本）
-                if project_info:
-                    # 如果有选中的任务，使用带选中任务的提示词
-                    if selected_tasks_info_str:
-                        system_prompt = get_prompt(
-                            "project_assistant",
-                            "system_prompt_with_selected_tasks",
-                            project_name=project_info.get("name", "未命名项目"),
-                            project_goal=project_info.get("goal", "暂无目标描述"),
-                            selected_tasks_info=selected_tasks_info_str,
-                            tasks_info=tasks_info_str,
-                        )
-                    else:
-                        system_prompt = get_prompt(
-                            "project_assistant",
-                            "system_prompt",
-                            project_name=project_info.get("name", "未命名项目"),
-                            project_goal=project_info.get("goal", "暂无目标描述"),
-                            tasks_info=tasks_info_str,
-                        )
-                elif intent_type == "system_help":
-                    system_prompt = get_prompt("rag", "system_help")
-                else:
-                    system_prompt = get_prompt("rag", "general_chat")
-
-                messages = [{"role": "system", "content": system_prompt}]
-
-                # 添加历史对话（如果启用）
-                if enable_history and session_id and history_limit > 0:
-                    try:
-                        # 获取历史消息，限制数量为 history_limit * 2（因为1轮=用户+助手）
-                        history_messages = chat_mgr.get_messages(
-                            session_id, limit=history_limit * 2
-                        )
-                        # 按时间顺序添加历史消息（排除system消息）
-                        for msg in history_messages:
-                            if msg["role"] in ["user", "assistant"]:
-                                messages.append({"role": msg["role"], "content": msg["content"]})
-                        if history_messages:
-                            logger.info(f"[stream] 添加了 {len(history_messages)} 条历史消息")
-                    except Exception as e:
-                        logger.warning(f"[stream] 获取历史消息失败: {e}")
-
-                # 添加当前用户消息
-                messages.append({"role": "user", "content": user_query})
-            else:
-                # 需要数据库查询的情况（会检索历史数据）
-                parsed_query = self.query_parser.parse_query(user_query)
-                # 如果提供了 project_id，添加到查询条件中
-                if project_id:
-                    parsed_query.project_id = project_id
-                query_type = "statistics" if "统计" in user_query else "search"
-                retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 500)
-
-                # 构建上下文
-                if query_type == "statistics":
-                    stats = None
-                    if isinstance(parsed_query, QueryConditions):
-                        stats = self.retrieval_service.get_statistics(parsed_query)
-                    context_text = self.context_builder.build_statistics_context(
-                        user_query, retrieved_data, stats
-                    )
-                else:
-                    context_text = self.context_builder.build_search_context(
-                        user_query, retrieved_data
-                    )
-                logger.debug(f"构建的上下文内容: {context_text}")
-
-                # 如果是项目对话，使用带历史数据的项目助手提示词
-                if project_info:
-                    # 如果有选中的任务，使用带历史数据和选中任务的提示词
-                    if selected_tasks_info_str:
-                        project_context = get_prompt(
-                            "project_assistant",
-                            "system_prompt_with_data_and_selected_tasks",
-                            project_name=project_info.get("name", "未命名项目"),
-                            project_goal=project_info.get("goal", "暂无目标描述"),
-                            selected_tasks_info=selected_tasks_info_str,
-                            tasks_info=tasks_info_str,
-                        )
-                    else:
-                        project_context = get_prompt(
-                            "project_assistant",
-                            "system_prompt_with_data",
-                            project_name=project_info.get("name", "未命名项目"),
-                            project_goal=project_info.get("goal", "暂无目标描述"),
-                            tasks_info=tasks_info_str,
-                        )
-                    # 将项目上下文和数据上下文结合
-                    system_content = f"{project_context}\n\n{context_text}"
-                else:
-                    # 非项目对话，使用事件助手的提示词
-                    system_content = context_text
-
-                messages = [{"role": "system", "content": system_content}]
-
-                # 添加历史对话（如果启用）
-                if enable_history and session_id and history_limit > 0:
-                    try:
-                        # 获取历史消息，限制数量为 history_limit * 2（因为1轮=用户+助手）
-                        history_messages = chat_mgr.get_messages(
-                            session_id, limit=history_limit * 2
-                        )
-                        # 按时间顺序添加历史消息（排除system消息）
-                        for msg in history_messages:
-                            if msg["role"] in ["user", "assistant"]:
-                                messages.append({"role": msg["role"], "content": msg["content"]})
-                        if history_messages:
-                            logger.info(f"[stream] 添加了 {len(history_messages)} 条历史消息")
-                    except Exception as e:
-                        logger.warning(f"[stream] 获取历史消息失败: {e}")
-
-                # 添加当前用户消息
-                messages.append({"role": "user", "content": user_query})
+            # 构建消息
+            if needs_db:
+                messages = self._build_messages_with_db(
+                    user_query, project_id, project_info, tasks_info_str, selected_tasks_info_str
+                )
                 temperature = 0.3
+            else:
+                messages = self._build_messages_without_db(
+                    user_query, intent_result, project_info, tasks_info_str, selected_tasks_info_str
+                )
+                temperature = 0.7
+
+            # 添加历史对话
+            if enable_history and session_id and history_limit > 0:
+                self._append_history_messages(messages, session_id, history_limit)
+
+            # 添加当前用户消息
+            messages.append({"role": "user", "content": user_query})
 
             return {
                 "success": True,

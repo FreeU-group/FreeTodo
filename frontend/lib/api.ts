@@ -233,10 +233,10 @@ export const api = {
 
   saveConfig: (config: any) => apiClient.post('/api/save-config', config),
 
-  testLlmConfig: (config: { llmKey: string; baseUrl: string; model?: string }) =>
+  testLlmConfig: (config: { llmApiKey: string; llmBaseUrl: string; llmModel?: string }) =>
     apiClient.post('/api/test-llm-config', config),
 
-  saveAndInitLlm: (config: { llmKey: string; baseUrl: string; model: string }) =>
+  saveAndInitLlm: (config: { llmApiKey: string; llmBaseUrl: string; llmModel: string }) =>
     apiClient.post('/api/save-and-init-llm', config),
 
   // 健康检查

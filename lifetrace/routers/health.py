@@ -38,8 +38,8 @@ async def llm_health_check():
             }
 
         # 检查配置是否完整
-        llm_key = deps.config.llm_api_key
-        base_url = deps.config.llm_base_url
+        llm_key = deps.config.get("llm.api_key")
+        base_url = deps.config.get("llm.base_url")
 
         if not llm_key or not base_url:
             return {
@@ -49,7 +49,7 @@ async def llm_health_check():
             }
 
         client = OpenAI(api_key=llm_key, base_url=base_url)
-        model = deps.config.llm_model
+        model = deps.config.get("llm.model")
 
         # 发送最小化测试请求
         response = client.chat.completions.create(  # noqa: F841

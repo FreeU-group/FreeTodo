@@ -4,7 +4,6 @@
 并使用 LLM 自动生成进展摘要，追加到任务描述中。
 """
 
-import threading
 from datetime import datetime
 from typing import Any
 
@@ -33,7 +32,6 @@ class TaskSummaryService:
         self,
         llm_client: LLMClient = None,
         min_new_contexts: int = 5,
-        check_interval: int = 3600,  # 默认1小时
         enabled: bool = True,
     ):
         """
@@ -42,17 +40,11 @@ class TaskSummaryService:
         Args:
             llm_client: LLM客户端，如果为None则自动创建
             min_new_contexts: 触发摘要的最小新上下文数量
-            check_interval: 检查间隔（秒），默认3600秒（1小时）
             enabled: 是否启用服务
         """
         self.llm_client = llm_client or LLMClient()
         self.min_new_contexts = min_new_contexts
-        self.check_interval = check_interval
         self.enabled = enabled
-
-        self._thread = None
-        self._stop_event = threading.Event()
-        self._running = False
 
         # 统计信息
         self.stats = {
@@ -64,66 +56,12 @@ class TaskSummaryService:
         }
 
         logger.info(
-            f"任务摘要服务初始化完成 - "
-            f"最小新上下文数: {min_new_contexts}, "
-            f"检查间隔: {check_interval}秒, "
-            f"启用状态: {enabled}"
+            f"任务摘要服务初始化完成 - 最小新上下文数: {min_new_contexts}, 启用状态: {enabled}"
         )
-
-    def start(self):
-        """启动后台服务线程"""
-        if not self.enabled:
-            logger.info("任务摘要服务未启用，跳过启动")
-            return
-
-        if self._running:
-            logger.warning("任务摘要服务已在运行中")
-            return
-
-        self._stop_event.clear()
-        self._running = True
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._thread.start()
-        logger.info("任务摘要服务已启动")
-
-    def stop(self):
-        """停止后台服务线程"""
-        if not self._running:
-            return
-
-        logger.error("正在停止任务摘要服务...")
-        self._stop_event.set()
-        if self._thread:
-            self._thread.join(timeout=10)
-        self._running = False
-        logger.error("任务摘要服务已停止")
-
-    def is_running(self) -> bool:
-        """检查服务是否在运行"""
-        return self._running
 
     def get_stats(self) -> dict[str, Any]:
         """获取服务统计信息"""
         return self.stats.copy()
-
-    def _run_loop(self):
-        """服务主循环"""
-        logger.info("任务摘要服务主循环已启动")
-
-        while not self._stop_event.is_set():
-            try:
-                self._process_all_tasks()
-                self.stats["last_run_time"] = datetime.now().isoformat()
-            except Exception as e:
-                error_msg = f"处理任务摘要时发生错误: {e}"
-                logger.error(error_msg)
-                logger.exception(e)
-                self.stats["last_error"] = error_msg
-
-            # 等待下一次检查
-            self._stop_event.wait(timeout=self.check_interval)
-
-        logger.info("任务摘要服务主循环已退出")
 
     def _process_all_tasks(self):
         """
@@ -322,9 +260,10 @@ class TaskSummaryService:
 
             if ctx.get("ocr_texts"):
                 # 合并OCR文本，限制长度
+                MAX_OCR_TEXT_LENGTH = 500
                 combined_text = "\n".join(ctx["ocr_texts"])
-                if len(combined_text) > 500:
-                    combined_text = combined_text[:500] + "..."
+                if len(combined_text) > MAX_OCR_TEXT_LENGTH:
+                    combined_text = combined_text[:MAX_OCR_TEXT_LENGTH] + "..."
                 ctx_str += f"- 内容文本:\n{combined_text}\n"
 
             contexts_info.append(ctx_str)
@@ -541,14 +480,11 @@ def get_summary_instance() -> TaskSummaryService:
     """
     global _global_summary_instance
     if _global_summary_instance is None:
-        summary_config = config.get("jobs.task_summary", {})
-        min_new_contexts = summary_config.get("min_new_contexts", 5)
-        check_interval = summary_config.get("interval", 3600)
-        enabled = summary_config.get("enabled", False)
+        min_new_contexts = config.get("jobs.task_summary.params.min_new_contexts")
+        enabled = config.get("jobs.task_summary.enabled")
 
         _global_summary_instance = TaskSummaryService(
             min_new_contexts=min_new_contexts,
-            check_interval=check_interval,
             enabled=enabled,
         )
     return _global_summary_instance
@@ -562,10 +498,6 @@ def execute_summary_task():
     try:
         logger.info("🔄 开始执行任务摘要任务")
         summary_service = get_summary_instance()
-
-        if not summary_service.enabled:
-            logger.info("任务摘要服务未启用，跳过执行")
-            return 0
 
         # 执行摘要处理
         summary_service._process_all_tasks()
