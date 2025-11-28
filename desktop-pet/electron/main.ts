@@ -1,12 +1,14 @@
-import { app, BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen, ipcMain, Menu } from 'electron';
 import path from 'path';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+let mainWindow: BrowserWindow | null = null;
+
 function createWindow() {
-  const mainWindow = new BrowserWindow({
-    width: 300,
-    height: 400,
+  mainWindow = new BrowserWindow({
+    width: 64,
+    height: 64,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -32,7 +34,26 @@ function createWindow() {
   // 设置窗口位置到屏幕右下角
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-  mainWindow.setPosition(screenWidth - 300, screenHeight - 400);
+  mainWindow.setPosition(screenWidth - 80, screenHeight - 80);
+
+  // 创建右键菜单
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '关闭',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  mainWindow.webContents.on('context-menu', () => {
+    contextMenu.popup();
+  });
+
+  // 处理关闭应用的 IPC 消息
+  ipcMain.on('close-app', () => {
+    app.quit();
+  });
 }
 
 app.whenReady().then(() => {

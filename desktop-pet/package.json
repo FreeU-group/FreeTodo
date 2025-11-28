@@ -24,7 +24,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
-    "electron": "^33.2.1",
+    "electron": "^39.2.4",
     "electron-builder": "^25.1.8",
     "typescript": "^5",
     "vite": "^6.0.5",

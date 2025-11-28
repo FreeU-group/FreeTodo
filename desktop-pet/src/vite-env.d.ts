@@ -2,7 +2,27 @@
 
 interface Window {
   electronAPI: {
-    // 未来可以在这里添加类型定义
+    closeApp: () => void;
   };
+}
+
+declare module '*.png' {
+  const src: string;
+  export default src;
+}
+
+declare module '*.jpg' {
+  const src: string;
+  export default src;
+}
+
+declare module '*.jpeg' {
+  const src: string;
+  export default src;
+}
+
+declare module '*.svg' {
+  const src: string;
+  export default src;
 }
 
