@@ -3,6 +3,7 @@
 interface Window {
   electronAPI: {
     closeApp: () => void;
+    setWindowMode: (mode: 'ball' | 'panel') => void;
   };
 }
 

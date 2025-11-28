@@ -13,7 +13,8 @@ body {
   overflow: hidden;
   background: transparent;
   user-select: none;
-  -webkit-app-region: drag;
+  /* 不在 body 上启用拖拽区域，避免阻止点击事件 */
+  -webkit-app-region: no-drag;
 }
 
 .app-container {
@@ -38,7 +39,8 @@ body {
   position: relative;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  -webkit-app-region: drag;
+  /* 悬浮球需要可点击，所以这里显式禁止拖拽区域 */
+  -webkit-app-region: no-drag;
 }
 
 .floating-ball:hover {
@@ -90,4 +92,238 @@ body {
 .close-button:active {
   transform: scale(0.95);
 }
+
+.panel-root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.panel-card {
+  width: 100%;
+  height: 100%;
+  padding: 12px 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow:
+    0 18px 40px rgba(15, 23, 42, 0.25),
+    0 0 0 1px rgba(148, 163, 184, 0.3);
+  display: flex;
+  flex-direction: column;
+  -webkit-app-region: no-drag;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.panel-title-main {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.panel-title-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-icon-button {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(148, 163, 184, 0.12);
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.16s ease-out;
+  -webkit-app-region: no-drag;
+}
+
+.panel-icon-button:hover {
+  background: rgba(148, 163, 184, 0.24);
+  transform: translateY(-1px);
+}
+
+.panel-icon-button:active {
+  transform: translateY(0);
+}
+
+.panel-icon-button.danger {
+  background: rgba(248, 113, 113, 0.14);
+  color: #b91c1c;
+}
+
+.panel-icon-button.danger:hover {
+  background: rgba(248, 113, 113, 0.25);
+}
+
+.panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.todo-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.todo-input {
+  flex: 1;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  padding: 0 10px;
+  font-size: 12px;
+  outline: none;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.todo-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25);
+  background: #ffffff;
+}
+
+.todo-add-button {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.45);
+  -webkit-app-region: no-drag;
+}
+
+.todo-add-button:hover {
+  filter: brightness(1.03);
+  transform: translateY(-0.5px);
+}
+
+.todo-add-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.45);
+}
+
+.todo-list {
+  margin: 0;
+  padding: 4px 0 0;
+  list-style: none;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.todo-empty {
+  font-size: 12px;
+  color: #9ca3af;
+  text-align: center;
+  padding: 12px 8px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.todo-item:nth-child(odd) {
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.todo-item:nth-child(even) {
+  background: rgba(241, 245, 249, 0.9);
+}
+
+.todo-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.todo-main input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+}
+
+.todo-title {
+  color: #0f172a;
+}
+
+.todo-title.done {
+  color: #9ca3af;
+  text-decoration: line-through;
+}
+
+.todo-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.todo-action-button {
+  border-radius: 999px;
+  border: none;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  background: rgba(148, 163, 184, 0.24);
+  color: #334155;
+  -webkit-app-region: no-drag;
+}
+
+.todo-action-button:hover {
+  background: rgba(148, 163, 184, 0.35);
+}
+
+.todo-action-button.danger {
+  background: rgba(248, 113, 113, 0.25);
+  color: #b91c1c;
+}
+
+.todo-action-button.danger:hover {
+  background: rgba(248, 113, 113, 0.38);
+}
+
 

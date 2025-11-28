@@ -3,12 +3,41 @@ import path from 'path';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+const BALL_SIZE = 64;
+const PANEL_WIDTH = 360;
+const PANEL_HEIGHT = 480;
+const MARGIN = 16;
+
+type WindowMode = 'ball' | 'panel';
+
 let mainWindow: BrowserWindow | null = null;
+
+function updateWindowBounds(mode: WindowMode) {
+  if (!mainWindow) return;
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  if (mode === 'ball') {
+    mainWindow.setSize(BALL_SIZE, BALL_SIZE);
+    mainWindow.setPosition(
+      Math.round(screenWidth - BALL_SIZE - MARGIN),
+      Math.round(screenHeight - BALL_SIZE - MARGIN),
+    );
+  } else {
+    mainWindow.setSize(PANEL_WIDTH, PANEL_HEIGHT);
+    mainWindow.setPosition(
+      Math.round(screenWidth - PANEL_WIDTH - MARGIN),
+      Math.round(screenHeight - PANEL_HEIGHT - MARGIN),
+    );
+  }
+
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 64,
-    height: 64,
+    width: BALL_SIZE,
+    height: BALL_SIZE,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -31,13 +60,26 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  // 设置窗口位置到屏幕右下角
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
-  mainWindow.setPosition(screenWidth - 80, screenHeight - 80);
+  // 初始为悬浮球模式
+  updateWindowBounds('ball');
 
   // 创建右键菜单
   const contextMenu = Menu.buildFromTemplate([
+    {
+      label: '切换到日程面板',
+      click: () => {
+        updateWindowBounds('panel');
+        mainWindow?.webContents.send('window-mode-changed', 'panel');
+      },
+    },
+    {
+      label: '切换到悬浮球',
+      click: () => {
+        updateWindowBounds('ball');
+        mainWindow?.webContents.send('window-mode-changed', 'ball');
+      },
+    },
+    { type: 'separator' },
     {
       label: '关闭',
       click: () => {
@@ -53,6 +95,11 @@ function createWindow() {
   // 处理关闭应用的 IPC 消息
   ipcMain.on('close-app', () => {
     app.quit();
+  });
+
+  // 处理窗口模式切换
+  ipcMain.on('set-window-mode', (_event, mode: WindowMode) => {
+    updateWindowBounds(mode);
   });
 }
 
