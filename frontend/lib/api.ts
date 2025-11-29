@@ -333,6 +333,92 @@ export const api = {
   getCostConfig: () =>
     apiClient.get('/api/cost-tracking/config'),
 
+  // 工作区项目管理
+  getWorkspaceProjects: () =>
+    apiClient.get('/api/workspace/projects'),
+
+  createWorkspaceProject: (name: string, projectType: string = 'other') =>
+    apiClient.post('/api/workspace/projects', { name, project_type: projectType }),
+
+  renameWorkspaceProject: (projectId: string, newName: string) =>
+    apiClient.post('/api/workspace/projects/rename', { project_id: projectId, new_name: newName }),
+
+  deleteWorkspaceProject: (projectId: string) =>
+    apiClient.post('/api/workspace/projects/delete', { project_id: projectId }),
+
+  getProjectFiles: (projectId: string) =>
+    apiClient.get(`/api/workspace/projects/${encodeURIComponent(projectId)}/files`),
+
+  // 流式生成项目大纲 URL
+  getGenerateOutlineStreamUrl: (projectId: string, projectType: string) =>
+    `${API_BASE_URL}/api/workspace/projects/${encodeURIComponent(projectId)}/outline/generate?project_type=${projectType}`,
+
+  // 流式生成章节内容
+  generateChaptersStream: async (
+    projectId: string,
+    onMessage: (message: {
+      type: 'chapters' | 'chapter_start' | 'content' | 'chapter_done' | 'chapter_error' | 'done' | 'error';
+      data?: { title: string; index: number }[];
+      index?: number;
+      title?: string;
+      chunk?: string;
+      filename?: string;
+      file_id?: string;
+      message?: string;
+      error?: string;
+    }) => void
+  ): Promise<void> => {
+    const response = await fetch(
+      `${API_BASE_URL}/api/workspace/projects/${encodeURIComponent(projectId)}/chapters/generate`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Request failed');
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (reader) {
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              const message = JSON.parse(line);
+              onMessage(message);
+            } catch (e) {
+              console.error('Failed to parse message:', line, e);
+            }
+          }
+        }
+      }
+
+      // 处理最后的内容
+      if (buffer.trim()) {
+        try {
+          const message = JSON.parse(buffer);
+          onMessage(message);
+        } catch (e) {
+          console.error('Failed to parse final message:', buffer, e);
+        }
+      }
+    }
+  },
+
   // 工作区文件管理
   getWorkspaceFiles: () =>
     apiClient.get('/api/workspace/files'),

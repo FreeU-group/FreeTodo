@@ -4,6 +4,85 @@ from enum import Enum
 
 from pydantic import BaseModel
 
+# ==================== 项目相关模型 ====================
+
+
+class ProjectType(str, Enum):
+    """论文项目类型"""
+
+    LIBERAL_ARTS = "liberal_arts"  # 文科
+    SCIENCE = "science"  # 理科
+    ENGINEERING = "engineering"  # 工科
+    OTHER = "other"  # 其他
+
+
+class WorkspaceProject(BaseModel):
+    """工作区项目（一级文件夹）"""
+
+    id: str
+    name: str
+    project_type: ProjectType | None = None
+    file_count: int = 0
+    last_modified: str | None = None
+    created_at: str | None = None
+
+
+class WorkspaceProjectsResponse(BaseModel):
+    """工作区项目列表响应"""
+
+    projects: list[WorkspaceProject]
+    total: int
+
+
+class CreateWorkspaceProjectRequest(BaseModel):
+    """创建工作区项目请求"""
+
+    name: str
+    project_type: ProjectType = ProjectType.OTHER
+
+
+class CreateWorkspaceProjectResponse(BaseModel):
+    """创建工作区项目响应"""
+
+    success: bool
+    project_id: str | None = None
+    project_name: str | None = None
+    error: str | None = None
+
+
+class RenameWorkspaceProjectRequest(BaseModel):
+    """重命名工作区项目请求"""
+
+    project_id: str
+    new_name: str
+
+
+class RenameWorkspaceProjectResponse(BaseModel):
+    """重命名工作区项目响应"""
+
+    success: bool
+    old_id: str
+    new_id: str
+    new_name: str
+    error: str | None = None
+
+
+class DeleteWorkspaceProjectRequest(BaseModel):
+    """删除工作区项目请求"""
+
+    project_id: str
+
+
+class DeleteWorkspaceProjectResponse(BaseModel):
+    """删除工作区项目响应"""
+
+    success: bool
+    project_id: str
+    error: str | None = None
+
+
+# ==================== 文件相关模型 ====================
+
 
 class FileNode(BaseModel):
     """文件/文件夹节点"""
@@ -14,6 +93,7 @@ class FileNode(BaseModel):
     children: list["FileNode"] | None = None
     content: str | None = None
     parent_id: str | None = None
+    is_protected: bool = False  # 受保护的文件，前端不可删除
 
 
 class WorkspaceFilesResponse(BaseModel):

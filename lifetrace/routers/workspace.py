@@ -1,6 +1,8 @@
 """工作区文件管理相关路由"""
 
 import os
+import shutil
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
@@ -12,19 +14,28 @@ from lifetrace.schemas.workspace import (
     CreateFileResponse,
     CreateFolderRequest,
     CreateFolderResponse,
+    CreateWorkspaceProjectRequest,
+    CreateWorkspaceProjectResponse,
     DeleteFileRequest,
     DeleteFileResponse,
+    DeleteWorkspaceProjectRequest,
+    DeleteWorkspaceProjectResponse,
     DocumentAction,
     DocumentAIRequest,
     DocumentAIResponse,
     FileContentResponse,
     FileNode,
+    ProjectType,
     RenameFileRequest,
     RenameFileResponse,
+    RenameWorkspaceProjectRequest,
+    RenameWorkspaceProjectResponse,
     SaveFileRequest,
     SaveFileResponse,
     UploadFileResponse,
     WorkspaceFilesResponse,
+    WorkspaceProject,
+    WorkspaceProjectsResponse,
 )
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
@@ -33,6 +44,785 @@ from lifetrace.util.token_usage_logger import log_token_usage
 logger = get_logger()
 
 router = APIRouter(prefix="/api/workspace", tags=["workspace"])
+
+
+# ==================== 项目管理 API ====================
+
+
+def get_project_info(project_path: Path) -> dict:
+    """获取项目信息（文件数、最后修改时间等）"""
+    file_count = 0
+    last_modified = None
+
+    for item in project_path.rglob("*"):
+        if item.is_file() and not item.name.startswith("."):
+            file_count += 1
+            mtime = datetime.fromtimestamp(item.stat().st_mtime)
+            if last_modified is None or mtime > last_modified:
+                last_modified = mtime
+
+    # 如果没有文件，使用文件夹的修改时间
+    if last_modified is None:
+        last_modified = datetime.fromtimestamp(project_path.stat().st_mtime)
+
+    return {
+        "file_count": file_count,
+        "last_modified": last_modified.isoformat() if last_modified else None,
+    }
+
+
+@router.get("/projects", response_model=WorkspaceProjectsResponse)
+async def get_workspace_projects():
+    """获取工作区项目列表（一级文件夹）"""
+    try:
+        workspace_dir = deps.config.workspace_dir
+
+        # 确保目录存在
+        if not os.path.exists(workspace_dir):
+            os.makedirs(workspace_dir, exist_ok=True)
+            logger.info(f"创建工作区目录: {workspace_dir}")
+            return WorkspaceProjectsResponse(projects=[], total=0)
+
+        projects = []
+        root = Path(workspace_dir)
+
+        # 获取所有一级文件夹
+        for item in sorted(root.iterdir(), key=lambda x: x.name.lower()):
+            if item.is_dir() and not item.name.startswith("."):
+                info = get_project_info(item)
+                project = WorkspaceProject(
+                    id=item.name,
+                    name=item.name,
+                    file_count=info["file_count"],
+                    last_modified=info["last_modified"],
+                    created_at=datetime.fromtimestamp(item.stat().st_ctime).isoformat(),
+                )
+                projects.append(project)
+
+        logger.debug(f"获取工作区项目列表成功，共 {len(projects)} 个项目")
+        return WorkspaceProjectsResponse(projects=projects, total=len(projects))
+
+    except Exception as e:
+        logger.error(f"获取工作区项目列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _get_outline_template(project_type: ProjectType) -> str:
+    """根据项目类型获取大纲模板"""
+    type_to_prompt_key = {
+        ProjectType.LIBERAL_ARTS: "liberal_arts",
+        ProjectType.SCIENCE: "science",
+        ProjectType.ENGINEERING: "engineering",
+        ProjectType.OTHER: "other",
+    }
+    prompt_key = type_to_prompt_key.get(project_type, "other")
+    return get_prompt("project_outline", prompt_key)
+
+
+def _get_project_type_name(project_type: ProjectType) -> str:
+    """获取项目类型的中文名称"""
+    type_names = {
+        ProjectType.LIBERAL_ARTS: "文科",
+        ProjectType.SCIENCE: "理科",
+        ProjectType.ENGINEERING: "工科",
+        ProjectType.OTHER: "其他",
+    }
+    return type_names.get(project_type, "其他")
+
+
+def _generate_outline_template(project_name: str, project_type: ProjectType) -> str:
+    """生成项目大纲模板（仅替换项目名称，不调用 LLM）"""
+    template = _get_outline_template(project_type)
+    return template.replace("{project_name}", project_name)
+
+
+def _create_outline_stream_generator(
+    project_name: str, project_type: ProjectType, outline_path: Path
+):
+    """创建流式大纲生成器"""
+
+    def generator():
+        template = _get_outline_template(project_type)
+        type_name = _get_project_type_name(project_type)
+
+        # 检查 LLM 是否可用
+        if not deps.rag_service.llm_client.is_available():
+            yield "[错误] LLM 服务不可用"
+            return
+
+        try:
+            # 获取智能填充的 prompt
+            system_prompt = get_prompt("project_outline", "smart_fill_system")
+            user_template = get_prompt("project_outline", "smart_fill_user")
+
+            user_message = (
+                user_template.replace("{project_name}", project_name)
+                .replace("{project_type}", type_name)
+                .replace("{template}", template)
+            )
+
+            # 流式调用 LLM
+            response = deps.rag_service.llm_client.client.chat.completions.create(
+                model=deps.rag_service.llm_client.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.7,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+
+            full_content = ""
+            usage_info = None
+
+            for chunk in response:
+                if hasattr(chunk, "usage") and chunk.usage:
+                    usage_info = chunk.usage
+
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_content += content
+                    yield content
+
+            # 保存完整内容到文件
+            outline_path.write_text(full_content, encoding="utf-8")
+            logger.info(f"流式生成大纲完成: {project_name}")
+
+            # 记录 token 使用量
+            if usage_info:
+                log_token_usage(
+                    model=deps.rag_service.llm_client.model,
+                    input_tokens=usage_info.prompt_tokens,
+                    output_tokens=usage_info.completion_tokens,
+                    endpoint="workspace_generate_outline_stream",
+                    user_query=project_name,
+                    response_type="stream",
+                    feature_type="workspace_assistant",
+                    additional_info={
+                        "project_name": project_name,
+                        "project_type": project_type.value,
+                    },
+                )
+
+        except Exception as e:
+            logger.error(f"流式生成大纲失败: {e}")
+            yield f"\n[错误] 生成失败: {e}"
+
+    return generator
+
+
+@router.post("/projects/{project_id}/outline/generate")
+async def generate_project_outline_stream(
+    project_id: str,
+    project_type: str = Query("other", description="项目类型"),
+):
+    """流式生成项目大纲内容
+
+    Args:
+        project_id: 项目 ID
+        project_type: 项目类型 (liberal_arts, science, engineering, other)
+    """
+    try:
+        workspace_dir = deps.config.workspace_dir
+        project_path = Path(workspace_dir) / project_id
+        outline_path = project_path / "outline.md"
+
+        # 检查项目是否存在
+        if not project_path.exists():
+
+            async def error_gen():
+                yield f"[错误] 项目不存在: {project_id}"
+
+            return StreamingResponse(error_gen(), media_type="text/plain; charset=utf-8")
+
+        # 转换项目类型
+        try:
+            p_type = ProjectType(project_type)
+        except ValueError:
+            p_type = ProjectType.OTHER
+
+        # 创建流式生成器
+        generator = _create_outline_stream_generator(project_id, p_type, outline_path)
+        headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+        return StreamingResponse(
+            generator(), media_type="text/plain; charset=utf-8", headers=headers
+        )
+
+    except Exception as e:
+        logger.error(f"流式生成大纲失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _parse_outline_chapters(outline_content: str) -> list[dict]:
+    """解析大纲内容，提取章节信息
+
+    Args:
+        outline_content: 大纲内容
+
+    Returns:
+        章节列表，每个章节包含 title, points, level
+    """
+    chapters = []
+    lines = outline_content.strip().split("\n")
+    current_chapter = None
+    current_points = []
+
+    for line in lines:
+        stripped = line.strip()
+        # 跳过空行
+        if not stripped:
+            continue
+
+        # 检测二级标题 (## xxx)
+        if stripped.startswith("## "):
+            # 保存之前的章节
+            if current_chapter:
+                chapters.append(
+                    {
+                        "title": current_chapter,
+                        "points": current_points,
+                    }
+                )
+            # 开始新章节
+            current_chapter = stripped[3:].strip()
+            current_points = []
+        # 检测要点 (- xxx)
+        elif stripped.startswith("- ") and current_chapter:
+            point = stripped[2:].strip()
+            if point:
+                current_points.append(point)
+
+    # 保存最后一个章节
+    if current_chapter:
+        chapters.append(
+            {
+                "title": current_chapter,
+                "points": current_points,
+            }
+        )
+
+    # 过滤掉参考文献章节
+    chapters = [
+        ch
+        for ch in chapters
+        if "参考文献" not in ch["title"] and "references" not in ch["title"].lower()
+    ]
+
+    return chapters
+
+
+def _sanitize_filename(title: str) -> str:
+    """将章节标题转换为合法的文件名"""
+    # 移除中文数字前缀（如 "一、"、"二、" 等）
+    import re
+
+    title = re.sub(r"^[一二三四五六七八九十]+、\s*", "", title)
+    # 移除数字前缀（如 "1."、"2." 等）
+    title = re.sub(r"^\d+\.\s*", "", title)
+    # 替换非法字符
+    invalid_chars = ["/", "\\", ":", "*", "?", '"', "<", ">", "|", " "]
+    for char in invalid_chars:
+        title = title.replace(char, "_")
+    return title[:50]  # 限制长度
+
+
+def _create_chapters_stream_generator(project_id: str, outline_content: str, project_path: Path):
+    """创建流式章节生成器"""
+    import json
+
+    def generator():
+        # 解析大纲获取章节
+        chapters = _parse_outline_chapters(outline_content)
+
+        if not chapters:
+            yield (
+                json.dumps(
+                    {"type": "error", "message": "无法从大纲中解析出章节"}, ensure_ascii=False
+                )
+                + "\n"
+            )
+            return
+
+        # 发送章节列表
+        yield (
+            json.dumps(
+                {
+                    "type": "chapters",
+                    "data": [{"title": ch["title"], "index": i} for i, ch in enumerate(chapters)],
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+
+        # 检查 LLM 是否可用
+        if not deps.rag_service.llm_client.is_available():
+            yield (
+                json.dumps({"type": "error", "message": "LLM 服务不可用"}, ensure_ascii=False)
+                + "\n"
+            )
+            return
+
+        # 为每个章节生成内容
+        for i, chapter in enumerate(chapters):
+            chapter_title = chapter["title"]
+            chapter_points = (
+                "\n".join(f"- {p}" for p in chapter["points"])
+                if chapter["points"]
+                else "（无具体要点）"
+            )
+
+            # 发送开始生成某章节的消息
+            yield (
+                json.dumps(
+                    {"type": "chapter_start", "index": i, "title": chapter_title},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+            try:
+                # 获取 prompt
+                system_prompt = get_prompt("project_outline", "chapter_generate_system")
+                user_template = get_prompt("project_outline", "chapter_generate_user")
+
+                user_message = (
+                    user_template.replace("{project_name}", project_id)
+                    .replace("{outline_content}", outline_content)
+                    .replace("{chapter_title}", chapter_title)
+                    .replace("{chapter_points}", chapter_points)
+                )
+
+                # 流式调用 LLM
+                response = deps.rag_service.llm_client.client.chat.completions.create(
+                    model=deps.rag_service.llm_client.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ],
+                    temperature=0.7,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                )
+
+                full_content = f"# {chapter_title}\n\n"
+                usage_info = None
+
+                for chunk in response:
+                    if hasattr(chunk, "usage") and chunk.usage:
+                        usage_info = chunk.usage
+
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        full_content += content
+                        # 发送内容块
+                        yield (
+                            json.dumps(
+                                {"type": "content", "index": i, "chunk": content},
+                                ensure_ascii=False,
+                            )
+                            + "\n"
+                        )
+
+                # 生成文件名并保存
+                filename = f"{i + 1:02d}_{_sanitize_filename(chapter_title)}.md"
+                file_path = project_path / filename
+                file_path.write_text(full_content, encoding="utf-8")
+
+                # 发送章节完成消息
+                yield (
+                    json.dumps(
+                        {
+                            "type": "chapter_done",
+                            "index": i,
+                            "title": chapter_title,
+                            "filename": filename,
+                            "file_id": f"{project_id}/{filename}",
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+
+                # 记录 token 使用量
+                if usage_info:
+                    log_token_usage(
+                        model=deps.rag_service.llm_client.model,
+                        input_tokens=usage_info.prompt_tokens,
+                        output_tokens=usage_info.completion_tokens,
+                        endpoint="workspace_generate_chapter",
+                        user_query=chapter_title,
+                        response_type="stream",
+                        feature_type="workspace_assistant",
+                        additional_info={
+                            "project_name": project_id,
+                            "chapter_index": i,
+                            "chapter_title": chapter_title,
+                        },
+                    )
+
+            except Exception as e:
+                logger.error(f"生成章节 {chapter_title} 失败: {e}")
+                yield (
+                    json.dumps(
+                        {
+                            "type": "chapter_error",
+                            "index": i,
+                            "title": chapter_title,
+                            "error": str(e),
+                        },
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+
+        # 发送全部完成消息
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+
+    return generator
+
+
+@router.post("/projects/{project_id}/chapters/generate")
+async def generate_project_chapters_stream(project_id: str):
+    """根据大纲流式生成各章节文件
+
+    Args:
+        project_id: 项目 ID
+    """
+    try:
+        workspace_dir = deps.config.workspace_dir
+        project_path = Path(workspace_dir) / project_id
+        outline_path = project_path / "outline.md"
+
+        # 检查项目是否存在
+        if not project_path.exists():
+
+            async def error_gen():
+                import json
+
+                yield (
+                    json.dumps(
+                        {"type": "error", "message": f"项目不存在: {project_id}"},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+
+            return StreamingResponse(error_gen(), media_type="application/x-ndjson; charset=utf-8")
+
+        # 检查大纲文件是否存在
+        if not outline_path.exists():
+
+            async def error_gen():
+                import json
+
+                yield (
+                    json.dumps(
+                        {"type": "error", "message": "大纲文件 outline.md 不存在"},
+                        ensure_ascii=False,
+                    )
+                    + "\n"
+                )
+
+            return StreamingResponse(error_gen(), media_type="application/x-ndjson; charset=utf-8")
+
+        # 读取大纲内容
+        outline_content = outline_path.read_text(encoding="utf-8")
+
+        # 创建流式生成器
+        generator = _create_chapters_stream_generator(project_id, outline_content, project_path)
+        headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+
+        return StreamingResponse(
+            generator(), media_type="application/x-ndjson; charset=utf-8", headers=headers
+        )
+
+    except Exception as e:
+        logger.error(f"流式生成章节失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.post("/projects", response_model=CreateWorkspaceProjectResponse)
+async def create_workspace_project(request: CreateWorkspaceProjectRequest):
+    """创建工作区项目（一级文件夹）"""
+    try:
+        if not request.name or not request.name.strip():
+            return CreateWorkspaceProjectResponse(success=False, error="项目名称不能为空")
+
+        project_name = request.name.strip()
+
+        # 检查项目名称是否包含非法字符
+        invalid_chars = ["/", "\\", ":", "*", "?", '"', "<", ">", "|"]
+        if any(char in project_name for char in invalid_chars):
+            return CreateWorkspaceProjectResponse(
+                success=False, error=f"项目名称包含非法字符: {invalid_chars}"
+            )
+
+        workspace_dir = deps.config.workspace_dir
+        project_path = Path(workspace_dir) / project_name
+
+        # 检查项目是否已存在
+        if project_path.exists():
+            return CreateWorkspaceProjectResponse(
+                success=False, error=f"项目已存在: {project_name}"
+            )
+
+        # 创建项目文件夹
+        project_path.mkdir(parents=True, exist_ok=True)
+
+        # 复制项目模板文件夹结构
+        template_dir = Path(__file__).parent.parent / "templates" / "paper"
+        if template_dir.exists():
+            for item in template_dir.iterdir():
+                if item.is_dir():
+                    dest = project_path / item.name
+                    shutil.copytree(item, dest)
+                    logger.debug(f"复制模板文件夹: {item.name} -> {dest}")
+
+        # 先生成模板版本的大纲文件（不调用 LLM）
+        outline_content = _generate_outline_template(project_name, request.project_type)
+        outline_path = project_path / "outline.md"
+        outline_path.write_text(outline_content, encoding="utf-8")
+
+        logger.info(f"创建工作区项目成功: {project_name}, 类型: {request.project_type.value}")
+
+        return CreateWorkspaceProjectResponse(
+            success=True,
+            project_id=project_name,
+            project_name=project_name,
+        )
+
+    except Exception as e:
+        logger.error(f"创建工作区项目失败: {e}")
+        return CreateWorkspaceProjectResponse(success=False, error=str(e))
+
+
+@router.post("/projects/rename", response_model=RenameWorkspaceProjectResponse)
+async def rename_workspace_project(request: RenameWorkspaceProjectRequest):
+    """重命名工作区项目"""
+    try:
+        if not request.new_name or not request.new_name.strip():
+            return RenameWorkspaceProjectResponse(
+                success=False,
+                old_id=request.project_id,
+                new_id=request.project_id,
+                new_name=request.new_name,
+                error="新项目名称不能为空",
+            )
+
+        new_name = request.new_name.strip()
+
+        # 检查新项目名称是否包含非法字符
+        invalid_chars = ["/", "\\", ":", "*", "?", '"', "<", ">", "|"]
+        if any(char in new_name for char in invalid_chars):
+            return RenameWorkspaceProjectResponse(
+                success=False,
+                old_id=request.project_id,
+                new_id=request.project_id,
+                new_name=new_name,
+                error=f"项目名称包含非法字符: {invalid_chars}",
+            )
+
+        workspace_dir = deps.config.workspace_dir
+        old_path = Path(workspace_dir) / request.project_id
+        new_path = Path(workspace_dir) / new_name
+
+        # 检查旧项目是否存在
+        if not old_path.exists():
+            return RenameWorkspaceProjectResponse(
+                success=False,
+                old_id=request.project_id,
+                new_id=request.project_id,
+                new_name=new_name,
+                error=f"项目不存在: {request.project_id}",
+            )
+
+        # 检查新项目名是否已存在
+        if new_path.exists() and new_path != old_path:
+            return RenameWorkspaceProjectResponse(
+                success=False,
+                old_id=request.project_id,
+                new_id=request.project_id,
+                new_name=new_name,
+                error=f"项目已存在: {new_name}",
+            )
+
+        # 重命名
+        old_path.rename(new_path)
+
+        logger.info(f"重命名工作区项目成功: {request.project_id} -> {new_name}")
+
+        return RenameWorkspaceProjectResponse(
+            success=True,
+            old_id=request.project_id,
+            new_id=new_name,
+            new_name=new_name,
+        )
+
+    except Exception as e:
+        logger.error(f"重命名工作区项目失败: {e}")
+        return RenameWorkspaceProjectResponse(
+            success=False,
+            old_id=request.project_id,
+            new_id=request.project_id,
+            new_name=request.new_name,
+            error=str(e),
+        )
+
+
+@router.post("/projects/delete", response_model=DeleteWorkspaceProjectResponse)
+async def delete_workspace_project(request: DeleteWorkspaceProjectRequest):
+    """删除工作区项目（一级文件夹及其所有内容）"""
+    try:
+        if not request.project_id:
+            return DeleteWorkspaceProjectResponse(
+                success=False, project_id=request.project_id, error="项目 ID 不能为空"
+            )
+
+        workspace_dir = deps.config.workspace_dir
+        project_path = Path(workspace_dir) / request.project_id
+
+        # 安全检查：确保路径在 workspace 目录内
+        try:
+            project_path.resolve().relative_to(Path(workspace_dir).resolve())
+        except ValueError:
+            return DeleteWorkspaceProjectResponse(
+                success=False, project_id=request.project_id, error="禁止访问工作区外的目录"
+            )
+
+        # 检查项目是否存在
+        if not project_path.exists():
+            return DeleteWorkspaceProjectResponse(
+                success=False,
+                project_id=request.project_id,
+                error=f"项目不存在: {request.project_id}",
+            )
+
+        # 检查是否为目录
+        if not project_path.is_dir():
+            return DeleteWorkspaceProjectResponse(
+                success=False,
+                project_id=request.project_id,
+                error=f"不是有效的项目: {request.project_id}",
+            )
+
+        # 递归删除项目文件夹
+        shutil.rmtree(project_path)
+
+        logger.info(f"删除工作区项目成功: {request.project_id}")
+
+        return DeleteWorkspaceProjectResponse(success=True, project_id=request.project_id)
+
+    except Exception as e:
+        logger.error(f"删除工作区项目失败: {e}")
+        return DeleteWorkspaceProjectResponse(
+            success=False, project_id=request.project_id, error=str(e)
+        )
+
+
+@router.get("/projects/{project_id}/files", response_model=WorkspaceFilesResponse)
+async def get_project_files(project_id: str):
+    """获取指定项目下的文件列表"""
+    try:
+        workspace_dir = deps.config.workspace_dir
+        project_path = Path(workspace_dir) / project_id
+
+        # 安全检查：确保路径在 workspace 目录内
+        try:
+            project_path.resolve().relative_to(Path(workspace_dir).resolve())
+        except ValueError:
+            raise HTTPException(status_code=403, detail="禁止访问工作区外的目录") from None
+
+        # 检查项目目录是否存在
+        if not project_path.exists():
+            logger.warning(f"项目目录不存在: {project_path}")
+            return WorkspaceFilesResponse(files=[], total=0)
+
+        # 构建文件树（在项目目录下）
+        files = build_file_tree_for_project(str(project_path), project_id)
+        total = count_files(files)
+
+        logger.debug(f"获取项目 {project_id} 文件列表成功，共 {total} 个文件")
+        return WorkspaceFilesResponse(files=files, total=total)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取项目文件列表失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+def _file_sort_key(item: Path, is_root: bool = False) -> tuple:
+    """文件排序键：outline.md 在根目录置顶，然后文件夹优先，最后按名称排序"""
+    is_outline = is_root and item.name.lower() == "outline.md"
+    return (not is_outline, not item.is_dir(), item.name.lower())
+
+
+def build_file_tree_for_project(
+    root_path: str, project_id: str, parent_id: str = "", is_root: bool = True
+) -> list[FileNode]:
+    """递归构建项目内的文件树
+
+    Args:
+        root_path: 根目录路径
+        project_id: 项目 ID
+        parent_id: 父节点ID
+        is_root: 是否为项目根目录
+
+    Returns:
+        文件节点列表
+    """
+    nodes = []
+    root = Path(root_path)
+
+    if not root.exists():
+        return nodes
+
+    # 获取所有子项并排序（outline.md 置顶，然后文件夹优先，最后按名称排序）
+    items = sorted(root.iterdir(), key=lambda x: _file_sort_key(x, is_root))
+
+    workspace_dir = deps.config.workspace_dir
+    project_path = Path(workspace_dir) / project_id
+
+    for item in items:
+        # 跳过隐藏文件和目录
+        if item.name.startswith("."):
+            continue
+
+        # 生成节点ID（相对于 workspace 的路径，包含项目 ID）
+        relative_path = item.relative_to(project_path)
+        node_id = f"{project_id}/{str(relative_path).replace(os.sep, '/')}"
+
+        # 检查是否为受保护的文件（outline.md 在根目录）
+        is_protected = is_root and item.name.lower() == "outline.md"
+
+        if item.is_dir():
+            # 递归处理子目录（不再是根目录）
+            children = build_file_tree_for_project(str(item), project_id, node_id, is_root=False)
+            node = FileNode(
+                id=node_id,
+                name=item.name,
+                type="folder",
+                children=children,
+                parent_id=parent_id if parent_id else None,
+            )
+        else:
+            node = FileNode(
+                id=node_id,
+                name=item.name,
+                type="file",
+                parent_id=parent_id if parent_id else None,
+                is_protected=is_protected,
+            )
+
+        nodes.append(node)
+
+    return nodes
+
+
+# ==================== 原有文件管理 API ====================
 
 
 def build_file_tree(root_path: str, parent_id: str = "") -> list[FileNode]:
@@ -621,6 +1411,17 @@ async def delete_file(request: DeleteFileRequest):
                 success=False,
                 file_id=request.file_id,
                 error=f"文件或文件夹不存在: {request.file_id}",
+            )
+
+        # 检查是否为受保护的文件（outline.md 在项目根目录）
+        # file_id 格式：project_id/outline.md（两层路径表示项目根目录下的文件）
+        path_parts = request.file_id.split("/")
+        is_root_level = len(path_parts) == 2  # noqa: PLR2004
+        if is_root_level and path_parts[1].lower() == "outline.md" and target_path.is_file():
+            return DeleteFileResponse(
+                success=False,
+                file_id=request.file_id,
+                error="该文件受保护，无法删除",
             )
 
         # 删除文件或文件夹

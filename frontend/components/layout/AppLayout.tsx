@@ -12,7 +12,7 @@ import ThemeToggle from '@/components/common/ThemeToggle';
 import LanguageToggle from '@/components/common/LanguageToggle';
 import SettingsModal from '@/components/common/SettingsModal';
 import ModeSwitcher, { AppMode } from '@/components/common/ModeSwitcher';
-import WorkspacePage from '@/components/workspace/WorkspacePage';
+import WorkspaceContainer from '@/components/workspace/WorkspaceContainer';
 import { useLocaleStore } from '@/lib/store/locale';
 import { useTranslations } from '@/lib/i18n';
 
@@ -212,39 +212,82 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
   // 工作区模式的渲染
   const renderWorkspaceMode = () => {
     return (
-      <WorkspacePage
-        fileTreeTitle={t.workspace.fileTreeTitle}
-        uploadLabel={t.workspace.uploadFile}
-        newFileLabel={t.workspace.newFile}
-        newFolderLabel={t.workspace.newFolder}
-        emptyFilesLabel={t.workspace.emptyFiles}
-        deleteConfirmLabel={t.workspace.deleteConfirm}
-        saveLabel={t.workspace.save}
-        editLabel={t.workspace.edit}
-        previewLabel={t.workspace.preview}
-        noFileLabel={t.workspace.noFile}
-        selectFileHint={t.workspace.selectFileHint}
-        unsupportedFileLabel={t.workspace.unsupportedFile}
-        supportedFormatsLabel={t.workspace.supportedFormats}
-        editorPlaceholder={t.workspace.editorPlaceholder}
-        chatTitle={t.workspace.chatTitle}
-        chatInputPlaceholder={t.workspace.chatInputPlaceholder}
-        sendLabel={t.workspace.send}
-        newChatLabel={t.workspace.newChat}
-        welcomeLabel={t.workspace.welcome}
-        thinkingLabel={t.workspace.thinking}
-        sendFailedLabel={t.workspace.sendFailed}
-        llmNotConfiguredLabel={t.workspace.llmNotConfigured}
-        llmConfigHintLabel={t.workspace.llmConfigHint}
-        collapseSidebarLabel={t.workspace.collapseSidebar}
-        expandSidebarLabel={t.workspace.expandSidebar}
-        collapseChatLabel={t.workspace.collapseChat}
-        expandChatLabel={t.workspace.expandChat}
-        wordCountLabel={t.workspace.wordCount}
-        lastUpdatedLabel={t.workspace.lastUpdated}
-        quickActions={t.workspace.quickActions}
-        aiEditLabels={t.workspace.aiEdit}
-        aiMenuLabels={t.workspace.aiMenu}
+      <WorkspaceContainer
+        projectLabels={{
+          title: t.workspace.projectsTitle,
+          subtitle: t.workspace.projectsSubtitle,
+          createProject: t.workspace.createProject,
+          createFirstProject: t.workspace.createFirstProject,
+          noProjects: t.workspace.noProjects,
+          noProjectsHint: t.workspace.noProjectsHint,
+          projectName: t.workspace.projectName,
+          projectNamePlaceholder: t.workspace.projectNamePlaceholder,
+          projectNameRequired: t.workspace.projectNameRequired,
+          projectCreateSuccess: t.workspace.projectCreateSuccess,
+          projectCreateFailed: t.workspace.projectCreateFailed,
+          projectDeleteSuccess: t.workspace.projectDeleteSuccess,
+          projectDeleteFailed: t.workspace.projectDeleteFailed,
+          projectDeleteConfirm: t.workspace.projectDeleteConfirm,
+          projectFileCount: t.workspace.projectFileCount,
+          projectLastModified: t.workspace.projectLastModified,
+          enterProject: t.workspace.enterProject,
+          backToProjects: t.workspace.backToProjects,
+          projectType: t.workspace.projectType,
+          projectTypeHint: t.workspace.projectTypeHint,
+          projectTypes: t.workspace.projectTypes,
+          projectTypeDesc: t.workspace.projectTypeDesc,
+        }}
+        editorLabels={{
+          fileTreeTitle: t.workspace.fileTreeTitle,
+          uploadLabel: t.workspace.uploadFile,
+          newFileLabel: t.workspace.newFile,
+          newFolderLabel: t.workspace.newFolder,
+          emptyFilesLabel: t.workspace.emptyFiles,
+          deleteConfirmLabel: t.workspace.deleteConfirm,
+          protectedFileLabel: t.workspace.protectedFile,
+          generatingOutlineLabel: t.workspace.generatingOutline,
+          saveLabel: t.workspace.save,
+          editLabel: t.workspace.edit,
+          previewLabel: t.workspace.preview,
+          noFileLabel: t.workspace.noFile,
+          selectFileHint: t.workspace.selectFileHint,
+          unsupportedFileLabel: t.workspace.unsupportedFile,
+          supportedFormatsLabel: t.workspace.supportedFormats,
+          editorPlaceholder: t.workspace.editorPlaceholder,
+          chatTitle: t.workspace.chatTitle,
+          chatInputPlaceholder: t.workspace.chatInputPlaceholder,
+          sendLabel: t.workspace.send,
+          newChatLabel: t.workspace.newChat,
+          welcomeLabel: t.workspace.welcome,
+          thinkingLabel: t.workspace.thinking,
+          sendFailedLabel: t.workspace.sendFailed,
+          llmNotConfiguredLabel: t.workspace.llmNotConfigured,
+          llmConfigHintLabel: t.workspace.llmConfigHint,
+          collapseSidebarLabel: t.workspace.collapseSidebar,
+          expandSidebarLabel: t.workspace.expandSidebar,
+          collapseChatLabel: t.workspace.collapseChat,
+          expandChatLabel: t.workspace.expandChat,
+          wordCountLabel: t.workspace.wordCount,
+          lastUpdatedLabel: t.workspace.lastUpdated,
+          quickActions: t.workspace.quickActions,
+          aiEditLabels: t.workspace.aiEdit,
+          aiMenuLabels: t.workspace.aiMenu,
+          // 章节生成
+          generateChaptersLabel: t.workspace.generateChapters,
+          generatingChaptersLabel: t.workspace.generatingChapters,
+          generateChaptersDescLabel: t.workspace.generateChaptersDesc,
+          chaptersGeneratedLabel: t.workspace.chaptersGenerated,
+          chapterGeneratingLabel: t.workspace.chapterGenerating,
+          chapterDoneLabel: t.workspace.chapterDone,
+          chapterErrorLabel: t.workspace.chapterError,
+          totalChaptersLabel: t.workspace.totalChapters,
+          chapterModalLabels: t.workspace.chapterModal,
+          regenerateConfirmTitle: t.workspace.regenerateConfirmTitle,
+          regenerateConfirmMessage: t.workspace.regenerateConfirmMessage,
+          regenerateConfirm: t.workspace.regenerateConfirm,
+          regenerateCancel: t.workspace.regenerateCancel,
+        }}
+        locale={locale}
       />
     );
   };

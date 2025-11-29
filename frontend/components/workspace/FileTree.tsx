@@ -11,6 +11,8 @@ import {
   Pencil,
   Check,
   X,
+  Lock,
+  Sparkles,
 } from 'lucide-react';
 
 // 文件/文件夹节点类型
@@ -21,6 +23,7 @@ export interface FileNode {
   children?: FileNode[];
   content?: string;
   parentId?: string;
+  is_protected?: boolean;  // 受保护的文件，不可删除
 }
 
 interface FileTreeProps {
@@ -31,6 +34,7 @@ interface FileTreeProps {
   onRenameNode?: (nodeId: string, newName: string) => void;
   emptyLabel: string;
   deleteConfirmLabel?: string;
+  protectedFileLabel?: string;
   editingNodeId?: string | null;
   onEditingComplete?: () => void;
 }
@@ -45,6 +49,7 @@ interface TreeNodeProps {
   expandedFolders: Set<string>;
   toggleFolder: (folderId: string) => void;
   deleteConfirmLabel?: string;
+  protectedFileLabel?: string;
   editingNodeId?: string | null;
   onEditingComplete?: () => void;
 }
@@ -59,6 +64,7 @@ function TreeNode({
   expandedFolders,
   toggleFolder,
   deleteConfirmLabel,
+  protectedFileLabel,
   editingNodeId,
   onEditingComplete,
 }: TreeNodeProps) {
@@ -188,6 +194,8 @@ function TreeNode({
           ) : (
             <Folder className="h-4 w-4 text-amber-500 flex-shrink-0" />
           )
+        ) : node.name === 'outline.md' ? (
+          <Sparkles className="h-4 w-4 text-blue-500 flex-shrink-0" />
         ) : (
           <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
         )}
@@ -248,21 +256,32 @@ function TreeNode({
         ) : (
           showActions && (
             <div className="flex items-center gap-0.5">
-              {onRenameNode && (
-                <button
-                  onClick={handleStartEdit}
-                  className="flex-shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              {node.is_protected ? (
+                <span
+                  className="flex-shrink-0 p-1 text-muted-foreground/50"
+                  title={protectedFileLabel || 'Protected file'}
                 >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-              )}
-              {onDeleteNode && (
-                <button
-                  onClick={handleDeleteClick}
-                  className="flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                  <Lock className="h-3.5 w-3.5" />
+                </span>
+              ) : (
+                <>
+                  {onRenameNode && (
+                    <button
+                      onClick={handleStartEdit}
+                      className="flex-shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {onDeleteNode && (
+                    <button
+                      onClick={handleDeleteClick}
+                      className="flex-shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )
@@ -284,6 +303,7 @@ function TreeNode({
               expandedFolders={expandedFolders}
               toggleFolder={toggleFolder}
               deleteConfirmLabel={deleteConfirmLabel}
+              protectedFileLabel={protectedFileLabel}
               editingNodeId={editingNodeId}
               onEditingComplete={onEditingComplete}
             />
@@ -302,6 +322,7 @@ export default function FileTree({
   onRenameNode,
   emptyLabel,
   deleteConfirmLabel,
+  protectedFileLabel,
   editingNodeId,
   onEditingComplete,
 }: FileTreeProps) {
@@ -369,6 +390,7 @@ export default function FileTree({
             expandedFolders={expandedFolders}
             toggleFolder={toggleFolder}
             deleteConfirmLabel={deleteConfirmLabel}
+            protectedFileLabel={protectedFileLabel}
             editingNodeId={editingNodeId}
             onEditingComplete={onEditingComplete}
           />
