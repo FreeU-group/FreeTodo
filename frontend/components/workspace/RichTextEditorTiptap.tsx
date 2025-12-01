@@ -13,6 +13,15 @@ import {
   FileText,
   FileWarning,
   Sparkles,
+  Expand,
+  Shrink,
+  MessageCircle,
+  Languages,
+  Undo2,
+  Send,
+  Loader2,
+  X,
+  Check,
 } from 'lucide-react';
 import TurndownService from 'turndown';
 import Button from '@/components/common/Button';
@@ -252,6 +261,15 @@ export default function RichTextEditorTiptap({
   const [isPreview, setIsPreview] = useState(false);
   const contentRef = useRef<string>(content);
 
+  // AI 编辑菜单状态
+  const [showAIMenu, setShowAIMenu] = useState(false);
+  const [aiMenuPosition, setAIMenuPosition] = useState({ top: 0, left: 0 });
+  const [selectedText, setSelectedText] = useState('');
+  const [isChatMode, setIsChatMode] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const chatInputRef = useRef<HTMLInputElement | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement | null>(null);
+
   // 将 markdown 转换为 HTML（用于 Tiptap）
   const markdownToHtml = useCallback((md: string): string => {
     if (!md) return '';
@@ -325,6 +343,57 @@ export default function RichTextEditorTiptap({
     },
   });
 
+  // 监听选区变化，更新 AI 菜单位置与选中文本
+  useEffect(() => {
+    if (!editor || readOnly) return;
+
+    const updateSelection = () => {
+      const { state, view } = editor;
+      const { from, to } = state.selection;
+
+      if (from === to) {
+        setShowAIMenu(false);
+        setSelectedText('');
+        setIsChatMode(false);
+        setChatInput('');
+        return;
+      }
+
+      const text = state.doc.textBetween(from, to, '\n');
+      if (!text.trim()) {
+        setShowAIMenu(false);
+        setSelectedText('');
+        setIsChatMode(false);
+        setChatInput('');
+        return;
+      }
+
+      setSelectedText(text);
+
+      try {
+        const start = view.coordsAtPos(from);
+        const end = view.coordsAtPos(to);
+        const containerRect = editorContainerRef.current?.getBoundingClientRect();
+        if (!containerRect) return;
+
+        const top = Math.max(start.top, end.top) - containerRect.top - 40;
+        const left =
+          (start.left + end.right) / 2 - containerRect.left;
+
+        setAIMenuPosition({ top, left });
+        setShowAIMenu(true);
+      } catch (error) {
+        console.error('Failed to calculate AI menu position:', error);
+        setShowAIMenu(false);
+      }
+    };
+
+    editor.on('selectionUpdate', updateSelection);
+    return () => {
+      editor.off('selectionUpdate', updateSelection);
+    };
+  }, [editor, readOnly]);
+
   // 同步外部 content 变化到编辑器
   useEffect(() => {
     if (editor && content !== contentRef.current) {
@@ -341,6 +410,66 @@ export default function RichTextEditorTiptap({
       onSave?.();
     }
   };
+
+  // 处理 AI 菜单动作
+  const handleAIAction = useCallback(
+    (action: string) => {
+      if (action === 'chat') {
+        setIsChatMode(true);
+        setChatInput('');
+        setTimeout(() => {
+          chatInputRef.current?.focus();
+        }, 0);
+        return;
+      }
+
+      if (selectedText && onAIEdit) {
+        onAIEdit(action, selectedText);
+      }
+      setShowAIMenu(false);
+      setIsChatMode(false);
+      setChatInput('');
+    },
+    [onAIEdit, selectedText]
+  );
+
+  // 处理自定义指令发送
+  const handleChatSend = useCallback(() => {
+    if (!chatInput.trim() || !selectedText || !onAIEdit) return;
+    onAIEdit('custom', selectedText, chatInput.trim());
+    setShowAIMenu(false);
+    setIsChatMode(false);
+    setChatInput('');
+  }, [chatInput, selectedText, onAIEdit]);
+
+  const handleChatBack = useCallback(() => {
+    setIsChatMode(false);
+    setChatInput('');
+  }, []);
+
+  // 点击外部关闭 AI 菜单
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!showAIMenu) return;
+      const target = e.target as HTMLElement;
+      if (!target.closest('.ai-edit-menu')) {
+        setShowAIMenu(false);
+        setIsChatMode(false);
+        setChatInput('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAIMenu]);
+
+  // AI 菜单选项
+  const aiMenuItems = [
+    { icon: Sparkles, action: 'beautify', label: aiMenuLabels?.beautify ?? '美化' },
+    { icon: Expand, action: 'expand', label: aiMenuLabels?.expand ?? '扩写' },
+    { icon: Shrink, action: 'condense', label: aiMenuLabels?.condense ?? '缩写' },
+    { icon: Languages, action: 'translate', label: aiMenuLabels?.translate ?? '翻译' },
+    { icon: MessageCircle, action: 'chat', label: aiMenuLabels?.chat ?? '对话' },
+  ];
 
   // 格式化时间
   const formatTime = (date: Date | null | undefined) => {
@@ -361,12 +490,16 @@ export default function RichTextEditorTiptap({
   const wordCount = content ? content.length : 0;
   const lineCount = content ? content.split('\n').length : 1;
 
+  // 是否处于 AI 对比视图模式
+  const isAIDiffMode =
+    !!aiEditState && (aiEditState.isProcessing || !!aiEditState.previewText);
+
   // 如果选中的是不支持的文件类型
   if (unsupportedFileInfo) {
     return (
       <div className="flex flex-col h-full bg-background">
         {/* 工具栏 - 保持高度一致 */}
-        <div className="flex items-center justify-between h-12 px-4 border-b border-border bg-muted/30 flex-shrink-0">
+        <div className="flex items-center justify-between h-12 px-4 border-b border-border bg-muted/30 shrink-0">
           {/* 左侧：折叠/展开按钮和文件名 */}
           <div className="flex items-center">
             {onToggleFileTree && (
@@ -418,7 +551,7 @@ export default function RichTextEditorTiptap({
     return (
       <div className="flex flex-col h-full bg-background">
         {/* 空的工具栏 - 保持高度一致 */}
-        <div className="flex items-center justify-between h-12 px-4 border-b border-border bg-muted/30 flex-shrink-0">
+        <div className="flex items-center justify-between h-12 px-4 border-b border-border bg-muted/30 shrink-0">
           {/* 左侧：折叠/展开按钮 */}
           <div className="flex items-center">
             {onToggleFileTree && (
@@ -468,7 +601,7 @@ export default function RichTextEditorTiptap({
   return (
     <div className="flex flex-col h-full bg-background">
       {/* 工具栏 - 统一高度 h-12 */}
-      <div className="flex items-center justify-between h-12 px-4 border-b border-border bg-muted/30 flex-shrink-0">
+      <div className="flex items-center justify-between h-12 px-4 border-b border-border bg-muted/30 shrink-0">
         <div className="flex items-center gap-1">
           {/* 左侧：折叠/展开按钮 */}
           {onToggleFileTree && (
@@ -575,15 +708,167 @@ export default function RichTextEditorTiptap({
             <div className="h-full" onKeyDown={handleKeyDown}>
               {editor && (
                 <EditorContext.Provider value={{ editor }}>
-                  <div className="simple-editor-wrapper">
+                  <div
+                    ref={editorContainerRef}
+                    className="simple-editor-wrapper relative w-full h-full"
+                  >
                     <Toolbar>
                       <MainToolbarContent />
                     </Toolbar>
-                    <EditorContent
-                      editor={editor}
-                      role="presentation"
-                      className="simple-editor-content w-full h-full"
-                    />
+                    <div className="relative w-full h-full">
+                      {isAIDiffMode && aiEditState ? (
+                        // AI 内联对比视图：在内容中直接红/绿对比
+                        <div
+                          className="flex-1 overflow-y-auto p-4 font-mono text-sm text-foreground whitespace-pre-wrap"
+                          style={{ lineHeight: '1.625rem' }}
+                        >
+                          {/* 选中位置之前的内容 */}
+                          <span>
+                            {content.substring(
+                              0,
+                              Math.max(0, Math.min(content.length, aiEditState.selectionStart))
+                            )}
+                          </span>
+
+                          {/* 对比区域 */}
+                          {aiEditState.isProcessing ? (
+                            <>
+                              {/* 原文（红色删除线） */}
+                              <span className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 line-through px-0.5">
+                                {aiEditState.originalText}
+                              </span>
+                              {/* 已生成的新文本（绿色） */}
+                              {aiEditState.previewText && (
+                                <span className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-0.5">
+                                  {aiEditState.previewText}
+                                </span>
+                              )}
+                              {/* 加载提示 */}
+                              {aiEditState.previewText ? (
+                                <Loader2 className="inline-block h-3.5 w-3.5 animate-spin text-primary ml-1 align-middle" />
+                              ) : (
+                                <span className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs align-middle">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <span>{aiEditLabels?.processing ?? 'AI 处理中...'}</span>
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              {/* 删除的原文（红色删除线） */}
+                              <span className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 line-through px-0.5">
+                                {aiEditState.originalText}
+                              </span>
+                              {/* 新增的文本（绿色） */}
+                              <span className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-0.5">
+                                {aiEditState.previewText}
+                              </span>
+
+                              {/* 悬浮确认/取消按钮，紧随对比区域 */}
+                              <span className="relative inline-block w-0 h-0 align-baseline">
+                                <span className="absolute left-2 top-1 flex items-center gap-1 z-50 whitespace-nowrap">
+                                  <button
+                                    onClick={onAIEditCancel}
+                                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 rounded shadow-md hover:shadow-lg transition-all"
+                                  >
+                                    <X className="h-3 w-3" />
+                                    <span>{aiEditLabels?.cancel ?? '取消'}</span>
+                                  </button>
+                                  <button
+                                    onClick={onAIEditConfirm}
+                                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded shadow-md hover:shadow-lg transition-all"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                    <span>{aiEditLabels?.confirm ?? '确认'}</span>
+                                  </button>
+                                </span>
+                              </span>
+                            </>
+                          )}
+
+                          {/* 选中位置之后的内容 */}
+                          <span>
+                            {content.substring(
+                              Math.max(0, Math.min(content.length, aiEditState.selectionEnd))
+                            )}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          <EditorContent
+                            editor={editor}
+                            role="presentation"
+                            className="simple-editor-content w-full h-full"
+                          />
+
+                          {/* AI 编辑浮动菜单（仅在正常编辑模式下显示） */}
+                          {onAIEdit &&
+                            showAIMenu &&
+                            !aiEditState?.isProcessing &&
+                            !aiEditState?.previewText && (
+                              <div
+                                className="ai-edit-menu absolute z-50 bg-popover border border-border rounded-lg shadow-lg p-1"
+                                style={{
+                                  top: aiMenuPosition.top,
+                                  left: aiMenuPosition.left,
+                                }}
+                              >
+                                {isChatMode ? (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={handleChatBack}
+                                      className="flex items-center justify-center p-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                                      title={aiMenuLabels?.back ?? '返回'}
+                                    >
+                                      <Undo2 className="h-3.5 w-3.5" />
+                                    </button>
+                                    <div className="relative flex items-center">
+                                      <input
+                                        ref={chatInputRef}
+                                        type="text"
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleChatSend();
+                                          } else if (e.key === 'Escape') {
+                                            handleChatBack();
+                                          }
+                                        }}
+                                        placeholder={aiMenuLabels?.chatPlaceholder ?? '输入指令...'}
+                                        className="w-48 pl-2.5 pr-8 py-1.5 text-xs bg-background border border-border rounded-md focus:outline-none"
+                                      />
+                                      <button
+                                        onClick={handleChatSend}
+                                        disabled={!chatInput.trim()}
+                                        className="absolute right-1 flex items-center justify-center p-1 text-xs text-primary hover:text-primary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                        title={aiMenuLabels?.send ?? '发送'}
+                                      >
+                                        <Send className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex gap-0.5">
+                                    {aiMenuItems.map((item) => (
+                                      <button
+                                        key={item.action}
+                                        onClick={() => handleAIAction(item.action)}
+                                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-foreground hover:bg-accent rounded-md transition-colors whitespace-nowrap"
+                                        title={item.label}
+                                      >
+                                        <item.icon className="h-3.5 w-3.5" />
+                                        <span>{item.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </EditorContext.Provider>
               )}
@@ -592,7 +877,7 @@ export default function RichTextEditorTiptap({
         </div>
 
         {/* 底部状态栏 */}
-        <div className="flex items-center justify-between h-6 px-4 border-t border-border bg-muted/30 flex-shrink-0 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between h-6 px-4 border-t border-border bg-muted/30 shrink-0 text-xs text-muted-foreground">
           <div className="flex items-center gap-3">
             <span className={lineCount >= maxLines ? 'text-amber-500 font-medium' : ''}>
               {lineCountLabel.replace('{count}', String(lineCount)).replace('{max}', String(maxLines))}
