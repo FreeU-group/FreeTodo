@@ -6,6 +6,9 @@ import { Circle, CircleDot, CheckCircle2, XCircle, Edit2, Trash2, Square, Check,
 import { useRouter } from 'next/navigation';
 import { useLocaleStore } from '@/lib/store/locale';
 import { useTranslations } from '@/lib/i18n';
+import EditableText from '@/components/common/EditableText';
+import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -16,6 +19,7 @@ interface TaskListViewProps {
   selectedTaskIds?: Set<number>;
   onToggleSelect?: (task: Task, selected: boolean) => void;
   className?: string;
+  onTaskUpdated?: () => void;
 }
 
 const getStatusConfig = (status: string, t: ReturnType<typeof useTranslations>) => {
@@ -61,6 +65,7 @@ export default function TaskListView({
   selectedTaskIds,
   onToggleSelect,
   className,
+  onTaskUpdated,
 }: TaskListViewProps) {
   const router = useRouter();
   const locale = useLocaleStore((state) => state.locale);
@@ -78,6 +83,21 @@ export default function TaskListView({
     e.stopPropagation();
     const isSelected = selectedTaskIds?.has(task.id);
     onToggleSelect?.(task, !isSelected);
+  };
+
+  // 更新任务名称
+  const handleUpdateTaskName = async (taskId: number, newName: string) => {
+    if (!projectId) return;
+    try {
+      await api.updateTask(projectId, taskId, { name: newName });
+      toast.success(t.task?.updateSuccess || '任务更新成功');
+      // 触发父组件刷新任务列表
+      onTaskUpdated?.();
+    } catch (error) {
+      console.error('更新任务名称失败:', error);
+      toast.error(t.task?.updateFailed || '更新任务失败');
+      throw error;
+    }
   };
 
   // 格式化日期
@@ -154,8 +174,12 @@ export default function TaskListView({
 
                   {/* 任务名称和描述 */}
                   <div className="col-span-4 flex flex-col justify-center min-w-0">
-                    <div className="font-medium text-foreground truncate hover:text-primary transition-colors">
-                      {task.name}
+                    <div className="font-medium text-foreground">
+                      <EditableText
+                        value={task.name}
+                        onSave={(newName) => handleUpdateTaskName(task.id, newName)}
+                        inputClassName="font-medium"
+                      />
                     </div>
                     {task.description && (
                       <div className="text-sm text-muted-foreground truncate mt-0.5">

@@ -6,6 +6,7 @@ import { ArrowLeft, Plus, FolderOpen, ChevronRight, History, Send, User, Bot, X,
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import Input from '@/components/common/Input';
+import EditableText from '@/components/common/EditableText';
 import TaskBoard from '@/components/task/TaskBoard';
 import TaskListView from '@/components/task/TaskListView';
 import TaskDashboardView from '@/components/task/TaskDashboardView';
@@ -373,6 +374,19 @@ export default function ProjectDetailPage() {
     loadTasks();
   };
 
+  // 更新项目名称
+  const handleUpdateProjectName = async (newName: string) => {
+    try {
+      await api.updateProject(projectId, { name: newName });
+      toast.success(t.project?.updateSuccess || '项目更新成功');
+      loadProject();
+    } catch (error) {
+      console.error('更新项目名称失败:', error);
+      toast.error(t.project?.updateFailed || '更新项目失败');
+      throw error;
+    }
+  };
+
   // 任务选择相关函数
   const selectedTasksData = tasks.filter((task) => selectedTasks.has(task.id));
 
@@ -452,7 +466,13 @@ export default function ProjectDetailPage() {
                     </Button>
                     {/* 项目信息 */}
                     <div>
-                      <h1 className="text-3xl font-bold text-foreground">{project.name}</h1>
+                      <h1 className="text-3xl font-bold text-foreground">
+                        <EditableText
+                          value={project.name}
+                          onSave={handleUpdateProjectName}
+                          inputClassName="text-3xl font-bold"
+                        />
+                      </h1>
                       {project.goal && (
                         <p className="mt-2 text-muted-foreground">{project.goal}</p>
                       )}
@@ -496,6 +516,7 @@ export default function ProjectDetailPage() {
                 projectId={projectId}
                 selectedTaskIds={selectedTasks}
                 onToggleSelect={handleToggleTaskSelect}
+                onTaskUpdated={loadTasks}
               />
             </div>
           ) : (
