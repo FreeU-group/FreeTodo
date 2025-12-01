@@ -540,6 +540,7 @@ export default function ProjectDetailPage() {
                 projectId={projectId}
                 selectedTaskIds={selectedTasks}
                 onToggleSelect={handleToggleTaskSelect}
+                onTaskCreated={loadTasks}
               />
             )}
           </div>
