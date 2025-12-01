@@ -69,7 +69,7 @@ export default function ViewModeSelect({ value, onChange }: ViewModeSelectProps)
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-          'bg-primary text-primary-foreground hover:bg-primary/90'
+          'border border-border bg-background hover:bg-muted/50 text-foreground'
         )}
       >
         <CurrentIcon className="h-4 w-4" />
@@ -88,10 +88,10 @@ export default function ViewModeSelect({ value, onChange }: ViewModeSelectProps)
                   key={option.value}
                   onClick={() => handleViewChange(option.value)}
                   className={cn(
-                    'w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm transition-colors',
+                    'w-full flex items-center gap-3 px-4 py-2.5 rounded-md text-sm transition-colors text-foreground',
                     option.value === value
-                      ? 'bg-accent text-accent-foreground'
-                      : 'hover:bg-accent/50'
+                      ? 'bg-muted font-medium'
+                      : 'hover:bg-muted/50'
                   )}
                 >
                   <OptionIcon className="h-4 w-4" />

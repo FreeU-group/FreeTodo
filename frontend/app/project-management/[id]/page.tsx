@@ -438,31 +438,28 @@ export default function ProjectDetailPage() {
           <div className="mx-auto max-w-7xl w-full">
             {/* 顶部导航 */}
             <div className="mb-6">
-              <Button
-                variant="ghost"
-                onClick={() => router.push('/project-management')}
-                className="gap-2 mb-4"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                {t.projectDetail.backToList}
-              </Button>
-
               {project && (
                 <div className="flex items-start justify-between">
-                  <div>
-                    <h1 className="text-3xl font-bold text-foreground">{project.name}</h1>
-                    {project.goal && (
-                      <p className="mt-2 text-muted-foreground">{project.goal}</p>
-                    )}
-                  </div>
                   <div className="flex items-center gap-3">
-                    {/* 视图选择下拉框 */}
-                    <ViewModeSelect value={viewMode} onChange={setViewMode} />
-                    <Button onClick={() => handleCreateTask()} className="gap-2">
-                      <Plus className="h-5 w-5" />
-                      {t.projectDetail.createTask}
+                    {/* 返回按钮 */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => router.push('/project-management')}
+                      className="h-10 w-10 p-0"
+                    >
+                      <ArrowLeft className="h-5 w-5" />
                     </Button>
+                    {/* 项目信息 */}
+                    <div>
+                      <h1 className="text-3xl font-bold text-foreground">{project.name}</h1>
+                      {project.goal && (
+                        <p className="mt-2 text-muted-foreground">{project.goal}</p>
+                      )}
+                    </div>
                   </div>
+                  {/* 视图选择下拉框 */}
+                  <ViewModeSelect value={viewMode} onChange={setViewMode} />
                 </div>
               )}
             </div>
