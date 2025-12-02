@@ -10,7 +10,12 @@
 |--------|------|------|
 | id | INTEGER | 项目ID（主键，自增） |
 | name | VARCHAR(200) | 项目名称（必填） |
-| goal | TEXT | 项目目标（可选） |
+| definition_of_done | TEXT | 项目“完成”的判定标准（可选） |
+| status | VARCHAR(20) | 项目状态：`active` / `archived` / `completed`（默认 `active`） |
+| keywords_json | TEXT | 关键词列表 JSON 字符串（例如：`["LLM","Agent","Python"]`） |
+| whitelist_apps_json | TEXT | 应用白名单 JSON 字符串（例如：`["VS Code","Chrome"]`） |
+| milestones_json | TEXT | 里程碑 JSON 字符串（例如：`[{"stage":"MVP","status":"in_progress"}]`） |
+| system_context_prompt | TEXT | 为 AI Advisor 准备的系统级上下文摘要 |
 | created_at | DATETIME | 创建时间（自动生成） |
 | updated_at | DATETIME | 更新时间（自动更新） |
 
@@ -24,7 +29,21 @@
 ```json
 {
   "name": "项目名称",
-  "goal": "项目目标描述"
+  "definition_of_done": "什么情况下认为这个项目已经完成？",
+  "status": "active",
+  "keywords": ["LLM", "Agent", "Python"],
+  "whitelist_apps": ["VS Code", "Chrome"],
+  "milestones": [
+    {
+      "stage": "Research",
+      "status": "done"
+    },
+    {
+      "stage": "MVP",
+      "status": "in_progress"
+    }
+  ],
+  "system_context_prompt": "这是一个围绕 LifeTrace 项目管理的实验性功能，用于验证 AI 驱动的上下文检索。"
 }
 ```
 
@@ -33,7 +52,21 @@
 {
   "id": 1,
   "name": "项目名称",
-  "goal": "项目目标描述",
+  "definition_of_done": "什么情况下认为这个项目已经完成？",
+  "status": "active",
+  "keywords": ["LLM", "Agent", "Python"],
+  "whitelist_apps": ["VS Code", "Chrome"],
+  "milestones": [
+    {
+      "stage": "Research",
+      "status": "done"
+    },
+    {
+      "stage": "MVP",
+      "status": "in_progress"
+    }
+  ],
+  "system_context_prompt": "这是一个围绕 LifeTrace 项目管理的实验性功能，用于验证 AI 驱动的上下文检索。",
   "created_at": "2025-11-08T14:06:42.193536",
   "updated_at": "2025-11-08T14:06:42.193538"
 }
@@ -43,7 +76,18 @@
 ```bash
 curl -X POST "http://127.0.0.1:8000/api/projects" \
   -H "Content-Type: application/json" \
-  -d '{"name": "LifeTrace项目管理", "goal": "开发完整的项目管理系统"}'
+  -d '{
+        "name": "LifeTrace 项目管理",
+        "definition_of_done": "项目管理 UI 与 AI 上下文检索闭环打通",
+        "status": "active",
+        "keywords": ["LifeTrace", "Project", "AI Context"],
+        "whitelist_apps": ["VS Code", "Chrome"],
+        "milestones": [
+          {"stage": "Design", "status": "done"},
+          {"stage": "Backend API", "status": "in_progress"}
+        ],
+        "system_context_prompt": "专注于 LifeTrace 内部的项目管理和任务追踪能力。"
+      }'
 ```
 
 ### 2. 获取所有项目
@@ -62,14 +106,29 @@ curl -X POST "http://127.0.0.1:8000/api/projects" \
     {
       "id": 1,
       "name": "项目名称1",
-      "goal": "项目目标1",
+      "definition_of_done": "完成所有核心功能并通过集成测试",
+      "status": "active",
+      "keywords": ["LLM", "Agent", "Python"],
+      "whitelist_apps": ["VS Code"],
+      "milestones": [
+        {"stage": "Research", "status": "done"},
+        {"stage": "Prototype", "status": "done"}
+      ],
+      "system_context_prompt": "用于追踪 AI Agent 相关实验和实现。",
       "created_at": "2025-11-08T14:06:42.193536",
       "updated_at": "2025-11-08T14:06:42.193538"
     },
     {
       "id": 2,
       "name": "项目名称2",
-      "goal": "项目目标2",
+      "definition_of_done": "完成首版上线并收集用户反馈",
+      "status": "archived",
+      "keywords": ["UI", "React"],
+      "whitelist_apps": ["Chrome"],
+      "milestones": [
+        {"stage": "Design", "status": "done"}
+      ],
+      "system_context_prompt": "前端 UI 与 UX 实验项目。",
       "created_at": "2025-11-08T14:06:42.230011",
       "updated_at": "2025-11-08T14:06:42.230014"
     }
@@ -94,7 +153,15 @@ curl -X GET "http://127.0.0.1:8000/api/projects?limit=10&offset=0"
 {
   "id": 1,
   "name": "项目名称",
-  "goal": "项目目标描述",
+  "definition_of_done": "完成所有高优先级需求",
+  "status": "active",
+  "keywords": ["LLM", "Agent", "Python"],
+  "whitelist_apps": ["VS Code", "Chrome"],
+  "milestones": [
+    {"stage": "Research", "status": "done"},
+    {"stage": "Implementation", "status": "in_progress"}
+  ],
+  "system_context_prompt": "这是一个主要围绕 AI 能力评估和迭代的项目。",
   "created_at": "2025-11-08T14:06:42.193536",
   "updated_at": "2025-11-08T14:06:42.193538"
 }
@@ -123,7 +190,16 @@ curl -X GET "http://127.0.0.1:8000/api/projects/1"
 ```json
 {
   "name": "新的项目名称",
-  "goal": "新的项目目标"
+  "definition_of_done": "更新后的完成条件描述",
+  "status": "completed",
+  "keywords": ["LLM", "Agent", "Python", "Refactor"],
+  "whitelist_apps": ["VS Code", "Chrome"],
+  "milestones": [
+    {"stage": "Research", "status": "done"},
+    {"stage": "Implementation", "status": "done"},
+    {"stage": "Refactor", "status": "done"}
+  ],
+  "system_context_prompt": "项目已完成，主要作为历史参考和上下文检索使用。"
 }
 ```
 
@@ -132,7 +208,16 @@ curl -X GET "http://127.0.0.1:8000/api/projects/1"
 {
   "id": 1,
   "name": "新的项目名称",
-  "goal": "新的项目目标",
+  "definition_of_done": "更新后的完成条件描述",
+  "status": "completed",
+  "keywords": ["LLM", "Agent", "Python", "Refactor"],
+  "whitelist_apps": ["VS Code", "Chrome"],
+  "milestones": [
+    {"stage": "Research", "status": "done"},
+    {"stage": "Implementation", "status": "done"},
+    {"stage": "Refactor", "status": "done"}
+  ],
+  "system_context_prompt": "项目已完成，主要作为历史参考和上下文检索使用。",
   "created_at": "2025-11-08T14:06:42.193536",
   "updated_at": "2025-11-08T14:06:58.632437"
 }
@@ -173,12 +258,12 @@ curl -X DELETE "http://127.0.0.1:8000/api/projects/1"
 - **模型类**: `Project`
 
 ### 2. 数据库操作
-- **文件**: `lifetrace/storage/database.py`
+- **文件**: `lifetrace/storage/project_manager.py`
 - **方法**:
-  - `create_project(name, goal)`: 创建项目
-  - `get_project(project_id)`: 获取单个项目
-  - `list_projects(limit, offset)`: 获取项目列表
-  - `update_project(project_id, name, goal)`: 更新项目
+  - `create_project(name, definition_of_done, status, keywords, whitelist_apps, milestones, system_context_prompt)`: 创建项目
+  - `get_project(project_id)`: 获取单个项目（会自动解析 JSON 字段）
+  - `list_projects(limit, offset)`: 获取项目列表（会自动解析 JSON 字段）
+  - `update_project(project_id, name, definition_of_done, status, keywords, whitelist_apps, milestones, system_context_prompt)`: 更新项目
   - `delete_project(project_id)`: 删除项目
 
 ### 3. API Schema
@@ -226,6 +311,7 @@ PYTHONPATH=/Users/liji/Documents/LifeTrace uv run python lifetrace/server.py
 
 1. **数据库表**: projects 表在首次启动时会自动创建
 2. **字段验证**: 项目名称长度限制为1-200字符，必填
-3. **时间戳**: created_at 和 updated_at 由数据库自动管理
-4. **排序**: 项目列表按创建时间倒序排列
-5. **错误处理**: 所有端点都包含适当的错误处理和日志记录
+3. **JSON 字段**: `keywords`、`whitelist_apps`、`milestones` 在 API 层为结构化字段，在数据库中以 JSON 字符串形式存储
+4. **时间戳**: created_at 和 updated_at 由数据库自动管理
+5. **排序**: 项目列表按创建时间倒序排列
+6. **错误处理**: 所有端点都包含适当的错误处理和日志记录

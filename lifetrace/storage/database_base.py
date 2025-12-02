@@ -42,6 +42,9 @@ class DatabaseBase:
             # 创建表
             Base.metadata.create_all(bind=self.engine)
 
+            # 进行 projects 表结构迁移（确保新列存在）
+            self._migrate_projects_table()
+
             # 只在数据库不存在时（新创建）打印日志
             if not db_exists:
                 logger.info(f"数据库初始化完成: {config.database_path}")
@@ -103,6 +106,75 @@ class DatabaseBase:
         except Exception as e:
             logger.warning(f"创建性能索引失败: {e}")
             raise
+
+    def _migrate_projects_table(self):
+        """迁移 projects 表结构，添加用于 AI 上下文的字段（SQLite 兼容方式）
+
+        - 不删除旧字段，保证向后兼容
+        - 仅在目标列不存在时执行 ALTER TABLE
+        """
+        try:
+            with self.engine.connect() as conn:
+                # 检查 projects 表是否存在
+                tables = [
+                    row[0]
+                    for row in conn.execute(
+                        text(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='projects'"
+                        )
+                    ).fetchall()
+                ]
+                if "projects" not in tables:
+                    return
+
+                # 获取现有列
+                columns = [
+                    row[1]
+                    for row in conn.execute(text("PRAGMA table_info('projects')")).fetchall()
+                ]
+
+                def add_column_if_missing(column_name: str, ddl: str):
+                    if column_name not in columns:
+                        conn.execute(text(ddl))
+                        logger.info(f"已为 projects 表添加列: {column_name}")
+
+                # 1. 身份锚点
+                add_column_if_missing(
+                    "definition_of_done",
+                    "ALTER TABLE projects ADD COLUMN definition_of_done TEXT",
+                )
+                add_column_if_missing(
+                    "status",
+                    "ALTER TABLE projects ADD COLUMN status VARCHAR(20) DEFAULT 'active'",
+                )
+
+                # 2. 语义指纹
+                add_column_if_missing(
+                    "keywords_json",
+                    "ALTER TABLE projects ADD COLUMN keywords_json TEXT",
+                )
+                add_column_if_missing(
+                    "whitelist_apps_json",
+                    "ALTER TABLE projects ADD COLUMN whitelist_apps_json TEXT",
+                )
+
+                # 3. 里程碑上下文
+                add_column_if_missing(
+                    "milestones_json",
+                    "ALTER TABLE projects ADD COLUMN milestones_json TEXT",
+                )
+
+                # 4. AI 与系统上下文
+                add_column_if_missing(
+                    "system_context_prompt",
+                    "ALTER TABLE projects ADD COLUMN system_context_prompt TEXT",
+                )
+
+                conn.commit()
+
+        except Exception as e:
+            # 迁移失败不应阻止服务启动，但需要记录错误
+            logger.error(f"projects 表结构迁移失败: {e}")
 
     @contextmanager
     def get_session(self):

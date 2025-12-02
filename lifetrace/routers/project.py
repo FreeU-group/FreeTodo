@@ -29,7 +29,15 @@ async def create_project(project: ProjectCreate):
     """
     try:
         # 创建项目
-        project_id = project_mgr.create_project(name=project.name, goal=project.goal)
+        project_id = project_mgr.create_project(
+            name=project.name,
+            definition_of_done=project.definition_of_done,
+            status=str(project.status),
+            keywords=project.keywords,
+            whitelist_apps=project.whitelist_apps,
+            milestones=project.milestones,
+            system_context_prompt=project.system_context_prompt,
+        )
 
         if not project_id:
             raise HTTPException(status_code=500, detail="创建项目失败")
@@ -129,7 +137,14 @@ async def update_project(project_id: int, project: ProjectUpdate):
 
         # 更新项目
         success = project_mgr.update_project(
-            project_id=project_id, name=project.name, goal=project.goal
+            project_id=project_id,
+            name=project.name,
+            definition_of_done=project.definition_of_done,
+            status=str(project.status) if project.status is not None else None,
+            keywords=project.keywords,
+            whitelist_apps=project.whitelist_apps,
+            milestones=project.milestones,
+            system_context_prompt=project.system_context_prompt,
         )
 
         if not success:

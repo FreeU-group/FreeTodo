@@ -111,12 +111,29 @@ class Project(Base):
 
     __tablename__ = "projects"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
+
+    # 1. 身份锚点
     name = Column(String(200), nullable=False)  # 项目名称
-    description = Column(Text)  # 项目描述
-    goal = Column(Text)  # 项目目标
+    definition_of_done = Column(Text, nullable=True)  # "完成"的标准
+    status = Column(String(20), default="active")  # 项目状态：active, archived, completed
+
+    # 2. 语义指纹（用于 OCR 匹配和上下文分析）
+    # 在 SQLite 中以 JSON 字符串（Text）形式存储
+    keywords_json = Column(Text, nullable=True)  # 例如：'["LLM", "Agent", "Python"]'
+    whitelist_apps_json = Column(Text, nullable=True)  # 例如：'["VS Code", "Chrome"]'
+
+    # 3. 里程碑上下文（以 JSON 字符串形式存储）
+    milestones_json = Column(Text, nullable=True)  # 例如：'[{"stage": "MVP", "status": "in_progress"}]'
+
+    # 4. AI 与系统上下文
+    system_context_prompt = Column(Text, nullable=True)  # 为 Advisor 提供的 AI 总结的上下文
+
+    # 5. 元数据（保留现有字段）
     created_at = Column(DateTime, default=get_local_time, nullable=False)
-    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+    updated_at = Column(
+        DateTime, default=get_local_time, onupdate=get_local_time, nullable=False
+    )
     deleted_at = Column(DateTime)
 
     def __repr__(self):
