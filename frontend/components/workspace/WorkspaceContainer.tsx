@@ -570,24 +570,32 @@ export default function WorkspaceContainer({
   }, [chatWidth]);
 
   // 处理文件/文件夹选择
+  // 确保切换文件时先加载内容，再更新选中状态
+  // 这样可以保证编辑器重新挂载时使用的是新文件的内容，而不是旧内容
   const handleSelectFile = async (node: FileNode) => {
-    setSelectedFile(node);
-
     // 如果是文件夹，只选中不加载内容
     if (node.type === 'folder') {
+      setSelectedFile(node);
       return;
     }
 
-    // 如果是文件，总是从 API 加载最新内容
+    // 如果是文件，先从 API 加载最新内容，再一起更新状态
+    // 这样确保 selectedFile 和 fileContent 同步更新，避免编辑器使用旧内容重新挂载
     try {
       const response = await api.getWorkspaceFile(node.id);
       const content = response.data?.content ?? '';
+      
+      // 原子性地更新选中文件和内容，确保编辑器重新挂载时使用正确的内容
+      setSelectedFile(node);
       setFileContent(content);
       lastSavedContentRef.current = content;
-      // 更新文件树中的内容
+      
+      // 更新文件树中的内容缓存
       updateFileContent(node.id, content);
     } catch (error) {
       console.error('加载文件内容失败:', error);
+      // 出错时也要更新选中状态，但内容为空
+      setSelectedFile(node);
       setFileContent('');
       lastSavedContentRef.current = '';
     }
@@ -1215,6 +1223,7 @@ export default function WorkspaceContainer({
           onChange={handleContentChange}
           onSave={() => handleSaveFile(true)}
           placeholder={editorLabels.editorPlaceholder}
+          fileId={selectedFile?.id}
           fileName={selectedFile?.type === 'file' ? (() => {
             const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
             const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));

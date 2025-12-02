@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { EditorContent, EditorContext, useEditor } from '@tiptap/react';
+import { Editor, EditorContent, EditorContext, useEditor } from '@tiptap/react';
 import {
   PanelLeftClose,
   PanelLeft,
@@ -155,6 +155,8 @@ interface RichTextEditorProps {
   onSave?: () => void;
   placeholder?: string;
   readOnly?: boolean;
+  /** Unique file ID used as key for editor re-mounting */
+  fileId?: string;
   fileName?: string;
   saveLabel: string;
   editLabel: string;
@@ -218,6 +220,7 @@ export default function RichTextEditorTiptap({
   onSave,
   placeholder = '',
   readOnly = false,
+  fileId,
   fileName,
   saveLabel,
   editLabel,
@@ -557,7 +560,7 @@ export default function RichTextEditorTiptap({
             </div>
           ) : (
             <EditorComponent
-              key={fileName}
+              key={fileId}
               initialContent={content}
               placeholder={placeholder}
               readOnly={readOnly}
