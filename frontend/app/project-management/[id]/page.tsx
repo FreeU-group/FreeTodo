@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, FolderOpen, ChevronRight, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, FolderOpen, ChevronRight, ChevronDown, ChevronUp, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock } from 'lucide-react';
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import Input from '@/components/common/Input';
@@ -77,6 +77,13 @@ export default function ProjectDetailPage() {
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentTaskId, setParentTaskId] = useState<number | undefined>(undefined);
   const [viewMode, setViewMode] = useState<'list' | 'board' | 'dashboard'>('list'); // 默认为列表视图
+  const [showProjectInfo, setShowProjectInfo] = useState(false); // 项目描述/完成标准折叠状态
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [isEditingDefinition, setIsEditingDefinition] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [definitionDraft, setDefinitionDraft] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
+  const [savingDefinition, setSavingDefinition] = useState(false);
 
   // 聊天相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -95,6 +102,22 @@ export default function ProjectDetailPage() {
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const descriptionEditRef = useRef<HTMLTextAreaElement | null>(null);
+  const definitionEditRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const autoResizeTextarea = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    const maxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.4 : 400;
+    el.style.height = 'auto';
+    const scrollHeight = el.scrollHeight;
+    const newHeight = Math.min(maxHeight, scrollHeight);
+    el.style.height = `${newHeight}px`;
+    if (scrollHeight > maxHeight) {
+      el.style.overflowY = 'auto';
+    } else {
+      el.style.overflowY = 'hidden';
+    }
+  };
 
   // 项目助手宽度与拖拽相关状态
   const [chatWidth, setChatWidth] = useState(400);
@@ -343,6 +366,14 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
+  // 当项目加载完成时，初始化编辑草稿
+  useEffect(() => {
+    if (project) {
+      setDescriptionDraft(project.description || '');
+      setDefinitionDraft(project.definition_of_done || '');
+    }
+  }, [project]);
+
   // 处理创建任务
   const handleCreateTask = (parentId?: number) => {
     setEditingTask(undefined);
@@ -428,6 +459,54 @@ export default function ProjectDetailPage() {
       newSet.delete(taskId);
       return newSet;
     });
+  };
+
+  const handleSaveDescription = async () => {
+    if (!project || savingDescription) return;
+    const trimmed = descriptionDraft.trim();
+    // 内容未变化时只退出编辑
+    if (trimmed === (project.description || '')) {
+      setIsEditingDescription(false);
+      return;
+    }
+    setSavingDescription(true);
+    try {
+      await api.updateProject(projectId, { description: trimmed || undefined });
+      setProject((prev) =>
+        prev ? { ...prev, description: trimmed || undefined } : prev
+      );
+      toast.success(t.project.updateSuccess);
+      setIsEditingDescription(false);
+    } catch (error) {
+      console.error('更新项目描述失败:', error);
+      toast.error(t.project.updateFailed);
+      // 保留编辑状态和草稿，避免用户输入丢失
+    } finally {
+      setSavingDescription(false);
+    }
+  };
+
+  const handleSaveDefinition = async () => {
+    if (!project || savingDefinition) return;
+    const trimmed = definitionDraft.trim();
+    if (trimmed === (project.definition_of_done || '')) {
+      setIsEditingDefinition(false);
+      return;
+    }
+    setSavingDefinition(true);
+    try {
+      await api.updateProject(projectId, { definition_of_done: trimmed || undefined });
+      setProject((prev) =>
+        prev ? { ...prev, definition_of_done: trimmed || undefined } : prev
+      );
+      toast.success(t.project.updateSuccess);
+      setIsEditingDefinition(false);
+    } catch (error) {
+      console.error('更新项目完成标准失败:', error);
+      toast.error(t.project.updateFailed);
+    } finally {
+      setSavingDefinition(false);
+    }
   };
 
   // 聊天区域宽度初始化与窗口缩放自适应
@@ -533,36 +612,136 @@ export default function ProjectDetailPage() {
             {/* 顶部导航 */}
             <div className="mb-6">
               {project && (
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    {/* 返回按钮 */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => router.push('/project-management')}
-                      className="h-10 w-10 p-0"
-                    >
-                      <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                    {/* 项目信息 */}
-                    <div>
-                      <h1 className="text-3xl font-bold text-foreground">
-                        <EditableText
-                          value={project.name}
-                          onSave={handleUpdateProjectName}
-                          inputClassName="text-3xl font-bold"
-                        />
-                      </h1>
+                <>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      {/* 返回按钮 */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => router.push('/project-management')}
+                        className="h-10 w-10 p-0"
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </Button>
+                      {/* 项目信息 */}
+                      <div>
+                        <h1 className="text-3xl font-bold text-foreground">
+                          <EditableText
+                            value={project.name}
+                            onSave={handleUpdateProjectName}
+                            inputClassName="text-3xl font-bold"
+                          />
+                        </h1>
+                      </div>
+                    </div>
+                    {/* 视图选择 + 项目信息折叠按钮 */}
+                    <div className="flex items-center gap-2">
                       {(project.description || project.definition_of_done) && (
-                        <p className="mt-2 text-muted-foreground">
-                          {project.description || project.definition_of_done}
-                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 w-9 p-0 rounded-full"
+                          onClick={() => setShowProjectInfo((prev) => !prev)}
+                          title={
+                            showProjectInfo
+                              ? locale === 'zh'
+                                ? '收起项目信息'
+                                : 'Hide project info'
+                              : locale === 'zh'
+                                ? '展开项目信息'
+                                : 'Show project info'
+                          }
+                        >
+                          {showProjectInfo ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
                       )}
+                      <ViewModeSelect value={viewMode} onChange={setViewMode} />
                     </div>
                   </div>
-                  {/* 视图选择下拉框 */}
-                  <ViewModeSelect value={viewMode} onChange={setViewMode} />
-                </div>
+
+                  {showProjectInfo && (project.description || project.definition_of_done) && (
+                    <div className="mt-4 rounded-md border bg-muted/10 px-4 py-3 text-sm space-y-4">
+                      {/* 项目描述 */}
+                      {project.description && (
+                        <div className="space-y-1.5">
+                          <div className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+                            {t.project.description}
+                          </div>
+                          {isEditingDescription ? (
+                            <textarea
+                              ref={descriptionEditRef}
+                              value={descriptionDraft}
+                              onChange={(e) => {
+                                setDescriptionDraft(e.target.value);
+                                autoResizeTextarea(e.target);
+                              }}
+                              onBlur={handleSaveDescription}
+                              autoFocus
+                              rows={3}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto max-h-[40vh]"
+                            />
+                          ) : (
+                            <p
+                              className="cursor-text text-foreground leading-relaxed whitespace-pre-line"
+                              onClick={() => {
+                                setDescriptionDraft(project.description || '');
+                                setIsEditingDescription(true);
+                                // 下一帧调整高度
+                                setTimeout(
+                                  () => autoResizeTextarea(descriptionEditRef.current),
+                                  0
+                                );
+                              }}
+                            >
+                              {project.description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {/* 最终交付物 / 完成标准 */}
+                      {project.definition_of_done && (
+                        <div className="space-y-1.5">
+                          <div className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+                            {t.project.definitionOfDone}
+                          </div>
+                          {isEditingDefinition ? (
+                            <textarea
+                              ref={definitionEditRef}
+                              value={definitionDraft}
+                              onChange={(e) => {
+                                setDefinitionDraft(e.target.value);
+                                autoResizeTextarea(e.target);
+                              }}
+                              onBlur={handleSaveDefinition}
+                              autoFocus
+                              rows={3}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto max-h-[40vh]"
+                            />
+                          ) : (
+                            <p
+                              className="cursor-text text-foreground leading-relaxed whitespace-pre-line"
+                              onClick={() => {
+                                setDefinitionDraft(project.definition_of_done || '');
+                                setIsEditingDefinition(true);
+                                setTimeout(
+                                  () => autoResizeTextarea(definitionEditRef.current),
+                                  0
+                                );
+                              }}
+                            >
+                              {project.definition_of_done}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
