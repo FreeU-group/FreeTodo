@@ -270,139 +270,6 @@ export default function RichTextEditorTiptap({
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // 将 markdown 转换为 HTML（用于 Tiptap）
-  const markdownToHtml = useCallback((md: string): string => {
-    if (!md) return '';
-    try {
-      return marked.parse(md) as string;
-    } catch (error) {
-      console.error('Error converting markdown to HTML:', error);
-      return md;
-    }
-  }, []);
-
-  // 将 HTML 转换为 markdown：使用 Turndown 提升兼容性
-  const htmlToMarkdown = useCallback((html: string): string => {
-    if (!html || html === '<p></p>') return '';
-
-    try {
-      const markdown = turndownService.turndown(html);
-      return markdown;
-    } catch (error) {
-      console.error('Error converting HTML to Markdown:', error);
-      return contentRef.current || '';
-    }
-  }, []);
-
-  const editor = useEditor({
-    immediatelyRender: true,
-    editorProps: {
-      attributes: {
-        autocomplete: 'off',
-        autocorrect: 'off',
-        autocapitalize: 'off',
-        'aria-label': 'Main content area, start typing to enter text.',
-        class: 'simple-editor',
-        placeholder: placeholder || '开始输入...',
-      },
-    },
-    extensions: [
-      StarterKit.configure({
-        horizontalRule: false,
-        link: {
-          openOnClick: false,
-          enableClickSelection: true,
-        },
-      }),
-      HorizontalRule,
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Highlight.configure({ multicolor: true }),
-      Image,
-      Typography,
-      Superscript,
-      Subscript,
-      Selection,
-      ImageUploadNode.configure({
-        accept: 'image/*',
-        maxSize: MAX_FILE_SIZE,
-        limit: 3,
-        upload: handleImageUpload,
-        onError: (error) => console.error('Upload failed:', error),
-      }),
-    ],
-    content: markdownToHtml(content),
-    editable: !readOnly,
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      // 将 HTML 转换回 markdown
-      const markdown = htmlToMarkdown(html);
-      contentRef.current = markdown;
-      onChange(markdown);
-    },
-  });
-
-  // 监听选区变化，更新 AI 菜单位置与选中文本
-  useEffect(() => {
-    if (!editor || readOnly) return;
-
-    const updateSelection = () => {
-      const { state, view } = editor;
-      const { from, to } = state.selection;
-
-      if (from === to) {
-        setShowAIMenu(false);
-        setSelectedText('');
-        setIsChatMode(false);
-        setChatInput('');
-        return;
-      }
-
-      const text = state.doc.textBetween(from, to, '\n');
-      if (!text.trim()) {
-        setShowAIMenu(false);
-        setSelectedText('');
-        setIsChatMode(false);
-        setChatInput('');
-        return;
-      }
-
-      setSelectedText(text);
-
-      try {
-        const start = view.coordsAtPos(from);
-        const end = view.coordsAtPos(to);
-        const containerRect = editorContainerRef.current?.getBoundingClientRect();
-        if (!containerRect) return;
-
-        const top = Math.max(start.top, end.top) - containerRect.top - 40;
-        const left =
-          (start.left + end.right) / 2 - containerRect.left;
-
-        setAIMenuPosition({ top, left });
-        setShowAIMenu(true);
-      } catch (error) {
-        console.error('Failed to calculate AI menu position:', error);
-        setShowAIMenu(false);
-      }
-    };
-
-    editor.on('selectionUpdate', updateSelection);
-    return () => {
-      editor.off('selectionUpdate', updateSelection);
-    };
-  }, [editor, readOnly]);
-
-  // 同步外部 content 变化到编辑器
-  useEffect(() => {
-    if (editor && content !== contentRef.current) {
-      const html = markdownToHtml(content);
-      editor.commands.setContent(html);
-      contentRef.current = content;
-    }
-  }, [content, editor, markdownToHtml]);
-
   // 处理键盘快捷键
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
@@ -689,7 +556,306 @@ export default function RichTextEditorTiptap({
               <MarkdownPreview content={content || ''} />
             </div>
           ) : (
-            <div className="h-full" onKeyDown={handleKeyDown}>
+            <EditorComponent
+              key={fileName}
+              initialContent={content}
+              placeholder={placeholder}
+              readOnly={readOnly}
+              onUpdate={(markdown) => {
+                contentRef.current = markdown;
+                onChange(markdown);
+              }}
+              onEditorInitialized={(editorInstance) => {
+                // 编辑器初始化完成
+              }}
+              onKeyDown={handleKeyDown}
+              editorContainerRef={editorContainerRef}
+              showAIMenu={showAIMenu}
+              aiMenuPosition={aiMenuPosition}
+              setAIMenuPosition={setAIMenuPosition}
+              selectedText={selectedText}
+              isChatMode={isChatMode}
+              chatInput={chatInput}
+              setChatInput={setChatInput}
+              chatInputRef={chatInputRef}
+              setShowAIMenu={setShowAIMenu}
+              setSelectedText={setSelectedText}
+              setIsChatMode={setIsChatMode}
+              onAIEdit={onAIEdit}
+              aiMenuLabels={aiMenuLabels}
+              aiEditState={aiEditState}
+              onAIEditConfirm={onAIEditConfirm}
+              onAIEditCancel={onAIEditCancel}
+              aiEditLabels={aiEditLabels}
+              handleAIAction={handleAIAction}
+              handleChatSend={handleChatSend}
+              handleChatBack={handleChatBack}
+              aiMenuItems={aiMenuItems}
+            />
+          )}
+        </div>
+
+        {/* 底部状态栏 */}
+        <div className="flex items-center justify-between h-6 px-4 border-t border-border bg-muted/30 shrink-0 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3">
+            <span className={lineCount >= maxLines ? 'text-amber-500 font-medium' : ''}>
+              {lineCountLabel.replace('{count}', String(lineCount)).replace('{max}', String(maxLines))}
+            </span>
+            <span>{wordCountLabel?.replace('{count}', String(wordCount))}</span>
+          </div>
+          <span>
+            {lastUpdatedTime && lastUpdatedLabel?.replace('{time}', formatTime(lastUpdatedTime))}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 编辑器组件，封装了 TipTap 编辑器所需的所有功能
+ * @param initialContent 初始的 markdown 内容
+ * @param placeholder 空编辑器的占位符文本
+ * @param readOnly 是否只读
+ * @param onUpdate 当编辑器内容变化时回调
+ * @param onEditorInitialized 当编辑器初始化完成时回调
+ * @param onKeyDown 键盘事件处理
+ * @param editorContainerRef 编辑器容器元素的引用
+ * @param showAIMenu 是否显示 AI 编辑菜单
+ * @param aiMenuPosition AI 菜单的位置
+ * @param setAIMenuPosition 更新 AI 菜单位置的函数
+ * @param selectedText 当前选中的文本
+ * @param isChatMode 是否处于聊天模式
+ * @param chatInput 当前聊天输入值
+ * @param setChatInput 更新聊天输入的函数
+ * @param chatInputRef 聊天输入元素的引用
+ * @param setShowAIMenu 控制 AI 菜单可见性的函数
+ * @param setSelectedText 更新选中文本的函数
+ * @param setIsChatMode 切换聊天模式的函数
+ * @param onAIEdit AI 编辑动作的回调
+ * @param aiMenuLabels AI 菜单标签
+ * @param aiEditState AI 编辑状态
+ * @param onAIEditConfirm AI 编辑确认的回调
+ * @param onAIEditCancel AI 编辑取消的回调
+ * @param aiEditLabels AI 编辑动作的标签
+ * @param handleAIAction AI 动作按钮的处理器
+ * @param handleChatSend 发送聊天消息的处理器
+ * @param handleChatBack 从聊天模式返回的处理器
+ * @param aiMenuItems AI 菜单列表
+ */
+function EditorComponent({
+  initialContent,
+  placeholder,
+  readOnly,
+  onUpdate,
+  onEditorInitialized,
+  onKeyDown,
+  editorContainerRef,
+  showAIMenu,
+  aiMenuPosition,
+  setAIMenuPosition,
+  selectedText,
+  isChatMode,
+  chatInput,
+  setChatInput,
+  chatInputRef,
+  setShowAIMenu,
+  setSelectedText,
+  setIsChatMode,
+  onAIEdit,
+  aiMenuLabels,
+  aiEditState,
+  onAIEditConfirm,
+  onAIEditCancel,
+  aiEditLabels,
+  handleAIAction,
+  handleChatSend,
+  handleChatBack,
+  aiMenuItems,
+}: {
+  initialContent: string;
+  placeholder?: string;
+  readOnly: boolean;
+  onUpdate: (markdown: string) => void;
+  onEditorInitialized: (editor: Editor) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
+  editorContainerRef: React.RefObject<HTMLDivElement>;
+  showAIMenu: boolean;
+  aiMenuPosition: { top: number; left: number };
+  setAIMenuPosition: (value: { top: number; left: number }) => void;
+  selectedText: string;
+  isChatMode: boolean;
+  chatInput: string;
+  setChatInput: (value: string) => void;
+  chatInputRef: React.RefObject<HTMLInputElement>;
+  setShowAIMenu: (value: boolean) => void;
+  setSelectedText: (value: string) => void;
+  setIsChatMode: (value: boolean) => void;
+  onAIEdit?: (action: string, selectedText: string, customPrompt?: string) => void;
+  aiMenuLabels?: {
+    beautify: string;
+    expand: string;
+    condense: string;
+    translate: string;
+    chat: string;
+    chatPlaceholder: string;
+    send: string;
+    back: string;
+  };
+  aiEditState?: {
+    isProcessing: boolean;
+    previewText: string;
+    originalText: string;
+    selectionStart: number;
+    selectionEnd: number;
+  };
+  onAIEditConfirm?: () => void;
+  onAIEditCancel?: () => void;
+  aiEditLabels?: {
+    processing: string;
+    confirm: string;
+    cancel: string;
+  };
+  handleAIAction: (action: string) => void;
+  handleChatSend: () => void;
+  handleChatBack: () => void;
+  aiMenuItems: Array<{ icon: any; action: string; label: string }>;
+}) {
+  // 将 markdown 转换为 HTML（用于 Tiptap）
+  const markdownToHtml = useCallback((md: string): string => {
+    if (!md) return '';
+    try {
+      return marked.parse(md) as string;
+    } catch (error) {
+      console.error('Error converting markdown to HTML:', error);
+      return md;
+    }
+  }, []);
+
+  // 将 HTML 转换为 markdown：使用 Turndown 提升兼容性
+  const htmlToMarkdown = useCallback((html: string): string => {
+    if (!html || html === '<p></p>') return '';
+
+    try {
+      const markdown = turndownService.turndown(html);
+      return markdown;
+    } catch (error) {
+      console.error('Error converting HTML to Markdown:', error);
+      return '';
+    }
+  }, []);
+
+  const editor = useEditor({
+    immediatelyRender: true,
+    editorProps: {
+      attributes: {
+        autocomplete: 'off',
+        autocorrect: 'off',
+        autocapitalize: 'off',
+        'aria-label': 'Main content area, start typing to enter text.',
+        class: 'simple-editor',
+        placeholder: placeholder || '开始输入...',
+      },
+    },
+    extensions: [
+      StarterKit.configure({
+        horizontalRule: false,
+        link: {
+          openOnClick: false,
+          enableClickSelection: true,
+        },
+      }),
+      HorizontalRule,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Highlight.configure({ multicolor: true }),
+      Image,
+      Typography,
+      Superscript,
+      Subscript,
+      Selection,
+      ImageUploadNode.configure({
+        accept: 'image/*',
+        maxSize: MAX_FILE_SIZE,
+        limit: 3,
+        upload: handleImageUpload,
+        onError: (error) => console.error('Upload failed:', error),
+      }),
+    ],
+    content: markdownToHtml(initialContent),
+    editable: !readOnly,
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      const markdown = htmlToMarkdown(html);
+      onUpdate(markdown);
+    },
+  });
+
+  // 监听选区变化，更新 AI 菜单位置与选中文本
+  useEffect(() => {
+    if (!editor || readOnly) return;
+
+    const updateSelection = () => {
+      const { state, view } = editor;
+      const { from, to } = state.selection;
+
+      if (from === to) {
+        setShowAIMenu(false);
+        setSelectedText('');
+        setIsChatMode(false);
+        setChatInput('');
+        return;
+      }
+
+      const text = state.doc.textBetween(from, to, '\n');
+      if (!text.trim()) {
+        setShowAIMenu(false);
+        setSelectedText('');
+        setIsChatMode(false);
+        setChatInput('');
+        return;
+      }
+
+      setSelectedText(text);
+
+      try {
+        const start = view.coordsAtPos(from);
+        const end = view.coordsAtPos(to);
+        const containerRect = editorContainerRef.current?.getBoundingClientRect();
+        if (!containerRect) return;
+
+        const top = Math.max(start.top, end.top) - containerRect.top - 40;
+        const left =
+          (start.left + end.right) / 2 - containerRect.left;
+
+        setAIMenuPosition({ top, left });
+        setShowAIMenu(true);
+      } catch (error) {
+        console.error('Failed to calculate AI menu position:', error);
+        setShowAIMenu(false);
+      }
+    };
+
+    editor.on('selectionUpdate', updateSelection);
+    return () => {
+      editor.off('selectionUpdate', updateSelection);
+    };
+  }, [editor, readOnly, editorContainerRef, setShowAIMenu, setSelectedText, setIsChatMode, setChatInput, setAIMenuPosition]);
+
+  // 通知父组件 editor 已初始化
+  useEffect(() => {
+    if (editor) {
+      onEditorInitialized(editor);
+    }
+  }, [editor, onEditorInitialized]);
+
+  // 是否处于 AI 对比视图模式
+  const isAIDiffMode =
+    !!aiEditState && (aiEditState.isProcessing || !!aiEditState.previewText);
+
+  return (
+    <div className="h-full" onKeyDown={onKeyDown}>
               {editor && (
                 <EditorContext.Provider value={{ editor }}>
                   <div
@@ -708,9 +874,9 @@ export default function RichTextEditorTiptap({
                         >
                           {/* 选中位置之前的内容 */}
                           <span>
-                            {content.substring(
+                    {initialContent.substring(
                               0,
-                              Math.max(0, Math.min(content.length, aiEditState.selectionStart))
+                      Math.max(0, Math.min(initialContent.length, aiEditState.selectionStart))
                             )}
                           </span>
 
@@ -772,8 +938,8 @@ export default function RichTextEditorTiptap({
 
                           {/* 选中位置之后的内容 */}
                           <span>
-                            {content.substring(
-                              Math.max(0, Math.min(content.length, aiEditState.selectionEnd))
+                    {initialContent.substring(
+                      Math.max(0, Math.min(initialContent.length, aiEditState.selectionEnd))
                             )}
                           </span>
                         </div>
@@ -856,23 +1022,6 @@ export default function RichTextEditorTiptap({
                   </div>
                 </EditorContext.Provider>
               )}
-            </div>
-          )}
-        </div>
-
-        {/* 底部状态栏 */}
-        <div className="flex items-center justify-between h-6 px-4 border-t border-border bg-muted/30 shrink-0 text-xs text-muted-foreground">
-          <div className="flex items-center gap-3">
-            <span className={lineCount >= maxLines ? 'text-amber-500 font-medium' : ''}>
-              {lineCountLabel.replace('{count}', String(lineCount)).replace('{max}', String(maxLines))}
-            </span>
-            <span>{wordCountLabel?.replace('{count}', String(wordCount))}</span>
-          </div>
-          <span>
-            {lastUpdatedTime && lastUpdatedLabel?.replace('{time}', formatTime(lastUpdatedTime))}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
