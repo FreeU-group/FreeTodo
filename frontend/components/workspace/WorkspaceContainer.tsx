@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { GripVertical, Upload, Plus, Folder, ArrowLeft, Sparkles } from 'lucide-react';
 import FileTree, { FileNode } from './FileTree';
-import RichTextEditor from './RichTextEditor';
+// import RichTextEditor from './RichTextEditor';
 import RichTextEditorTiptap from './RichTextEditorTiptap';
 import WorkspaceChat from './WorkspaceChat';
 import WorkspaceProjectList from './WorkspaceProjectList';

@@ -295,7 +295,7 @@ export default function RichTextEditorTiptap({
   }, []);
 
   const editor = useEditor({
-    immediatelyRender: false,
+    immediatelyRender: true,
     editorProps: {
       attributes: {
         autocomplete: 'off',
@@ -624,22 +624,6 @@ export default function RichTextEditorTiptap({
           <span className="text-sm font-medium text-foreground mr-4 truncate max-w-[200px]">
             {fileName}
           </span>
-
-          {/* AI 编辑入口（预留） */}
-          {onAIEdit && !readOnly && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                // TODO: 实现 AI 编辑功能
-                console.log('AI Edit clicked - feature to be implemented');
-              }}
-              className="h-8 w-8 p-0"
-              title="AI 编辑"
-            >
-              <Sparkles className="h-4 w-4" />
-            </Button>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -710,7 +694,7 @@ export default function RichTextEditorTiptap({
                 <EditorContext.Provider value={{ editor }}>
                   <div
                     ref={editorContainerRef}
-                    className="simple-editor-wrapper relative w-full h-full"
+                    className="simple-editor-wrapper relative w-full"
                   >
                     <Toolbar>
                       <MainToolbarContent />
