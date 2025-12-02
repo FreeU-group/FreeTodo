@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Wand2 } from 'lucide-react';
 import Input from '@/components/common/Input';
 import Button from '@/components/common/Button';
@@ -32,7 +32,14 @@ export default function CreateProjectModal({
   });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ name?: string }>({});
-  const [aiAction, setAiAction] = useState<string | null>(null); // 标记当前AI动作，避免并发
+  // 全局 AI 动作（底部一键补全/润色）
+  const [aiGlobalAction, setAiGlobalAction] = useState<'fill-all' | 'polish-all' | null>(null);
+  // 字段级 AI 动作（只影响单行 + 底部按钮）
+  const [aiFieldAction, setAiFieldAction] = useState<'description' | 'definition_of_done' | null>(null);
+  const isAnyAiRunning = !!aiGlobalAction || !!aiFieldAction;
+
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const definitionRef = useRef<HTMLTextAreaElement | null>(null);
 
   const isEditMode = !!project;
 
@@ -69,6 +76,22 @@ export default function CreateProjectModal({
     return Object.keys(newErrors).length === 0;
   };
 
+  const autoResizeTextarea = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    // 限制最大高度为视口高度的 40%，避免弹窗过高
+    const maxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.4 : 400;
+    el.style.height = 'auto';
+    const scrollHeight = el.scrollHeight;
+    const newHeight = Math.min(maxHeight, scrollHeight);
+    el.style.height = `${newHeight}px`;
+    // 只有在真正达到最大高度时才显示滚动条，否则隐藏滚动条
+    if (scrollHeight > maxHeight) {
+      el.style.overflowY = 'auto';
+    } else {
+      el.style.overflowY = 'hidden';
+    }
+  };
+
   const buildProjectContext = () => {
     return [
       formData.name ? `项目名称：${formData.name}` : null,
@@ -82,12 +105,19 @@ export default function CreateProjectModal({
   const runAiForField = async (
     field: 'description' | 'definition_of_done',
     mode: 'generate' | 'polish',
-    options?: { silent?: boolean }
+    options?: { silent?: boolean; scope?: 'field' | 'global' }
   ) => {
-    if (aiAction) {
+    const { silent, scope = 'field' } = options || {};
+
+    // 底部全局动作进行中时，不再接受新的字段级请求
+    if (aiGlobalAction && scope === 'field') {
       return;
     }
-    const { silent } = options || {};
+
+    if (scope === 'field') {
+      // 同一字段正在 AI 处理中时直接返回
+      if (aiFieldAction === field) return;
+    }
 
     const baseContext = buildProjectContext();
     const targetLabel =
@@ -117,8 +147,9 @@ export default function CreateProjectModal({
       (baseContext ? `${baseContext}\n\n` : '') +
       instruction;
 
-    const actionKey = `${field}-${mode}`;
-    setAiAction(actionKey);
+    if (scope === 'field') {
+      setAiFieldAction(field);
+    }
     try {
       const res = await api.sendChatMessage({
         message,
@@ -143,12 +174,14 @@ export default function CreateProjectModal({
         toast.error(t.common.error);
       }
     } finally {
-      setAiAction(null);
+      if (scope === 'field') {
+        setAiFieldAction(null);
+      }
     }
   };
 
   const handleAiFillAll = async () => {
-    if (aiAction) return;
+    if (isAnyAiRunning) return;
 
     const fieldsToFill: Array<'description' | 'definition_of_done'> = [];
     if (!formData.description?.trim()) {
@@ -163,20 +196,20 @@ export default function CreateProjectModal({
       return;
     }
 
-    setAiAction('fill-all');
+    setAiGlobalAction('fill-all');
     try {
       for (const field of fieldsToFill) {
         // 使用 silent 避免多次 toast
-        await runAiForField(field, 'generate', { silent: true });
+        await runAiForField(field, 'generate', { silent: true, scope: 'global' });
       }
       toast.success(t.common.success);
     } finally {
-      setAiAction(null);
+      setAiGlobalAction(null);
     }
   };
 
   const handleAiPolishAll = async () => {
-    if (aiAction) return;
+    if (isAnyAiRunning) return;
 
     const fieldsToPolish: Array<'description' | 'definition_of_done'> = [];
     if (formData.description?.trim()) {
@@ -191,14 +224,14 @@ export default function CreateProjectModal({
       return;
     }
 
-    setAiAction('polish-all');
+    setAiGlobalAction('polish-all');
     try {
       for (const field of fieldsToPolish) {
-        await runAiForField(field, 'polish', { silent: true });
+        await runAiForField(field, 'polish', { silent: true, scope: 'global' });
       }
       toast.success(t.common.success);
     } finally {
-      setAiAction(null);
+      setAiGlobalAction(null);
     }
   };
 
@@ -240,6 +273,13 @@ export default function CreateProjectModal({
     }
   };
 
+  // 当模态框打开或内容变化时，自动调整文本域高度
+  useEffect(() => {
+    if (!isOpen) return;
+    autoResizeTextarea(descriptionRef.current);
+    autoResizeTextarea(definitionRef.current);
+  }, [isOpen, formData.description, formData.definition_of_done]);
+
   const handleChange = (field: keyof ProjectCreate, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     // 清除该字段的错误
@@ -256,7 +296,7 @@ export default function CreateProjectModal({
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md rounded-lg bg-background shadow-xl"
+        className="relative flex w-full max-w-md max-h-[75vh] flex-col rounded-lg bg-background shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -275,7 +315,7 @@ export default function CreateProjectModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
               {t.project.name} <span className="text-red-500">*</span>
@@ -295,77 +335,89 @@ export default function CreateProjectModal({
 
           {/* 项目描述 */}
           <div>
-            <label className="mb-2 flex items-center justify-between text-sm font-medium text-foreground">
-              <span>
+            <div className="mb-2 flex items-center justify-between text-sm font-medium text-foreground">
+              <label className="cursor-default">
                 {t.project.description}{' '}
                 <span className="text-muted-foreground text-xs">({t.common.optional})</span>
-              </span>
+              </label>
               <span className="flex items-center gap-1">
                 <button
                   type="button"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                   title="AI 生成项目描述"
-                  onClick={() => runAiForField('description', 'generate')}
-                  disabled={saving || !!aiAction}
+                  onClick={() => runAiForField('description', 'generate', { scope: 'field' })}
+                  disabled={saving || !!aiGlobalAction || aiFieldAction === 'description'}
                 >
                   <Sparkles className="h-3 w-3" />
                 </button>
                 <button
                   type="button"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                   title="AI 润色项目描述"
-                  onClick={() => runAiForField('description', 'polish')}
-                  disabled={saving || !!aiAction}
+                  onClick={() => runAiForField('description', 'polish', { scope: 'field' })}
+                  disabled={saving || !!aiGlobalAction || aiFieldAction === 'description'}
                 >
                   <Wand2 className="h-3 w-3" />
                 </button>
               </span>
-            </label>
+            </div>
             <textarea
+              ref={descriptionRef}
               placeholder={t.project.descriptionPlaceholder}
               value={formData.description || ''}
-              onChange={(e) => handleChange('description', e.target.value)}
+              onChange={(e) => {
+                handleChange('description', e.target.value);
+                autoResizeTextarea(e.target);
+              }}
               disabled={saving}
               rows={3}
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto max-h-[40vh]"
             />
           </div>
 
           {/* 最终交付物 / 完成标准 */}
           <div>
-            <label className="mb-2 flex items-center justify-between text-sm font-medium text-foreground">
-              <span>
+            <div className="mb-2 flex items-center justify-between text-sm font-medium text-foreground">
+              <label className="cursor-default">
                 {t.project.definitionOfDone}{' '}
                 <span className="text-muted-foreground text-xs">({t.common.optional})</span>
-              </span>
+              </label>
               <span className="flex items-center gap-1">
                 <button
                   type="button"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                   title="AI 生成最终交付物 / 完成标准"
-                  onClick={() => runAiForField('definition_of_done', 'generate')}
-                  disabled={saving || !!aiAction}
+                  onClick={() =>
+                    runAiForField('definition_of_done', 'generate', { scope: 'field' })
+                  }
+                  disabled={saving || !!aiGlobalAction || aiFieldAction === 'definition_of_done'}
                 >
                   <Sparkles className="h-3 w-3" />
                 </button>
                 <button
                   type="button"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                   title="AI 润色最终交付物 / 完成标准"
-                  onClick={() => runAiForField('definition_of_done', 'polish')}
-                  disabled={saving || !!aiAction}
+                  onClick={() =>
+                    runAiForField('definition_of_done', 'polish', { scope: 'field' })
+                  }
+                  disabled={saving || !!aiGlobalAction || aiFieldAction === 'definition_of_done'}
                 >
                   <Wand2 className="h-3 w-3" />
                 </button>
               </span>
-            </label>
+            </div>
             <textarea
+              ref={definitionRef}
               placeholder={t.project.definitionOfDonePlaceholder}
               value={formData.definition_of_done || ''}
-              onChange={(e) => handleChange('definition_of_done', e.target.value)}
+              onChange={(e) => {
+                handleChange('definition_of_done', e.target.value);
+                autoResizeTextarea(e.target);
+              }}
               disabled={saving}
               rows={3}
-              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
+              className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto max-h-[40vh]"
             />
           </div>
 
@@ -374,19 +426,19 @@ export default function CreateProjectModal({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                 title="AI 一键补全空白字段（项目名称除外）"
                 onClick={handleAiFillAll}
-                disabled={saving || !!aiAction}
+                disabled={saving || !!aiGlobalAction || !!aiFieldAction}
               >
                 <Sparkles className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
                 title="AI 一键润色所有字段（项目名称除外）"
                 onClick={handleAiPolishAll}
-                disabled={saving || !!aiAction}
+                disabled={saving || !!aiGlobalAction || !!aiFieldAction}
               >
                 <Wand2 className="h-4 w-4" />
               </button>
@@ -396,11 +448,11 @@ export default function CreateProjectModal({
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                disabled={saving || !!aiAction}
+                disabled={saving || !!aiGlobalAction}
               >
                 {t.common.cancel}
               </Button>
-              <Button type="submit" disabled={saving || !!aiAction}>
+              <Button type="submit" disabled={saving || !!aiGlobalAction}>
                 {saving ? t.common.saving : isEditMode ? t.common.save : t.common.create}
               </Button>
             </div>
