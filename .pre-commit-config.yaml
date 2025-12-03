@@ -15,7 +15,7 @@ repos:
         # supported by your project here, or alternatively use
         # pre-commit's default_language_version, see
         # https://pre-commit.com/#top_level-default_language_version
-        language_version: python3.13
+        language_version: python3.13  
         files: ^lifetrace/
         types_or: [ python, pyi ]
         args: [ --fix ]
@@ -24,3 +24,10 @@ repos:
         language_version: python3.13
         files: ^lifetrace/
         types_or: [ python, pyi ]
+  # Biome for frontend (JavaScript/TypeScript)
+  - repo: https://github.com/biomejs/pre-commit
+    rev: "v0.6.1"
+    hooks:
+      - id: biome-check
+        additional_dependencies: ["@biomejs/biome@2.3.8"]
+        files: ^frontend/
