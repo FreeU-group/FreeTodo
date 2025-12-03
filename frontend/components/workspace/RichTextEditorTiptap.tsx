@@ -50,6 +50,9 @@ import {
 import { ImageUploadNode } from '@/components/workspace/tiptap/tiptap-node/image-upload-node/image-upload-node-extension';
 import { HorizontalRule } from '@/components/workspace/tiptap/tiptap-node/horizontal-rule-node/horizontal-rule-node-extension';
 
+// --- Tiptap Extension ---
+import { AIDiffDelete, AIDiffInsert } from '@/components/workspace/tiptap/tiptap-extension/ai-diff-extension';
+
 // --- Tiptap Node Styles ---
 import '@/components/workspace/tiptap/tiptap-scss/blockquote-node.scss';
 import '@/components/workspace/tiptap/tiptap-scss/code-block-node.scss';
@@ -59,6 +62,7 @@ import '@/components/workspace/tiptap/tiptap-scss/image-node.scss';
 import '@/components/workspace/tiptap/tiptap-scss/heading-node.scss';
 import '@/components/workspace/tiptap/tiptap-scss/paragraph-node.scss';
 import '@/components/workspace/tiptap/tiptap-scss/simple-editor.scss';
+import '@/components/workspace/tiptap/tiptap-scss/ai-diff-node.scss';
 
 // --- Tiptap UI ---
 import { HeadingDropdownMenu } from '@/components/workspace/tiptap/tiptap-ui/heading-dropdown-menu';
@@ -226,8 +230,8 @@ interface RichTextEditorProps {
     isProcessing: boolean;
     previewText: string;
     originalText: string;
-    selectionStart: number;
-    selectionEnd: number;
+    selectionFrom: number;  // Tiptap position (was selectionStart)
+    selectionTo: number;    // Tiptap position (was selectionEnd)
   };
   onAIEditConfirm?: () => void;
   onAIEditCancel?: () => void;
@@ -236,6 +240,8 @@ interface RichTextEditorProps {
     confirm: string;
     cancel: string;
   };
+  /** Callback when editor instance is initialized */
+  onEditorInitialized?: (editor: Editor) => void;
 }
 
 export default function RichTextEditorTiptap({
@@ -248,6 +254,7 @@ export default function RichTextEditorTiptap({
   fileName,
   projectId,
   onImageUploadSuccess,
+  onEditorInitialized,
   saveLabel,
   editLabel,
   previewLabel,
@@ -597,7 +604,7 @@ export default function RichTextEditorTiptap({
                 onChange(markdown);
               }}
               onEditorInitialized={(editorInstance) => {
-                // 编辑器初始化完成
+                onEditorInitialized?.(editorInstance);
               }}
               onKeyDown={handleKeyDown}
               editorContainerRef={editorContainerRef}
@@ -741,8 +748,8 @@ function EditorComponent({
     isProcessing: boolean;
     previewText: string;
     originalText: string;
-    selectionStart: number;
-    selectionEnd: number;
+    selectionFrom: number;  // Tiptap position
+    selectionTo: number;    // Tiptap position
   };
   onAIEditConfirm?: () => void;
   onAIEditCancel?: () => void;
@@ -825,6 +832,8 @@ function EditorComponent({
       Superscript,
       Subscript,
       Selection,
+      AIDiffDelete,
+      AIDiffInsert,
       ImageUploadNode.configure({
         accept: 'image/*',
         maxSize: MAX_FILE_SIZE,
@@ -995,9 +1004,156 @@ function EditorComponent({
     }
   }, [editor, onEditorInitialized]);
 
-  // 是否处于 AI 对比视图模式
-  const isAIDiffMode =
-    !!aiEditState && (aiEditState.isProcessing || !!aiEditState.previewText);
+  // AI diff 内联渲染：当 AI 编辑状态变化时，实时更新编辑器内容
+  // 使用 ref 跟踪上次插入的预览文本长度，避免重复插入
+  const lastPreviewLengthRef = useRef(0);
+
+  useEffect(() => {
+    if (!editor || !aiEditState) {
+      // 重置时清除 ref
+      lastPreviewLengthRef.current = 0;
+      return;
+    }
+
+    const { selectionFrom, selectionTo, originalText, previewText } = aiEditState;
+
+    // 如果没有预览文本，不需要渲染 diff（但允许 isProcessing 时显示流式更新）
+    if (!previewText) {
+      return;
+    }
+
+    // 边界检查：确保位置有效
+    const docSize = editor.state.doc.content.size;
+    if (selectionFrom < 0 || selectionFrom >= docSize || selectionTo > docSize || selectionFrom > selectionTo) {
+      console.warn('Invalid AI diff positions:', { selectionFrom, selectionTo, docSize });
+      lastPreviewLengthRef.current = 0;
+      return;
+    }
+
+    // 使用 Tiptap 事务直接应用 diff 标记
+    const tr = editor.state.tr;
+
+    // 1. 清除之前的 diff 标记
+    tr.removeMark(0, editor.state.doc.content.size, editor.schema.marks.aiDiffDelete);
+    tr.removeMark(0, editor.state.doc.content.size, editor.schema.marks.aiDiffInsert);
+
+    // 2. 如果之前插入过预览文本，先删除它
+    if (lastPreviewLengthRef.current > 0) {
+      const deleteEnd = selectionTo + lastPreviewLengthRef.current;
+      // 边界检查
+      if (deleteEnd <= tr.doc.content.size) {
+        tr.delete(selectionTo, deleteEnd);
+      } else {
+        console.warn('Cannot delete preview text - range exceeds document size');
+        lastPreviewLengthRef.current = 0;
+        return;
+      }
+    }
+
+    // 3. 获取当前选区的文本（在删除预览文本后）
+    const currentText = tr.doc.textBetween(selectionFrom, selectionTo, '');
+
+    // 4. 如果文本匹配，应用删除标记到原文
+    if (currentText === originalText) {
+      const deleteMark = editor.schema.marks.aiDiffDelete.create();
+      tr.addMark(selectionFrom, selectionTo, deleteMark);
+
+      // 5. 如果有预览文本，在原文后插入并应用插入标记
+      if (previewText) {
+        tr.insertText(previewText, selectionTo);
+        const insertMark = editor.schema.marks.aiDiffInsert.create();
+        tr.addMark(selectionTo, selectionTo + previewText.length, insertMark);
+
+        // 确保插入文本不会继承删除样式（移除插入范围内的删除标记）
+        tr.removeMark(
+          selectionTo,
+          selectionTo + previewText.length,
+          editor.schema.marks.aiDiffDelete
+        );
+        
+        // 更新 ref 记录本次插入的长度
+        lastPreviewLengthRef.current = previewText.length;
+      } else {
+        lastPreviewLengthRef.current = 0;
+      }
+
+      // 6. 应用事务（不添加到历史记录）
+      tr.setMeta('addToHistory', false);
+      editor.view.dispatch(tr);
+    } else {
+      // 文本不匹配，可能文档已被修改，跳过此次渲染
+      console.warn('Text mismatch - expected:', originalText, 'got:', currentText);
+      lastPreviewLengthRef.current = 0;
+    }
+  }, [editor, aiEditState]);
+
+  // AI diff 接受/拒绝处理
+  const handleDiffConfirm = useCallback(() => {
+    if (!editor || !aiEditState) {
+      onAIEditConfirm?.();
+      return;
+    }
+
+    const { selectionFrom, selectionTo, previewText } = aiEditState;
+    
+    // 使用 lastPreviewLengthRef 获取实际插入的长度
+    const actualInsertedLength = lastPreviewLengthRef.current || 0;
+    const diffEndPos = selectionTo + actualInsertedLength;
+    
+    const tr = editor.state.tr;
+
+    // 清除整个文档中的 diff 标记
+    tr.removeMark(0, editor.state.doc.content.size, editor.schema.marks.aiDiffDelete);
+    tr.removeMark(0, editor.state.doc.content.size, editor.schema.marks.aiDiffInsert);
+
+    // 删除整个 diff 范围（原文 + 已插入的预览文本）
+    tr.delete(selectionFrom, diffEndPos);
+    
+    // 插入最终的预览文本作为普通文本（无标记）
+    if (previewText) {
+      tr.insertText(previewText, selectionFrom);
+    }
+
+    // 重置追踪的预览长度
+    lastPreviewLengthRef.current = 0;
+
+    // 应用事务
+    editor.view.dispatch(tr);
+    
+    // 调用父组件回调（父组件会清除 aiEditState 并保存文件）
+    onAIEditConfirm?.();
+  }, [editor, aiEditState, onAIEditConfirm]);
+
+  const handleDiffCancel = useCallback(() => {
+    if (!editor || !aiEditState) {
+      onAIEditCancel?.();
+      return;
+    }
+
+    const { selectionFrom, selectionTo } = aiEditState;
+    const tr = editor.state.tr;
+
+    // 使用 lastPreviewLengthRef 获取实际插入的长度
+    const actualInsertedLength = lastPreviewLengthRef.current || 0;
+
+    // 删除预览插入的文本，只保留原始文本
+    if (actualInsertedLength > 0) {
+      tr.delete(selectionTo, selectionTo + actualInsertedLength);
+    }
+
+    // 移除原始文本上的删除/插入标记，让其恢复为普通文本
+    tr.removeMark(selectionFrom, selectionTo, editor.schema.marks.aiDiffDelete);
+    tr.removeMark(selectionFrom, selectionTo, editor.schema.marks.aiDiffInsert);
+
+    // 重置追踪的预览长度
+    lastPreviewLengthRef.current = 0;
+
+    // 应用事务
+    editor.view.dispatch(tr);
+    
+    // 调用父组件回调（父组件会清除 aiEditState）
+    onAIEditCancel?.();
+  }, [editor, aiEditState, onAIEditCancel]);
 
   return (
     <div className="h-full" onKeyDown={onKeyDown}>
@@ -1011,96 +1167,51 @@ function EditorComponent({
                       <MainToolbarContent />
                     </Toolbar>
                     <div className="relative w-full h-full">
-                      {isAIDiffMode && aiEditState ? (
-                        // AI 内联对比视图：在内容中直接红/绿对比
-                        <div
-                          className="flex-1 overflow-y-auto p-4 font-mono text-sm text-foreground whitespace-pre-wrap"
-                          style={{ lineHeight: '1.625rem' }}
-                        >
-                          {/* 选中位置之前的内容 */}
-                          <span>
-                    {initialContent.substring(
-                              0,
-                      Math.max(0, Math.min(initialContent.length, aiEditState.selectionStart))
-                            )}
-                          </span>
+                      <EditorContent
+                        editor={editor}
+                        role="presentation"
+                        className="simple-editor-content w-full h-full"
+                      />
 
-                          {/* 对比区域 */}
-                          {aiEditState.isProcessing ? (
-                            <>
-                              {/* 原文（红色删除线） */}
-                              <span className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 line-through px-0.5">
-                                {aiEditState.originalText}
-                              </span>
-                              {/* 已生成的新文本（绿色） */}
-                              {aiEditState.previewText && (
-                                <span className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-0.5">
-                                  {aiEditState.previewText}
-                                </span>
-                              )}
-                              {/* 加载提示 */}
-                              {aiEditState.previewText ? (
-                                <Loader2 className="inline-block h-3.5 w-3.5 animate-spin text-primary ml-1 align-middle" />
-                              ) : (
-                                <span className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 bg-primary/10 text-primary rounded text-xs align-middle">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  <span>{aiEditLabels?.processing ?? 'AI 处理中...'}</span>
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {/* 删除的原文（红色删除线） */}
-                              <span className="bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300 line-through px-0.5">
-                                {aiEditState.originalText}
-                              </span>
-                              {/* 新增的文本（绿色） */}
-                              <span className="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-0.5">
-                                {aiEditState.previewText}
-                              </span>
-
-                              {/* 悬浮确认/取消按钮，紧随对比区域 */}
-                              <span className="relative inline-block w-0 h-0 align-baseline">
-                                <span className="absolute left-2 top-1 flex items-center gap-1 z-50 whitespace-nowrap">
-                                  <button
-                                    onClick={onAIEditCancel}
-                                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800 rounded shadow-md hover:shadow-lg transition-all"
-                                  >
-                                    <X className="h-3 w-3" />
-                                    <span>{aiEditLabels?.cancel ?? '取消'}</span>
-                                  </button>
-                                  <button
-                                    onClick={onAIEditConfirm}
-                                    className="flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/50 hover:bg-green-100 dark:hover:bg-green-900/50 border border-green-200 dark:border-green-800 rounded shadow-md hover:shadow-lg transition-all"
-                                  >
-                                    <Check className="h-3 w-3" />
-                                    <span>{aiEditLabels?.confirm ?? '确认'}</span>
-                                  </button>
-                                </span>
-                              </span>
-                            </>
-                          )}
-
-                          {/* 选中位置之后的内容 */}
-                          <span>
-                    {initialContent.substring(
-                      Math.max(0, Math.min(initialContent.length, aiEditState.selectionEnd))
-                            )}
-                          </span>
+                      {/* AI Diff 确认/取消按钮（固定在视口底部居中） */}
+                      {aiEditState && !aiEditState.isProcessing && aiEditState.previewText && (
+                        <div className="fixed inset-x-0 bottom-20 z-60 flex items-center justify-center pointer-events-none">
+                          <div className="flex items-center gap-2 rounded-md bg-background/95 px-3 py-1.5 shadow-lg ring-1 ring-border backdrop-blur">
+                          <button
+                            onClick={handleDiffCancel}
+                            className="inline-flex items-center gap-1 rounded border border-destructive/60 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/15 transition-colors pointer-events-auto"
+                          >
+                            <X />
+                            <span>{aiEditLabels?.cancel ?? '取消'}</span>
+                          </button>
+                          <button
+                            onClick={handleDiffConfirm}
+                            className="inline-flex items-center gap-1 rounded border border-emerald-500/60 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-500/15 transition-colors pointer-events-auto"
+                          >
+                            <Check />
+                            <span>{aiEditLabels?.confirm ?? '确认'}</span>
+                          </button>
+                          </div>
                         </div>
-                      ) : (
-                        <>
-                          <EditorContent
-                            editor={editor}
-                            role="presentation"
-                            className="simple-editor-content w-full h-full"
-                          />
+                      )}
 
-                          {/* AI 编辑浮动菜单（仅在正常编辑模式下显示） */}
-                          {onAIEdit &&
-                            showAIMenu &&
-                            !aiEditState?.isProcessing &&
-                            !aiEditState?.previewText && (
+                      {/* AI 处理中指示器（与按钮使用相同位置） */}
+                      {aiEditState?.isProcessing && (
+                        <div className="fixed inset-x-0 bottom-20 z-60 flex items-center justify-center pointer-events-none">
+                          <div className="flex items-center gap-2 rounded-md bg-background/95 px-3 py-1.5 shadow-lg ring-1 ring-border backdrop-blur">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            <span className="text-xs font-medium text-primary">
+                              {aiEditLabels?.processing ?? 'AI 处理中...'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* AI 编辑浮动菜单（仅在正常编辑模式下显示） */}
+                      {onAIEdit &&
+                        showAIMenu &&
+                        !aiEditState?.isProcessing &&
+                        !aiEditState?.previewText && (
                               <div
                                 ref={aiMenuRef}
                                 className="ai-edit-menu absolute z-50 bg-popover border border-border rounded-lg shadow-lg p-1"
@@ -1163,8 +1274,6 @@ function EditorComponent({
                                 )}
                               </div>
                             )}
-                        </>
-                      )}
                     </div>
                   </div>
                 </EditorContext.Provider>

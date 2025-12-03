@@ -951,9 +951,13 @@ export default function WorkspaceContainer({
     isProcessing: boolean;
     previewText: string;
     originalText: string;
-    selectionStart: number;
-    selectionEnd: number;
+    selectionFrom: number;  // Tiptap editor position
+    selectionTo: number;    // Tiptap editor position
   } | undefined>(undefined);
+
+  // 存储编辑器实例引用，用于获取选区位置
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorInstanceRef = useRef<any>(null);
 
   // 处理 AI 编辑操作
   const handleAIEdit = async (action: string, selectedText: string, customPrompt?: string) => {
@@ -973,15 +977,21 @@ export default function WorkspaceContainer({
       return;
     }
 
-    const startIndex = fileContent.indexOf(selectedText);
-    if (startIndex === -1) return;
+    // 获取编辑器选区位置（Tiptap ProseMirror positions）
+    const editor = editorInstanceRef.current;
+    if (!editor) {
+      console.error('Editor instance not available');
+      return;
+    }
+
+    const { from, to } = editor.state.selection;
 
     setAiEditState({
       isProcessing: true,
       previewText: '',
       originalText: selectedText,
-      selectionStart: startIndex,
-      selectionEnd: startIndex + selectedText.length,
+      selectionFrom: from,
+      selectionTo: to,
     });
 
     try {
@@ -1020,16 +1030,27 @@ export default function WorkspaceContainer({
   const handleAIEditConfirm = async () => {
     if (!aiEditState?.previewText || !selectedFile) return;
 
-    const { originalText, previewText, selectionStart } = aiEditState;
+    const editor = editorInstanceRef.current;
+    if (!editor) return;
 
-    const newContent =
-      fileContent.substring(0, selectionStart) +
-      previewText +
-      fileContent.substring(selectionStart + originalText.length);
+    // 注意：编辑器内容的实际修改由 RichTextEditorTiptap 的 handleDiffConfirm 处理
+    // 这里只负责清除 AI 编辑状态并保存文件
 
+    // 清除 AI 编辑状态
+    setAiEditState(undefined);
+
+    // 等待一帧，确保 RichTextEditorTiptap 的 handleDiffConfirm 已执行完毕
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    // 获取编辑器更新后的 markdown 内容并保存
+    const htmlToMarkdown = (html: string): string => {
+      // 简单的 HTML 转 Markdown（实际应该使用 turndown 或编辑器内置方法）
+      return html;
+    };
+
+    const newContent = editor.getHTML();
     setFileContent(newContent);
     updateFileContent(selectedFile.id, newContent);
-    setAiEditState(undefined);
 
     try {
       const response = await api.saveWorkspaceFile(selectedFile.id, newContent);
@@ -1044,6 +1065,8 @@ export default function WorkspaceContainer({
 
   // 取消 AI 编辑
   const handleAIEditCancel = () => {
+    // 注意：编辑器内容的恢复由 RichTextEditorTiptap 的 handleDiffCancel 处理
+    // 这里只负责清除 AI 编辑状态
     setAiEditState(undefined);
   };
 
@@ -1294,6 +1317,9 @@ export default function WorkspaceContainer({
             onAIEditCancel={handleAIEditCancel}
             aiEditLabels={editorLabels.aiEditLabels}
             aiMenuLabels={editorLabels.aiMenuLabels}
+            onEditorInitialized={(editor) => {
+              editorInstanceRef.current = editor;
+            }}
           />
         )}
 

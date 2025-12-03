@@ -1,0 +1,99 @@
+/**
+ * AI Diff Display Styles
+ * Used for inline diff display during AI editing
+ */
+
+/* Delete mark - red background with strikethrough */
+.ai-diff-delete {
+  background-color: rgb(254 226 226); /* red-100 */
+  color: rgb(220 38 38); /* red-600 */
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  padding: 0 2px;
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+
+  /* Dark mode */
+  .dark & {
+    background-color: rgba(127, 29, 29, 0.4); /* red-900/40 */
+    color: rgb(252 165 165); /* red-300 */
+  }
+}
+
+/* Insert mark - green background */
+.ai-diff-insert {
+  background-color: rgb(220 252 231); /* green-100 */
+  color: rgb(21 128 61); /* green-700 */
+  padding: 0 2px;
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+
+  /* Dark mode */
+  .dark & {
+    background-color: rgba(20, 83, 45, 0.4); /* green-900/40 */
+    color: rgb(134 239 172); /* green-300 */
+  }
+}
+
+/* Streaming indicator - subtle animation */
+.ai-diff-streaming {
+  position: relative;
+
+  &::after {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 1em;
+    margin-left: 2px;
+    background-color: rgb(59 130 246); /* blue-500 */
+    animation: blink 1s infinite;
+    vertical-align: middle;
+
+    .dark & {
+      background-color: rgb(96 165 250); /* blue-400 */
+    }
+  }
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Processing indicator */
+.ai-diff-processing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  color: rgb(59 130 246); /* blue-500 */
+  background-color: rgba(59, 130, 246, 0.1); /* blue-500/10 */
+  border-radius: 4px;
+  vertical-align: middle;
+
+  .dark & {
+    color: rgb(96 165 250); /* blue-400 */
+    background-color: rgba(96, 165, 250, 0.1); /* blue-400/10 */
+  }
+
+  svg {
+    width: 12px;
+    height: 12px;
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
