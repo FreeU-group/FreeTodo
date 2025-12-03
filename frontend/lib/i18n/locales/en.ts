@@ -218,6 +218,12 @@ export const en: Translation = {
     editButton: 'Edit',
     deleteButton: 'Delete',
     dateFormat: 'YYYY-MM-DD HH:mm',
+    viewArchived: 'View Archived',
+    viewActive: 'Back to Active',
+    archivedTitle: 'Archived Projects',
+    archivedSubtitle: 'View archived projects',
+    noArchivedProjects: 'No archived projects',
+    noArchivedProjectsHint: 'Archived projects will appear here',
   },
   task: {
     title: 'Task',

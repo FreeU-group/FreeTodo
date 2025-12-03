@@ -67,13 +67,26 @@ class ProjectManager:
             logger.error(f"获取项目失败: {e}")
             return None
 
-    def list_projects(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-        """列出所有项目"""
+    def list_projects(
+        self, limit: int = 100, offset: int = 0, status: str | None = None
+    ) -> list[dict[str, Any]]:
+        """列出项目
+
+        Args:
+            limit: 返回数量限制
+            offset: 偏移量
+            status: 项目状态筛选（active/archived/completed），为None时返回所有项目
+        """
         try:
             with self.db_base.get_session() as session:
+                query = session.query(Project)
+
+                # 如果指定了状态，则按状态筛选
+                if status is not None:
+                    query = query.filter(Project.status == status)
+
                 projects = (
-                    session.query(Project)
-                    .order_by(Project.created_at.desc())
+                    query.order_by(Project.created_at.desc())
                     .offset(offset)
                     .limit(limit)
                     .all()

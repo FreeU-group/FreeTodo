@@ -58,6 +58,7 @@ async def create_project(project: ProjectCreate):
 async def get_projects(
     limit: int = Query(100, ge=1, le=1000, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
+    status: str | None = Query(None, description="项目状态筛选（active/archived/completed）"),
 ):
     """
     获取所有项目列表
@@ -65,13 +66,14 @@ async def get_projects(
     Args:
         limit: 返回数量限制
         offset: 偏移量
+        status: 项目状态筛选
 
     Returns:
         项目列表
     """
     try:
         # 获取项目列表
-        projects = project_mgr.list_projects(limit=limit, offset=offset)
+        projects = project_mgr.list_projects(limit=limit, offset=offset, status=status)
 
         # 统计总数（这里简化处理，实际应该有单独的count方法）
         total = len(projects)

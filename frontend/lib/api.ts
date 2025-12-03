@@ -253,7 +253,7 @@ export const api = {
   }) =>
     apiClient.post('/api/projects', data),
 
-  getProjects: (params?: { limit?: number; offset?: number }) =>
+  getProjects: (params?: { limit?: number; offset?: number; status?: string }) =>
     apiClient.get('/api/projects', { params }),
 
   getProject: (id: number) =>

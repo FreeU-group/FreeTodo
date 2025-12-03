@@ -216,6 +216,12 @@ export const zh = {
     editButton: '编辑',
     deleteButton: '删除',
     dateFormat: 'YYYY年MM月DD日 HH:mm',
+    viewArchived: '查看归档项目',
+    viewActive: '返回活跃项目',
+    archivedTitle: '归档项目',
+    archivedSubtitle: '查看已归档的项目',
+    noArchivedProjects: '没有归档的项目',
+    noArchivedProjectsHint: '归档的项目会在这里显示',
   },
   task: {
     title: '任务',
