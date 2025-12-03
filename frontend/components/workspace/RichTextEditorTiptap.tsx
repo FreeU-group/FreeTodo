@@ -40,6 +40,7 @@ import { Selection } from '@tiptap/extensions';
 
 // --- Tiptap UI Primitives ---
 import { Spacer } from '@/components/workspace/tiptap/tiptap-ui-primitive/spacer';
+import { LineNumberGutter } from '@/components/workspace/tiptap/tiptap-ui-primitive/line-number-gutter/line-number-gutter';
 import {
   Toolbar,
   ToolbarGroup,
@@ -52,6 +53,7 @@ import { HorizontalRule } from '@/components/workspace/tiptap/tiptap-node/horizo
 
 // --- Tiptap Extension ---
 import { AIDiffDelete, AIDiffInsert } from '@/components/workspace/tiptap/tiptap-extension/ai-diff-extension';
+import { LineNumbers } from '@/components/workspace/tiptap/tiptap-extension/line-numbers-extension';
 
 // --- Tiptap Node Styles ---
 import '@/components/workspace/tiptap/tiptap-scss/blockquote-node.scss';
@@ -393,9 +395,7 @@ export default function RichTextEditorTiptap({
   const wordCount = content ? content.length : 0;
   const lineCount = content ? content.split('\n').length : 1;
 
-  // 是否处于 AI 对比视图模式
-  const isAIDiffMode =
-    !!aiEditState && (aiEditState.isProcessing || !!aiEditState.previewText);
+  // 是否处于 AI 对比视图模式（当前未直接使用，保留给未来布局逻辑）
 
   // 如果选中的是不支持的文件类型
   if (unsupportedFileInfo) {
@@ -694,6 +694,8 @@ function EditorComponent({
   showAIMenu,
   aiMenuPosition,
   setAIMenuPosition,
+  // selectedText 目前只在父组件中用于 AI 菜单逻辑，这里无需直接使用
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   selectedText,
   isChatMode,
   chatInput,
@@ -721,7 +723,7 @@ function EditorComponent({
   onUpdate: (markdown: string) => void;
   onEditorInitialized: (editor: Editor) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
-  editorContainerRef: React.RefObject<HTMLDivElement>;
+  editorContainerRef: React.RefObject<HTMLDivElement | null>;
   showAIMenu: boolean;
   aiMenuPosition: { top: number; left: number };
   setAIMenuPosition: (value: { top: number; left: number }) => void;
@@ -729,7 +731,7 @@ function EditorComponent({
   isChatMode: boolean;
   chatInput: string;
   setChatInput: (value: string) => void;
-  chatInputRef: React.RefObject<HTMLInputElement>;
+  chatInputRef: React.RefObject<HTMLInputElement | null>;
   setShowAIMenu: (value: boolean) => void;
   setSelectedText: (value: string) => void;
   setIsChatMode: (value: boolean) => void;
@@ -761,6 +763,7 @@ function EditorComponent({
   handleAIAction: (action: string) => void;
   handleChatSend: () => void;
   handleChatBack: () => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   aiMenuItems: Array<{ icon: any; action: string; label: string }>;
 }) {
   // AI 菜单元素引用（用于计算尺寸和边界约束）
@@ -834,6 +837,7 @@ function EditorComponent({
       Selection,
       AIDiffDelete,
       AIDiffInsert,
+      LineNumbers,
       ImageUploadNode.configure({
         accept: 'image/*',
         maxSize: MAX_FILE_SIZE,
@@ -1166,12 +1170,19 @@ function EditorComponent({
                     <Toolbar>
                       <MainToolbarContent />
                     </Toolbar>
-                    <div className="relative w-full h-full">
-                      <EditorContent
-                        editor={editor}
-                        role="presentation"
-                        className="simple-editor-content w-full h-full"
-                      />
+                    <div className="relative w-full">
+                      {/* 左侧行号栏 */}
+                      <div className="absolute left-0 -top-12 bottom-0 w-8 border-r border-border bg-muted/40">
+                        <LineNumberGutter editor={editor} containerRef={editorContainerRef} />
+                      </div>
+                      {/* 右侧正文内容，留出行号栏空间 */}
+                      <div className="ml-8 h-full">
+                        <EditorContent
+                          editor={editor}
+                          role="presentation"
+                          className="simple-editor-content w-full h-full"
+                        />
+                      </div>
 
                       {/* AI Diff 确认/取消按钮（固定在视口底部居中） */}
                       {aiEditState && !aiEditState.isProcessing && aiEditState.previewText && (
