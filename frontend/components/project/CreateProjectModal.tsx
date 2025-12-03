@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Wand2, UploadCloud } from 'lucide-react';
+import { X, Sparkles, Wand2, UploadCloud, ChevronDown } from 'lucide-react';
 import Input from '@/components/common/Input';
 import Button from '@/components/common/Button';
 import { Project, ProjectCreate } from '@/lib/types';
@@ -42,6 +42,7 @@ export default function CreateProjectModal({
   const [importText, setImportText] = useState('');
   const [isGeneratingFromImport, setIsGeneratingFromImport] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isImportSectionOpen, setIsImportSectionOpen] = useState(false);
 
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
   const definitionRef = useRef<HTMLTextAreaElement | null>(null);
@@ -68,6 +69,7 @@ export default function CreateProjectModal({
       setImportText('');
       setIsGeneratingFromImport(false);
       setIsDragOver(false);
+      setIsImportSectionOpen(false);
     }
   }, [isOpen, project]);
 
@@ -145,7 +147,14 @@ export default function CreateProjectModal({
         jsonText = raw.slice(firstBrace, lastBrace + 1);
       }
 
-      let parsed: any;
+      type ImportParsedResult = {
+        name?: string;
+        description?: string;
+        definition_of_done?: string;
+        [key: string]: unknown;
+      };
+
+      let parsed: ImportParsedResult;
       try {
         parsed = JSON.parse(jsonText);
       } catch (e) {
@@ -408,6 +417,133 @@ export default function CreateProjectModal({
 
         {/* Content */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* 导入资料 - 快速生成项目基础信息（默认折叠，放在最上方） */}
+          {!isEditMode && (
+            <div className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-3 sm:px-4 sm:py-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 text-left"
+                  onClick={() => setIsImportSectionOpen((prev) => !prev)}
+                  disabled={saving}
+                  aria-expanded={isImportSectionOpen}
+                >
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <UploadCloud className="h-4 w-4" />
+                      <span>{t.project.importSectionTitle}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                      {t.project.importSectionDesc}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={`h-3 w-3 text-muted-foreground transition-transform ${
+                      isImportSectionOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {isImportSectionOpen && (
+                <>
+                  <div
+                    className={`mt-2 rounded-md border text-xs sm:text-sm transition-colors ${
+                      isDragOver
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border bg-background'
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragOver(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragOver(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragOver(false);
+
+                      const files = Array.from(e.dataTransfer.files || []);
+                      if (!files.length) return;
+
+                      const textFiles = files.filter((file) => {
+                        const lowerName = file.name.toLowerCase();
+                        return (
+                          file.type.startsWith('text/') ||
+                          lowerName.endsWith('.txt') ||
+                          lowerName.endsWith('.md') ||
+                          lowerName.endsWith('.markdown')
+                        );
+                      });
+
+                      if (!textFiles.length) {
+                        toast.error(t.project.importFileTypeError);
+                        return;
+                      }
+
+                      textFiles.forEach((file) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const content = (reader.result as string) || '';
+                          if (!content.trim()) return;
+                          setImportText((prev) =>
+                            prev
+                              ? `${prev.trim()}\n\n------ ${file.name} ------\n${content.trim()}`
+                              : `------ ${file.name} ------\n${content.trim()}`
+                          );
+                        };
+                        reader.onerror = () => {
+                          toast.error(t.project.importFileReadError);
+                        };
+                        reader.readAsText(file);
+                      });
+                    }}
+                  >
+                    <div className="flex flex-col gap-2 px-3 py-2 sm:px-4 sm:py-3">
+                      <p className="text-xs text-muted-foreground">
+                        {t.project.importDropHint}
+                      </p>
+                      <textarea
+                        placeholder={t.project.importTextareaPlaceholder}
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                        className="mt-1 min-h-[72px] max-h-[180px] w-full resize-y rounded-md border border-input bg-muted/40 px-2 py-1.5 text-xs leading-relaxed text-foreground shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        disabled={saving || isGeneratingFromImport}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">
+                      {t.project.importTip}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleGenerateFromImport}
+                      disabled={
+                        saving || isGeneratingFromImport || !importText.trim() || isAnyAiRunning
+                      }
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>
+                        {isGeneratingFromImport
+                          ? t.project.importGeneratingLabel
+                          : t.project.importGenerateButton}
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 项目名称 */}
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
               {t.project.name} <span className="text-red-500">*</span>
@@ -424,115 +560,6 @@ export default function CreateProjectModal({
               <p className="mt-1 text-sm text-destructive">{errors.name}</p>
             )}
           </div>
-
-          {/* 导入资料 - 快速生成项目基础信息 */}
-          {!isEditMode && (
-            <div className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-3 sm:px-4 sm:py-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <UploadCloud className="h-4 w-4" />
-                    <span>{t.project.importSectionTitle}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                    {t.project.importSectionDesc}
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`mt-1 rounded-md border text-xs sm:text-sm transition-colors ${
-                  isDragOver
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border bg-background'
-                }`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDragOver(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDragOver(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setIsDragOver(false);
-
-                  const files = Array.from(e.dataTransfer.files || []);
-                  if (!files.length) return;
-
-                  const textFiles = files.filter((file) => {
-                    const lowerName = file.name.toLowerCase();
-                    return (
-                      file.type.startsWith('text/') ||
-                      lowerName.endsWith('.txt') ||
-                      lowerName.endsWith('.md') ||
-                      lowerName.endsWith('.markdown')
-                    );
-                  });
-
-                  if (!textFiles.length) {
-                    toast.error(t.project.importFileTypeError);
-                    return;
-                  }
-
-                  textFiles.forEach((file) => {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      const content = (reader.result as string) || '';
-                      if (!content.trim()) return;
-                      setImportText((prev) =>
-                        prev
-                          ? `${prev.trim()}\n\n------ ${file.name} ------\n${content.trim()}`
-                          : `------ ${file.name} ------\n${content.trim()}`
-                      );
-                    };
-                    reader.onerror = () => {
-                      toast.error(t.project.importFileReadError);
-                    };
-                    reader.readAsText(file);
-                  });
-                }}
-              >
-                <div className="flex flex-col gap-2 px-3 py-2 sm:px-4 sm:py-3">
-                  <p className="text-xs text-muted-foreground">
-                    {t.project.importDropHint}
-                  </p>
-                  <textarea
-                    placeholder={t.project.importTextareaPlaceholder}
-                    value={importText}
-                    onChange={(e) => setImportText(e.target.value)}
-                    className="mt-1 min-h-[72px] max-h-[180px] w-full resize-y rounded-md border border-input bg-muted/40 px-2 py-1.5 text-xs leading-relaxed text-foreground shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    disabled={saving || isGeneratingFromImport}
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[11px] text-muted-foreground">
-                  {t.project.importTip}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleGenerateFromImport}
-                  disabled={
-                    saving || isGeneratingFromImport || !importText.trim() || isAnyAiRunning
-                  }
-                  className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Sparkles className="h-3 w-3" />
-                  <span>
-                    {isGeneratingFromImport
-                      ? t.project.importGeneratingLabel
-                      : t.project.importGenerateButton}
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* 项目描述 */}
           <div>
