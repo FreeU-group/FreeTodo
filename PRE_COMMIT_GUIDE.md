@@ -8,7 +8,6 @@ Pre-commit 会在每次 `git commit` 时自动检查并修复以下问题：
 - YAML 文件语法检查
 - TOML 文件语法检查
 - JSON 文件语法检查
-- JSON 文件格式化
 - 文件末尾换行符修复
 - 行尾空格删除
 - Python 代码规范检查（ruff）
@@ -62,7 +61,6 @@ git commit -m "your commit message"
 check-yaml........................................................Passed
 check-toml........................................................Passed
 check-json........................................................Passed
-pretty-format-json................................................Passed
 end-of-file-fixer................................................Passed
 trailing-whitespace..............................................Passed
 ruff.............................................................Passed
@@ -151,7 +149,6 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-json
-      - id: pretty-format-json
       - id: end-of-file-fixer
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]

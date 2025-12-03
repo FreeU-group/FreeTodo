@@ -5,7 +5,6 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-json
-      - id: pretty-format-json
       - id: end-of-file-fixer
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
