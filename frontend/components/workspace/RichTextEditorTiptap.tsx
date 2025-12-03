@@ -90,6 +90,26 @@ turndownService.addRule('inlineCode', {
   replacement: (content) => '`' + content + '`',
 });
 
+// Convert absolute image URLs back to relative URLs for storage
+turndownService.addRule('images', {
+  filter: 'img',
+  replacement: (content, node) => {
+    const element = node as HTMLImageElement;
+    let src = element.getAttribute('src') || '';
+    const alt = element.getAttribute('alt') || '';
+    const title = element.getAttribute('title') || '';
+    
+    // Convert full URLs back to relative URLs for workspace images
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    if (src.startsWith(baseUrl + '/api/workspace/images/')) {
+      src = src.substring(baseUrl.length);
+    }
+    
+    const titlePart = title ? ` "${title}"` : '';
+    return `![${alt}](${src}${titlePart})`;
+  },
+});
+
 // --- Tiptap Toolbar Content ---
 const MainToolbarContent = () => {
   return (
@@ -160,6 +180,8 @@ interface RichTextEditorProps {
   fileName?: string;
   /** Project ID for image uploads and other project-specific operations */
   projectId?: string;
+  /** Callback when image upload succeeds */
+  onImageUploadSuccess?: () => void;
   saveLabel: string;
   editLabel: string;
   previewLabel: string;
@@ -225,6 +247,7 @@ export default function RichTextEditorTiptap({
   fileId,
   fileName,
   projectId,
+  onImageUploadSuccess,
   saveLabel,
   editLabel,
   previewLabel,
@@ -568,6 +591,7 @@ export default function RichTextEditorTiptap({
               placeholder={placeholder}
               readOnly={readOnly}
               projectId={projectId}
+              onImageUploadSuccess={onImageUploadSuccess}
               onUpdate={(markdown) => {
                 contentRef.current = markdown;
                 onChange(markdown);
@@ -655,6 +679,7 @@ function EditorComponent({
   placeholder,
   readOnly,
   projectId,
+  onImageUploadSuccess,
   onUpdate,
   onEditorInitialized,
   onKeyDown,
@@ -685,6 +710,7 @@ function EditorComponent({
   placeholder?: string;
   readOnly: boolean;
   projectId?: string;
+  onImageUploadSuccess?: () => void;
   onUpdate: (markdown: string) => void;
   onEditorInitialized: (editor: Editor) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
@@ -739,7 +765,17 @@ function EditorComponent({
   const markdownToHtml = useCallback((md: string): string => {
     if (!md) return '';
     try {
-      return marked.parse(md) as string;
+      // Parse markdown to HTML
+      let html = marked.parse(md) as string;
+      
+      // Resolve relative image URLs to full URLs for rendering
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      html = html.replace(
+        /(<img[^>]+src=)"(\/api\/workspace\/images\/[^"]+)"/g,
+        `$1"${baseUrl}$2"`
+      );
+      
+      return html;
     } catch (error) {
       console.error('Error converting markdown to HTML:', error);
       return md;
@@ -795,6 +831,10 @@ function EditorComponent({
         limit: 3,
         upload: handleImageUpload,
         projectId: projectId,
+        onSuccess: (url) => {
+          console.log('Image uploaded successfully:', url);
+          onImageUploadSuccess?.();
+        },
         onError: (error) => console.error('Upload failed:', error),
       }),
     ],

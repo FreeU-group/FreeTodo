@@ -5,6 +5,7 @@ import { GripVertical, Upload, Plus, Folder, ArrowLeft, Sparkles } from 'lucide-
 import FileTree, { FileNode } from './FileTree';
 // import RichTextEditor from './RichTextEditor';
 import RichTextEditorTiptap from './RichTextEditorTiptap';
+import ImageViewer from './ImageViewer';
 import WorkspaceChat from './WorkspaceChat';
 import WorkspaceProjectList from './WorkspaceProjectList';
 import ChapterGenerationModal from './ChapterGenerationModal';
@@ -448,6 +449,27 @@ export default function WorkspaceContainer({
     setSelectedFile(null);
     setFileContent('');
     lastSavedContentRef.current = '';
+  };
+
+  // 判断文件是否为图片
+  const isImageFile = (fileName: string): boolean => {
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp', '.tiff', '.tif'];
+    const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    return imageExtensions.includes(ext);
+  };
+
+  // 获取图片URL
+  const getImageUrl = (file: FileNode): string => {
+    if (!currentProject) return '';
+    // Extract filename from file.id which is in format: project_id/path/to/file
+    const parts = file.id.split('/');
+    if (parts.length >= 2 && parts[1] === 'images') {
+      // This is an image file in the images folder
+      const filename = parts[parts.length - 1];
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      return `${baseUrl}/api/workspace/images/${currentProject}/${filename}`;
+    }
+    return '';
   };
 
   // 加载项目文件列表
@@ -1218,53 +1240,62 @@ export default function WorkspaceContainer({
           aiEditLabels={editorLabels.aiEditLabels}
           aiMenuLabels={editorLabels.aiMenuLabels}
         /> */}
-        <RichTextEditorTiptap
-          content={fileContent}
-          onChange={handleContentChange}
-          onSave={() => handleSaveFile(true)}
-          placeholder={editorLabels.editorPlaceholder}
-          fileId={selectedFile?.id}
-          fileName={selectedFile?.type === 'file' ? (() => {
-            const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
-            const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
-            return supportedExtensions.includes(ext) ? selectedFile.name : undefined;
-          })() : undefined}
-          projectId={currentProject || undefined}
-          unsupportedFileInfo={selectedFile?.type === 'file' ? (() => {
-            const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
-            const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
-            if (!supportedExtensions.includes(ext)) {
-              return {
-                fileName: selectedFile.name,
-                message: editorLabels.unsupportedFileLabel,
-                supportedFormats: editorLabels.supportedFormatsLabel,
-              };
-            }
-            return undefined;
-          })() : undefined}
-          saveLabel={editorLabels.saveLabel}
-          editLabel={editorLabels.editLabel}
-          previewLabel={editorLabels.previewLabel}
-          noFileLabel={editorLabels.noFileLabel}
-          selectFileHint={editorLabels.selectFileHint}
-          isFileTreeCollapsed={isFileTreeCollapsed}
-          onToggleFileTree={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
-          collapseSidebarLabel={editorLabels.collapseSidebarLabel}
-          expandSidebarLabel={editorLabels.expandSidebarLabel}
-          isChatCollapsed={isChatCollapsed}
-          onToggleChat={() => setIsChatCollapsed(!isChatCollapsed)}
-          collapseChatLabel={editorLabels.collapseChatLabel}
-          expandChatLabel={editorLabels.expandChatLabel}
-          wordCountLabel={editorLabels.wordCountLabel}
-          lastUpdatedLabel={isGeneratingOutline ? editorLabels.generatingOutlineLabel : editorLabels.lastUpdatedLabel}
-          lastUpdatedTime={isGeneratingOutline ? null : lastUpdatedTime}
-          onAIEdit={handleAIEdit}
-          aiEditState={aiEditState}
-          onAIEditConfirm={handleAIEditConfirm}
-          onAIEditCancel={handleAIEditCancel}
-          aiEditLabels={editorLabels.aiEditLabels}
-          aiMenuLabels={editorLabels.aiMenuLabels}
-        />
+        {/* 编辑器 / 图片查看器 */}
+        {selectedFile?.type === 'file' && isImageFile(selectedFile.name) ? (
+          <ImageViewer
+            imageUrl={getImageUrl(selectedFile)}
+            imageName={selectedFile.name}
+          />
+        ) : (
+          <RichTextEditorTiptap
+            content={fileContent}
+            onChange={handleContentChange}
+            onSave={() => handleSaveFile(true)}
+            placeholder={editorLabels.editorPlaceholder}
+            fileId={selectedFile?.id}
+            fileName={selectedFile?.type === 'file' ? (() => {
+              const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
+              const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+              return supportedExtensions.includes(ext) ? selectedFile.name : undefined;
+            })() : undefined}
+            projectId={currentProject || undefined}
+            onImageUploadSuccess={refreshProjectFiles}
+            unsupportedFileInfo={selectedFile?.type === 'file' ? (() => {
+              const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
+              const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+              if (!supportedExtensions.includes(ext)) {
+                return {
+                  fileName: selectedFile.name,
+                  message: editorLabels.unsupportedFileLabel,
+                  supportedFormats: editorLabels.supportedFormatsLabel,
+                };
+              }
+              return undefined;
+            })() : undefined}
+            saveLabel={editorLabels.saveLabel}
+            editLabel={editorLabels.editLabel}
+            previewLabel={editorLabels.previewLabel}
+            noFileLabel={editorLabels.noFileLabel}
+            selectFileHint={editorLabels.selectFileHint}
+            isFileTreeCollapsed={isFileTreeCollapsed}
+            onToggleFileTree={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
+            collapseSidebarLabel={editorLabels.collapseSidebarLabel}
+            expandSidebarLabel={editorLabels.expandSidebarLabel}
+            isChatCollapsed={isChatCollapsed}
+            onToggleChat={() => setIsChatCollapsed(!isChatCollapsed)}
+            collapseChatLabel={editorLabels.collapseChatLabel}
+            expandChatLabel={editorLabels.expandChatLabel}
+            wordCountLabel={editorLabels.wordCountLabel}
+            lastUpdatedLabel={isGeneratingOutline ? editorLabels.generatingOutlineLabel : editorLabels.lastUpdatedLabel}
+            lastUpdatedTime={isGeneratingOutline ? null : lastUpdatedTime}
+            onAIEdit={handleAIEdit}
+            aiEditState={aiEditState}
+            onAIEditConfirm={handleAIEditConfirm}
+            onAIEditCancel={handleAIEditCancel}
+            aiEditLabels={editorLabels.aiEditLabels}
+            aiMenuLabels={editorLabels.aiMenuLabels}
+          />
+        )}
 
         {/* 生成章节按钮 - 仅在 outline.md 文件时显示 */}
         {selectedFile?.name?.toLowerCase() === 'outline.md' && !isGeneratingOutline && (

@@ -396,14 +396,14 @@ export const handleImageUpload = async (
       throw new Error(response.error || 'Upload failed');
     }
 
-    // Return the full URL
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    return `${baseUrl}${response.url}`;
+    // Return relative URL for storage in markdown
+    // This will be resolved to full URL when rendering
+    return response.url;
   } catch (error) {
     console.error('Image upload error:', error);
     throw error;
   }
-}
+};
 
 type ProtocolOptions = {
   /**
