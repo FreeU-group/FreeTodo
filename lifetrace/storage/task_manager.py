@@ -159,6 +159,49 @@ class TaskManager:
             logger.error(f"删除任务失败: {e}")
             return False
 
+    def delete_tasks_batch(self, task_ids: list[int], project_id: int) -> dict[str, Any]:
+        """批量删除任务
+
+        Args:
+            task_ids: 要删除的任务ID列表
+            project_id: 项目ID（用于验证任务归属）
+
+        Returns:
+            包含成功和失败信息的字典
+        """
+        result = {
+            "deleted_count": 0,
+            "failed_ids": [],
+            "not_found_ids": [],
+            "wrong_project_ids": [],
+        }
+
+        try:
+            with self.db_base.get_session() as session:
+                for task_id in task_ids:
+                    task = session.query(Task).filter_by(id=task_id).first()
+                    if not task:
+                        result["not_found_ids"].append(task_id)
+                        continue
+
+                    if task.project_id != project_id:
+                        result["wrong_project_ids"].append(task_id)
+                        continue
+
+                    try:
+                        session.delete(task)
+                        result["deleted_count"] += 1
+                    except SQLAlchemyError as e:
+                        logger.error(f"删除任务 {task_id} 失败: {e}")
+                        result["failed_ids"].append(task_id)
+
+                session.flush()
+                logger.info(f"批量删除任务完成: 成功 {result['deleted_count']} 个")
+                return result
+        except SQLAlchemyError as e:
+            logger.error(f"批量删除任务失败: {e}")
+            return result
+
     # 任务进展管理
     def create_task_progress(
         self,

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Plus, FolderOpen } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Plus, FolderOpen, Archive } from 'lucide-react';
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import ProjectCard from '@/components/project/ProjectCard';
@@ -19,12 +19,16 @@ export default function ProjectManagementPage() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | undefined>(undefined);
+  // 是否正在查看归档项目
+  const [viewingArchived, setViewingArchived] = useState(false);
 
   // 加载项目列表
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.getProjects({ limit: 100, offset: 0 });
+      // 根据当前视图模式加载不同状态的项目
+      const status = viewingArchived ? 'archived' : 'active';
+      const response = await api.getProjects({ limit: 100, offset: 0, status });
       setProjects(response.data.projects || []);
     } catch (error) {
       console.error('加载项目列表失败:', error);
@@ -32,12 +36,12 @@ export default function ProjectManagementPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [viewingArchived, t.project.loadFailed]);
 
-  // 初始加载
+  // 初始加载和切换视图时重新加载
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [loadProjects]);
 
   // 处理创建项目
   const handleCreateProject = () => {
@@ -68,26 +72,60 @@ export default function ProjectManagementPage() {
     }
   };
 
+  // 处理归档项目
+  const handleArchiveProject = async (projectId: number) => {
+    if (!confirm(t.project.archiveConfirm)) {
+      return;
+    }
+
+    try {
+      await api.updateProject(projectId, { status: 'archived' });
+      toast.success(t.project.archiveSuccess);
+      // 刷新列表
+      loadProjects();
+    } catch (error) {
+      console.error('归档项目失败:', error);
+      toast.error(t.project.archiveFailed);
+    }
+  };
+
+  // 处理恢复项目
+  const handleRestoreProject = async (projectId: number) => {
+    try {
+      await api.updateProject(projectId, { status: 'active' });
+      toast.success(t.project.restoreSuccess);
+      // 刷新列表
+      loadProjects();
+    } catch (error) {
+      console.error('恢复项目失败:', error);
+      toast.error(t.project.restoreFailed);
+    }
+  };
+
   // 模态框成功回调
   const handleModalSuccess = () => {
     loadProjects();
   };
 
   return (
-    <div className="p-6">
+    <div className="p-6 relative min-h-[calc(100vh-4rem)]">
       <div className="mx-auto max-w-7xl">
         {/* 页面头部 */}
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">{t.project.title}</h1>
+            <h1 className="text-3xl font-bold text-foreground">
+              {viewingArchived ? t.project.archivedTitle : t.project.title}
+            </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              {t.project.subtitle}
+              {viewingArchived ? t.project.archivedSubtitle : t.project.subtitle}
             </p>
           </div>
-          <Button onClick={handleCreateProject} className="gap-2">
-            <Plus className="h-5 w-5" />
-            {t.project.create}
-          </Button>
+          {!viewingArchived && (
+            <Button onClick={handleCreateProject} className="gap-2">
+              <Plus className="h-5 w-5" />
+              {t.project.create}
+            </Button>
+          )}
         </div>
 
         {/* 项目列表 */}
@@ -100,15 +138,17 @@ export default function ProjectManagementPage() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <FolderOpen className="h-16 w-16 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-2">
-              {t.project.noProjects}
+              {viewingArchived ? t.project.noArchivedProjects : t.project.noProjects}
             </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-              {t.project.noProjectsHint}
+              {viewingArchived ? t.project.noArchivedProjectsHint : t.project.noProjectsHint}
             </p>
-            <Button onClick={handleCreateProject} className="gap-2">
-              <Plus className="h-5 w-5" />
-              {t.project.createFirst}
-            </Button>
+            {!viewingArchived && (
+              <Button onClick={handleCreateProject} className="gap-2">
+                <Plus className="h-5 w-5" />
+                {t.project.createFirst}
+              </Button>
+            )}
           </div>
         ) : (
           // 项目网格
@@ -119,11 +159,28 @@ export default function ProjectManagementPage() {
                 project={project}
                 onEdit={handleEditProject}
                 onDelete={handleDeleteProject}
+                onArchive={handleArchiveProject}
+                onRestore={handleRestoreProject}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* 左下角归档切换按钮 - 相对于页面内容区域定位 */}
+      <button
+        onClick={() => setViewingArchived(!viewingArchived)}
+        className="absolute bottom-6 left-6 z-10 p-3 rounded-full bg-card border border-border shadow-lg hover:bg-accent transition-all duration-200 group"
+        title={viewingArchived ? t.project.viewActive : t.project.viewArchived}
+      >
+        <Archive
+          className={`h-5 w-5 transition-colors ${
+            viewingArchived
+              ? 'text-primary'
+              : 'text-muted-foreground group-hover:text-foreground'
+          }`}
+        />
+      </button>
 
       {/* 创建/编辑项目模态框 */}
       <CreateProjectModal

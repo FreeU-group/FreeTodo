@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, FolderOpen, ChevronRight, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, FolderOpen, ChevronRight, ChevronDown, ChevronUp, History, Send, User, Bot, X, Activity, TrendingUp, Search, Clock, Sparkles, Trash2 } from 'lucide-react';
 import Button from '@/components/common/Button';
 import Loading from '@/components/common/Loading';
 import Input from '@/components/common/Input';
-import { Card, CardContent } from '@/components/common/Card';
+import EditableText from '@/components/common/EditableText';
 import TaskBoard from '@/components/task/TaskBoard';
+import TaskListView from '@/components/task/TaskListView';
+import TaskDashboardView from '@/components/task/TaskDashboardView';
 import CreateTaskModal from '@/components/task/CreateTaskModal';
+import ViewModeSelect from '@/components/project/ViewModeSelect';
 import { Project, Task } from '@/lib/types';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
@@ -32,62 +35,17 @@ interface SessionSummary {
   message_count: number;
 }
 
-// 任务统计组件
-function TaskStats({ tasks }: { tasks: Task[] }) {
-  const locale = useLocaleStore((state) => state.locale);
-  const t = useTranslations(locale);
-
-  const stats = {
-    total: tasks.length,
-    pending: tasks.filter((t) => t.status === 'pending').length,
-    in_progress: tasks.filter((t) => t.status === 'in_progress').length,
-    completed: tasks.filter((t) => t.status === 'completed').length,
-    cancelled: tasks.filter((t) => t.status === 'cancelled').length,
-  };
-
-  const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
-
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-      <Card>
-        <CardContent className="pt-4">
-          <div className="text-2xl font-bold text-foreground">{stats.total}</div>
-          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.totalTasks}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-4">
-          <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
-          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.pending}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-4">
-          <div className="text-2xl font-bold text-blue-600">{stats.in_progress}</div>
-          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.inProgress}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-4">
-          <div className="text-2xl font-bold text-green-600">{stats.completed}</div>
-          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.completed}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardContent className="pt-4">
-          <div className="text-2xl font-bold text-primary">{completionRate}%</div>
-          <p className="text-xs text-muted-foreground mt-1">{t.projectDetail.completionRate}</p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 // 空状态组件
 function TaskEmptyState({
   onCreateTask,
+  onAIGenerate,
+  isGenerating,
+  hasProjectInfo,
 }: {
   onCreateTask: () => void;
+  onAIGenerate: () => void;
+  isGenerating: boolean;
+  hasProjectInfo: boolean;
 }) {
   const locale = useLocaleStore((state) => state.locale);
   const t = useTranslations(locale);
@@ -105,6 +63,16 @@ function TaskEmptyState({
         <Button onClick={onCreateTask} className="gap-2">
           <Plus className="h-5 w-5" />
           {t.projectDetail.createTask}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={onAIGenerate}
+          disabled={isGenerating || !hasProjectInfo}
+          className="gap-2"
+          title={!hasProjectInfo ? t.projectDetail.noProjectInfo : t.projectDetail.aiTaskDecompositionDesc}
+        >
+          <Sparkles className={`h-5 w-5 ${isGenerating ? 'animate-pulse' : ''}`} />
+          {isGenerating ? t.projectDetail.generating : t.projectDetail.aiTaskDecomposition}
         </Button>
       </div>
     </div>
@@ -124,6 +92,14 @@ export default function ProjectDetailPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [parentTaskId, setParentTaskId] = useState<number | undefined>(undefined);
+  const [viewMode, setViewMode] = useState<'list' | 'board' | 'dashboard'>('list'); // 默认为列表视图
+  const [showProjectInfo, setShowProjectInfo] = useState(false); // 项目描述/完成标准折叠状态
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [isEditingDefinition, setIsEditingDefinition] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [definitionDraft, setDefinitionDraft] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
+  const [savingDefinition, setSavingDefinition] = useState(false);
 
   // 聊天相关状态
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -140,7 +116,29 @@ export default function ProjectDetailPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
+  const [isGeneratingTasks, setIsGeneratingTasks] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const descriptionEditRef = useRef<HTMLTextAreaElement | null>(null);
+  const definitionEditRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const autoResizeTextarea = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    const maxHeight = typeof window !== 'undefined' ? window.innerHeight * 0.4 : 400;
+    el.style.height = 'auto';
+    const scrollHeight = el.scrollHeight;
+    const newHeight = Math.min(maxHeight, scrollHeight);
+    el.style.height = `${newHeight}px`;
+    if (scrollHeight > maxHeight) {
+      el.style.overflowY = 'auto';
+    } else {
+      el.style.overflowY = 'hidden';
+    }
+  };
+
+  // 项目助手宽度与拖拽相关状态
+  const [chatWidth, setChatWidth] = useState(400);
+  const [isResizing, setIsResizing] = useState(false);
 
   // 滚动到聊天底部
   const scrollToBottom = () => {
@@ -223,27 +221,38 @@ export default function ProjectDetailPage() {
 
   // 发送消息（支持流式响应）
   const sendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    // 避免重复触发：正在发送或流式响应中时直接返回
+    if (chatLoading || isStreaming) return;
+
+    const trimmedMessage = inputMessage.trim();
+    if (!trimmedMessage) return;
+
+    // 一旦进入发送流程，立即设置为 loading，保证按钮和输入框立刻变为不可用
+    setChatLoading(true);
 
     if (!llmHealthChecked) {
-      await checkLlmHealth();
+      const healthy = await checkLlmHealth();
+      if (!healthy) {
+        setChatLoading(false);
+        return;
+      }
     }
 
     if (!llmHealthy) {
       toast.error(t.toast.llmServiceError);
+      setChatLoading(false);
       return;
     }
 
     const userMessage: ChatMessage = {
       role: 'user',
-      content: inputMessage,
+      content: trimmedMessage,
       timestamp: Date.now(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    const currentInput = inputMessage;
+    const currentInput = trimmedMessage;
     setInputMessage('');
-    setChatLoading(true);
     setIsStreaming(true);
 
     const assistantMessage: ChatMessage = {
@@ -374,6 +383,14 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
+  // 当项目加载完成时，初始化编辑草稿
+  useEffect(() => {
+    if (project) {
+      setDescriptionDraft(project.description || '');
+      setDefinitionDraft(project.definition_of_done || '');
+    }
+  }, [project]);
+
   // 处理创建任务
   const handleCreateTask = (parentId?: number) => {
     setEditingTask(undefined);
@@ -421,6 +438,43 @@ export default function ProjectDetailPage() {
     loadTasks();
   };
 
+  // 更新项目名称
+  const handleUpdateProjectName = async (newName: string) => {
+    try {
+      await api.updateProject(projectId, { name: newName });
+      toast.success(t.project?.updateSuccess || '项目更新成功');
+      loadProject();
+    } catch (error) {
+      console.error('更新项目名称失败:', error);
+      toast.error(t.project?.updateFailed || '更新项目失败');
+      throw error;
+    }
+  };
+
+  // AI任务拆解
+  const handleAIGenerateTasks = async () => {
+    if (!project) return;
+
+    // 检查是否有足够的项目信息
+    if (!project.description && !project.definition_of_done) {
+      toast.error(t.projectDetail.noProjectInfo);
+      return;
+    }
+
+    setIsGeneratingTasks(true);
+    try {
+      const response = await api.generateProjectTasks(projectId);
+      const count = response.data.tasks?.length || 0;
+      toast.success(t.projectDetail.generateTasksSuccess.replace('{count}', String(count)));
+      loadTasks();
+    } catch (error) {
+      console.error('AI任务拆解失败:', error);
+      toast.error(t.projectDetail.generateTasksFailed);
+    } finally {
+      setIsGeneratingTasks(false);
+    }
+  };
+
   // 任务选择相关函数
   const selectedTasksData = tasks.filter((task) => selectedTasks.has(task.id));
 
@@ -446,6 +500,157 @@ export default function ProjectDetailPage() {
       newSet.delete(taskId);
       return newSet;
     });
+  };
+
+  // 批量删除任务
+  const handleBatchDeleteTasks = async () => {
+    if (selectedTasks.size === 0) return;
+
+    const confirmMessage = t.projectDetail.batchDeleteConfirm.replace('{count}', String(selectedTasks.size));
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const response = await api.batchDeleteTasks(projectId, Array.from(selectedTasks));
+      const result = response.data;
+
+      if (result.deleted_count > 0) {
+        if (result.failed_ids.length > 0 || result.not_found_ids.length > 0 || result.wrong_project_ids.length > 0) {
+          // 部分成功
+          const failedCount = result.failed_ids.length + result.not_found_ids.length + result.wrong_project_ids.length;
+          toast.warning(
+            t.projectDetail.batchDeletePartial
+              .replace('{success}', String(result.deleted_count))
+              .replace('{failed}', String(failedCount))
+          );
+        } else {
+          // 全部成功
+          toast.success(t.projectDetail.batchDeleteSuccess.replace('{count}', String(result.deleted_count)));
+        }
+        setSelectedTasks(new Set());
+        loadTasks();
+      } else {
+        toast.error(t.projectDetail.batchDeleteFailed);
+      }
+    } catch (error) {
+      console.error('批量删除任务失败:', error);
+      toast.error(t.projectDetail.batchDeleteFailed);
+    }
+  };
+
+  const handleSaveDescription = async () => {
+    if (!project || savingDescription) return;
+    const trimmed = descriptionDraft.trim();
+    // 内容未变化时只退出编辑
+    if (trimmed === (project.description || '')) {
+      setIsEditingDescription(false);
+      return;
+    }
+    setSavingDescription(true);
+    try {
+      await api.updateProject(projectId, { description: trimmed || undefined });
+      setProject((prev) =>
+        prev ? { ...prev, description: trimmed || undefined } : prev
+      );
+      toast.success(t.project.updateSuccess);
+      setIsEditingDescription(false);
+    } catch (error) {
+      console.error('更新项目描述失败:', error);
+      toast.error(t.project.updateFailed);
+      // 保留编辑状态和草稿，避免用户输入丢失
+    } finally {
+      setSavingDescription(false);
+    }
+  };
+
+  const handleSaveDefinition = async () => {
+    if (!project || savingDefinition) return;
+    const trimmed = definitionDraft.trim();
+    if (trimmed === (project.definition_of_done || '')) {
+      setIsEditingDefinition(false);
+      return;
+    }
+    setSavingDefinition(true);
+    try {
+      await api.updateProject(projectId, { definition_of_done: trimmed || undefined });
+      setProject((prev) =>
+        prev ? { ...prev, definition_of_done: trimmed || undefined } : prev
+      );
+      toast.success(t.project.updateSuccess);
+      setIsEditingDefinition(false);
+    } catch (error) {
+      console.error('更新项目完成标准失败:', error);
+      toast.error(t.project.updateFailed);
+    } finally {
+      setSavingDefinition(false);
+    }
+  };
+
+  // 聊天区域宽度初始化与窗口缩放自适应
+  useEffect(() => {
+    const updateWidthByContainer = () => {
+      if (!containerRef.current || isChatCollapsed) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const totalWidth = rect.width;
+      if (!totalWidth) return;
+
+      const minWidth = totalWidth * 0.25;
+      const maxWidth = totalWidth * 0.5;
+      const defaultWidth = Math.min(400, totalWidth * 0.4);
+
+      setChatWidth((prev) => {
+        if (!prev) {
+          return Math.min(maxWidth, Math.max(minWidth, defaultWidth));
+        }
+        return Math.min(maxWidth, Math.max(minWidth, prev));
+      });
+    };
+
+    updateWidthByContainer();
+    window.addEventListener('resize', updateWidthByContainer);
+    return () => {
+      window.removeEventListener('resize', updateWidthByContainer);
+    };
+  }, [isChatCollapsed]);
+
+  // 分割线拖拽处理
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!isResizing || !containerRef.current || isChatCollapsed) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      const totalWidth = rect.width;
+      if (!totalWidth) return;
+
+      const minWidth = totalWidth * 0.25;
+      const maxWidth = totalWidth * 0.5;
+
+      // 右侧区域宽度 = 容器右边界到当前鼠标位置的距离
+      let newWidth = rect.right - event.clientX;
+      newWidth = Math.min(maxWidth, Math.max(minWidth, newWidth));
+      setChatWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, isChatCollapsed]);
+
+  const handleResizeMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    if (isChatCollapsed) return;
+    setIsResizing(true);
   };
 
   // 格式化日期时间
@@ -476,62 +681,219 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden relative">
+    <div className="flex h-full overflow-hidden relative" ref={containerRef}>
       {/* 左侧任务管理区域 - 占2/3或更宽 */}
-      <div className={`flex flex-col overflow-hidden border-r transition-all duration-300 ${
-        isChatCollapsed ? 'flex-1' : 'w-2/3'
-      }`}>
+      <div className="flex-1 flex flex-col overflow-hidden bg-background min-w-0">
         {/* 固定顶部区域 */}
         <div className="flex-shrink-0 p-6 pb-4 border-b">
           <div className="mx-auto max-w-7xl w-full">
             {/* 顶部导航 */}
             <div className="mb-6">
-              <Button
-                variant="ghost"
-                onClick={() => router.push('/project-management')}
-                className="gap-2 mb-4"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                {t.projectDetail.backToList}
-              </Button>
-
               {project && (
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h1 className="text-3xl font-bold text-foreground">{project.name}</h1>
-                    {project.goal && (
-                      <p className="mt-2 text-muted-foreground">{project.goal}</p>
-                    )}
+                <>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      {/* 返回按钮 */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => router.push('/project-management')}
+                        className="h-10 w-10 p-0"
+                      >
+                        <ArrowLeft className="h-5 w-5" />
+                      </Button>
+                      {/* 项目信息 */}
+                      <div>
+                        <h1 className="text-3xl font-bold text-foreground">
+                          <EditableText
+                            value={project.name}
+                            onSave={handleUpdateProjectName}
+                            inputClassName="text-3xl font-bold"
+                          />
+                        </h1>
+                      </div>
+                    </div>
+                    {/* 视图选择 + 项目信息折叠按钮 */}
+                    <div className="flex items-center gap-2">
+                      {(project.description || project.definition_of_done) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-9 w-9 p-0 rounded-full"
+                          onClick={() => setShowProjectInfo((prev) => !prev)}
+                          title={
+                            showProjectInfo
+                              ? locale === 'zh'
+                                ? '收起项目信息'
+                                : 'Hide project info'
+                              : locale === 'zh'
+                                ? '展开项目信息'
+                                : 'Show project info'
+                          }
+                        >
+                          {showProjectInfo ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      )}
+                      <ViewModeSelect value={viewMode} onChange={setViewMode} />
+                    </div>
                   </div>
-                  <Button onClick={() => handleCreateTask()} className="gap-2">
-                    <Plus className="h-5 w-5" />
-                    {t.projectDetail.createTask}
-                  </Button>
-                </div>
+
+                  {showProjectInfo && (project.description || project.definition_of_done) && (
+                    <div className="mt-4 rounded-md border bg-muted/10 px-4 py-3 text-sm space-y-4">
+                      {/* 项目描述 */}
+                      {project.description && (
+                        <div className="space-y-1.5">
+                          <div className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+                            {t.project.description}
+                          </div>
+                          {isEditingDescription ? (
+                            <textarea
+                              ref={descriptionEditRef}
+                              value={descriptionDraft}
+                              onChange={(e) => {
+                                setDescriptionDraft(e.target.value);
+                                autoResizeTextarea(e.target);
+                              }}
+                              onBlur={handleSaveDescription}
+                              autoFocus
+                              rows={3}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto max-h-[40vh]"
+                            />
+                          ) : (
+                            <p
+                              className="cursor-text text-foreground leading-relaxed whitespace-pre-line"
+                              onClick={() => {
+                                setDescriptionDraft(project.description || '');
+                                setIsEditingDescription(true);
+                                // 下一帧调整高度
+                                setTimeout(
+                                  () => autoResizeTextarea(descriptionEditRef.current),
+                                  0
+                                );
+                              }}
+                            >
+                              {project.description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {/* 最终交付物 / 完成标准 */}
+                      {project.definition_of_done && (
+                        <div className="space-y-1.5">
+                          <div className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground">
+                            {t.project.definitionOfDone}
+                          </div>
+                          {isEditingDefinition ? (
+                            <textarea
+                              ref={definitionEditRef}
+                              value={definitionDraft}
+                              onChange={(e) => {
+                                setDefinitionDraft(e.target.value);
+                                autoResizeTextarea(e.target);
+                              }}
+                              onBlur={handleSaveDefinition}
+                              autoFocus
+                              rows={3}
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-y-auto max-h-[40vh]"
+                            />
+                          ) : (
+                            <p
+                              className="cursor-text text-foreground leading-relaxed whitespace-pre-line"
+                              onClick={() => {
+                                setDefinitionDraft(project.definition_of_done || '');
+                                setIsEditingDefinition(true);
+                                setTimeout(
+                                  () => autoResizeTextarea(definitionEditRef.current),
+                                  0
+                                );
+                              }}
+                            >
+                              {project.definition_of_done}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
-            {/* 任务统计面板 */}
-            {!loading && tasks.length > 0 && (
-              <TaskStats tasks={tasks} />
-            )}
           </div>
         </div>
 
-        {/* 可滚动的任务看板区域 */}
-        <div className="flex-1 overflow-hidden min-h-0">
-          <div className="h-full overflow-y-auto mx-auto max-w-7xl w-full p-6 pt-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loading />
+        {/* 批量操作栏 - 当有任务被选中时显示 */}
+        {selectedTasks.size > 0 && !loading && tasks.length > 0 && (
+          <div className="flex-shrink-0 px-6 py-3 bg-primary/5 border-b border-primary/20">
+            <div className="mx-auto max-w-7xl w-full flex items-center justify-between">
+              <span className="text-sm text-foreground">
+                {t.projectDetail.selectedTasks.replace('{count}', String(selectedTasks.size))}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearSelectedTasks}
+                  className="text-muted-foreground"
+                >
+                  {t.common.clearAll}
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleBatchDeleteTasks}
+                  className="gap-1.5"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {t.projectDetail.batchDelete}
+                </Button>
               </div>
-            ) : tasks.length === 0 ? (
-              // 创新的空状态设计
+            </div>
+          </div>
+        )}
+
+        {/* 可滚动的任务视图区域 */}
+        <div className="flex-1 overflow-hidden min-h-0">
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loading />
+            </div>
+          ) : tasks.length === 0 ? (
+            // 创新的空状态设计
+            <div className="h-full overflow-y-auto mx-auto max-w-7xl w-full p-6 pt-4">
               <TaskEmptyState
                 onCreateTask={() => handleCreateTask()}
+                onAIGenerate={handleAIGenerateTasks}
+                isGenerating={isGeneratingTasks}
+                hasProjectInfo={!!(project?.description || project?.definition_of_done)}
               />
-            ) : (
-              // 任务看板
+            </div>
+          ) : viewMode === 'dashboard' ? (
+            // 仪表盘视图
+            <div className="h-full overflow-y-auto">
+              <TaskDashboardView tasks={tasks} />
+            </div>
+          ) : viewMode === 'list' ? (
+            // 任务列表视图
+            <div className="h-full mx-auto max-w-7xl w-full">
+              <TaskListView
+                tasks={tasks}
+                onEdit={handleEditTask}
+                onDelete={handleDeleteTask}
+                onStatusChange={handleTaskStatusChange}
+                projectId={projectId}
+                selectedTaskIds={selectedTasks}
+                onToggleSelect={handleToggleTaskSelect}
+                onTaskUpdated={loadTasks}
+              />
+            </div>
+          ) : (
+            // 任务看板视图
+            <div className="h-full overflow-y-auto mx-auto max-w-7xl w-full p-6 pt-4">
               <TaskBoard
                 tasks={tasks}
                 onEdit={handleEditTask}
@@ -540,9 +902,10 @@ export default function ProjectDetailPage() {
                 projectId={projectId}
                 selectedTaskIds={selectedTasks}
                 onToggleSelect={handleToggleTaskSelect}
+                onTaskCreated={loadTasks}
               />
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* 创建/编辑任务模态框 */}
@@ -556,15 +919,27 @@ export default function ProjectDetailPage() {
         />
       </div>
 
-      {/* 右侧聊天区域 - 占1/3或窄列 */}
-      <div className={`bg-card flex flex-col flex-shrink-0 h-full overflow-hidden transition-all duration-300 ${
-        isChatCollapsed ? 'w-16' : 'w-1/3'
-      }`}>
-        {/* 折叠状态：显示展开按钮 */}
-        {isChatCollapsed && (
-          <div className="flex flex-col items-center h-full">
-            {/* 与展开状态工具栏同高度的区域 */}
-            <div className="flex items-center justify-center px-2 py-3 border-b border-border flex-shrink-0 w-full">
+      {/* 中间可拖动分割线 */}
+      <div
+        className={`w-[3px] cursor-col-resize bg-border hover:bg-primary/60 transition-colors flex-shrink-0 ${
+          isChatCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+        }`}
+        onMouseDown={handleResizeMouseDown}
+      />
+
+      {/* 右侧聊天区域 - 可调节宽度 */}
+      <div
+        className="bg-card flex flex-col flex-shrink-0 h-full border-l relative overflow-hidden"
+        style={{
+          width: isChatCollapsed ? '60px' : `${chatWidth}px`,
+          transition: isResizing ? 'none' : 'width 300ms ease-in-out',
+        }}
+      >
+        {/* 折叠状态：显示展开按钮 - 使用绝对定位防止布局挤压 */}
+        <div className={`flex flex-col items-center w-[60px] transition-opacity duration-200 absolute z-10 ${
+          isChatCollapsed ? 'opacity-100 delay-300' : 'opacity-0 pointer-events-none'
+        }`}>
+          <div className="flex items-center justify-center px-2 py-3 border-b border-border flex-shrink-0 w-full h-[60px]">
               <Button
                 variant="ghost"
                 size="sm"
@@ -576,12 +951,13 @@ export default function ProjectDetailPage() {
               </Button>
             </div>
           </div>
-        )}
 
         {/* 展开状态：显示完整聊天界面 */}
-        <div className={`flex flex-1 flex-col h-full overflow-hidden ${isChatCollapsed ? 'hidden' : ''}`}>
+        <div className={`flex flex-1 flex-col h-full overflow-hidden transition-opacity duration-300 w-full min-w-[320px] ${
+           isChatCollapsed ? 'opacity-0 pointer-events-none invisible' : 'opacity-100'
+        }`}>
           {/* 顶部工具栏 */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0 h-[60px] whitespace-nowrap">
             <div className="flex items-center gap-2">
               <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center">
                 <Bot className="w-4 h-4" />
@@ -881,11 +1257,11 @@ export default function ProjectDetailPage() {
               }}
               placeholder={t.eventsPage.inputPlaceholder}
               className="flex-1"
-              disabled={chatLoading}
+              disabled={chatLoading || isStreaming}
             />
             <Button
               onClick={sendMessage}
-              disabled={chatLoading || !inputMessage.trim()}
+              disabled={chatLoading || isStreaming || !inputMessage.trim()}
               size="sm"
               className="h-9 px-3"
             >

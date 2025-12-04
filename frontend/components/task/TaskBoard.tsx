@@ -2,7 +2,7 @@
 
 import { Task, TaskStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { Circle, CircleDot, CheckCircle2, XCircle, Edit2, Trash2, Square, Check } from 'lucide-react';
+import { Circle, CircleDot, CheckCircle2, XCircle, Edit2, Trash2, Square, Check, Plus, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useLocaleStore } from '@/lib/store/locale';
 import { useTranslations } from '@/lib/i18n';
@@ -19,6 +19,8 @@ import {
   useDraggable,
 } from '@dnd-kit/core';
 import { useState } from 'react';
+import { api } from '@/lib/api';
+import { toast } from '@/lib/toast';
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -29,6 +31,7 @@ interface TaskBoardProps {
   selectedTaskIds?: Set<number>;
   onToggleSelect?: (task: Task, selected: boolean) => void;
   className?: string;
+  onTaskCreated?: () => void;
 }
 
 const getColumns = (t: ReturnType<typeof useTranslations>) => [
@@ -75,6 +78,7 @@ export default function TaskBoard({
   selectedTaskIds,
   onToggleSelect,
   className,
+  onTaskCreated,
 }: TaskBoardProps) {
   const locale = useLocaleStore((state) => state.locale);
   const t = useTranslations(locale);
@@ -194,6 +198,7 @@ export default function TaskBoard({
                 projectId={projectId}
                 selectedTaskIds={selectedTaskIds}
                 onToggleSelect={onToggleSelect}
+                onTaskCreated={onTaskCreated}
               />
             </div>
           );
@@ -227,6 +232,7 @@ function DroppableColumn({
   projectId,
   selectedTaskIds,
   onToggleSelect,
+  onTaskCreated,
 }: {
   id: TaskStatus;
   tasks: Task[];
@@ -235,39 +241,136 @@ function DroppableColumn({
   projectId?: number;
   selectedTaskIds?: Set<number>;
   onToggleSelect?: (task: Task, selected: boolean) => void;
+  onTaskCreated?: () => void;
 }) {
   const locale = useLocaleStore((state) => state.locale);
   const t = useTranslations(locale);
   const { setNodeRef, isOver } = useDroppable({ id });
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [taskName, setTaskName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleCreateTask = async () => {
+    if (!taskName.trim() || !projectId) return;
+
+    setIsCreating(true);
+    try {
+      await api.createTask(projectId, {
+        name: taskName.trim(),
+        status: id,
+        description: '',
+      });
+      toast.success(t.task.createSuccess);
+      setTaskName('');
+      setIsAddingTask(false);
+      onTaskCreated?.();
+    } catch (error) {
+      console.error('创建任务失败:', error);
+      toast.error(t.task.createFailed);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleCreateTask();
+    } else if (e.key === 'Escape') {
+      setIsAddingTask(false);
+      setTaskName('');
+    }
+  };
 
   return (
     <div
       ref={setNodeRef}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={cn(
-        'flex-1 overflow-y-auto p-3 space-y-2 rounded-b-lg border-x border-b',
+        'flex-1 flex flex-col overflow-hidden rounded-b-lg border-x border-b',
         'bg-muted/10',
-        'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent',
         'border-border transition-colors',
         isOver && 'bg-primary/5 border-primary/30'
       )}
     >
-      {tasks.length === 0 ? (
-        <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-          {isOver ? t.projectDetail.dropHere : t.projectDetail.noTasksInColumn}
-        </div>
-      ) : (
-        tasks.map((task) => (
-          <DraggableTask
-            key={task.id}
-            task={task}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            projectId={projectId}
-            isSelected={selectedTaskIds?.has(task.id)}
-            onToggleSelect={onToggleSelect}
-          />
-        ))
-      )}
+      {/* 任务列表区域 + 添加任务按钮 - 一起滚动，按钮紧跟在最后一个任务后面 */}
+      <div
+        className={cn(
+          'flex-1 overflow-y-auto p-3 space-y-2',
+          'scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent'
+        )}
+      >
+        {tasks.length === 0 && !isAddingTask ? (
+          isOver ? (
+            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+              {t.projectDetail.dropHere}
+            </div>
+          ) : null
+        ) : (
+          tasks.map((task) => (
+            <DraggableTask
+              key={task.id}
+              task={task}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              projectId={projectId}
+              isSelected={selectedTaskIds?.has(task.id)}
+              onToggleSelect={onToggleSelect}
+            />
+          ))
+        )}
+
+        {/* 快速添加任务区域 - 紧跟在任务列表后面 */}
+        {(isHovered || isAddingTask) && (
+          <div className="pt-1 border-t border-border/30 mt-1">
+            {isAddingTask ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={taskName}
+                  onChange={(e) => setTaskName(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  placeholder={t.projectDetail.taskNamePlaceholder || '输入任务名称...'}
+                  className="flex-1 px-3 py-2 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  autoFocus
+                  disabled={isCreating}
+                />
+                <button
+                  onClick={handleCreateTask}
+                  disabled={!taskName.trim() || isCreating}
+                  className={cn(
+                    'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                    'bg-primary text-primary-foreground hover:bg-primary/90',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                  )}
+                >
+                  {isCreating ? '...' : t.common.confirm || '确认'}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAddingTask(false);
+                    setTaskName('');
+                  }}
+                  className="px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent"
+                  disabled={isCreating}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAddingTask(true)}
+                className="w-full px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors flex items-center gap-2 justify-center"
+              >
+                <Plus className="h-4 w-4" />
+                <span>{t.projectDetail.addTask || '添加任务'}</span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

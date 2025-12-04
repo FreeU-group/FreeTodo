@@ -245,20 +245,34 @@ export const api = {
   llmHealthCheck: () => apiClient.get('/health/llm'),
 
   // 项目管理
-  createProject: (data: { name: string; goal?: string }) =>
+  createProject: (data: {
+    name: string;
+    description?: string;
+    definition_of_done?: string;
+    status?: 'active' | 'archived' | 'completed';
+  }) =>
     apiClient.post('/api/projects', data),
 
-  getProjects: (params?: { limit?: number; offset?: number }) =>
+  getProjects: (params?: { limit?: number; offset?: number; status?: string }) =>
     apiClient.get('/api/projects', { params }),
 
   getProject: (id: number) =>
     apiClient.get(`/api/projects/${id}`),
 
-  updateProject: (id: number, data: { name?: string; goal?: string }) =>
+  updateProject: (id: number, data: {
+    name?: string;
+    description?: string;
+    definition_of_done?: string;
+    status?: 'active' | 'archived' | 'completed';
+  }) =>
     apiClient.put(`/api/projects/${id}`, data),
 
   deleteProject: (id: number) =>
     apiClient.delete(`/api/projects/${id}`),
+
+  // AI任务拆解
+  generateProjectTasks: (projectId: number) =>
+    apiClient.post(`/api/projects/${projectId}/generate-tasks`),
 
   // 任务管理
   createTask: (projectId: number, data: { name: string; description?: string; status?: string; parent_task_id?: number }) =>
@@ -275,6 +289,9 @@ export const api = {
 
   deleteTask: (projectId: number, taskId: number) =>
     apiClient.delete(`/api/projects/${projectId}/tasks/${taskId}`),
+
+  batchDeleteTasks: (projectId: number, taskIds: number[]) =>
+    apiClient.post(`/api/projects/${projectId}/tasks/batch-delete`, { task_ids: taskIds }),
 
   getTaskChildren: (projectId: number, taskId: number) =>
     apiClient.get(`/api/projects/${projectId}/tasks/${taskId}/children`),

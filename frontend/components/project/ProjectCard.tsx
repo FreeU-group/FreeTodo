@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/common/Card';
 import { Project } from '@/lib/types';
-import { Calendar, Target, Trash2, Edit2 } from 'lucide-react';
+import { Calendar, Target, Trash2, Edit2, Archive, RotateCcw } from 'lucide-react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import { useLocaleStore } from '@/lib/store/locale';
@@ -13,12 +13,15 @@ interface ProjectCardProps {
   project: Project;
   onEdit?: (project: Project) => void;
   onDelete?: (projectId: number) => void;
+  onArchive?: (projectId: number) => void;
+  onRestore?: (projectId: number) => void;
 }
 
-export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
+export default function ProjectCard({ project, onEdit, onDelete, onArchive, onRestore }: ProjectCardProps) {
   const router = useRouter();
   const locale = useLocaleStore((state) => state.locale);
   const t = useTranslations(locale);
+  const isArchived = project.status === 'archived';
 
   const formatDate = (dateString: string) => {
     try {
@@ -44,6 +47,16 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
     onDelete?.(project.id);
   };
 
+  const handleArchive = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onArchive?.(project.id);
+  };
+
+  const handleRestore = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRestore?.(project.id);
+  };
+
   return (
     <Card
       className="hover:shadow-md transition-shadow cursor-pointer"
@@ -53,10 +66,10 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <CardTitle className="text-xl">{project.name}</CardTitle>
-            {project.goal && (
+            {(project.description || project.definition_of_done) && (
               <CardDescription className="mt-2 flex items-start gap-2">
                 <Target className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>{project.goal}</span>
+                <span>{project.description || project.definition_of_done}</span>
               </CardDescription>
             )}
           </div>
@@ -80,7 +93,25 @@ export default function ProjectCard({ project, onEdit, onDelete }: ProjectCardPr
             {t.project.editButton}
           </button>
         )}
-        {onDelete && (
+        {!isArchived && onArchive && (
+          <button
+            onClick={handleArchive}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
+          >
+            <Archive className="h-4 w-4" />
+            {t.project.archiveButton}
+          </button>
+        )}
+        {isArchived && onRestore && (
+          <button
+            onClick={handleRestore}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
+          >
+            <RotateCcw className="h-4 w-4" />
+            {t.project.restoreButton}
+          </button>
+        )}
+        {isArchived && onDelete && (
           <button
             onClick={handleDelete}
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors"

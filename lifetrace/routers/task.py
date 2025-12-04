@@ -4,6 +4,8 @@ from fastapi import APIRouter, HTTPException, Path, Query
 
 from lifetrace.llm.llm_client import LLMClient
 from lifetrace.schemas.task import (
+    TaskBatchDeleteRequest,
+    TaskBatchDeleteResponse,
     TaskCreate,
     TaskListResponse,
     TaskProgressListResponse,
@@ -252,6 +254,48 @@ async def delete_task(
     except Exception as e:
         logger.error(f"删除任务失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"删除任务失败: {str(e)}") from e
+
+
+@router.post(
+    "/api/projects/{project_id}/tasks/batch-delete",
+    response_model=TaskBatchDeleteResponse,
+)
+async def batch_delete_tasks(
+    project_id: int = Path(..., description="项目ID"),
+    request: TaskBatchDeleteRequest = None,
+):
+    """
+    批量删除任务
+
+    Args:
+        project_id: 项目ID
+        request: 批量删除请求，包含要删除的任务ID列表
+
+    Returns:
+        批量删除结果
+    """
+    try:
+        # 验证项目是否存在
+        project = project_mgr.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="项目不存在")
+
+        # 批量删除任务
+        result = task_mgr.delete_tasks_batch(request.task_ids, project_id)
+
+        logger.info(
+            f"批量删除任务完成: 项目 {project_id}, "
+            f"成功 {result['deleted_count']} 个, "
+            f"失败 {len(result['failed_ids'])} 个"
+        )
+
+        return TaskBatchDeleteResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量删除任务失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"批量删除任务失败: {str(e)}") from e
 
 
 @router.get(

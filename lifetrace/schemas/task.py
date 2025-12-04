@@ -79,3 +79,18 @@ class TaskProgressListResponse(BaseModel):
 
     total: int = Field(..., description="总数")
     progress_list: list[TaskProgressResponse] = Field(..., description="进展记录列表")
+
+
+class TaskBatchDeleteRequest(BaseModel):
+    """批量删除任务请求模型"""
+
+    task_ids: list[int] = Field(..., min_length=1, description="要删除的任务ID列表")
+
+
+class TaskBatchDeleteResponse(BaseModel):
+    """批量删除任务响应模型"""
+
+    deleted_count: int = Field(..., description="成功删除的任务数量")
+    failed_ids: list[int] = Field(default_factory=list, description="删除失败的任务ID")
+    not_found_ids: list[int] = Field(default_factory=list, description="未找到的任务ID")
+    wrong_project_ids: list[int] = Field(default_factory=list, description="不属于该项目的任务ID")

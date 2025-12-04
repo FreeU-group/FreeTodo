@@ -111,12 +111,21 @@ class Project(Base):
 
     __tablename__ = "projects"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
+
+    # 1. 身份锚点
     name = Column(String(200), nullable=False)  # 项目名称
-    description = Column(Text)  # 项目描述
-    goal = Column(Text)  # 项目目标
+    definition_of_done = Column(Text, nullable=True)  # "完成"的标准
+    status = Column(String(20), default="active")  # 项目状态：active, archived, completed
+
+    # 2. 描述 / AI 与系统上下文
+    description = Column(Text, nullable=True)  # 项目描述或为 Advisor 提供的总结性上下文
+
+    # 3. 元数据（保留现有字段）
     created_at = Column(DateTime, default=get_local_time, nullable=False)
-    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+    updated_at = Column(
+        DateTime, default=get_local_time, onupdate=get_local_time, nullable=False
+    )
     deleted_at = Column(DateTime)
 
     def __repr__(self):

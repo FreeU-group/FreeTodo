@@ -89,22 +89,33 @@ export interface SearchParams {
 }
 
 // 项目管理类型
+export type ProjectStatus = 'active' | 'archived' | 'completed';
+
 export interface Project {
   id: number;
   name: string;
-  goal?: string;
+  description?: string;
+  /**
+   * 对应后端字段 definition_of_done，表示项目“完成”的标准或最终交付物
+   */
+  definition_of_done?: string;
+  status: ProjectStatus;
   created_at: string;
   updated_at: string;
 }
 
 export interface ProjectCreate {
   name: string;
-  goal?: string;
+  description?: string;
+  definition_of_done?: string;
+  status?: ProjectStatus;
 }
 
 export interface ProjectUpdate {
   name?: string;
-  goal?: string;
+  description?: string;
+  definition_of_done?: string;
+  status?: ProjectStatus;
 }
 
 export interface ProjectListResponse {
