@@ -29,7 +29,7 @@ async def get_cost_stats(days: int = Query(30, description="统计天数")):
         stats = token_logger.get_usage_stats(days=days)
 
         # 获取当前模型配置
-        current_model = config.llm_model
+        current_model = config.get("llm.model")
         input_price = config.llm_input_token_price
         output_price = config.llm_output_token_price
 
@@ -99,7 +99,7 @@ async def get_cost_config():
         return {
             "success": True,
             "data": {
-                "model": config.llm_model,
+                "model": config.get("llm.model"),
                 "input_token_price": config.llm_input_token_price,
                 "output_token_price": config.llm_output_token_price,
             },

@@ -31,30 +31,36 @@ class TokenUsageLogger:
         if not self.config:
             return 0.0, 0.0
 
-        model_prices = self.config.get("llm.model_prices", {})
+        model_prices = self.config.get("llm.model_prices")
 
         # 先尝试获取指定模型的价格
         if model in model_prices:
             prices = model_prices[model]
-            return prices.get("input_price", 0.0), prices.get("output_price", 0.0)
+            if "input_price" not in prices or "output_price" not in prices:
+                raise KeyError(
+                    f"模型 '{model}' 的价格配置不完整。请确保配置了 input_price 和 output_price。"
+                )
+            return prices["input_price"], prices["output_price"]
 
         # 如果没有找到，使用默认价格
-        if "default" in model_prices:
-            prices = model_prices["default"]
-            return prices.get("input_price", 0.0), prices.get("output_price", 0.0)
+        if "default" not in model_prices:
+            raise KeyError(
+                f"找不到模型 '{model}' 的价格配置，也没有配置默认价格。"
+                f"请在配置文件中添加该模型的价格或配置 default 价格。"
+            )
 
-        return 0.0, 0.0
+        prices = model_prices["default"]
+        if "input_price" not in prices or "output_price" not in prices:
+            raise KeyError("默认价格配置不完整。请确保配置了 input_price 和 output_price。")
+
+        return prices["input_price"], prices["output_price"]
 
     def log_token_usage(
         self,
         model: str,
         input_tokens: int,
         output_tokens: int,
-        endpoint: str = None,
-        user_query: str = None,
-        response_type: str = None,
-        feature_type: str = None,
-        additional_info: dict[str, Any] = None,
+        metadata: dict[str, Any] = None,
     ):
         """
         记录token使用量
@@ -63,13 +69,23 @@ class TokenUsageLogger:
             model: 使用的模型名称
             input_tokens: 输入token数量
             output_tokens: 输出token数量
-            endpoint: API端点（如 /api/chat, /api/chat/stream）
-            user_query: 用户查询内容（可选，用于分析）
-            response_type: 响应类型（如 chat, search, classify）
-            feature_type: 功能类型（如 event_assistant, project_assistant, job_task_context_mapper,
-                         job_task_summary（定时任务）, task_summary（手动触发））
-            additional_info: 额外信息字典
+            metadata: 元数据字典，可包含以下键：
+                - endpoint: API端点（如 /api/chat, /api/chat/stream）
+                - user_query: 用户查询内容（可选，用于分析）
+                - response_type: 响应类型（如 chat, search, classify）
+                - feature_type: 功能类型（如 event_assistant, project_assistant）
+                - additional_info: 额外信息字典
         """
+        MAX_QUERY_PREVIEW_LENGTH = 200
+
+        if metadata is None:
+            metadata = {}
+
+        endpoint = metadata.get("endpoint")
+        user_query = metadata.get("user_query")
+        response_type = metadata.get("response_type")
+        feature_type = metadata.get("feature_type")
+
         try:
             # 计算成本
             input_price, output_price = self._get_model_price(model)
@@ -81,8 +97,10 @@ class TokenUsageLogger:
             user_query_preview = None
             query_length = None
             if user_query:
-                # 只记录查询的前200个字符
-                user_query_preview = user_query[:200] + ("..." if len(user_query) > 200 else "")
+                # 只记录查询的前N个字符
+                user_query_preview = user_query[:MAX_QUERY_PREVIEW_LENGTH] + (
+                    "..." if len(user_query) > MAX_QUERY_PREVIEW_LENGTH else ""
+                )
                 query_length = len(user_query)
 
             # 写入数据库
@@ -257,7 +275,14 @@ def get_token_logger() -> TokenUsageLogger | None:
 
 
 def log_token_usage(model: str, input_tokens: int, output_tokens: int, **kwargs):
-    """便捷函数：记录token使用量"""
+    """便捷函数：记录token使用量
+
+    Args:
+        model: 模型名称
+        input_tokens: 输入token数量
+        output_tokens: 输出token数量
+        **kwargs: 传递给 metadata 字典的其他参数
+    """
     if _token_logger is None:
         setup_token_logger()
-    return _token_logger.log_token_usage(model, input_tokens, output_tokens, **kwargs)
+    return _token_logger.log_token_usage(model, input_tokens, output_tokens, metadata=kwargs)

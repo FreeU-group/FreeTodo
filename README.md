@@ -132,11 +132,6 @@ For more details, see: [frontend/README.md](frontend/README.md)
 │   └── ...                     # Other GitHub repository files
 ├── lifetrace/                  # Core backend modules
 │   ├── server.py               # Web API service
-│   ├── alembic/                # Database migration tool
-│   │   ├── env.py              # Alembic environment config
-│   │   ├── script.py.mako      # Migration script template
-│   │   └── README              # Alembic documentation
-│   ├── alembic.ini             # Alembic configuration
 │   ├── config/                 # Configuration files
 │   │   ├── config.yaml         # Main configuration (auto-generated)
 │   │   ├── default_config.yaml # Default configuration template

@@ -37,7 +37,7 @@ interface AppLayoutInnerProps {
 function AppLayoutInner({ children }: AppLayoutInnerProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { locale } = useLocaleStore();
+  const locale = useLocaleStore((state) => state.locale);
   const t = useTranslations(locale);
   const [activeMenu, setActiveMenu] = useState<MenuType>('events');
   const [showScheduler, setShowScheduler] = useState(false);

@@ -9,8 +9,13 @@ class LoggerManager:
         logger.remove()
 
     def configure(self, config: dict):
-        level = config.get("level", "INFO")
-        log_path = config.get("log_path", "lifetrace/data/logs/")
+        if "level" not in config:
+            raise KeyError("配置中缺少 'level' 键")
+        if "log_path" not in config:
+            raise KeyError("配置中缺少 'log_path' 键")
+
+        level = config["level"]
+        log_path = config["log_path"]
 
         console_format = (
             "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "

@@ -55,9 +55,9 @@ class VectorDatabase:
 
         # 配置参数
         self.vector_db_path = Path(config.vector_db_persist_directory)
-        self.embedding_model_name = config.vector_db_embedding_model
-        self.cross_encoder_model_name = config.vector_db_rerank_model
-        self.collection_name = config.vector_db_collection_name
+        self.embedding_model_name = config.get("vector_db.embedding_model")
+        self.cross_encoder_model_name = config.get("vector_db.rerank_model")
+        self.collection_name = config.get("vector_db.collection_name")
 
         # 初始化
         self._initialize()
@@ -487,7 +487,7 @@ def create_vector_db(config) -> VectorDatabase | None:
         return None
 
     # 检查是否启用向量数据库
-    if not config.vector_db_enabled:
+    if not config.get("vector_db.enabled"):
         logger.info("Vector database is disabled in configuration")
         return None
 

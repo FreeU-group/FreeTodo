@@ -7,15 +7,12 @@ from lifetrace.schemas.chat import (
     NewChatRequest,
     NewChatResponse,
 )
-from lifetrace.schemas.config import ConfigResponse
 from lifetrace.schemas.event import EventDetailResponse, EventResponse
 from lifetrace.schemas.screenshot import ScreenshotResponse
 from lifetrace.schemas.search import SearchRequest
 from lifetrace.schemas.stats import (
-    AppUsageStatsResponse,
-    BehaviorStatsResponse,
-    DashboardStatsResponse,
     StatisticsResponse,
+    TimeAllocationResponse,
 )
 from lifetrace.schemas.system import ProcessInfo, SystemResourcesResponse
 from lifetrace.schemas.vector import (
@@ -31,8 +28,6 @@ __all__ = [
     "ChatResponse",
     "NewChatRequest",
     "NewChatResponse",
-    # Config
-    "ConfigResponse",
     # Event
     "EventResponse",
     "EventDetailResponse",
@@ -42,9 +37,7 @@ __all__ = [
     "SearchRequest",
     # Stats
     "StatisticsResponse",
-    "BehaviorStatsResponse",
-    "DashboardStatsResponse",
-    "AppUsageStatsResponse",
+    "TimeAllocationResponse",
     # System
     "ProcessInfo",
     "SystemResourcesResponse",

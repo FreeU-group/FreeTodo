@@ -18,9 +18,9 @@ class CleanDataService:
 
     def __init__(self):
         """初始化数据清理服务"""
-        self.max_screenshots = config.get("jobs.clean_data.max_screenshots", 10000)
-        self.max_days = config.get("jobs.clean_data.max_days", 30)
-        self.delete_file_only = config.get("jobs.clean_data.delete_file_only", True)
+        self.max_screenshots = config.get("jobs.clean_data.params.max_screenshots")
+        self.max_days = config.get("jobs.clean_data.params.max_days")
+        self.delete_file_only = config.get("jobs.clean_data.params.delete_file_only")
         logger.info("数据清理服务已初始化")
 
     def execute(self) -> dict:
@@ -171,7 +171,7 @@ class CleanDataService:
 
         try:
             # 构造完整路径
-            base_dir = config.get("base_dir", "data")
+            base_dir = config.get("base_dir")
             file_path = os.path.join(base_dir, screenshot.file_path)
 
             # 删除文件
@@ -180,12 +180,11 @@ class CleanDataService:
                 os.remove(file_path)
                 result["size"] = file_size
                 logger.debug(f"已删除文件: {file_path}")
+            # 检查是否已经标记为已删除
+            elif getattr(screenshot, "file_deleted", False):
+                logger.debug(f"文件已在之前被删除: {file_path}")
             else:
-                # 检查是否已经标记为已删除
-                if getattr(screenshot, "file_deleted", False):
-                    logger.debug(f"文件已在之前被删除: {file_path}")
-                else:
-                    logger.warning(f"文件不存在: {file_path}")
+                logger.warning(f"文件不存在: {file_path}")
 
             # 如果配置为同时删除记录，则从数据库中删除
             if not self.delete_file_only:
@@ -221,13 +220,10 @@ def get_clean_data_instance() -> CleanDataService:
 def execute_clean_data_task():
     """执行数据清理任务 - 供调度器调用的可序列化函数"""
     try:
-        enabled = config.get("jobs.clean_data.enabled", True)
-        if not enabled:
-            logger.debug("数据清理任务未启用，跳过执行")
-            return
-
+        logger.info("开始执行数据清理任务")
         service = get_clean_data_instance()
         service.execute()
+        logger.info("数据清理任务完成")
 
     except Exception as e:
         logger.error(f"执行数据清理任务失败: {e}", exc_info=True)

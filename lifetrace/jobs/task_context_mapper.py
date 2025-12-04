@@ -5,8 +5,6 @@
 """
 
 import json
-import threading
-from datetime import datetime
 from typing import Any
 
 from lifetrace.llm.llm_client import LLMClient
@@ -31,34 +29,27 @@ class TaskContextMapper:
 
     def __init__(
         self,
-        llm_client: LLMClient = None,
-        project_confidence_threshold: float = 0.7,
-        task_confidence_threshold: float = 0.7,
-        batch_size: int = 10,
-        check_interval: int = 60,
-        enabled: bool = True,
+        llm_client: LLMClient,
+        project_confidence_threshold: float,
+        task_confidence_threshold: float,
+        batch_size: int,
+        enabled: bool,
     ):
         """
         初始化任务上下文映射服务
 
         Args:
-            llm_client: LLM客户端，如果为None则自动创建
+            llm_client: LLM客户端
             project_confidence_threshold: 项目置信度阈值，只有超过此阈值的项目关联才会被应用
             task_confidence_threshold: 任务置信度阈值，只有超过此阈值的任务关联才会被应用
             batch_size: 每次处理的上下文数量
-            check_interval: 检查间隔（秒）
             enabled: 是否启用服务
         """
-        self.llm_client = llm_client or LLMClient()
+        self.llm_client = llm_client
         self.project_confidence_threshold = project_confidence_threshold
         self.task_confidence_threshold = task_confidence_threshold
         self.batch_size = batch_size
-        self.check_interval = check_interval
         self.enabled = enabled
-
-        self._thread = None
-        self._stop_event = threading.Event()
-        self._running = False
 
         # 统计信息
         self.stats = {
@@ -74,64 +65,12 @@ class TaskContextMapper:
             f"项目置信度阈值: {project_confidence_threshold}, "
             f"任务置信度阈值: {task_confidence_threshold}, "
             f"批次大小: {batch_size}, "
-            f"检查间隔: {check_interval}秒, "
             f"启用状态: {enabled}"
         )
-
-    def start(self):
-        """启动后台服务线程"""
-        if not self.enabled:
-            logger.info("任务上下文映射服务未启用，跳过启动")
-            return
-
-        if self._running:
-            logger.warning("任务上下文映射服务已在运行中")
-            return
-
-        self._stop_event.clear()
-        self._running = True
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._thread.start()
-        logger.info("任务上下文映射服务已启动")
-
-    def stop(self):
-        """停止后台服务线程"""
-        if not self._running:
-            return
-
-        logger.error("正在停止任务上下文映射服务...")
-        self._stop_event.set()
-        if self._thread:
-            self._thread.join(timeout=10)
-        self._running = False
-        logger.error("任务上下文映射服务已停止")
-
-    def is_running(self) -> bool:
-        """检查服务是否在运行"""
-        return self._running
 
     def get_stats(self) -> dict[str, Any]:
         """获取服务统计信息"""
         return self.stats.copy()
-
-    def _run_loop(self):
-        """服务主循环"""
-        logger.info("任务上下文映射服务主循环已启动")
-
-        while not self._stop_event.is_set():
-            try:
-                self._process_batch()
-                self.stats["last_run_time"] = datetime.now().isoformat()
-            except Exception as e:
-                error_msg = f"处理批次时发生错误: {e}"
-                logger.error(error_msg)
-                logger.exception(e)
-                self.stats["last_error"] = error_msg
-
-            # 等待下一次检查
-            self._stop_event.wait(timeout=self.check_interval)
-
-        logger.info("任务上下文映射服务主循环已退出")
 
     def _process_batch(self):
         """处理一批未关联的上下文"""
@@ -184,29 +123,66 @@ class TaskContextMapper:
             logger.exception(e)
             return []
 
-    def _process_single_context(self, context: dict[str, Any]):
-        """
-        处理单个上下文，尝试将其关联到最合适的任务
+    def _handle_project_only_association(
+        self, context_id: int, project_id: int, project_confidence: float, reason: str
+    ):
+        """处理仅有项目关联（无任务关联）的情况"""
+        logger.info(f"{reason}: 上下文 {context_id}")
+        self.stats["total_skipped"] += 1
+        context_mgr.create_or_update_event_association(
+            event_id=context_id,
+            project_id=project_id,
+            project_confidence=project_confidence,
+            association_method="auto",
+        )
 
-        Args:
-            context: 上下文数据
-        """
+    def _save_association_result(
+        self,
+        context_id: int,
+        project_id: int,
+        project_confidence: float,
+        task_id: int | None,
+        task_confidence: float,
+        reasoning: str,
+    ) -> bool:
+        """保存关联结果并记录日志"""
+        success = context_mgr.create_or_update_event_association(
+            event_id=context_id,
+            project_id=project_id,
+            task_id=task_id if task_confidence >= self.task_confidence_threshold else None,
+            project_confidence=project_confidence,
+            task_confidence=task_confidence,
+            reasoning=reasoning,
+            association_method="auto",
+        )
+
+        if success:
+            if task_confidence >= self.task_confidence_threshold:
+                self.stats["total_associated"] += 1
+                logger.info(
+                    f"✅ 成功关联上下文 {context_id} 到项目 {project_id} 任务 {task_id} "
+                    f"(项目置信度: {project_confidence:.2f}, 任务置信度: {task_confidence:.2f})"
+                )
+            else:
+                logger.info(
+                    f"⏭️  上下文 {context_id} 任务置信度 {task_confidence:.2f} "
+                    f"低于阈值 {self.task_confidence_threshold}，仅保存项目关联 {project_id}"
+                )
+                self.stats["total_skipped"] += 1
+        else:
+            logger.error(f"❌ 保存上下文 {context_id} 的关联失败")
+            self.stats["total_skipped"] += 1
+
+        return success
+
+    def _process_single_context(self, context: dict[str, Any]):
+        """处理单个上下文，尝试将其关联到最合适的任务"""
         context_id = context["id"]
         logger.info(f"开始处理上下文 {context_id}")
 
-        # 用于保存判断结果的变量
-        project_id = None
-        project_confidence = None
-        task_id = None
-        task_confidence = None
-        reasoning = None
-
         try:
-            # 首先需要确定这个上下文属于哪个项目
-            # 这里我们采用策略：从上下文的时间窗口内查找截图，获取OCR文本
-            # 然后通过文本内容判断最相关的项目
+            # 确定项目归属
             project_result = self._determine_project_for_context(context)
-
             if not project_result:
                 logger.info(f"上下文 {context_id} 无法确定归属项目，跳过自动关联")
                 self.stats["total_skipped"] += 1
@@ -217,7 +193,7 @@ class TaskContextMapper:
                 f"上下文 {context_id} 判断归属项目 {project_id} (置信度: {project_confidence:.2f})"
             )
 
-            # 检查项目置信度是否达到阈值
+            # 检查项目置信度阈值
             if project_confidence < self.project_confidence_threshold:
                 logger.info(
                     f"上下文 {context_id} 项目置信度 {project_confidence:.2f} "
@@ -226,18 +202,14 @@ class TaskContextMapper:
                 self.stats["total_skipped"] += 1
                 return
 
-            # b. 获取该项目下所有"进行中"的任务
+            # 获取进行中的任务
             in_progress_tasks = self._get_in_progress_tasks(project_id)
-
             if not in_progress_tasks:
-                logger.info(f"项目 {project_id} 没有进行中的任务，上下文 {context_id} 跳过任务关联")
-                self.stats["total_skipped"] += 1
-                # 仍然保存项目关联
-                context_mgr.create_or_update_event_association(
-                    event_id=context_id,
-                    project_id=project_id,
-                    project_confidence=project_confidence,
-                    association_method="auto",
+                self._handle_project_only_association(
+                    context_id,
+                    project_id,
+                    project_confidence,
+                    f"项目 {project_id} 没有进行中的任务",
                 )
                 return
 
@@ -246,21 +218,13 @@ class TaskContextMapper:
                 f"找到 {len(in_progress_tasks)} 个进行中的任务"
             )
 
-            # c. 构建面向 LLM 的 Prompt
+            # 调用 LLM 进行任务关联
             prompt = self._build_association_prompt(context, project_id, in_progress_tasks)
-
-            # d. 调用 LLM API，并解析返回的 JSON 结果
             result = self._call_llm_for_association(prompt)
 
             if not result:
-                logger.warning(f"上下文 {context_id} LLM任务关联失败，但保存项目关联")
-                self.stats["total_skipped"] += 1
-                # 保存项目关联
-                context_mgr.create_or_update_event_association(
-                    event_id=context_id,
-                    project_id=project_id,
-                    project_confidence=project_confidence,
-                    association_method="auto",
+                self._handle_project_only_association(
+                    context_id, project_id, project_confidence, "LLM任务关联失败"
                 )
                 return
 
@@ -268,35 +232,12 @@ class TaskContextMapper:
             task_confidence = result.get("confidence_score", 0.0)
             reasoning = result.get("reasoning", "")
 
-            # e. 保存关联结果到 event_task_relations 表（无论置信度如何都保存）
-            success = context_mgr.create_or_update_event_association(
-                event_id=context_id,
-                project_id=project_id,
-                task_id=task_id if task_confidence >= self.task_confidence_threshold else None,
-                project_confidence=project_confidence,
-                task_confidence=task_confidence,
-                reasoning=reasoning,
-                association_method="auto",
+            # 保存关联结果
+            self._save_association_result(
+                context_id, project_id, project_confidence, task_id, task_confidence, reasoning
             )
 
-            if success:
-                if task_confidence >= self.task_confidence_threshold:
-                    self.stats["total_associated"] += 1
-                    logger.info(
-                        f"✅ 成功关联上下文 {context_id} 到项目 {project_id} 任务 {task_id} "
-                        f"(项目置信度: {project_confidence:.2f}, 任务置信度: {task_confidence:.2f})"
-                    )
-                else:
-                    logger.info(
-                        f"⏭️  上下文 {context_id} 任务置信度 {task_confidence:.2f} 低于阈值 {self.task_confidence_threshold}，"
-                        f"仅保存项目关联 {project_id}"
-                    )
-                    self.stats["total_skipped"] += 1
-            else:
-                logger.error(f"❌ 保存上下文 {context_id} 的关联失败")
-                self.stats["total_skipped"] += 1
-
-            # f. 记录决策过程
+            # 记录决策过程
             self._log_decision(
                 context_id=context_id,
                 project_id=project_id,
@@ -309,15 +250,12 @@ class TaskContextMapper:
             )
 
         finally:
-            # ⚠️ 关键操作：无论处理成功、失败、还是异常，都必须标记为已尝试
-            # 这样可以确保每个 event 只尝试一次自动关联，避免重复处理浪费 token
-            # 注意：此标记是永久的，该 event 将不再被 task_context_mapper job 处理
+            # 无论处理结果如何都标记为已尝试
             try:
                 context_mgr.mark_context_mapping_attempted(context_id)
                 logger.info(f"✓ 已标记上下文 {context_id} 为已尝试自动关联（永久标记）")
             except Exception as e:
                 logger.error(f"❌ 严重错误：无法标记上下文 {context_id} 为已尝试: {e}")
-                # 标记失败是严重问题，因为这会导致重复处理
                 raise
 
     def _determine_project_for_context(self, context: dict[str, Any]) -> tuple[int, float] | None:
@@ -727,19 +665,16 @@ def get_mapper_instance() -> TaskContextMapper:
     """
     global _global_mapper_instance
     if _global_mapper_instance is None:
-        mapper_config = config.get("jobs.task_context_mapper", {})
-        project_confidence_threshold = mapper_config.get("project_confidence_threshold", 0.7)
-        task_confidence_threshold = mapper_config.get("task_confidence_threshold", 0.7)
-        batch_size = mapper_config.get("batch_size", 10)
-        check_interval = mapper_config.get("interval", 60)
-        enabled = mapper_config.get("enabled", False)
-
         _global_mapper_instance = TaskContextMapper(
-            project_confidence_threshold=project_confidence_threshold,
-            task_confidence_threshold=task_confidence_threshold,
-            batch_size=batch_size,
-            check_interval=check_interval,
-            enabled=enabled,
+            llm_client=LLMClient(),
+            project_confidence_threshold=config.get(
+                "jobs.task_context_mapper.params.project_confidence_threshold"
+            ),
+            task_confidence_threshold=config.get(
+                "jobs.task_context_mapper.params.task_confidence_threshold"
+            ),
+            batch_size=config.get("jobs.task_context_mapper.params.batch_size"),
+            enabled=config.get("jobs.task_context_mapper.enabled"),
         )
     return _global_mapper_instance
 
@@ -752,10 +687,6 @@ def execute_mapper_task():
     try:
         logger.info("🔄 开始执行任务上下文映射任务")
         mapper = get_mapper_instance()
-
-        if not mapper.enabled:
-            logger.info("任务上下文映射服务未启用，跳过执行")
-            return 0
 
         # 执行一批处理
         mapper._process_batch()

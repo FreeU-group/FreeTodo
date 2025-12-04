@@ -3,6 +3,8 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
+      - id: check-toml
+      - id: check-json
       - id: end-of-file-fixer
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
@@ -24,3 +26,10 @@ repos:
         language_version: python3.13
         files: ^lifetrace/
         types_or: [ python, pyi ]
+  # Biome for frontend (JavaScript/TypeScript)
+  - repo: https://github.com/biomejs/pre-commit
+    rev: "v0.6.1"
+    hooks:
+      - id: biome-check
+        additional_dependencies: ["@biomejs/biome@2.3.8"]
+        files: ^frontend/

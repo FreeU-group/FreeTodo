@@ -10,14 +10,13 @@ from lifetrace.jobs.scheduler import get_scheduler_manager
 from lifetrace.jobs.task_context_mapper import execute_mapper_task, get_mapper_instance
 from lifetrace.jobs.task_summary import execute_summary_task, get_summary_instance
 from lifetrace.util.config import config
-from lifetrace.util.config_watcher import ConfigChangeType
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
 
 
 class JobManager:
-    """后台任务管理器 - 实现 ConfigChangeHandler 协议"""
+    """后台任务管理器"""
 
     def __init__(self):
         """初始化任务管理器"""
@@ -80,7 +79,7 @@ class JobManager:
 
     def _start_recorder_job(self):
         """启动录制器任务"""
-        enabled = config.get("jobs.recorder.enabled", True)
+        enabled = config.get("jobs.recorder.enabled")
 
         try:
             # 预先初始化全局录制器实例（避免首次调用时延迟）
@@ -88,12 +87,12 @@ class JobManager:
             logger.info("录制器实例已初始化")
 
             # 添加录制器定时任务（使用可序列化的函数，无论是否启用都添加）
-            recorder_interval = config.get("jobs.recorder.interval", 1)
-            recorder_name = config.get("jobs.recorder.name", "屏幕录制")
+            recorder_interval = config.get("jobs.recorder.interval")
+            recorder_id = config.get("jobs.recorder.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_capture_task,  # 使用模块级别的函数
                 job_id="recorder_job",
-                name=recorder_name,
+                name=recorder_id,
                 seconds=recorder_interval,
                 replace_existing=True,
             )
@@ -108,16 +107,16 @@ class JobManager:
 
     def _start_ocr_job(self):
         """启动OCR任务"""
-        enabled = config.get("jobs.ocr.enabled", True)
+        enabled = config.get("jobs.ocr.enabled")
 
         try:
             # 添加OCR定时任务（无论是否启用都添加）
-            ocr_interval = config.get("jobs.ocr.interval", 5)
-            ocr_name = config.get("jobs.ocr.name", "OCR识别")
+            ocr_interval = config.get("jobs.ocr.interval")
+            ocr_id = config.get("jobs.ocr.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_ocr_task,
                 job_id="ocr_job",
-                name=ocr_name,
+                name=ocr_id,
                 seconds=ocr_interval,
                 replace_existing=True,
             )
@@ -132,7 +131,7 @@ class JobManager:
 
     def _start_task_context_mapper(self):
         """启动任务上下文映射服务"""
-        enabled = config.get("jobs.task_context_mapper.enabled", False)
+        enabled = config.get("jobs.task_context_mapper.enabled")
 
         try:
             # 预先初始化全局实例
@@ -140,12 +139,12 @@ class JobManager:
             logger.info("任务上下文映射服务实例已初始化")
 
             # 添加到调度器（无论是否启用都添加）
-            interval = config.get("jobs.task_context_mapper.interval", 60)
-            mapper_name = config.get("jobs.task_context_mapper.name", "任务上下文映射")
+            interval = config.get("jobs.task_context_mapper.interval")
+            mapper_id = config.get("jobs.task_context_mapper.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_mapper_task,
                 job_id="task_context_mapper_job",
-                name=mapper_name,
+                name=mapper_id,
                 seconds=interval,
                 replace_existing=True,
             )
@@ -160,7 +159,7 @@ class JobManager:
 
     def _start_task_summary_service(self):
         """启动任务摘要服务"""
-        enabled = config.get("jobs.task_summary.enabled", False)
+        enabled = config.get("jobs.task_summary.enabled")
 
         try:
             # 预先初始化全局实例
@@ -168,12 +167,12 @@ class JobManager:
             logger.info("任务摘要服务实例已初始化")
 
             # 添加到调度器（无论是否启用都添加）
-            interval = config.get("jobs.task_summary.interval", 3600)
-            summary_name = config.get("jobs.task_summary.name", "任务摘要生成")
+            interval = config.get("jobs.task_summary.interval")
+            summary_id = config.get("jobs.task_summary.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_summary_task,
                 job_id="task_summary_job",
-                name=summary_name,
+                name=summary_id,
                 seconds=interval,
                 replace_existing=True,
             )
@@ -188,7 +187,7 @@ class JobManager:
 
     def _start_clean_data_job(self):
         """启动数据清理任务"""
-        enabled = config.get("jobs.clean_data.enabled", True)
+        enabled = config.get("jobs.clean_data.enabled")
 
         try:
             # 预先初始化全局实例
@@ -196,12 +195,12 @@ class JobManager:
             logger.info("数据清理服务实例已初始化")
 
             # 添加到调度器（无论是否启用都添加）
-            interval = config.get("jobs.clean_data.interval", 3600)
-            clean_data_name = config.get("jobs.clean_data.name", "截图清理")
+            interval = config.get("jobs.clean_data.interval")
+            clean_data_id = config.get("jobs.clean_data.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_clean_data_task,
                 job_id="clean_data_job",
-                name=clean_data_name,
+                name=clean_data_id,
                 seconds=interval,
                 replace_existing=True,
             )
@@ -213,274 +212,6 @@ class JobManager:
                 logger.info("数据清理服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动数据清理服务失败: {e}", exc_info=True)
-
-    def handle_config_change(self, change_type: ConfigChangeType, old_value: dict, new_value: dict):
-        """处理配置变更 - 实现 ConfigChangeHandler 协议
-
-        Args:
-            change_type: 配置变更类型
-            old_value: 旧配置值
-            new_value: 新配置值
-        """
-        try:
-            if change_type == ConfigChangeType.JOBS:
-                logger.info("JobManager 处理 Jobs 配置变更")
-                # 检查录制器配置
-                self._handle_recorder_config_change(old_value, new_value)
-                # 检查 OCR 配置
-                self._handle_ocr_config_change(old_value, new_value)
-                # 检查任务上下文映射配置
-                self._handle_task_context_mapper_config_change(old_value, new_value)
-                # 检查任务摘要配置
-                self._handle_task_summary_config_change_in_jobs(old_value, new_value)
-                # 检查数据清理配置
-                self._handle_clean_data_config_change(old_value, new_value)
-
-        except Exception as e:
-            logger.error(f"JobManager 处理配置变更失败: {e}", exc_info=True)
-
-    def _handle_recorder_config_change(self, old_jobs: dict, new_jobs: dict):
-        """处理录制器配置变更
-
-        Args:
-            old_jobs: 旧的 jobs 配置
-            new_jobs: 新的 jobs 配置
-        """
-        old_recorder = old_jobs.get("recorder", {})
-        new_recorder = new_jobs.get("recorder", {})
-
-        # 检查是否启用状态变更
-        old_enabled = old_recorder.get("enabled", True)
-        new_enabled = new_recorder.get("enabled", True)
-
-        if old_enabled != new_enabled:
-            logger.info(f"录制器服务启用状态变更: {old_enabled} -> {new_enabled}")
-            job = self.scheduler_manager.get_job("recorder_job")
-            if new_enabled:
-                # 恢复任务
-                if job:
-                    self.scheduler_manager.resume_job("recorder_job")
-                    logger.info("录制器服务已恢复")
-                else:
-                    # 任务不存在，需要创建
-                    self._start_recorder_job()
-            else:
-                # 暂停任务（不移除）
-                if job:
-                    self.scheduler_manager.pause_job("recorder_job")
-                    logger.info("录制器服务已暂停")
-
-        # 检查间隔配置变更（无论是否启用都允许修改）
-        elif old_recorder.get("interval") != new_recorder.get("interval"):
-            new_interval = new_recorder.get("interval", 1)
-            logger.info(f"检测到录制间隔配置变更: {new_interval}秒")
-
-            # 修改调度器中的任务间隔
-            if self.scheduler_manager:
-                self.scheduler_manager.modify_job_interval("recorder_job", seconds=new_interval)
-
-    def _handle_ocr_config_change(self, old_jobs: dict, new_jobs: dict):
-        """处理 OCR 配置变更
-
-        Args:
-            old_jobs: 旧的 jobs 配置
-            new_jobs: 新的 jobs 配置
-        """
-        old_ocr = old_jobs.get("ocr", {})
-        new_ocr = new_jobs.get("ocr", {})
-
-        # 检查是否启用状态变更
-        old_enabled = old_ocr.get("enabled", True)
-        new_enabled = new_ocr.get("enabled", True)
-
-        if old_enabled != new_enabled:
-            logger.info(f"OCR服务启用状态变更: {old_enabled} -> {new_enabled}")
-            job = self.scheduler_manager.get_job("ocr_job")
-            if new_enabled:
-                # 恢复任务
-                if job:
-                    self.scheduler_manager.resume_job("ocr_job")
-                    logger.info("OCR服务已恢复")
-                else:
-                    # 任务不存在，需要创建
-                    self._start_ocr_job()
-            else:
-                # 暂停任务（不移除）
-                if job:
-                    self.scheduler_manager.pause_job("ocr_job")
-                    logger.info("OCR服务已暂停")
-
-        # 检查间隔配置变更（无论是否启用都允许修改）
-        elif old_ocr.get("interval") != new_ocr.get("interval"):
-            new_interval = new_ocr.get("interval", 5)
-            logger.info(f"检测到 OCR 检查间隔配置变更: {new_interval}秒")
-
-            # 修改调度器中的任务间隔
-            if self.scheduler_manager:
-                self.scheduler_manager.modify_job_interval("ocr_job", seconds=new_interval)
-
-    def _handle_task_context_mapper_config_change(self, old_jobs: dict, new_jobs: dict):
-        """处理任务上下文映射配置变更
-
-        Args:
-            old_jobs: 旧的 jobs 配置
-            new_jobs: 新的 jobs 配置
-        """
-        old_mapper = old_jobs.get("task_context_mapper", {})
-        new_mapper = new_jobs.get("task_context_mapper", {})
-
-        # 检查是否启用状态变更
-        old_enabled = old_mapper.get("enabled", False)
-        new_enabled = new_mapper.get("enabled", False)
-
-        if old_enabled != new_enabled:
-            logger.info(f"任务上下文映射服务启用状态变更: {old_enabled} -> {new_enabled}")
-            job = self.scheduler_manager.get_job("task_context_mapper_job")
-            if new_enabled:
-                # 恢复任务
-                if job:
-                    self.scheduler_manager.resume_job("task_context_mapper_job")
-                    logger.info("任务上下文映射服务已恢复")
-                else:
-                    # 任务不存在，需要创建
-                    self._start_task_context_mapper()
-            else:
-                # 暂停任务（不移除）
-                if job:
-                    self.scheduler_manager.pause_job("task_context_mapper_job")
-                    logger.info("任务上下文映射服务已暂停")
-
-        # 检查间隔配置变更（无论是否启用都允许修改）
-        elif old_mapper.get("interval") != new_mapper.get("interval"):
-            new_interval = new_mapper.get("interval", 60)
-            logger.info(f"检测到任务上下文映射间隔配置变更: {new_interval}秒")
-            if self.scheduler_manager:
-                self.scheduler_manager.modify_job_interval(
-                    "task_context_mapper_job", seconds=new_interval
-                )
-
-        # 检查其他配置参数（如阈值、批次大小等）
-        if new_enabled:
-            mapper_instance = get_mapper_instance()
-            # 检查项目置信度阈值
-            if old_mapper.get("project_confidence_threshold") != new_mapper.get(
-                "project_confidence_threshold"
-            ):
-                threshold = new_mapper.get("project_confidence_threshold", 0.7)
-                logger.info(f"更新任务上下文映射项目置信度阈值: {threshold}")
-                mapper_instance.project_confidence_threshold = threshold
-            # 检查任务置信度阈值
-            if old_mapper.get("task_confidence_threshold") != new_mapper.get(
-                "task_confidence_threshold"
-            ):
-                threshold = new_mapper.get("task_confidence_threshold", 0.7)
-                logger.info(f"更新任务上下文映射任务置信度阈值: {threshold}")
-                mapper_instance.task_confidence_threshold = threshold
-
-    def _handle_task_summary_config_change_in_jobs(self, old_jobs: dict, new_jobs: dict):
-        """处理任务摘要配置变更（在 jobs 配置中）
-
-        Args:
-            old_jobs: 旧的 jobs 配置
-            new_jobs: 新的 jobs 配置
-        """
-        old_summary = old_jobs.get("task_summary", {})
-        new_summary = new_jobs.get("task_summary", {})
-
-        # 检查是否启用状态变更
-        old_enabled = old_summary.get("enabled", False)
-        new_enabled = new_summary.get("enabled", False)
-
-        if old_enabled != new_enabled:
-            logger.info(f"任务摘要服务启用状态变更: {old_enabled} -> {new_enabled}")
-            job = self.scheduler_manager.get_job("task_summary_job")
-            if new_enabled:
-                # 恢复任务
-                if job:
-                    self.scheduler_manager.resume_job("task_summary_job")
-                    logger.info("任务摘要服务已恢复")
-                else:
-                    # 任务不存在，需要创建
-                    self._start_task_summary_service()
-            else:
-                # 暂停任务（不移除）
-                if job:
-                    self.scheduler_manager.pause_job("task_summary_job")
-                    logger.info("任务摘要服务已暂停")
-
-        # 检查间隔配置变更（无论是否启用都允许修改）
-        elif old_summary.get("interval") != new_summary.get("interval"):
-            new_interval = new_summary.get("interval", 3600)
-            logger.info(f"检测到任务摘要间隔配置变更: {new_interval}秒")
-            if self.scheduler_manager:
-                self.scheduler_manager.modify_job_interval("task_summary_job", seconds=new_interval)
-
-        # 检查其他配置参数
-        if new_enabled:
-            summary_instance = get_summary_instance()
-            if old_summary.get("min_new_contexts") != new_summary.get("min_new_contexts"):
-                min_contexts = new_summary.get("min_new_contexts", 5)
-                logger.info(f"更新任务摘要最小上下文数: {min_contexts}")
-                summary_instance.min_new_contexts = min_contexts
-
-    def _handle_clean_data_config_change(self, old_jobs: dict, new_jobs: dict):
-        """处理数据清理配置变更
-
-        Args:
-            old_jobs: 旧的 jobs 配置
-            new_jobs: 新的 jobs 配置
-        """
-        old_clean_data = old_jobs.get("clean_data", {})
-        new_clean_data = new_jobs.get("clean_data", {})
-
-        # 检查是否启用状态变更
-        old_enabled = old_clean_data.get("enabled", True)
-        new_enabled = new_clean_data.get("enabled", True)
-
-        if old_enabled != new_enabled:
-            logger.info(f"数据清理服务启用状态变更: {old_enabled} -> {new_enabled}")
-            job = self.scheduler_manager.get_job("clean_data_job")
-            if new_enabled:
-                # 恢复任务
-                if job:
-                    self.scheduler_manager.resume_job("clean_data_job")
-                    logger.info("数据清理服务已恢复")
-                else:
-                    # 任务不存在，需要创建
-                    self._start_clean_data_job()
-            else:
-                # 暂停任务（不移除）
-                if job:
-                    self.scheduler_manager.pause_job("clean_data_job")
-                    logger.info("数据清理服务已暂停")
-
-        # 检查间隔配置变更（无论是否启用都允许修改）
-        elif old_clean_data.get("interval") != new_clean_data.get("interval"):
-            new_interval = new_clean_data.get("interval", 3600)
-            logger.info(f"检测到数据清理间隔配置变更: {new_interval}秒")
-            if self.scheduler_manager:
-                self.scheduler_manager.modify_job_interval("clean_data_job", seconds=new_interval)
-
-        # 检查其他配置参数
-        if new_enabled:
-            clean_data_instance = get_clean_data_instance()
-            # 检查最大截图数量
-            if old_clean_data.get("max_screenshots") != new_clean_data.get("max_screenshots"):
-                max_screenshots = new_clean_data.get("max_screenshots", 10000)
-                logger.info(f"更新数据清理最大截图数: {max_screenshots}")
-                clean_data_instance.max_screenshots = max_screenshots
-            # 检查保留天数
-            if old_clean_data.get("max_days") != new_clean_data.get("max_days"):
-                max_days = new_clean_data.get("max_days", 30)
-                logger.info(f"更新数据清理保留天数: {max_days}")
-                clean_data_instance.max_days = max_days
-            # 检查删除模式
-            if old_clean_data.get("delete_file_only") != new_clean_data.get("delete_file_only"):
-                delete_file_only = new_clean_data.get("delete_file_only", True)
-                logger.info(
-                    f"更新数据清理删除模式: {'仅文件' if delete_file_only else '文件+记录'}"
-                )
-                clean_data_instance.delete_file_only = delete_file_only
 
 
 # 全局单例

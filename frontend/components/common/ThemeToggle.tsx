@@ -7,7 +7,8 @@ import { useLocaleStore } from '@/lib/store/locale';
 import { useTranslations } from '@/lib/i18n';
 
 export default function ThemeToggle() {
-  const { theme, setTheme } = useThemeStore();
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
   const { locale } = useLocaleStore();
   const [mounted, setMounted] = useState(false);
 

@@ -64,8 +64,8 @@ try:
     RAPIDOCR_AVAILABLE = True
 except ImportError:
     RAPIDOCR_AVAILABLE = False
-    logger.error("RapidOCR未安装，请运行: pip install rapidocr-onnxruntime")
-    exit(1)
+    logger.error("RapidOCR 未安装！请运行: pip install rapidocr-onnxruntime")
+    sys.exit(1)
 
 
 def _create_rapidocr_instance() -> RapidOCR:
@@ -178,12 +178,15 @@ def _extract_text_from_ocr_result(result, confidence_threshold: float = None) ->
         提取的文本内容
     """
     if confidence_threshold is None:
-        confidence_threshold = config.get("jobs.ocr.confidence_threshold", MIN_CONFIDENCE_THRESHOLD)
+        confidence_threshold = config.get("jobs.ocr.params.confidence_threshold")
+
+    # OCR结果通常是 [坐标, 文本, 置信度] 的三元组
+    MIN_OCR_RESULT_FIELDS = 3
 
     ocr_text = ""
     if result:
         for item in result:
-            if len(item) >= 3:
+            if len(item) >= MIN_OCR_RESULT_FIELDS:
                 text = item[1]
                 confidence = float(item[2])
                 if text and text.strip() and confidence > confidence_threshold:
@@ -198,8 +201,9 @@ def _get_ocr_config() -> dict:
     Returns:
         包含OCR配置的字典
     """
-    ocr_config = config.get("jobs.ocr", {})
-    languages = ocr_config.get("language", ["ch"])
+    # 直接从config获取，不使用默认值
+    languages = config.get("jobs.ocr.params.language")
+    confidence_threshold = config.get("jobs.ocr.params.confidence_threshold")
 
     # 如果language是列表，取第一个；如果是字符串，直接使用
     language = languages[0] if isinstance(languages, list) and languages else "ch"
@@ -207,7 +211,7 @@ def _get_ocr_config() -> dict:
         language = languages
 
     return {
-        "confidence_threshold": ocr_config.get("confidence_threshold", MIN_CONFIDENCE_THRESHOLD),
+        "confidence_threshold": confidence_threshold,
         "language": language,
         "default_confidence": DEFAULT_CONFIDENCE,
     }
@@ -248,7 +252,7 @@ class SimpleOCRProcessor:
                     "total_screenshots": total_screenshots,
                     "processed": ocr_results,
                     "unprocessed": unprocessed,
-                    "interval": config.get("jobs.ocr.interval", 0.5),
+                    "interval": config.get("jobs.ocr.interval"),
                 }
         except Exception as e:
             logger.error(f"获取OCR统计信息失败: {e}")
@@ -392,9 +396,11 @@ def create_screenshot_record(image_path: str):
             file_hash=file_hash,
             width=width,
             height=height,
-            screen_id=0,  # 外部文件默认屏幕ID为0
-            app_name=app_name,
-            window_title=window_title,
+            metadata={
+                "screen_id": 0,  # 外部文件默认屏幕ID为0
+                "app_name": app_name,
+                "window_title": window_title,
+            },
         )
 
         return screenshot_id
@@ -449,21 +455,18 @@ def get_unprocessed_screenshots(logger_instance=None, limit=50):
         return []
 
 
-def process_screenshot_ocr(screenshot_info, ocr_engine, vector_service, logger_instance=None):
+def process_screenshot_ocr(screenshot_info, ocr_engine, vector_service):
     """处理单个截图的OCR"""
     screenshot_id = screenshot_info["id"]
     file_path = screenshot_info["file_path"]
 
-    # 如果没有传入logger，使用模块级logger
-    log = logger_instance if logger_instance is not None else logger
-
     try:
         # 检查文件是否存在
         if not os.path.exists(file_path):
-            log.warning(f"截图文件不存在，跳过处理: {file_path}")
+            # log.warning(f"截图文件不存在，跳过处理: {file_path}")
             return False
 
-        log.info(f"开始处理截图 ID {screenshot_id}: {os.path.basename(file_path)}")
+        logger.info(f"开始处理截图 ID {screenshot_id}: {os.path.basename(file_path)}")
 
         # 记录开始时间
         start_time = time.time()
@@ -490,11 +493,11 @@ def process_screenshot_ocr(screenshot_info, ocr_engine, vector_service, logger_i
         }
         save_to_database(file_path, ocr_result, vector_service)
 
-        log.info(f"OCR处理完成 ID {screenshot_id}, 用时: {elapsed_time:.2f}秒")
+        logger.info(f"OCR处理完成 ID {screenshot_id}, 用时: {elapsed_time:.2f}秒")
         return True
 
     except Exception as e:
-        log.error(f"处理截图 {screenshot_id} 失败: {e}")
+        logger.error(f"处理截图 {screenshot_id} 失败: {e}")
         return False
 
 
@@ -549,7 +552,7 @@ def execute_ocr_task():
         processed_count = 0
         # 处理每个未处理的截图
         for screenshot_info in unprocessed_screenshots:
-            success = process_screenshot_ocr(screenshot_info, ocr, vector_service, logger)
+            success = process_screenshot_ocr(screenshot_info, ocr, vector_service)
             if success:
                 processed_count += 1
                 # 处理成功后稍作停顿，避免过度占用资源
@@ -569,44 +572,10 @@ def ocr_service():
 
     # 检查配置
     if not os.path.exists(config.database_path):
-        logger.error("错误: 数据库未初始化，请先运行: lifetrace init")
-        exit(1)
+        raise Exception("数据库未初始化，无法启动OCR服务")
 
-    # 检查间隔变量（使用列表以便在回调中修改）
-    check_interval_ref = [config.get("jobs.ocr.interval", 5)]
-
-    # 配置变更回调函数
-    def on_config_change(old_config: dict, new_config: dict):
-        """配置变更回调函数"""
-        try:
-            # 更新OCR检查间隔
-            new_interval = new_config.get("jobs", {}).get("ocr", {}).get("interval", 5)
-            old_interval = check_interval_ref[0]
-            if new_interval != old_interval:
-                check_interval_ref[0] = new_interval
-                logger.info(f"OCR检查间隔已更新: {old_interval}s -> {new_interval}s")
-
-            # 记录其他OCR配置变更
-            old_ocr = old_config.get("jobs", {}).get("ocr", {})
-            new_ocr = new_config.get("jobs", {}).get("ocr", {})
-
-            if old_ocr.get("enabled") != new_ocr.get("enabled"):
-                enabled = new_ocr.get("enabled", True)
-                logger.info(f"OCR功能已{'启用' if enabled else '禁用'}")
-
-            if old_ocr.get("confidence_threshold") != new_ocr.get("confidence_threshold"):
-                threshold = new_ocr.get("confidence_threshold", 0.5)
-                logger.info(f"OCR置信度阈值已更新: {threshold}")
-
-        except Exception as e:
-            logger.error(f"处理配置变更失败: {e}")
-
-    # 注册配置变更回调
-    config.register_callback(on_config_change)
-
-    # 启动配置文件监听
-    config.start_watching()
-    logger.info("已启动配置文件监听")
+    # 检查间隔配置
+    check_interval = config.get("jobs.ocr.interval")
 
     # 初始化RapidOCR
     logger.info("正在初始化RapidOCR引擎...")
@@ -615,7 +584,7 @@ def ocr_service():
         logger.info("RapidOCR引擎初始化成功")
     except Exception as e:
         logger.error(f"RapidOCR初始化失败: {e}")
-        exit(1)
+        raise Exception(e) from e
 
     # 初始化向量数据库服务
     logger.info("正在初始化向量数据库服务...")
@@ -625,12 +594,12 @@ def ocr_service():
     else:
         logger.info("向量数据库服务未启用或不可用")
 
-    # 获取检查间隔配置（使用check_interval_ref）
-    logger.info(f"数据库检查间隔: {check_interval_ref[0]}秒")
+    # 获取检查间隔配置
+    logger.info(f"数据库检查间隔: {check_interval}秒")
 
     logger.info("开始基于数据库的OCR处理...")
     logger.info("按 Ctrl+C 停止服务")
-    logger.info(f"OCR服务启动完成，检查间隔: {check_interval_ref[0]}秒")
+    logger.info(f"OCR服务启动完成，检查间隔: {check_interval}秒")
 
     processed_count = 0
 
@@ -649,24 +618,21 @@ def ocr_service():
 
                 # 处理每个未处理的截图
                 for screenshot_info in unprocessed_screenshots:
-                    success = process_screenshot_ocr(screenshot_info, ocr, vector_service, logger)
+                    success = process_screenshot_ocr(screenshot_info, ocr, vector_service)
                     if success:
                         processed_count += 1
                         # 处理成功后稍作停顿，避免过度占用资源
                         time.sleep(DEFAULT_PROCESSING_DELAY)
             else:
                 # 没有未处理的截图，等待一段时间再检查
-                time.sleep(check_interval_ref[0])
+                time.sleep(check_interval)
 
     except KeyboardInterrupt:
         logger.error("收到停止信号，结束OCR处理")
     except Exception as e:
         logger.error(f"OCR处理过程中发生错误: {e}")
-        raise
+        raise Exception(e) from e
     finally:
-        # 停止配置文件监听
-        config.stop_watching()
-        logger.error("已停止配置文件监听")
         logger.error("OCR服务已停止")
 
 

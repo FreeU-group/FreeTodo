@@ -15,6 +15,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-chart-6: var(--chart-6);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -67,11 +68,12 @@
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  --chart-1: oklch(0.72 0.19 142);    /* 绿色 - 社交 */
+  --chart-2: oklch(0.70 0.20 254);    /* 蓝色 - 浏览器 */
+  --chart-3: oklch(0.65 0.24 283);    /* 紫色 - 开发工具 */
+  --chart-4: oklch(0.75 0.18 85);     /* 黄色 - 文件管理 */
+  --chart-5: oklch(0.68 0.20 25);     /* 橙色 - 办公软件 */
+  --chart-6: oklch(0.62 0.015 264);   /* 灰蓝色 - 其他 */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.546 0.245 262.881);
@@ -101,11 +103,12 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  --chart-1: oklch(0.68 0.21 142);    /* 绿色 - 社交 (深色主题) */
+  --chart-2: oklch(0.65 0.23 254);    /* 蓝色 - 浏览器 (深色主题) */
+  --chart-3: oklch(0.70 0.26 283);    /* 紫色 - 开发工具 (深色主题) */
+  --chart-4: oklch(0.78 0.20 85);     /* 黄色 - 文件管理 (深色主题) */
+  --chart-5: oklch(0.72 0.22 25);     /* 橙色 - 办公软件 (深色主题) */
+  --chart-6: oklch(0.68 0.020 264);   /* 灰蓝色 - 其他 (深色主题) */
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.623 0.214 259.815);

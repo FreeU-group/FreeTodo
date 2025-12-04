@@ -6,10 +6,13 @@
 
 Pre-commit 会在每次 `git commit` 时自动检查并修复以下问题：
 - YAML 文件语法检查
+- TOML 文件语法检查
+- JSON 文件语法检查
 - 文件末尾换行符修复
 - 行尾空格删除
 - Python 代码规范检查（ruff）
 - Python 代码格式化（ruff-format）
+- 前端代码检查（Biome）
 
 ---
 
@@ -56,10 +59,13 @@ git commit -m "your commit message"
 **示例输出**：
 ```
 check-yaml........................................................Passed
+check-toml........................................................Passed
+check-json........................................................Passed
 end-of-file-fixer................................................Passed
 trailing-whitespace..............................................Passed
 ruff.............................................................Passed
 ruff-format......................................................Passed
+biome-check......................................................Passed
 [main abc123] your commit message
  1 file changed, 3 insertions(+)
 ```
@@ -81,8 +87,11 @@ pre-commit run --files path/to/file.py
 # 仅运行 ruff 检查
 pre-commit run ruff --all-files
 
-# 仅运行格式化
+# 仅运行 ruff 格式化
 pre-commit run ruff-format --all-files
+
+# 仅运行 Biome 检查
+pre-commit run biome-check --all-files
 ```
 
 #### 查看详细输出
@@ -138,24 +147,40 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
+      - id: check-toml
+      - id: check-json
       - id: end-of-file-fixer
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.10
     hooks:
+      # Run the linter.
       - id: ruff
+        language_version: python3.13
         files: ^lifetrace/
         types_or: [ python, pyi ]
         args: [ --fix ]
+      # Run the formatter.
       - id: ruff-format
+        language_version: python3.13
         files: ^lifetrace/
         types_or: [ python, pyi ]
+  # Biome for frontend (JavaScript/TypeScript)
+  - repo: https://github.com/biomejs/pre-commit
+    rev: "v0.6.1"
+    hooks:
+      - id: biome-check
+        additional_dependencies: ["@biomejs/biome@2.3.8"]
+        files: ^frontend/
 ```
 
 **主要配置**：
-- `files: ^lifetrace/` - 只检查 `lifetrace/` 目录下的文件
+- `files: ^lifetrace/` - 只检查 `lifetrace/` 目录下的 Python 文件
+- `files: ^frontend/` - 只检查 `frontend/` 目录下的前端文件
+- `language_version: python3.13` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
+- `additional_dependencies` - 为 Biome 指定依赖版本
 
 ---
 
@@ -256,7 +281,7 @@ A: 会的！Ruff 会自动修复可修复的问题，如不必要的 imports、�
 A: 可以！`.pre-commit-config.yaml` 可以根据分支调整。
 
 **Q: Pre-commit 支持哪些编程语言？**
-A: Pre-commit 支持多种语言，包括 Python、JavaScript、TypeScript、Go、Rust 等。
+A: 本项目配置支持 Python（通过 Ruff）、JavaScript/TypeScript（通过 Biome），Pre-commit 框架本身支持多种语言，包括 Go、Rust 等。
 
 **Q: 如何添加自定义检查？**
 A: 修改 `.pre-commit-config.yaml` 文件，添加新的 repository 或 hooks。

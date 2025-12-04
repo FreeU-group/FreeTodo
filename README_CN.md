@@ -144,11 +144,6 @@ pnpm dev
 │   └── ...                     # 其他 GitHub 仓库文件
 ├── lifetrace/                  # 核心后端模块
 │   ├── server.py               # Web API 服务
-│   ├── alembic/                # 数据库迁移工具
-│   │   ├── env.py              # Alembic 环境配置
-│   │   ├── script.py.mako      # 迁移脚本模板
-│   │   └── README              # Alembic 文档
-│   ├── alembic.ini             # Alembic 配置文件
 │   ├── config/                 # 配置文件
 │   │   ├── config.yaml         # 主配置文件（自动生成）
 │   │   ├── default_config.yaml # 默认配置模板

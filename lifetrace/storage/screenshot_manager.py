@@ -26,12 +26,28 @@ class ScreenshotManager:
         file_hash: str,
         width: int,
         height: int,
-        screen_id: int = 0,
-        app_name: str = None,
-        window_title: str = None,
-        event_id: int | None = None,
+        metadata: dict = None,
     ) -> int | None:
-        """添加截图记录"""
+        """添加截图记录
+
+        Args:
+            file_path: 截图文件路径
+            file_hash: 文件哈希值
+            width: 图像宽度
+            height: 图像高度
+            metadata: 元数据字典，可包含以下键：
+                - screen_id: 屏幕ID (默认0)
+                - app_name: 应用名称
+                - window_title: 窗口标题
+                - event_id: 事件ID
+        """
+        if metadata is None:
+            metadata = {}
+
+        screen_id = metadata.get("screen_id", 0)
+        app_name = metadata.get("app_name")
+        window_title = metadata.get("window_title")
+        event_id = metadata.get("event_id")
         try:
             with self.db_base.get_session() as session:
                 # 首先检查是否已存在相同路径的截图
@@ -42,7 +58,7 @@ class ScreenshotManager:
 
                 # 检查是否已存在相同哈希的截图
                 existing_hash = session.query(Screenshot).filter_by(file_hash=file_hash).first()
-                if existing_hash and config.get("jobs.recorder.deduplicate", True):
+                if existing_hash and config.get("jobs.recorder.params.deduplicate"):
                     logger.debug(f"跳过重复哈希截图: {file_path}")
                     return existing_hash.id
 
