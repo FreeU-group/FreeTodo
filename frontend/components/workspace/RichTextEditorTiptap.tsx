@@ -775,6 +775,20 @@ function EditorComponent({
   const [aiDiffButtonPosition, setAiDiffButtonPosition] = useState<{ top: number; left: number } | null>(null);
   // 防抖计时器引用
   const selectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // 存储 AI 编辑状态元数据，用于在 undo/redo 后恢复按钮显示
+  const aiEditMetadataRef = useRef<{
+    selectionFrom: number;
+    selectionTo: number;
+    originalText: string;
+    previewText: string;
+  } | null>(null);
+  // 内部状态：当检测到 diff 标记但 aiEditState 为空时使用
+  const [restoredAiEditState, setRestoredAiEditState] = useState<{
+    selectionFrom: number;
+    selectionTo: number;
+    originalText: string;
+    previewText: string;
+  } | null>(null);
 
   // 将 markdown 转换为 HTML（用于 Tiptap）
   const markdownToHtml = useCallback((md: string): string => {
@@ -924,9 +938,13 @@ function EditorComponent({
 
   // 计算 AI Diff 按钮位置的核心函数（跟随新插入文本的结束位置）
   const calculateDiffButtonPosition = useCallback(() => {
-    if (!editor || !editorContainerRef.current || !aiEditState) return null;
+    if (!editor || !editorContainerRef.current) return null;
 
-    const { selectionTo, previewText } = aiEditState;
+    // 使用 aiEditState 或 restoredAiEditState
+    const currentState = aiEditState || restoredAiEditState;
+    if (!currentState) return null;
+
+    const { selectionTo, previewText } = currentState;
     const actualInsertedLength = lastPreviewLengthRef.current || previewText.length || 0;
     
     // 计算新插入文本的结束位置
@@ -986,7 +1004,7 @@ function EditorComponent({
       console.error('Failed to calculate AI diff button position:', error);
       return null;
     }
-  }, [editor, editorContainerRef, aiEditState]);
+  }, [editor, editorContainerRef, aiEditState, restoredAiEditState]);
 
   // 监听选区变化，带防抖的 AI 菜单显示逻辑
   useEffect(() => {
@@ -1046,6 +1064,162 @@ function EditorComponent({
     };
   }, [editor, readOnly, calculateMenuPosition, setShowAIMenu, setSelectedText, setIsChatMode, setChatInput, setAIMenuPosition]);
 
+  // 检测文档中的 AI diff 标记并提取信息（需要在 effects 之前定义）
+  const detectAIDiffMarks = useCallback(() => {
+    if (!editor) return null;
+
+    const { doc } = editor.state;
+    const deleteRanges: Array<{ from: number; to: number }> = [];
+    const insertRanges: Array<{ from: number; to: number }> = [];
+
+    // 遍历文档查找所有带有 diff 标记的文本节点
+    doc.descendants((node, pos) => {
+      if (node.isText) {
+        const marks = node.marks || [];
+        const textLength = node.textContent.length;
+        const nodeStart = pos;
+        const nodeEnd = pos + textLength;
+        
+        marks.forEach((mark) => {
+          if (mark.type.name === 'aiDiffDelete') {
+            deleteRanges.push({ from: nodeStart, to: nodeEnd });
+          }
+          if (mark.type.name === 'aiDiffInsert') {
+            insertRanges.push({ from: nodeStart, to: nodeEnd });
+          }
+        });
+      }
+    });
+
+    // 合并连续的范围
+    const mergeRanges = (ranges: Array<{ from: number; to: number }>) => {
+      if (ranges.length === 0) return null;
+      ranges.sort((a, b) => a.from - b.from);
+      const merged = [ranges[0]];
+      for (let i = 1; i < ranges.length; i++) {
+        const last = merged[merged.length - 1];
+        if (ranges[i].from <= last.to) {
+          last.to = Math.max(last.to, ranges[i].to);
+        } else {
+          merged.push(ranges[i]);
+        }
+      }
+      return merged.length === 1 ? merged[0] : null;
+    };
+
+    const deleteRange = mergeRanges(deleteRanges);
+    const insertRange = mergeRanges(insertRanges);
+
+    // 如果找到了删除和插入标记
+    if (deleteRange && insertRange) {
+      const originalText = doc.textBetween(deleteRange.from, deleteRange.to, '');
+      const previewText = doc.textBetween(insertRange.from, insertRange.to, '');
+      
+      return {
+        selectionFrom: deleteRange.from,
+        selectionTo: deleteRange.to,
+        originalText,
+        previewText,
+        insertStart: insertRange.from,
+        insertEnd: insertRange.to,
+      };
+    }
+
+    return null;
+  }, [editor]);
+
+  // 监听编辑器更新（包括 undo/redo）以检测 diff 标记
+  useEffect(() => {
+    if (!editor || readOnly) return;
+
+    const handleUpdate = () => {
+      // 如果 aiEditState 存在，不需要检测（使用真实状态）
+      if (aiEditState) {
+        // 但如果已经有恢复的状态，清除它（因为现在有真实状态了）
+        if (restoredAiEditState) {
+          setRestoredAiEditState(null);
+        }
+        return;
+      }
+
+      // 检测是否有 diff 标记
+      const diffInfo = detectAIDiffMarks();
+      
+      if (diffInfo) {
+        // 如果有元数据，验证是否匹配
+        if (aiEditMetadataRef.current) {
+          const metadata = aiEditMetadataRef.current;
+          // 允许位置有小的偏差（由于文档编辑可能导致位置偏移）
+          const positionTolerance = 10;
+          const positionMatch = 
+            Math.abs(diffInfo.selectionFrom - metadata.selectionFrom) <= positionTolerance &&
+            Math.abs(diffInfo.selectionTo - metadata.selectionTo) <= positionTolerance;
+          
+          // 文本内容必须完全匹配
+          const textMatch = 
+            diffInfo.originalText === metadata.originalText &&
+            diffInfo.previewText === metadata.previewText;
+          
+          if (positionMatch && textMatch) {
+            // 恢复状态以显示按钮
+            setRestoredAiEditState({
+              selectionFrom: diffInfo.selectionFrom,
+              selectionTo: diffInfo.selectionTo,
+              originalText: diffInfo.originalText,
+              previewText: diffInfo.previewText,
+            });
+            // 更新 lastPreviewLengthRef
+            lastPreviewLengthRef.current = diffInfo.insertEnd - diffInfo.insertStart;
+            // 更新按钮位置
+            requestAnimationFrame(() => {
+              const position = calculateDiffButtonPosition();
+              setAiDiffButtonPosition(position);
+            });
+            return;
+          }
+        } else {
+          // 如果没有元数据但有 diff 标记，可能是从其他地方来的，不处理
+          // 但我们可以尝试使用检测到的信息（如果看起来合理）
+          if (diffInfo.originalText && diffInfo.previewText) {
+            // 存储检测到的信息作为元数据
+            aiEditMetadataRef.current = {
+              selectionFrom: diffInfo.selectionFrom,
+              selectionTo: diffInfo.selectionTo,
+              originalText: diffInfo.originalText,
+              previewText: diffInfo.previewText,
+            };
+            // 恢复状态
+            setRestoredAiEditState({
+              selectionFrom: diffInfo.selectionFrom,
+              selectionTo: diffInfo.selectionTo,
+              originalText: diffInfo.originalText,
+              previewText: diffInfo.previewText,
+            });
+            lastPreviewLengthRef.current = diffInfo.insertEnd - diffInfo.insertStart;
+            requestAnimationFrame(() => {
+              const position = calculateDiffButtonPosition();
+              setAiDiffButtonPosition(position);
+            });
+          }
+        }
+      } else {
+        // 如果没有 diff 标记，清除恢复的状态
+        if (restoredAiEditState) {
+          setRestoredAiEditState(null);
+          setAiDiffButtonPosition(null);
+          lastPreviewLengthRef.current = 0;
+        }
+        // 注意：不自动清除元数据，因为用户可能再次 undo
+      }
+    };
+
+    editor.on('update', handleUpdate);
+    
+    return () => {
+      editor.off('update', handleUpdate);
+    };
+  }, [editor, readOnly, aiEditState, detectAIDiffMarks, calculateDiffButtonPosition, restoredAiEditState]);
+
   // 监听滚动事件，实时更新菜单位置和按钮位置
   useEffect(() => {
     if (!editor || readOnly || !editorContainerRef.current) return;
@@ -1063,7 +1237,8 @@ function EditorComponent({
         }
       }
       // 只在按钮应该显示时重新计算位置
-      if (aiEditState && !aiEditState.isProcessing && aiEditState.previewText) {
+      const currentState = aiEditState || restoredAiEditState;
+      if (currentState && (!aiEditState || !aiEditState.isProcessing) && currentState.previewText) {
         const position = calculateDiffButtonPosition();
         setAiDiffButtonPosition(position);
       }
@@ -1074,7 +1249,7 @@ function EditorComponent({
     return () => {
       container.removeEventListener('scroll', handleScroll);
     };
-  }, [editor, readOnly, showAIMenu, calculateMenuPosition, setAIMenuPosition, setShowAIMenu, editorContainerRef, aiEditState, calculateDiffButtonPosition]);
+  }, [editor, readOnly, showAIMenu, calculateMenuPosition, setAIMenuPosition, setShowAIMenu, editorContainerRef, aiEditState, restoredAiEditState, calculateDiffButtonPosition]);
 
   // 通知父组件 editor 已初始化
   useEffect(() => {
@@ -1088,14 +1263,29 @@ function EditorComponent({
   const lastPreviewLengthRef = useRef(0);
 
   useEffect(() => {
-    if (!editor || !aiEditState) {
+    if (!editor) {
       // 重置时清除 ref 和按钮位置
       lastPreviewLengthRef.current = 0;
       setAiDiffButtonPosition(null);
+      setRestoredAiEditState(null);
+      return;
+    }
+
+    // 如果没有 aiEditState，让 update listener 处理检测
+    if (!aiEditState) {
       return;
     }
 
     const { selectionFrom, selectionTo, originalText, previewText } = aiEditState;
+    
+    // 存储元数据以便在 undo/redo 后恢复
+    aiEditMetadataRef.current = {
+      selectionFrom,
+      selectionTo,
+      originalText,
+      previewText,
+    };
+    setRestoredAiEditState(null); // 清除恢复的状态，使用真实的 aiEditState
 
     // 如果没有预览文本，不需要渲染 diff（但允许 isProcessing 时显示流式更新）
     if (!previewText) {
@@ -1160,9 +1350,17 @@ function EditorComponent({
         lastPreviewLengthRef.current = 0;
       }
 
-      // 6. 应用事务（不添加到历史记录）
-      tr.setMeta('addToHistory', false);
-      editor.view.dispatch(tr);
+      // 6. 应用事务
+      // 如果处理完成（isProcessing 为 false），添加到历史记录以便 undo
+      // 否则不添加到历史记录（避免流式更新污染历史）
+      if (!aiEditState.isProcessing) {
+        // 处理完成，添加到历史记录
+        editor.view.dispatch(tr);
+      } else {
+        // 流式更新中，不添加到历史记录
+        tr.setMeta('addToHistory', false);
+        editor.view.dispatch(tr);
+      }
 
       // 7. 在下一帧更新按钮位置（等待 DOM 更新）
       requestAnimationFrame(() => {
@@ -1179,13 +1377,21 @@ function EditorComponent({
 
   // AI diff 接受/拒绝处理
   const handleDiffConfirm = useCallback(() => {
-    if (!editor || !aiEditState) {
+    if (!editor) {
       setAiDiffButtonPosition(null);
       onAIEditConfirm?.();
       return;
     }
 
-    const { selectionFrom, selectionTo, previewText } = aiEditState;
+    // 使用 aiEditState 或 restoredAiEditState
+    const currentState = aiEditState || restoredAiEditState;
+    if (!currentState) {
+      setAiDiffButtonPosition(null);
+      onAIEditConfirm?.();
+      return;
+    }
+
+    const { selectionFrom, selectionTo, previewText } = currentState;
     
     // 使用 lastPreviewLengthRef 获取实际插入的长度
     const actualInsertedLength = lastPreviewLengthRef.current || 0;
@@ -1208,22 +1414,40 @@ function EditorComponent({
     // 重置追踪的预览长度和按钮位置
     lastPreviewLengthRef.current = 0;
     setAiDiffButtonPosition(null);
+    // 清除恢复状态（但保留元数据以便 undo 后恢复）
+    setRestoredAiEditState(null);
 
-    // 应用事务
+    // 应用事务（添加到历史记录，以便 undo）
     editor.view.dispatch(tr);
+    
+    // 在下一帧检查是否还有 diff 标记，如果没有则清除元数据
+    requestAnimationFrame(() => {
+      const diffInfo = detectAIDiffMarks();
+      if (!diffInfo) {
+        aiEditMetadataRef.current = null;
+      }
+    });
     
     // 调用父组件回调（父组件会清除 aiEditState 并保存文件）
     onAIEditConfirm?.();
-  }, [editor, aiEditState, onAIEditConfirm]);
+  }, [editor, aiEditState, restoredAiEditState, onAIEditConfirm, detectAIDiffMarks]);
 
   const handleDiffCancel = useCallback(() => {
-    if (!editor || !aiEditState) {
+    if (!editor) {
       setAiDiffButtonPosition(null);
       onAIEditCancel?.();
       return;
     }
 
-    const { selectionFrom, selectionTo } = aiEditState;
+    // 使用 aiEditState 或 restoredAiEditState
+    const currentState = aiEditState || restoredAiEditState;
+    if (!currentState) {
+      setAiDiffButtonPosition(null);
+      onAIEditCancel?.();
+      return;
+    }
+
+    const { selectionFrom, selectionTo } = currentState;
     const tr = editor.state.tr;
 
     // 使用 lastPreviewLengthRef 获取实际插入的长度
@@ -1241,13 +1465,23 @@ function EditorComponent({
     // 重置追踪的预览长度和按钮位置
     lastPreviewLengthRef.current = 0;
     setAiDiffButtonPosition(null);
+    // 清除恢复状态（但保留元数据以便 undo 后恢复）
+    setRestoredAiEditState(null);
 
-    // 应用事务
+    // 应用事务（添加到历史记录，以便 undo）
     editor.view.dispatch(tr);
+    
+    // 在下一帧检查是否还有 diff 标记，如果没有则清除元数据
+    requestAnimationFrame(() => {
+      const diffInfo = detectAIDiffMarks();
+      if (!diffInfo) {
+        aiEditMetadataRef.current = null;
+      }
+    });
     
     // 调用父组件回调（父组件会清除 aiEditState）
     onAIEditCancel?.();
-  }, [editor, aiEditState, onAIEditCancel]);
+  }, [editor, aiEditState, restoredAiEditState, onAIEditCancel, detectAIDiffMarks]);
 
   return (
     <div className="h-full" onKeyDown={onKeyDown}>
@@ -1271,33 +1505,41 @@ function EditorComponent({
                       </div>
 
                       {/* AI Diff 确认/取消按钮（跟随新插入文本位置） */}
-                      {aiEditState && !aiEditState.isProcessing && aiEditState.previewText && aiDiffButtonPosition && (
-                        <div
-                          ref={aiDiffButtonRef}
-                          className="absolute z-60 pointer-events-none"
-                          style={{
-                            top: `${aiDiffButtonPosition.top}px`,
-                            left: `${aiDiffButtonPosition.left}px`,
-                          }}
-                        >
-                          <div className="flex items-center gap-2 rounded-md bg-background/95 px-3 py-1.5 shadow-lg ring-1 ring-border backdrop-blur">
-                            <button
-                              onClick={handleDiffCancel}
-                              className="inline-flex items-center gap-1 rounded border border-destructive/60 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/15 transition-colors pointer-events-auto"
-                            >
-                              <X />
-                              <span>{aiEditLabels?.cancel ?? '取消'}</span>
-                            </button>
-                            <button
-                              onClick={handleDiffConfirm}
-                              className="inline-flex items-center gap-1 rounded border border-emerald-500/60 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-500/15 transition-colors pointer-events-auto"
-                            >
-                              <Check />
-                              <span>{aiEditLabels?.confirm ?? '确认'}</span>
-                            </button>
+                      {(() => {
+                        const currentState = aiEditState || restoredAiEditState;
+                        const shouldShow = currentState && 
+                          (!aiEditState || !aiEditState.isProcessing) && 
+                          currentState.previewText && 
+                          aiDiffButtonPosition;
+                        
+                        return shouldShow ? (
+                          <div
+                            ref={aiDiffButtonRef}
+                            className="absolute z-60 pointer-events-none"
+                            style={{
+                              top: `${aiDiffButtonPosition.top}px`,
+                              left: `${aiDiffButtonPosition.left}px`,
+                            }}
+                          >
+                            <div className="flex items-center gap-2 rounded-md bg-background/95 px-3 py-1.5 shadow-lg ring-1 ring-border backdrop-blur">
+                              <button
+                                onClick={handleDiffCancel}
+                                className="inline-flex items-center gap-1 rounded border border-destructive/60 bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/15 transition-colors pointer-events-auto"
+                              >
+                                <X />
+                                <span>{aiEditLabels?.cancel ?? '取消'}</span>
+                              </button>
+                              <button
+                                onClick={handleDiffConfirm}
+                                className="inline-flex items-center gap-1 rounded border border-emerald-500/60 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-500/15 transition-colors pointer-events-auto"
+                              >
+                                <Check />
+                                <span>{aiEditLabels?.confirm ?? '确认'}</span>
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        ) : null;
+                      })()}
 
                       {/* AI 处理中指示器（与按钮使用相同位置） */}
                       {aiEditState?.isProcessing && (
