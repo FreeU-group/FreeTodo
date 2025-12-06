@@ -23,7 +23,6 @@ import {
   X,
   Check,
 } from 'lucide-react';
-import TurndownService from 'turndown';
 import Button from '@/components/common/Button';
 import MarkdownPreview from '@/components/common/MarkdownPreview';
 
@@ -37,6 +36,7 @@ import { Highlight } from '@tiptap/extension-highlight';
 import { Subscript } from '@tiptap/extension-subscript';
 import { Superscript } from '@tiptap/extension-superscript';
 import { Selection } from '@tiptap/extensions';
+import { Markdown } from '@tiptap/markdown';
 
 // --- Tiptap UI Primitives ---
 import { Spacer } from '@/components/workspace/tiptap/tiptap-ui-primitive/spacer';
@@ -83,39 +83,6 @@ import { UndoRedoButton } from '@/components/workspace/tiptap/tiptap-ui/undo-red
 
 // --- Lib ---
 import { handleImageUpload, MAX_FILE_SIZE } from '@/lib/tiptap-utils';
-import { marked } from 'marked';
-
-// --- Markdown Converter (Turndown) ---
-const turndownService = new TurndownService({
-  headingStyle: 'atx',
-  codeBlockStyle: 'fenced',
-});
-
-// 保持行内代码与块代码的简单处理
-turndownService.addRule('inlineCode', {
-  filter: 'code',
-  replacement: (content) => '`' + content + '`',
-});
-
-// Convert absolute image URLs back to relative URLs for storage
-turndownService.addRule('images', {
-  filter: 'img',
-  replacement: (content, node) => {
-    const element = node as HTMLImageElement;
-    let src = element.getAttribute('src') || '';
-    const alt = element.getAttribute('alt') || '';
-    const title = element.getAttribute('title') || '';
-    
-    // Convert full URLs back to relative URLs for workspace images
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    if (src.startsWith(baseUrl + '/api/workspace/images/')) {
-      src = src.substring(baseUrl.length);
-    }
-    
-    const titlePart = title ? ` "${title}"` : '';
-    return `![${alt}](${src}${titlePart})`;
-  },
-});
 
 // --- Tiptap Toolbar Content ---
 const MainToolbarContent = () => {
@@ -790,40 +757,6 @@ function EditorComponent({
     previewText: string;
   } | null>(null);
 
-  // 将 markdown 转换为 HTML（用于 Tiptap）
-  const markdownToHtml = useCallback((md: string): string => {
-    if (!md) return '';
-    try {
-      // Parse markdown to HTML
-      let html = marked.parse(md) as string;
-      
-      // Resolve relative image URLs to full URLs for rendering
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      html = html.replace(
-        /(<img[^>]+src=)"(\/api\/workspace\/images\/[^"]+)"/g,
-        `$1"${baseUrl}$2"`
-      );
-      
-      return html;
-    } catch (error) {
-      console.error('Error converting markdown to HTML:', error);
-      return md;
-    }
-  }, []);
-
-  // 将 HTML 转换为 markdown：使用 Turndown 提升兼容性
-  const htmlToMarkdown = useCallback((html: string): string => {
-    if (!html || html === '<p></p>') return '';
-
-    try {
-      const markdown = turndownService.turndown(html);
-      return markdown;
-    } catch (error) {
-      console.error('Error converting HTML to Markdown:', error);
-      return '';
-    }
-  }, []);
-
   const editor = useEditor({
     immediatelyRender: true,
     editorProps: {
@@ -856,6 +789,12 @@ function EditorComponent({
       Selection,
       AIDiffDelete,
       AIDiffInsert,
+      Markdown.configure({
+        markedOptions: {
+          gfm: true,
+          breaks: false,
+        },
+      }),
       ImageUploadNode.configure({
         accept: 'image/*',
         maxSize: MAX_FILE_SIZE,
@@ -869,11 +808,11 @@ function EditorComponent({
         onError: (error) => console.error('Upload failed:', error),
       }),
     ],
-    content: markdownToHtml(initialContent),
+    content: initialContent,
+    contentType: 'markdown',
     editable: !readOnly,
     onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      const markdown = htmlToMarkdown(html);
+      const markdown = editor.getMarkdown();
       onUpdate(markdown);
     },
   });
@@ -1029,7 +968,26 @@ function EditorComponent({
         return;
       }
 
-      const text = state.doc.textBetween(from, to, '\n');
+      // Extract markdown to preserve formatting
+      // Use markdown extension's serialize method if available, otherwise fallback to plain text
+      let text = '';
+      try {
+        // Try to use markdown extension's API to get markdown for selection
+        // Create a slice and serialize it
+        const slice = state.doc.slice(from, to);
+        if (editor.markdown?.serialize) {
+          // Create a temporary doc node with the slice content
+          const tempDocNode = state.schema.nodes.doc.create({}, slice.content);
+          text = editor.markdown.serialize(tempDocNode.toJSON()) || '';
+        }
+        // Fallback to plain text if markdown serialization not available
+        if (!text) {
+          text = state.doc.textBetween(from, to, '\n');
+        }
+      } catch {
+        // Fallback to plain text
+        text = state.doc.textBetween(from, to, '\n');
+      }
       if (!text.trim()) {
         setShowAIMenu(false);
         setSelectedText('');
@@ -1038,7 +996,7 @@ function EditorComponent({
         return;
       }
 
-      // 更新选中文本
+      // 更新选中文本（markdown格式，保留格式）
       setSelectedText(text);
 
       // 延迟300ms后显示菜单（防止干扰正常选择操作）
@@ -1323,29 +1281,69 @@ function EditorComponent({
       }
     }
 
-    // 3. 获取当前选区的文本（在删除预览文本后）
-    const currentText = tr.doc.textBetween(selectionFrom, selectionTo, '');
+    // 3. 获取当前选区的markdown（从原始编辑器状态，在删除预览文本之前）
+    // 我们需要在修改事务之前获取，因为tr.doc可能已经被修改
+    let currentMarkdown = '';
+    try {
+      // Create a slice and serialize it to markdown
+      const slice = editor.state.doc.slice(selectionFrom, selectionTo);
+      if (editor.markdown?.serialize) {
+        // Create a temporary doc node with the slice content
+        const tempDocNode = editor.state.schema.nodes.doc.create({}, slice.content);
+        currentMarkdown = editor.markdown.serialize(tempDocNode.toJSON()) || '';
+      }
+      // Fallback to plain text comparison
+      if (!currentMarkdown) {
+        currentMarkdown = editor.state.doc.textBetween(selectionFrom, selectionTo, '');
+      }
+    } catch {
+      // Fallback to plain text comparison
+      currentMarkdown = editor.state.doc.textBetween(selectionFrom, selectionTo, '');
+    }
 
-    // 4. 如果文本匹配，应用删除标记到原文
-    if (currentText === originalText) {
+    // 4. 如果内容匹配（markdown），应用删除标记到原文
+    // originalText现在包含markdown格式
+    const contentMatches = currentMarkdown === originalText || 
+                          currentMarkdown.trim() === originalText.trim();
+    
+    if (contentMatches) {
       const deleteMark = editor.schema.marks.aiDiffDelete.create();
       tr.addMark(selectionFrom, selectionTo, deleteMark);
 
-      // 5. 如果有预览文本，在原文后插入并应用插入标记
+      // 5. 如果有预览文本（markdown），解析并插入为结构化节点
       if (previewText) {
-        tr.insertText(previewText, selectionTo);
-        const insertMark = editor.schema.marks.aiDiffInsert.create();
-        tr.addMark(selectionTo, selectionTo + previewText.length, insertMark);
+        try {
+          // Parse markdown to ProseMirror nodes
+          const parsedContent = editor.markdown?.parse(previewText);
+          if (parsedContent) {
+            const slice = editor.schema.nodeFromJSON(parsedContent).content;
+            
+            // Insert the slice at the selection position
+            tr.replaceWith(selectionTo, selectionTo, slice);
+            
+            // Calculate the length of inserted content
+            const insertedLength = slice.size;
+            lastPreviewLengthRef.current = insertedLength;
+            
+            // Apply insert mark to the inserted content
+            const insertEnd = selectionTo + insertedLength;
+            const insertMark = editor.schema.marks.aiDiffInsert.create();
+            tr.addMark(selectionTo, insertEnd, insertMark);
 
-        // 确保插入文本不会继承删除样式（移除插入范围内的删除标记）
-        tr.removeMark(
-          selectionTo,
-          selectionTo + previewText.length,
-          editor.schema.marks.aiDiffDelete
-        );
-        
-        // 更新 ref 记录本次插入的长度
-        lastPreviewLengthRef.current = previewText.length;
+            // 确保插入文本不会继承删除样式（移除插入范围内的删除标记）
+            tr.removeMark(selectionTo, insertEnd, editor.schema.marks.aiDiffDelete);
+          } else {
+            throw new Error('Failed to parse markdown');
+          }
+        } catch (error) {
+          console.error('Error parsing markdown preview:', error);
+          // Fallback to plain text insertion
+          tr.insertText(previewText, selectionTo);
+          const insertMark = editor.schema.marks.aiDiffInsert.create();
+          tr.addMark(selectionTo, selectionTo + previewText.length, insertMark);
+          tr.removeMark(selectionTo, selectionTo + previewText.length, editor.schema.marks.aiDiffDelete);
+          lastPreviewLengthRef.current = previewText.length;
+        }
       } else {
         lastPreviewLengthRef.current = 0;
       }
@@ -1368,8 +1366,8 @@ function EditorComponent({
         setAiDiffButtonPosition(position);
       });
     } else {
-      // 文本不匹配，可能文档已被修改，跳过此次渲染
-      console.warn('Text mismatch - expected:', originalText, 'got:', currentText);
+      // 内容不匹配，可能文档已被修改，跳过此次渲染
+      console.warn('Content mismatch - expected:', originalText, 'got:', currentMarkdown);
       lastPreviewLengthRef.current = 0;
       setAiDiffButtonPosition(null);
     }
@@ -1406,9 +1404,23 @@ function EditorComponent({
     // 删除整个 diff 范围（原文 + 已插入的预览文本）
     tr.delete(selectionFrom, diffEndPos);
     
-    // 插入最终的预览文本作为普通文本（无标记）
+    // 插入最终的预览文本（markdown）作为结构化节点（无标记）
     if (previewText) {
-      tr.insertText(previewText, selectionFrom);
+      try {
+        // Parse markdown to ProseMirror nodes
+        const parsedContent = editor.markdown?.parse(previewText);
+        if (parsedContent) {
+          const slice = editor.schema.nodeFromJSON(parsedContent).content;
+          // Insert the slice at the original selection position
+          tr.replaceWith(selectionFrom, selectionFrom, slice);
+        } else {
+          throw new Error('Failed to parse markdown');
+        }
+      } catch (error) {
+        console.error('Error parsing markdown on confirm:', error);
+        // Fallback to plain text insertion
+        tr.insertText(previewText, selectionFrom);
+      }
     }
 
     // 重置追踪的预览长度和按钮位置
