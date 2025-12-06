@@ -424,8 +424,12 @@ export const api = {
     const url = new URL(
       `${API_BASE_URL}/api/workspace/projects/${encodeURIComponent(projectId)}/slides/preview`
     );
-    if (customRequirements && customRequirements.trim()) {
-      url.searchParams.append('custom_requirements', customRequirements.trim());
+    // 确保 customRequirements 是字符串类型且不为空
+    if (customRequirements && typeof customRequirements === 'string') {
+      const trimmed = customRequirements.trim();
+      if (trimmed) {
+        url.searchParams.append('custom_requirements', trimmed);
+      }
     }
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -459,8 +463,12 @@ export const api = {
     const url = new URL(
       `${API_BASE_URL}/api/workspace/projects/${encodeURIComponent(projectId)}/slides/generate`
     );
-    if (customRequirements && customRequirements.trim()) {
-      url.searchParams.append('custom_requirements', customRequirements.trim());
+    // 确保 customRequirements 是字符串类型且不为空
+    if (customRequirements && typeof customRequirements === 'string') {
+      const trimmed = customRequirements.trim();
+      if (trimmed) {
+        url.searchParams.append('custom_requirements', trimmed);
+      }
     }
     
     const response = await fetch(url.toString(), {
