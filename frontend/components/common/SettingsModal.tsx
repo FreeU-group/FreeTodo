@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import Input from './Input';
 import Button from './Button';
 import { api } from '@/lib/api';
 import { toast } from '@/lib/toast';
 import { useLocaleStore } from '@/lib/store/locale';
+import { useThemeStore, type Theme } from '@/lib/store/theme';
 import { useTranslations } from '@/lib/i18n';
+import { cn } from '@/lib/utils';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -30,7 +32,8 @@ interface ConfigSettings {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const { locale } = useLocaleStore();
+  const { locale, setLocale } = useLocaleStore();
+  const { theme, setTheme } = useThemeStore();
   const t = useTranslations(locale);
   const [settings, setSettings] = useState<ConfigSettings>({
     llmApiKey: '',
@@ -61,6 +64,30 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     llmBaseUrl: '',
     llmModel: 'qwen3-max',
   }); // 记录初始 LLM 配置
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const [languageDropdownOpen, setLanguageDropdownOpen] = useState(false);
+  const themeDropdownRef = useRef<HTMLDivElement>(null);
+  const languageDropdownRef = useRef<HTMLDivElement>(null);
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (themeDropdownRef.current && !themeDropdownRef.current.contains(event.target as Node)) {
+        setThemeDropdownOpen(false);
+      }
+      if (languageDropdownRef.current && !languageDropdownRef.current.contains(event.target as Node)) {
+        setLanguageDropdownOpen(false);
+      }
+    };
+
+    if (themeDropdownOpen || languageDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [themeDropdownOpen, languageDropdownOpen]);
 
   // 加载配置
   useEffect(() => {
@@ -472,6 +499,106 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       >
                         {testing ? t.common.testing : t.settings.testConnection}
                       </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* UI 设置 */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{t.settings.uiSettings}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* 主题设置 */}
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-foreground">
+                        {t.settings.uiTheme}
+                      </label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {t.settings.uiThemeDesc}
+                      </p>
+                      <div ref={themeDropdownRef} className="relative">
+                        <button
+                          onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+                          className="w-full flex items-center justify-between px-3 py-2 h-9 rounded-md border border-input bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                        >
+                          <span>{t.theme[theme]}</span>
+                          <ChevronDown className={cn('h-4 w-4 transition-transform', themeDropdownOpen && 'rotate-180')} />
+                        </button>
+                        {themeDropdownOpen && (
+                          <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-border bg-popover shadow-lg">
+                            <div className="p-1">
+                              {(['light', 'dark', 'system'] as Theme[]).map((themeOption) => (
+                                <button
+                                  key={themeOption}
+                                  onClick={() => {
+                                    setTheme(themeOption);
+                                    setThemeDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    'w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors text-foreground',
+                                    theme === themeOption
+                                      ? 'bg-accent font-medium'
+                                      : 'hover:bg-accent'
+                                  )}
+                                >
+                                  <span>{t.theme[themeOption]}</span>
+                                  {theme === themeOption && (
+                                    <span className="text-primary">✓</span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 语言设置 */}
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-foreground">
+                        {t.settings.uiLanguage}
+                      </label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {t.settings.uiLanguageDesc}
+                      </p>
+                      <div ref={languageDropdownRef} className="relative">
+                        <button
+                          onClick={() => setLanguageDropdownOpen(!languageDropdownOpen)}
+                          className="w-full flex items-center justify-between px-3 py-2 h-9 rounded-md border border-input bg-background text-sm font-medium text-foreground hover:bg-accent transition-colors"
+                        >
+                          <span>{t.language[locale]}</span>
+                          <ChevronDown className={cn('h-4 w-4 transition-transform', languageDropdownOpen && 'rotate-180')} />
+                        </button>
+                        {languageDropdownOpen && (
+                          <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-border bg-popover shadow-lg">
+                            <div className="p-1">
+                              {(['zh', 'en'] as const).map((localeOption) => (
+                                <button
+                                  key={localeOption}
+                                  onClick={() => {
+                                    setLocale(localeOption);
+                                    setLanguageDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    'w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors text-foreground',
+                                    locale === localeOption
+                                      ? 'bg-accent font-medium'
+                                      : 'hover:bg-accent'
+                                  )}
+                                >
+                                  <span>{t.language[localeOption]}</span>
+                                  {locale === localeOption && (
+                                    <span className="text-primary">✓</span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
