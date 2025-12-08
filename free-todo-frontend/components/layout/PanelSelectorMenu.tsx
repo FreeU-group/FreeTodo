@@ -133,7 +133,7 @@ export function PanelSelectorMenu({
 							"rounded-lg",
 							"shadow-lg",
 							"py-1",
-							"min-w-[160px]",
+							"min-w-[110px]",
 						)}
 						style={{
 							top: `${menuPosition.top}px`,
