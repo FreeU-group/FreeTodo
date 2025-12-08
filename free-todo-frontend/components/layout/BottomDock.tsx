@@ -64,7 +64,7 @@ export function BottomDock({ className }: BottomDockProps) {
     >
       <div
         className={cn(
-          "flex items-center gap-1 rounded-full",
+          "flex items-center gap-1 rounded-xl",
           "bg-white/80 dark:bg-zinc-900/80",
           "backdrop-blur-md",
           "border border-zinc-200 dark:border-zinc-800",
