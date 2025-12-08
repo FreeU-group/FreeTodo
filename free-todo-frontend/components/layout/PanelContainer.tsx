@@ -11,6 +11,7 @@ interface PanelContainerProps {
 	width: number;
 	children: React.ReactNode;
 	className?: string;
+	isDragging?: boolean;
 }
 
 // 动画配置常量 - 优化后的弹簧动画参数，确保平滑且快速
@@ -29,6 +30,7 @@ export function PanelContainer({
 	width,
 	children,
 	className,
+	isDragging = false,
 }: PanelContainerProps) {
 	const flexBasis = `${Math.round(width * 1000) / 10}%`;
 	// panelA 从左侧滑入，panelB 和 panelC 从右侧滑入
@@ -47,6 +49,9 @@ export function PanelContainer({
 		todos: "Todos Panel",
 		chat: "Chat Panel",
 	};
+
+	// 拖动时使用即时更新，禁用动画
+	const transition = isDragging ? { duration: 0 } : ANIMATION_CONFIG.spring;
 
 	return (
 		<motion.section
@@ -77,10 +82,12 @@ export function PanelContainer({
 				opacity: 0,
 				scale: 0.95,
 			}}
-			transition={ANIMATION_CONFIG.spring}
+			transition={transition}
 			style={{
 				minWidth: 0,
-				willChange: "flex-basis, transform, opacity",
+				willChange: isDragging
+					? "flex-basis"
+					: "flex-basis, transform, opacity",
 			}}
 		>
 			{children}

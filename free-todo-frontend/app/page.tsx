@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/common/LanguageToggle";
@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { UserAvatar } from "@/components/common/UserAvatar";
 import { BottomDock } from "@/components/layout/BottomDock";
 import { PanelContainer } from "@/components/layout/PanelContainer";
+import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import { getFeatureByPosition } from "@/lib/config/panel-config";
 import { useTranslations } from "@/lib/i18n";
@@ -157,9 +158,23 @@ export default function HomePage() {
 
 			const relativeX = clientX - rect.left;
 			const ratio = relativeX / rect.width;
-			setPanelAWidth(ratio);
+
+			// 当 panelC 打开时，panelA 的宽度是相对于 baseWidth 的比例
+			// baseWidth = 1 - panelCWidth
+			// 所以需要将 ratio 转换为相对于 baseWidth 的比例
+			if (isPanelCOpen) {
+				const baseWidth = 1 - panelCWidth;
+				if (baseWidth > 0) {
+					const adjustedRatio = ratio / baseWidth;
+					setPanelAWidth(adjustedRatio);
+				} else {
+					setPanelAWidth(0.5);
+				}
+			} else {
+				setPanelAWidth(ratio);
+			}
 		},
-		[setPanelAWidth],
+		[setPanelAWidth, isPanelCOpen, panelCWidth],
 	);
 
 	const handlePanelCDragAtClientX = useCallback(
@@ -272,6 +287,7 @@ export default function HomePage() {
 								position="panelA"
 								isVisible={layoutState.showPanelA}
 								width={layoutState.panelAWidth}
+								isDragging={isDraggingPanelA || isDraggingPanelC}
 							>
 								<div className="flex h-full flex-col">
 									<div className="flex h-10 shrink-0 items-center border-b border-border bg-muted/30 px-4">
@@ -289,29 +305,11 @@ export default function HomePage() {
 
 					<AnimatePresence mode="sync" initial={false}>
 						{layoutState.showPanelAResizeHandle && (
-							<motion.div
+							<ResizeHandle
 								key="panelA-resize-handle"
-								role="separator"
-								aria-orientation="vertical"
 								onPointerDown={handlePanelAResizePointerDown}
-								initial={{ opacity: 0, scaleX: 0 }}
-								animate={{ opacity: 1, scaleX: 1 }}
-								exit={{ opacity: 0, scaleX: 0 }}
-								transition={{ type: "spring", stiffness: 300, damping: 30 }}
-								className={`flex items-stretch justify-center ${
-									isDraggingPanelA
-										? "w-2 cursor-col-resize px-1"
-										: "w-1 cursor-col-resize px-0.5"
-								}`}
-							>
-								<div
-									className={`h-full rounded-full transition-all duration-200 ${
-										isDraggingPanelA
-											? "w-1 bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
-											: "w-px bg-border"
-									}`}
-								/>
-							</motion.div>
+								isDragging={isDraggingPanelA}
+							/>
 						)}
 					</AnimatePresence>
 
@@ -321,6 +319,7 @@ export default function HomePage() {
 								position="panelB"
 								isVisible={layoutState.showPanelB}
 								width={layoutState.panelBWidth}
+								isDragging={isDraggingPanelA || isDraggingPanelC}
 							>
 								<div className="flex h-full flex-col">
 									<div className="flex h-10 shrink-0 items-center border-b border-border bg-muted/30 px-4">
@@ -338,29 +337,11 @@ export default function HomePage() {
 
 					<AnimatePresence mode="sync" initial={false}>
 						{layoutState.showPanelCResizeHandle && (
-							<motion.div
+							<ResizeHandle
 								key="panelC-resize-handle"
-								role="separator"
-								aria-orientation="vertical"
 								onPointerDown={handlePanelCResizePointerDown}
-								initial={{ opacity: 0, scaleX: 0 }}
-								animate={{ opacity: 1, scaleX: 1 }}
-								exit={{ opacity: 0, scaleX: 0 }}
-								transition={{ type: "spring", stiffness: 300, damping: 30 }}
-								className={`flex items-stretch justify-center ${
-									isDraggingPanelC
-										? "w-2 cursor-col-resize px-1"
-										: "w-1 cursor-col-resize px-0.5"
-								}`}
-							>
-								<div
-									className={`h-full rounded-full transition-all duration-200 ${
-										isDraggingPanelC
-											? "w-1 bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
-											: "w-px bg-border"
-									}`}
-								/>
-							</motion.div>
+								isDragging={isDraggingPanelC}
+							/>
 						)}
 					</AnimatePresence>
 
@@ -370,6 +351,7 @@ export default function HomePage() {
 								position="panelC"
 								isVisible={layoutState.showPanelC}
 								width={layoutState.panelCWidth}
+								isDragging={isDraggingPanelA || isDraggingPanelC}
 							>
 								<div className="flex h-full flex-col">
 									<div className="flex h-10 shrink-0 items-center border-b border-border bg-muted/30 px-4">
