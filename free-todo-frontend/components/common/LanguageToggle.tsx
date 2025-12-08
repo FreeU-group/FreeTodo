@@ -36,7 +36,7 @@ export function LanguageToggle() {
     <button
       type="button"
       onClick={handleToggle}
-      className="rounded-md p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+      className="rounded-md p-2 text-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       title={`${t.layout.currentLanguage}: ${currentLanguage?.label}`}
       aria-label={`${t.layout.currentLanguage}: ${currentLanguage?.label}`}
     >
