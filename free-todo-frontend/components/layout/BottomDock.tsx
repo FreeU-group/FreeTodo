@@ -1,11 +1,13 @@
 "use client";
 
 import {
+	BookOpen,
 	CalendarDays,
 	FileText,
 	LayoutPanelLeft,
 	type LucideIcon,
 	MessageSquare,
+	Settings,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import type { PanelFeature, PanelPosition } from "@/lib/config/panel-config";
@@ -34,12 +36,14 @@ const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	todos: LayoutPanelLeft,
 	chat: MessageSquare,
 	todoDetail: FileText,
+	diary: BookOpen,
+	settings: Settings,
 };
 
 // 功能到翻译键的映射配置
 function getFeatureLabelKey(
 	feature: PanelFeature,
-): "calendar" | "todos" | "chat" | "todoDetail" {
+): "calendar" | "todos" | "chat" | "todoDetail" | "diary" | "settings" {
 	return feature;
 }
 

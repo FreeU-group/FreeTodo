@@ -5,7 +5,13 @@
  */
 
 export type PanelPosition = "panelA" | "panelB" | "panelC";
-export type PanelFeature = "calendar" | "todos" | "chat" | "todoDetail";
+export type PanelFeature =
+	| "calendar"
+	| "todos"
+	| "chat"
+	| "todoDetail"
+	| "diary"
+	| "settings";
 
 /**
  * 所有可用的功能列表
@@ -15,4 +21,6 @@ export const ALL_PANEL_FEATURES: PanelFeature[] = [
 	"todos",
 	"chat",
 	"todoDetail",
+	"diary",
+	"settings",
 ];

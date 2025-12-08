@@ -50,6 +50,8 @@ export function PanelContainer({
 		todos: "Todos Panel",
 		chat: "Chat Panel",
 		todoDetail: "Todo Detail Panel",
+		diary: "Diary Panel",
+		settings: "Settings Panel",
 	};
 
 	// 拖动时使用即时更新，禁用动画

@@ -249,6 +249,8 @@ export default function HomePage() {
 			todos: t.page.todosLabel,
 			chat: t.page.chatLabel,
 			todoDetail: t.page.todoDetailLabel,
+			diary: t.page.diaryLabel,
+			settings: t.page.settingsLabel,
 		};
 		return labelMap[feature] || "";
 	};
@@ -261,6 +263,8 @@ export default function HomePage() {
 			todos: t.page.todosPlaceholder,
 			chat: t.page.chatPlaceholder,
 			todoDetail: t.page.todoDetailPlaceholder,
+			diary: t.page.diaryPlaceholder,
+			settings: t.page.settingsPlaceholder,
 		};
 		return placeholderMap[feature] || "";
 	};
