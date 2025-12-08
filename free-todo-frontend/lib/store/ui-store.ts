@@ -58,54 +58,14 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
 
 	// 位置槽位 toggle 方法
 	togglePanelA: () =>
-		set((state) => {
-			// 当前只有 panelA 打开 => 打开 panelB，形成双面板
-			if (state.isPanelAOpen && !state.isPanelBOpen) {
-				return {
-					isPanelAOpen: true,
-					isPanelBOpen: true,
-				};
-			}
-
-			// 当前只有 panelB 打开 => 打开 panelA，形成双面板
-			if (!state.isPanelAOpen && state.isPanelBOpen) {
-				return {
-					isPanelAOpen: true,
-					isPanelBOpen: true,
-				};
-			}
-
-			// 当前双面板 => 关闭 panelA，仅保留 panelB
-			return {
-				isPanelAOpen: false,
-				isPanelBOpen: true,
-			};
-		}),
+		set((state) => ({
+			isPanelAOpen: !state.isPanelAOpen,
+		})),
 
 	togglePanelB: () =>
-		set((state) => {
-			// 当前只有 panelB 打开 => 打开 panelA，形成双面板
-			if (!state.isPanelAOpen && state.isPanelBOpen) {
-				return {
-					isPanelAOpen: true,
-					isPanelBOpen: true,
-				};
-			}
-
-			// 当前只有 panelA 打开 => 打开 panelB，形成双面板
-			if (state.isPanelAOpen && !state.isPanelBOpen) {
-				return {
-					isPanelAOpen: true,
-					isPanelBOpen: true,
-				};
-			}
-
-			// 当前双面板 => 关闭 panelB，仅保留 panelA
-			return {
-				isPanelAOpen: true,
-				isPanelBOpen: false,
-			};
-		}),
+		set((state) => ({
+			isPanelBOpen: !state.isPanelBOpen,
+		})),
 
 	togglePanelC: () =>
 		set((state) => ({

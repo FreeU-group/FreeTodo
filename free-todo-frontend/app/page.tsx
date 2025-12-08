@@ -36,6 +36,20 @@ export default function HomePage() {
 		const baseWidth = isPanelCOpen ? 1 - panelCWidth : 1;
 		const actualPanelCWidth = isPanelCOpen ? panelCWidth : 0;
 
+		// 所有面板都关闭的情况
+		if (!isPanelAOpen && !isPanelBOpen && !isPanelCOpen) {
+			return {
+				showPanelA: false,
+				showPanelB: false,
+				showPanelC: false,
+				panelAWidth: 0,
+				panelBWidth: 0,
+				panelCWidth: 0,
+				showPanelAResizeHandle: false,
+				showPanelCResizeHandle: false,
+			};
+		}
+
 		if (isPanelAOpen && isPanelBOpen && isPanelCOpen) {
 			// 三个面板都打开
 			return {
@@ -78,7 +92,22 @@ export default function HomePage() {
 			};
 		}
 
+		if (isPanelAOpen && isPanelCOpen) {
+			// 只有 panelA 和 panelC 打开
+			return {
+				showPanelA: true,
+				showPanelB: false,
+				showPanelC: true,
+				panelAWidth: baseWidth,
+				panelBWidth: 0,
+				panelCWidth: actualPanelCWidth,
+				showPanelAResizeHandle: false,
+				showPanelCResizeHandle: true,
+			};
+		}
+
 		if (isPanelAOpen && !isPanelBOpen) {
+			// 只有 panelA 打开
 			return {
 				showPanelA: true,
 				showPanelB: false,
@@ -87,11 +116,12 @@ export default function HomePage() {
 				panelBWidth: 0,
 				panelCWidth: actualPanelCWidth,
 				showPanelAResizeHandle: false,
-				showPanelCResizeHandle: false,
+				showPanelCResizeHandle: isPanelCOpen,
 			};
 		}
 
 		if (!isPanelAOpen && isPanelBOpen) {
+			// 只有 panelB 打开
 			return {
 				showPanelA: false,
 				showPanelB: true,
@@ -104,11 +134,12 @@ export default function HomePage() {
 			};
 		}
 
+		// 只有 panelC 打开
 		return {
-			showPanelA: true,
+			showPanelA: false,
 			showPanelB: false,
-			showPanelC: isPanelCOpen,
-			panelAWidth: baseWidth,
+			showPanelC: true,
+			panelAWidth: 0,
 			panelBWidth: 0,
 			panelCWidth: actualPanelCWidth,
 			showPanelAResizeHandle: false,
