@@ -18,15 +18,15 @@ export function BottomDock({ className }: BottomDockProps) {
         className
       )}
     >
-      <div className="flex items-center gap-3 rounded-full bg-slate-900/80 px-4 py-2 shadow-lg shadow-slate-900/60 backdrop-blur">
+      <div className="flex items-center gap-3 rounded-full bg-card border border-border px-4 py-2 shadow-lg backdrop-blur">
         <button
           type="button"
           onClick={toggleCalendar}
           className={cn(
             "flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
             isCalendarOpen
-              ? "bg-sky-500 text-slate-950 hover:bg-sky-400"
-              : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
           )}
         >
           <CalendarDays className="h-4 w-4" />
@@ -39,8 +39,8 @@ export function BottomDock({ className }: BottomDockProps) {
           className={cn(
             "flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
             isBoardOpen
-              ? "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
-              : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
           )}
         >
           <LayoutPanelLeft className="h-4 w-4" />

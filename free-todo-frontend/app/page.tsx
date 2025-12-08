@@ -97,16 +97,13 @@ export default function HomePage() {
   }
 
   return (
-    <main className="relative flex min-h-screen flex-col bg-transparent">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.15),_transparent_60%),_radial-gradient(circle_at_bottom,_rgba(52,211,153,0.12),_transparent_55%)]" />
-
-      <div className="relative z-10 flex flex-1 flex-col px-4 pb-20 pt-6 md:px-6 lg:px-10">
-        <header className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-50 md:text-xl">
+    <main className="relative flex h-screen flex-col overflow-hidden bg-background">
+      <div className="relative z-10 flex h-full flex-col">
+        <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4">
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold tracking-tight text-foreground">
               {t.page.title}
             </h1>
-            <p className="mt-1 text-xs text-slate-400 md:text-sm">{t.page.subtitle}</p>
           </div>
 
           <div className="flex items-center gap-1">
@@ -118,23 +115,20 @@ export default function HomePage() {
 
         <div
           ref={containerRef}
-          className="flex min-h-0 flex-1 gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/60 p-3 shadow-inner shadow-slate-900/80 backdrop-blur"
+          className="flex min-h-0 flex-1 gap-0 overflow-hidden"
         >
           <PanelContainer
             variant="calendar"
             isVisible={layoutState.showCalendar}
             width={layoutState.calendarWidth}
           >
-            <div className="flex h-full flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-medium text-slate-100 md:text-base">
+            <div className="flex h-full flex-col bg-background">
+              <div className="flex h-10 shrink-0 items-center border-b border-border bg-muted/30 px-4">
+                <h2 className="text-sm font-medium text-foreground">
                   {t.page.calendarLabel}
                 </h2>
-                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
-                  {t.page.calendarPlaceholder}
-                </span>
               </div>
-              <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-700/80 bg-slate-900/60 text-xs text-slate-500 md:text-sm">
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
                 {t.page.calendarPlaceholder}
               </div>
             </div>
@@ -154,8 +148,8 @@ export default function HomePage() {
               <div
                 className={`h-full rounded-full transition-all duration-200 ${
                   isDragging
-                    ? "w-1 bg-sky-400/90 shadow-[0_0_8px_rgba(56,189,248,0.6)]"
-                    : "w-px bg-slate-700/80"
+                    ? "w-1 bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
+                    : "w-px bg-border"
                 }`}
               />
             </div>
@@ -166,16 +160,13 @@ export default function HomePage() {
             isVisible={layoutState.showBoard}
             width={layoutState.boardWidth}
           >
-            <div className="flex h-full flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-medium text-slate-100 md:text-base">
+            <div className="flex h-full flex-col bg-background">
+              <div className="flex h-10 shrink-0 items-center border-b border-border bg-muted/30 px-4">
+                <h2 className="text-sm font-medium text-foreground">
                   {t.page.boardLabel}
                 </h2>
-                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
-                  {t.page.boardPlaceholder}
-                </span>
               </div>
-              <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-700/80 bg-slate-900/60 text-xs text-slate-500 md:text-sm">
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
                 {t.page.boardPlaceholder}
               </div>
             </div>

@@ -31,13 +31,11 @@ export function PanelContainer({
     <motion.section
       aria-label={variant === "calendar" ? "Calendar Panel" : "Board Panel"}
       className={cn(
-        "flex h-full min-h-0 flex-1 flex-col overflow-hidden border p-4",
+        "flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background",
         className
       )}
       style={{
-        flexBasis,
-        borderColor: "var(--panel-border)",
-        backgroundColor: "var(--panel-bg)"
+        flexBasis
       }}
       layout
       transition={{ type: "spring", stiffness: 220, damping: 26, mass: 0.9 }}

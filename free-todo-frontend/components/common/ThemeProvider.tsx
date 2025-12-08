@@ -18,7 +18,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
 
     const root = window.document.documentElement
-    const body = window.document.body
 
     const expectedTheme =
       theme === "system"
@@ -29,9 +28,6 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
     root.classList.remove("light", "dark")
     root.classList.add(expectedTheme)
-    body.classList.remove("theme-light", "theme-dark")
-    body.classList.add(expectedTheme === "dark" ? "theme-dark" : "theme-light")
-    body.dataset.theme = expectedTheme
   }, [theme, hasHydrated])
 
   useEffect(() => {
