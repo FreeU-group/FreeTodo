@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/common/LanguageToggle";
@@ -265,8 +266,15 @@ export default function HomePage() {
 			<div className="relative z-10 flex h-full flex-col">
 				<header className="flex h-12 shrink-0 items-center justify-between gap-3 bg-background px-4">
 					<div className="flex items-center gap-2">
+						<Image
+							src="/logo.png"
+							alt="Free Todo Logo"
+							width={24}
+							height={24}
+							className="shrink-0"
+						/>
 						<h1 className="text-sm font-semibold tracking-tight text-foreground">
-							{t.page.title}
+							Free Todo
 						</h1>
 					</div>
 
