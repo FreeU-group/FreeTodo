@@ -85,19 +85,22 @@ export function BottomDock({ className }: BottomDockProps) {
                   type="button"
                   onClick={item.onClick}
                   className={cn(
-                    "flex items-center justify-center",
-                    "h-10 w-10 rounded-lg",
+                    "relative flex items-center gap-2",
+                    "px-3 py-2 rounded-lg",
                     "transition-all duration-200",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                     item.isActive
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30"
-                      : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
+                      ? "bg-[#e9f2fe] dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-md shadow-blue-400/10 hover:bg-[#d4e7fd] dark:hover:bg-blue-900/40"
+                      : "text-blue-600 dark:text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                   )}
-                  title={item.label}
                   aria-label={item.label}
                   aria-pressed={item.isActive}
                 >
                   <Icon className="h-5 w-5" />
+                  <span className="text-sm font-medium">{item.label}</span>
+                  {item.isActive && (
+                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-blue-600 dark:bg-blue-400" />
+                  )}
                 </button>
               )
             })}
