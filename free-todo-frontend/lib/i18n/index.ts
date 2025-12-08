@@ -22,6 +22,10 @@ const translations = {
       calendarPlaceholder: "占位：在这里接入日历组件",
       boardLabel: "看板视图",
       boardPlaceholder: "占位：在这里接入 Todo 看板"
+    },
+    bottomDock: {
+      calendar: "日历",
+      board: "看板"
     }
   },
   en: {
@@ -46,6 +50,10 @@ const translations = {
       calendarPlaceholder: "Placeholder: plug a calendar component here",
       boardLabel: "Kanban Board",
       boardPlaceholder: "Placeholder: plug a Todo board here"
+    },
+    bottomDock: {
+      calendar: "Calendar",
+      board: "Board"
     }
   }
 }

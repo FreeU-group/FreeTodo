@@ -2,6 +2,8 @@
 
 import { CalendarDays, LayoutPanelLeft, type LucideIcon } from "lucide-react"
 import { useUiStore } from "@/lib/store/ui-store"
+import { useLocaleStore } from "@/lib/store/locale"
+import { useTranslations } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 interface BottomDockProps {
@@ -19,12 +21,14 @@ interface DockItem {
 
 export function BottomDock({ className }: BottomDockProps) {
   const { isCalendarOpen, isBoardOpen, toggleCalendar, toggleBoard } = useUiStore()
+  const { locale } = useLocaleStore()
+  const t = useTranslations(locale)
 
   const DOCK_ITEMS: DockItem[] = [
     {
       id: "calendar",
       icon: CalendarDays,
-      label: "日历",
+      label: t.bottomDock.calendar,
       isActive: isCalendarOpen,
       onClick: toggleCalendar,
       group: "views"
@@ -32,7 +36,7 @@ export function BottomDock({ className }: BottomDockProps) {
     {
       id: "board",
       icon: LayoutPanelLeft,
-      label: "看板",
+      label: t.bottomDock.board,
       isActive: isBoardOpen,
       onClick: toggleBoard,
       group: "views"
