@@ -1,23 +1,25 @@
 "use client"
 
-import { useMemo } from "react"
+import { useCallback, useMemo, useRef } from "react"
+import type { PointerEvent as ReactPointerEvent } from "react"
 
 import { BottomDock } from "@/components/layout/BottomDock"
 import { PanelContainer } from "@/components/layout/PanelContainer"
 import { useUiStore } from "@/lib/store/ui-store"
 
 export default function HomePage() {
-  const { isCalendarOpen, isBoardOpen } = useUiStore()
+  const { isCalendarOpen, isBoardOpen, calendarWidth, setCalendarWidth } = useUiStore()
+
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   const layoutState = useMemo(() => {
-    const bothClosed = !isCalendarOpen && !isBoardOpen
-
-    if (bothClosed) {
+    if (isCalendarOpen && isBoardOpen) {
       return {
         showCalendar: true,
         showBoard: true,
-        calendarFull: true,
-        boardFull: false
+        calendarWidth,
+        boardWidth: 1 - calendarWidth,
+        showResizeHandle: true
       }
     }
 
@@ -25,8 +27,9 @@ export default function HomePage() {
       return {
         showCalendar: true,
         showBoard: false,
-        calendarFull: true,
-        boardFull: false
+        calendarWidth: 1,
+        boardWidth: 0,
+        showResizeHandle: false
       }
     }
 
@@ -34,18 +37,55 @@ export default function HomePage() {
       return {
         showCalendar: false,
         showBoard: true,
-        calendarFull: false,
-        boardFull: true
+        calendarWidth: 0,
+        boardWidth: 1,
+        showResizeHandle: false
       }
     }
 
+    // 理论兜底：不允许两个都关，回退为仅日历
     return {
       showCalendar: true,
-      showBoard: true,
-      calendarFull: false,
-      boardFull: false
+      showBoard: false,
+      calendarWidth: 1,
+      boardWidth: 0,
+      showResizeHandle: false
     }
-  }, [isCalendarOpen, isBoardOpen])
+  }, [isCalendarOpen, isBoardOpen, calendarWidth])
+
+  const handleDragAtClientX = useCallback(
+    (clientX: number) => {
+      const container = containerRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      if (rect.width <= 0) return
+
+      const relativeX = clientX - rect.left
+      const ratio = relativeX / rect.width
+      setCalendarWidth(ratio)
+    },
+    [setCalendarWidth]
+  )
+
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+
+    handleDragAtClientX(event.clientX)
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      handleDragAtClientX(moveEvent.clientX)
+    }
+
+    const handlePointerUp = () => {
+      window.removeEventListener("pointermove", handlePointerMove)
+      window.removeEventListener("pointerup", handlePointerUp)
+    }
+
+    window.addEventListener("pointermove", handlePointerMove)
+    window.addEventListener("pointerup", handlePointerUp)
+  }
 
   return (
     <main className="relative flex min-h-screen flex-col bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -58,13 +98,20 @@ export default function HomePage() {
               Free Todo Canvas
             </h1>
             <p className="mt-1 text-xs text-slate-400 md:text-sm">
-              日历视图与看板视图并列排布，可通过底部 Dock 快速切换与组合。
+              日历视图与看板视图并列排布，可通过底部 Dock 快速切换与组合，并支持拖拽调整宽度。
             </p>
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/60 p-3 shadow-inner shadow-slate-900/80 backdrop-blur">
-          <PanelContainer variant="calendar" isVisible={layoutState.showCalendar} fullWidth={layoutState.calendarFull}>
+        <div
+          ref={containerRef}
+          className="flex min-h-0 flex-1 gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/60 p-3 shadow-inner shadow-slate-900/80 backdrop-blur"
+        >
+          <PanelContainer
+            variant="calendar"
+            isVisible={layoutState.showCalendar}
+            width={layoutState.calendarWidth}
+          >
             <div className="flex h-full flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-medium text-slate-100 md:text-base">Calendar View</h2>
@@ -78,7 +125,22 @@ export default function HomePage() {
             </div>
           </PanelContainer>
 
-          <PanelContainer variant="board" isVisible={layoutState.showBoard} fullWidth={layoutState.boardFull}>
+          {layoutState.showResizeHandle ? (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              onPointerDown={handleResizePointerDown}
+              className="flex w-1 cursor-col-resize items-stretch justify-center px-0.5"
+            >
+              <div className="h-full w-px rounded-full bg-slate-700/80" />
+            </div>
+          ) : null}
+
+          <PanelContainer
+            variant="board"
+            isVisible={layoutState.showBoard}
+            width={layoutState.boardWidth}
+          >
             <div className="flex h-full flex-col rounded-xl border border-slate-800 bg-slate-900/70 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-medium text-slate-100 md:text-base">Kanban Board</h2>
