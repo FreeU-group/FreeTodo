@@ -31,7 +31,9 @@ import {
 	Trash2,
 	X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import type React from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { CreateTodoInput, Todo, TodoStatus } from "@/lib/types/todo";
 import { cn } from "@/lib/utils";
@@ -42,7 +44,14 @@ interface TodoItemProps {
 }
 
 function TodoItem({ todo, isDragging }: TodoItemProps) {
-	const { toggleTodoStatus, deleteTodo, setSelectedTodoId } = useTodoStore();
+	const { toggleTodoStatus, deleteTodo, setSelectedTodoId, updateTodo } =
+		useTodoStore();
+	const [contextMenu, setContextMenu] = useState({
+		open: false,
+		x: 0,
+		y: 0,
+	});
+	const menuRef = useRef<HTMLDivElement | null>(null);
 	const {
 		attributes,
 		listeners,
@@ -94,142 +103,235 @@ function TodoItem({ todo, isDragging }: TodoItemProps) {
 		opacity: isSortableDragging ? 0.5 : 1,
 	};
 
+	// 右键菜单：点击外部、滚动或按下 ESC 时关闭
+	useEffect(() => {
+		if (!contextMenu.open) return;
+
+		const handleClose = () => {
+			setContextMenu((state) =>
+				state.open ? { ...state, open: false } : state,
+			);
+		};
+
+		const handleClickOutside = (event: MouseEvent) => {
+			const target = event.target as Node;
+			if (menuRef.current?.contains(target)) {
+				return;
+			}
+			handleClose();
+		};
+
+		const handleEscape = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				handleClose();
+			}
+		};
+
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleEscape);
+		document.addEventListener("scroll", handleClose, true);
+
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleEscape);
+			document.removeEventListener("scroll", handleClose, true);
+		};
+	}, [contextMenu.open]);
+
+	const openContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+		event.preventDefault();
+		event.stopPropagation();
+		setSelectedTodoId(todo.id);
+
+		const menuWidth = 180;
+		const menuHeight = 56;
+		const viewportWidth =
+			typeof window !== "undefined" ? window.innerWidth : menuWidth;
+		const viewportHeight =
+			typeof window !== "undefined" ? window.innerHeight : menuHeight;
+
+		const x = Math.min(Math.max(event.clientX, 8), viewportWidth - menuWidth);
+		const y = Math.min(Math.max(event.clientY, 8), viewportHeight - menuHeight);
+
+		setContextMenu({
+			open: true,
+			x,
+			y,
+		});
+	};
+
 	return (
-		<div
-			ref={setNodeRef}
-			style={style}
-			role="button"
-			tabIndex={0}
-			onClick={() => setSelectedTodoId(todo.id)}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
-					setSelectedTodoId(todo.id);
-				}
-			}}
-			className={cn(
-				"group relative flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer",
-				isDragging && "opacity-50",
-			)}
-		>
-			{/* 拖拽手柄 */}
+		<>
 			<div
-				{...attributes}
-				{...listeners}
-				className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity self-center"
-			>
-				<GripVertical className="h-4 w-4" />
-			</div>
-
-			{/* 状态切换 */}
-			<button
-				type="button"
-				onClick={(e) => {
-					e.stopPropagation();
-					toggleTodoStatus(todo.id);
+				ref={setNodeRef}
+				style={style}
+				role="button"
+				tabIndex={0}
+				onClick={() => setSelectedTodoId(todo.id)}
+				onContextMenu={openContextMenu}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						setSelectedTodoId(todo.id);
+					}
 				}}
-				className="shrink-0"
-			>
-				{todo.status === "completed" ? (
-					<div className="flex h-5 w-5 items-center justify-center rounded-md bg-green-500 dark:bg-green-400 border border-green-600 dark:border-green-500">
-						<span className="text-[10px] text-white font-semibold">✓</span>
-					</div>
-				) : (
-					<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40 hover:border-foreground transition-colors" />
+				className={cn(
+					"group relative flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer",
+					isDragging && "opacity-50",
 				)}
-			</button>
+			>
+				{/* 拖拽手柄 */}
+				<div
+					{...attributes}
+					{...listeners}
+					className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity self-center"
+				>
+					<GripVertical className="h-4 w-4" />
+				</div>
 
-			{/* 内容区域 */}
-			<div className="flex-1 min-w-0">
-				<div className="flex items-start justify-between gap-2">
-					<div className="flex-1 min-w-0">
-						<div className="flex items-center gap-2">
-							<h3
-								className={cn(
-									"text-sm font-medium text-foreground",
-									todo.status === "completed" &&
-										"line-through text-muted-foreground",
-								)}
-							>
-								{todo.name}
-							</h3>
+				{/* 状态切换 */}
+				<button
+					type="button"
+					onClick={(e) => {
+						e.stopPropagation();
+						toggleTodoStatus(todo.id);
+					}}
+					className="shrink-0"
+				>
+					{todo.status === "completed" ? (
+						<div className="flex h-5 w-5 items-center justify-center rounded-md bg-green-500 dark:bg-green-400 border border-green-600 dark:border-green-500">
+							<span className="text-[10px] text-white font-semibold">✓</span>
 						</div>
+					) : (
+						<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40 hover:border-foreground transition-colors" />
+					)}
+				</button>
 
-						{/* 日期、附件、标签 */}
-						<div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-							{/* 截止日期 */}
-							{todo.deadline && (
-								<div className="flex items-center gap-1">
-									<Calendar className="h-3 w-3" />
-									<span>{formatDate(todo.deadline)}</span>
-								</div>
-							)}
-
-							{/* 附件数量 */}
-							{todo.attachments && todo.attachments.length > 0 && (
-								<div className="flex items-center gap-1">
-									<Paperclip className="h-3 w-3" />
-									<span>{todo.attachments.length}</span>
-								</div>
-							)}
-
-							{/* 标签 */}
-							{todo.tags && todo.tags.length > 0 && (
-								<div className="flex flex-wrap items-center gap-1">
-									<Tag className="h-3 w-3" />
-									{todo.tags.slice(0, 3).map((tag) => (
-										<span
-											key={tag}
-											className="px-2 py-0.5 rounded-full bg-muted text-[11px] font-medium text-foreground"
-										>
-											{tag}
-										</span>
-									))}
-									{todo.tags.length > 3 && (
-										<span className="text-[11px] text-muted-foreground">
-											+{todo.tags.length - 3}
-										</span>
+				{/* 内容区域 */}
+				<div className="flex-1 min-w-0">
+					<div className="flex items-start justify-between gap-2">
+						<div className="flex-1 min-w-0">
+							<div className="flex items-center gap-2">
+								<h3
+									className={cn(
+										"text-sm font-medium text-foreground",
+										todo.status === "completed" &&
+											"line-through text-muted-foreground",
 									)}
-								</div>
+								>
+									{todo.name}
+								</h3>
+							</div>
+
+							{/* 日期、附件、标签 */}
+							<div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+								{/* 截止日期 */}
+								{todo.deadline && (
+									<div className="flex items-center gap-1">
+										<Calendar className="h-3 w-3" />
+										<span>{formatDate(todo.deadline)}</span>
+									</div>
+								)}
+
+								{/* 附件数量 */}
+								{todo.attachments && todo.attachments.length > 0 && (
+									<div className="flex items-center gap-1">
+										<Paperclip className="h-3 w-3" />
+										<span>{todo.attachments.length}</span>
+									</div>
+								)}
+
+								{/* 标签 */}
+								{todo.tags && todo.tags.length > 0 && (
+									<div className="flex flex-wrap items-center gap-1">
+										<Tag className="h-3 w-3" />
+										{todo.tags.slice(0, 3).map((tag) => (
+											<span
+												key={tag}
+												className="px-2 py-0.5 rounded-full bg-muted text-[11px] font-medium text-foreground"
+											>
+												{tag}
+											</span>
+										))}
+										{todo.tags.length > 3 && (
+											<span className="text-[11px] text-muted-foreground">
+												+{todo.tags.length - 3}
+											</span>
+										)}
+									</div>
+								)}
+							</div>
+						</div>
+
+						{/* 状态和附件提示 */}
+						<div className="flex items-center gap-2 shrink-0">
+							{/* 状态标签 */}
+							{todo.status && (
+								<span
+									className={cn(
+										"px-2 py-0.5 rounded-full text-xs font-medium border",
+										getStatusColor(todo.status),
+									)}
+								>
+									{getStatusLabel(todo.status)}
+								</span>
+							)}
+							{/* 附件提示 */}
+							{todo.attachments && todo.attachments.length > 0 && (
+								<span className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
+									<Paperclip className="h-3 w-3" />
+									{todo.attachments.length}
+								</span>
 							)}
 						</div>
-					</div>
-
-					{/* 状态和优先级标签 */}
-					<div className="flex items-center gap-2 shrink-0">
-						{/* 状态标签 */}
-						{todo.status && (
-							<span
-								className={cn(
-									"px-2 py-0.5 rounded-full text-xs font-medium border",
-									getStatusColor(todo.status),
-								)}
-							>
-								{getStatusLabel(todo.status)}
-							</span>
-						)}
-						{/* 附件提示 */}
-						{todo.attachments && todo.attachments.length > 0 && (
-							<span className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
-								<Paperclip className="h-3 w-3" />
-								{todo.attachments.length}
-							</span>
-						)}
-						{/* 删除 */}
-						<button
-							type="button"
-							onClick={(e) => {
-								e.stopPropagation();
-								deleteTodo(todo.id);
-							}}
-							className="rounded-full p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-						>
-							<Trash2 className="h-4 w-4" />
-						</button>
 					</div>
 				</div>
 			</div>
-		</div>
+
+			{contextMenu.open &&
+				typeof document !== "undefined" &&
+				createPortal(
+					<div className="fixed inset-0 z-[120] pointer-events-none">
+						<div
+							ref={menuRef}
+							className="pointer-events-auto min-w-[170px] rounded-md border border-border bg-background shadow-lg"
+							style={{
+								top: contextMenu.y,
+								left: contextMenu.x,
+								position: "absolute",
+							}}
+						>
+							<button
+								type="button"
+								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors first:rounded-t-md"
+								onClick={() => {
+									updateTodo(todo.id, { status: "canceled" });
+									setContextMenu((state) =>
+										state.open ? { ...state, open: false } : state,
+									);
+								}}
+							>
+								<X className="h-4 w-4" />
+								<span>放弃</span>
+							</button>
+							<button
+								type="button"
+								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors last:rounded-b-md"
+								onClick={() => {
+									deleteTodo(todo.id);
+									setContextMenu((state) =>
+										state.open ? { ...state, open: false } : state,
+									);
+								}}
+							>
+								<Trash2 className="h-4 w-4" />
+								<span>删除</span>
+							</button>
+						</div>
+					</div>,
+					document.body,
+				)}
+		</>
 	);
 }
 
