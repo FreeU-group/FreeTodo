@@ -131,6 +131,22 @@ class DatabaseBase:
                         "idx_todo_tag_relations_tag_id",
                         "CREATE INDEX IF NOT EXISTS idx_todo_tag_relations_tag_id ON todo_tag_relations(tag_id)",
                     ),
+                    (
+                        "idx_journals_date",
+                        "CREATE INDEX IF NOT EXISTS idx_journals_date ON journals(date)",
+                    ),
+                    (
+                        "idx_journals_deleted_at",
+                        "CREATE INDEX IF NOT EXISTS idx_journals_deleted_at ON journals(deleted_at)",
+                    ),
+                    (
+                        "idx_journal_tag_relations_journal_id",
+                        "CREATE INDEX IF NOT EXISTS idx_journal_tag_relations_journal_id ON journal_tag_relations(journal_id)",
+                    ),
+                    (
+                        "idx_journal_tag_relations_tag_id",
+                        "CREATE INDEX IF NOT EXISTS idx_journal_tag_relations_tag_id ON journal_tag_relations(tag_id)",
+                    ),
                 ]
 
                 # 创建索引

@@ -14,6 +14,7 @@ from lifetrace.routers import (
     cost_tracking,
     event,
     health,
+    journal,
     logs,
     ocr,
     project,
@@ -126,6 +127,7 @@ app.include_router(system.router)
 app.include_router(logs.router)
 app.include_router(project.router)
 app.include_router(task.router)
+app.include_router(journal.router)
 app.include_router(context.router)
 app.include_router(rag.router)
 app.include_router(scheduler.router)

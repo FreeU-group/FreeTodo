@@ -252,6 +252,39 @@ class TodoTagRelation(Base):
         return f"<TodoTagRelation(id={self.id}, todo_id={self.todo_id}, tag_id={self.tag_id})>"
 
 
+class Journal(Base):
+    """日记模型"""
+
+    __tablename__ = "journals"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(200), nullable=False)  # 日记标题
+    user_notes = Column(Text, nullable=False)  # 富文本内容
+    date = Column(DateTime, nullable=False)  # 日记日期
+    content_format = Column(String(20), default="markdown")  # 内容格式：markdown/html/json
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+    deleted_at = Column(DateTime)
+
+    def __repr__(self):
+        return f"<Journal(id={self.id}, name={self.name}, date={self.date})>"
+
+
+class JournalTagRelation(Base):
+    """日记与标签的多对多关联关系"""
+
+    __tablename__ = "journal_tag_relations"
+
+    id = Column(Integer, primary_key=True)
+    journal_id = Column(Integer, nullable=False)  # 关联的日记ID
+    tag_id = Column(Integer, nullable=False)  # 关联的标签ID
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    deleted_at = Column(DateTime)
+
+    def __repr__(self):
+        return f"<JournalTagRelation(id={self.id}, journal_id={self.journal_id}, tag_id={self.tag_id})>"
+
+
 class Chat(Base):
     """聊天会话模型"""
 

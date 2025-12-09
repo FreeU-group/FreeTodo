@@ -10,6 +10,7 @@ from lifetrace.storage.database import (
     event_mgr,
     get_db,
     get_session,
+    journal_mgr,
     ocr_mgr,
     project_mgr,
     screenshot_mgr,
@@ -27,6 +28,7 @@ __all__ = [
     "context_mgr",
     "chat_mgr",
     "stats_mgr",
+    "journal_mgr",
     # 数据库基础
     "db_base",
     "get_session",
