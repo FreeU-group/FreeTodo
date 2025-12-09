@@ -22,6 +22,12 @@ export type Translation = {
 		todosPlaceholder: string;
 		chatLabel: string;
 		chatPlaceholder: string;
+		chatTitle: string;
+		chatSubtitle: string;
+		chatQuestion: string;
+		chatSuggestions: string[];
+		chatInputPlaceholder: string;
+		chatSendButton: string;
 		todoDetailLabel: string;
 		todoDetailPlaceholder: string;
 		diaryLabel: string;

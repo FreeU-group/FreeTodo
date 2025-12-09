@@ -25,6 +25,13 @@ export const en: Translation = {
 		todosPlaceholder: "Placeholder: plug a Todo list here",
 		chatLabel: "AI Chat",
 		chatPlaceholder: "Placeholder: plug an AI chat component here",
+		chatTitle: "Free Todo - AI Assistant",
+		chatSubtitle:
+			"A personalized AI chat app that helps you manage todos and boost productivity.",
+		chatQuestion: "How can I help you today?",
+		chatSuggestions: ["Travel", "Food", "Project details"],
+		chatInputPlaceholder: "I am working on",
+		chatSendButton: "Send",
 		todoDetailLabel: "Todo Detail",
 		todoDetailPlaceholder: "Placeholder: plug a todo detail component here",
 		diaryLabel: "Diary",

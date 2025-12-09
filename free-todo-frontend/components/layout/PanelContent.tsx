@@ -1,6 +1,7 @@
 "use client";
 
 import { AchievementsPanel } from "@/components/achievements/AchievementsPanel";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 import { TodoDetail } from "@/components/todo/TodoDetail";
 import { TodoList } from "@/components/todo/TodoList";
 import type { PanelPosition } from "@/lib/config/panel-config";
@@ -67,6 +68,11 @@ export function PanelContent({ position }: PanelContentProps) {
 	// 如果是待办详情功能，显示待办详情组件
 	if (feature === "todoDetail") {
 		return <TodoDetail />;
+	}
+
+	// 如果是聊天功能，显示聊天组件
+	if (feature === "chat") {
+		return <ChatPanel />;
 	}
 
 	// 其他功能显示占位符
