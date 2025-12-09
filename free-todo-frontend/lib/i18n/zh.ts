@@ -31,6 +31,8 @@ export const zh: Translation = {
 		diaryPlaceholder: "占位：在这里接入日记组件",
 		settingsLabel: "设置",
 		settingsPlaceholder: "占位：在这里接入设置组件",
+		achievementsLabel: "成就",
+		achievementsPlaceholder: "占位：在这里接入成就组件",
 	},
 	bottomDock: {
 		calendar: "日历",
@@ -39,5 +41,6 @@ export const zh: Translation = {
 		todoDetail: "待办详情",
 		diary: "日记",
 		settings: "设置",
+		achievements: "成就",
 	},
 };

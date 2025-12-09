@@ -16,6 +16,7 @@ export interface Todo {
 	starred?: boolean;
 	assignedTo?: AssignedUser[];
 	priority?: TodoPriority;
+	notes?: string;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -44,4 +45,5 @@ export interface UpdateTodoInput {
 	starred?: boolean;
 	assignedTo?: AssignedUser[];
 	priority?: TodoPriority;
+	notes?: string;
 }

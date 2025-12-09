@@ -28,6 +28,8 @@ export type Translation = {
 		diaryPlaceholder: string;
 		settingsLabel: string;
 		settingsPlaceholder: string;
+		achievementsLabel: string;
+		achievementsPlaceholder: string;
 	};
 	bottomDock: {
 		calendar: string;
@@ -36,5 +38,6 @@ export type Translation = {
 		todoDetail: string;
 		diary: string;
 		settings: string;
+		achievements: string;
 	};
 };

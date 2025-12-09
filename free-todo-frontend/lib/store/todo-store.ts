@@ -4,6 +4,7 @@ import type { CreateTodoInput, Todo, UpdateTodoInput } from "@/lib/types/todo";
 
 interface TodoStoreState {
 	todos: Todo[];
+	selectedTodoId: string | null;
 	addTodo: (input: CreateTodoInput) => void;
 	updateTodo: (id: string, input: UpdateTodoInput) => void;
 	deleteTodo: (id: string) => void;
@@ -11,6 +12,7 @@ interface TodoStoreState {
 	toggleSubtask: (todoId: string, subtaskId: string) => void;
 	toggleStarred: (id: string) => void;
 	reorderTodos: (newOrder: string[]) => void;
+	setSelectedTodoId: (id: string | null) => void;
 }
 
 const generateId = () => {
@@ -21,6 +23,8 @@ export const useTodoStore = create<TodoStoreState>()(
 	persist(
 		(set) => ({
 			todos: [],
+			selectedTodoId: null,
+			setSelectedTodoId: (id) => set({ selectedTodoId: id }),
 			addTodo: (input) =>
 				set((state) => {
 					const now = new Date().toISOString();

@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import {
+	Award,
 	BookOpen,
 	CalendarDays,
 	FileText,
@@ -34,12 +35,20 @@ const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	todoDetail: FileText,
 	diary: BookOpen,
 	settings: Settings,
+	achievements: Award,
 };
 
 // 功能到翻译键的映射
 function getFeatureLabelKey(
 	feature: PanelFeature,
-): "calendar" | "todos" | "chat" | "todoDetail" | "diary" | "settings" {
+):
+	| "calendar"
+	| "todos"
+	| "chat"
+	| "todoDetail"
+	| "diary"
+	| "settings"
+	| "achievements" {
 	return feature;
 }
 

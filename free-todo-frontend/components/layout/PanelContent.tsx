@@ -1,5 +1,7 @@
 "use client";
 
+import { AchievementsPanel } from "@/components/achievements/AchievementsPanel";
+import { TodoDetail } from "@/components/todo/TodoDetail";
 import { TodoList } from "@/components/todo/TodoList";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import { FEATURE_ICON_MAP } from "@/lib/config/panel-config";
@@ -29,6 +31,7 @@ export function PanelContent({ position }: PanelContentProps) {
 			todoDetail: t.page.todoDetailLabel,
 			diary: t.page.diaryLabel,
 			settings: t.page.settingsLabel,
+			achievements: t.page.achievementsLabel,
 		};
 		return labelMap[feat] || "";
 	};
@@ -43,6 +46,7 @@ export function PanelContent({ position }: PanelContentProps) {
 			todoDetail: t.page.todoDetailPlaceholder,
 			diary: t.page.diaryPlaceholder,
 			settings: t.page.settingsPlaceholder,
+			achievements: t.page.achievementsPlaceholder,
 		};
 		return placeholderMap[feat] || "";
 	};
@@ -53,6 +57,16 @@ export function PanelContent({ position }: PanelContentProps) {
 	// 如果是待办功能，显示待办组件
 	if (feature === "todos") {
 		return <TodoList />;
+	}
+
+	// 如果是成就功能，显示成就组件
+	if (feature === "achievements") {
+		return <AchievementsPanel />;
+	}
+
+	// 如果是待办详情功能，显示待办详情组件
+	if (feature === "todoDetail") {
+		return <TodoDetail />;
 	}
 
 	// 其他功能显示占位符

@@ -26,7 +26,14 @@ interface DockItem {
 // 功能到翻译键的映射配置
 function getFeatureLabelKey(
 	feature: PanelFeature,
-): "calendar" | "todos" | "chat" | "todoDetail" | "diary" | "settings" {
+):
+	| "calendar"
+	| "todos"
+	| "chat"
+	| "todoDetail"
+	| "diary"
+	| "settings"
+	| "achievements" {
 	return feature;
 }
 

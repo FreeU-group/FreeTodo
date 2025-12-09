@@ -47,7 +47,7 @@ interface TodoItemProps {
 }
 
 function TodoItem({ todo, isDragging }: TodoItemProps) {
-	const { toggleTodoStatus, toggleStarred } = useTodoStore();
+	const { toggleTodoStatus, toggleStarred, setSelectedTodoId } = useTodoStore();
 	const {
 		attributes,
 		listeners,
@@ -131,11 +131,13 @@ function TodoItem({ todo, isDragging }: TodoItemProps) {
 	};
 
 	return (
-		<div
+		<button
+			type="button"
 			ref={setNodeRef}
 			style={style}
+			onClick={() => setSelectedTodoId(todo.id)}
 			className={cn(
-				"group relative flex items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors",
+				"group relative flex w-full items-start gap-3 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer text-left bg-transparent border-0",
 				isDragging && "opacity-50",
 			)}
 		>
@@ -152,7 +154,10 @@ function TodoItem({ todo, isDragging }: TodoItemProps) {
 			{/* 复选框 */}
 			<button
 				type="button"
-				onClick={() => toggleTodoStatus(todo.id)}
+				onClick={(e) => {
+					e.stopPropagation();
+					toggleTodoStatus(todo.id);
+				}}
 				className="shrink-0"
 			>
 				{todo.status === "completed" ? (
@@ -262,7 +267,7 @@ function TodoItem({ todo, isDragging }: TodoItemProps) {
 					</div>
 				</div>
 			</div>
-		</div>
+		</button>
 	);
 }
 

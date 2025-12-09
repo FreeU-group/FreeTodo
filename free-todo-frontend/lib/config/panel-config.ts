@@ -5,6 +5,7 @@
  */
 
 import {
+	Award,
 	BookOpen,
 	CalendarDays,
 	FileText,
@@ -21,7 +22,8 @@ export type PanelFeature =
 	| "chat"
 	| "todoDetail"
 	| "diary"
-	| "settings";
+	| "settings"
+	| "achievements";
 
 /**
  * 所有可用的功能列表
@@ -33,6 +35,7 @@ export const ALL_PANEL_FEATURES: PanelFeature[] = [
 	"todoDetail",
 	"diary",
 	"settings",
+	"achievements",
 ];
 
 /**
@@ -45,4 +48,5 @@ export const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	todoDetail: FileText,
 	diary: BookOpen,
 	settings: Settings,
+	achievements: Award,
 };

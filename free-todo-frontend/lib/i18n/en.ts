@@ -31,6 +31,8 @@ export const en: Translation = {
 		diaryPlaceholder: "Placeholder: plug a diary component here",
 		settingsLabel: "Settings",
 		settingsPlaceholder: "Placeholder: plug a settings component here",
+		achievementsLabel: "Achievements",
+		achievementsPlaceholder: "Placeholder: plug an achievements component here",
 	},
 	bottomDock: {
 		calendar: "Calendar",
@@ -39,5 +41,6 @@ export const en: Translation = {
 		todoDetail: "Todo Detail",
 		diary: "Diary",
 		settings: "Settings",
+		achievements: "Achievements",
 	},
 };
