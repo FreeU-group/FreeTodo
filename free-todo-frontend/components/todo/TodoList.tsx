@@ -23,7 +23,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
 	Calendar,
 	Grid,
-	GripVertical,
 	List,
 	Paperclip,
 	Plus,
@@ -45,11 +44,10 @@ type FilterStatus = "all" | TodoStatus;
 interface TodoCardProps {
 	todo: Todo;
 	isDragging?: boolean;
-	viewMode: ViewMode;
 	selected?: boolean;
 }
 
-function TodoCard({ todo, isDragging, viewMode, selected }: TodoCardProps) {
+function TodoCard({ todo, isDragging, selected }: TodoCardProps) {
 	const { toggleTodoStatus, deleteTodo, setSelectedTodoId, updateTodo } =
 		useTodoStore();
 	const [contextMenu, setContextMenu] = useState({
@@ -169,6 +167,8 @@ function TodoCard({ todo, isDragging, viewMode, selected }: TodoCardProps) {
 	return (
 		<>
 			<div
+				{...attributes}
+				{...listeners}
 				ref={setNodeRef}
 				style={style}
 				role="button"
@@ -188,20 +188,6 @@ function TodoCard({ todo, isDragging, viewMode, selected }: TodoCardProps) {
 				)}
 			>
 				<div className="flex items-start gap-3">
-					{/* 拖拽手柄 */}
-					<div
-						{...attributes}
-						{...listeners}
-						className={cn(
-							"mt-1 shrink-0 cursor-grab text-muted-foreground transition-opacity duration-150 hover:text-foreground",
-							viewMode === "grid"
-								? "opacity-100"
-								: "opacity-60 group-hover:opacity-100",
-						)}
-					>
-						<GripVertical className="h-4 w-4" />
-					</div>
-
 					{/* 状态切换 */}
 					<button
 						type="button"
@@ -561,7 +547,6 @@ export function TodoList() {
 										key={todo.id}
 										todo={todo}
 										isDragging={activeId === todo.id}
-										viewMode={viewMode}
 										selected={selectedTodoId === todo.id}
 									/>
 								))}
@@ -574,7 +559,6 @@ export function TodoList() {
 									<TodoCard
 										todo={activeTodo}
 										isDragging
-										viewMode={viewMode}
 										selected={selectedTodoId === activeTodo.id}
 									/>
 								</div>
