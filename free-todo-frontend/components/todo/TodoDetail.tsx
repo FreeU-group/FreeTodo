@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTodoStore } from "@/lib/store/todo-store";
+import type { TodoStatus } from "@/lib/types/todo";
 import { cn } from "@/lib/utils";
 
 export function TodoDetail() {
@@ -22,7 +23,21 @@ export function TodoDetail() {
 	} = useTodoStore();
 
 	const [showDescription, setShowDescription] = useState(false);
+	const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
 	const notesRef = useRef<HTMLTextAreaElement | null>(null);
+	const statusMenuRef = useRef<HTMLDivElement | null>(null);
+
+	const statusOptions: TodoStatus[] = ["active", "completed", "canceled"];
+
+	const getStatusClassNames = (status: TodoStatus) =>
+		cn(
+			"rounded-full border px-2 py-0.5 text-xs font-medium",
+			status === "completed"
+				? "border-green-500/50 text-green-600"
+				: status === "canceled"
+					? "border-gray-500/50 text-gray-500"
+					: "border-blue-500/50 text-blue-600",
+		);
 
 	const adjustNotesHeight = useCallback(() => {
 		const el = notesRef.current;
@@ -61,6 +76,40 @@ export function TodoDetail() {
 		return () => window.removeEventListener("resize", handleResize);
 	}, [adjustNotesHeight, todo]);
 
+	// 点击其他区域或按下 ESC 时关闭状态下拉
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent) => {
+			if (
+				statusMenuRef.current &&
+				!statusMenuRef.current.contains(event.target as Node)
+			) {
+				setIsStatusMenuOpen(false);
+			}
+		};
+
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setIsStatusMenuOpen(false);
+			}
+		};
+
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleKeyDown);
+
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleKeyDown);
+		};
+	}, []);
+
+	// 切换 todo 时关闭下拉
+	useEffect(() => {
+		if (todo?.id === undefined) {
+			return;
+		}
+		setIsStatusMenuOpen(false);
+	}, [todo?.id]);
+
 	if (!todo) {
 		return (
 			<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -72,6 +121,13 @@ export function TodoDetail() {
 	const handleNotesChange = (userNotes: string) => {
 		updateTodo(todo.id, { userNotes });
 		requestAnimationFrame(adjustNotesHeight);
+	};
+
+	const handleStatusChange = (status: TodoStatus) => {
+		if (status !== todo.status) {
+			updateTodo(todo.id, { status });
+		}
+		setIsStatusMenuOpen(false);
 	};
 
 	return (
@@ -124,18 +180,48 @@ export function TodoDetail() {
 
 				{/* 元信息 */}
 				<div className="mb-6 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-					<span
-						className={cn(
-							"rounded-full border px-2 py-0.5 text-xs font-medium",
-							todo.status === "completed"
-								? "border-green-500/50 text-green-600"
-								: todo.status === "canceled"
-									? "border-gray-500/50 text-gray-500"
-									: "border-blue-500/50 text-blue-600",
+					<div className="relative" ref={statusMenuRef}>
+						<button
+							type="button"
+							onClick={() => setIsStatusMenuOpen((prev) => !prev)}
+							className={cn(
+								getStatusClassNames(todo.status),
+								"transition-colors hover:bg-muted/40",
+							)}
+							aria-expanded={isStatusMenuOpen}
+							aria-haspopup="listbox"
+						>
+							{todo.status}
+						</button>
+						{isStatusMenuOpen && (
+							<div className="absolute z-[120] mt-2 min-w-[170px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg pointer-events-auto">
+								<div className="py-1" role="listbox">
+									{statusOptions.map((status) => (
+										<button
+											key={status}
+											type="button"
+											onClick={() => handleStatusChange(status)}
+											className={cn(
+												"flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors",
+												status === todo.status
+													? "bg-muted/60 text-foreground"
+													: "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+											)}
+											role="option"
+											aria-selected={status === todo.status}
+										>
+											<span className={getStatusClassNames(status)}>
+												{status}
+											</span>
+											{status === todo.status && (
+												<span className="text-[11px] text-primary">当前</span>
+											)}
+										</button>
+									))}
+								</div>
+							</div>
 						)}
-					>
-						{todo.status}
-					</span>
+					</div>
 					{todo.deadline && (
 						<span className="flex items-center gap-1">
 							<Calendar className="h-4 w-4" />
