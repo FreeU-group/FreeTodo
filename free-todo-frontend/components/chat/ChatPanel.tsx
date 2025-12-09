@@ -14,7 +14,7 @@ import { getChatHistory, sendChatMessageStream } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useTodoStore } from "@/lib/store/todo-store";
-import type { CreateTodoInput } from "@/lib/types/todo";
+import type { CreateTodoInput, Todo } from "@/lib/types/todo";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -40,7 +40,8 @@ const createId = () => {
 export function ChatPanel() {
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
-	const { addTodo } = useTodoStore();
+	const { addTodo, todos, selectedTodoIds, clearTodoSelection } =
+		useTodoStore();
 	const buildInitialAssistantMessage = useCallback(
 		() => ({
 			id: createId(),
@@ -66,6 +67,7 @@ export function ChatPanel() {
 	const [historyError, setHistoryError] = useState<string | null>(null);
 	const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
 	const [isComposing, setIsComposing] = useState(false);
+	const [showTodosExpanded, setShowTodosExpanded] = useState(false);
 
 	const messageListRef = useRef<HTMLDivElement>(null);
 	const modeMenuRef = useRef<HTMLDivElement | null>(null);
@@ -130,6 +132,57 @@ export function ChatPanel() {
 					].join("\n"),
 		[locale],
 	);
+
+	const selectedTodos = useMemo(
+		() => todos.filter((todo) => selectedTodoIds.includes(todo.id)),
+		[selectedTodoIds, todos],
+	);
+
+	const effectiveTodos = selectedTodos.length ? selectedTodos : todos;
+	const hasSelection = selectedTodoIds.length > 0;
+
+	const buildTodoLine = useCallback(
+		(todo: Todo) => {
+			const parts: string[] = [todo.name];
+			if (todo.description) {
+				parts.push(todo.description);
+			}
+			if (todo.deadline) {
+				parts.push(
+					locale === "zh" ? `截止: ${todo.deadline}` : `Due: ${todo.deadline}`,
+				);
+			}
+			if (todo.tags?.length) {
+				parts.push(
+					`${locale === "zh" ? "标签" : "Tags"}: ${todo.tags.join(", ")}`,
+				);
+			}
+			return `- ${parts.join(" | ")}`;
+		},
+		[locale],
+	);
+
+	const buildTodoContextBlock = useCallback(
+		(list: Todo[], sourceLabel: string) => {
+			if (!list.length) {
+				return locale === "zh"
+					? "当前没有待办，聊天上下文为空。"
+					: "No todos available; chat context is empty.";
+			}
+			const header =
+				locale === "zh"
+					? `${sourceLabel}（共 ${list.length} 条）：`
+					: `${sourceLabel} (total ${list.length}):`;
+			return [header, ...list.map((item) => buildTodoLine(item))].join("\n");
+		},
+		[buildTodoLine, locale],
+	);
+
+	const previewTodos = useMemo(
+		() => (showTodosExpanded ? effectiveTodos : effectiveTodos.slice(0, 3)),
+		[effectiveTodos, showTodosExpanded],
+	);
+	const hiddenCount = Math.max(0, effectiveTodos.length - previewTodos.length);
 
 	const parsePlanTodos = useCallback(
 		(
@@ -309,8 +362,21 @@ export function ChatPanel() {
 		setInputValue("");
 		setError(null);
 
+		const todoSourceLabel = hasSelection
+			? locale === "zh"
+				? "已选待办"
+				: "Selected todos"
+			: locale === "zh"
+				? "全部待办"
+				: "All todos";
+		const todoContext = buildTodoContextBlock(effectiveTodos, todoSourceLabel);
+
+		const userLabel = locale === "zh" ? "用户输入" : "User input";
+
 		const payloadMessage =
-			chatMode === "plan" ? `${planSystemPrompt}\n\n用户输入: ${text}` : text;
+			chatMode === "plan"
+				? `${planSystemPrompt}\n\n${userLabel}: ${text}`
+				: `${todoContext}\n\n${userLabel}: ${text}`;
 		const userMessage: ChatMessage = {
 			id: createId(),
 			role: "user",
@@ -615,6 +681,72 @@ export function ChatPanel() {
 						))}
 					</div>
 				)}
+
+				<div className="mb-3 rounded-[var(--radius-panel)] border border-border bg-muted/40 px-3 py-2">
+					<div className="flex items-center justify-between gap-2">
+						<span className="text-xs font-semibold text-foreground">
+							{locale === "zh" ? "关联待办" : "Linked todos"}
+						</span>
+						<div className="flex items-center gap-2">
+							{effectiveTodos.length > 3 && (
+								<button
+									type="button"
+									onClick={() => setShowTodosExpanded((prev) => !prev)}
+									className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+								>
+									{showTodosExpanded
+										? locale === "zh"
+											? "收起"
+											: "Collapse"
+										: locale === "zh"
+											? "展开"
+											: "Expand"}
+								</button>
+							)}
+							{hasSelection && (
+								<button
+									type="button"
+									onClick={clearTodoSelection}
+									className="text-[11px] text-blue-600 hover:text-blue-700 transition-colors"
+								>
+									{locale === "zh" ? "清空选择" : "Clear selection"}
+								</button>
+							)}
+						</div>
+					</div>
+					<div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-foreground">
+						{effectiveTodos.length === 0 ? (
+							<span className="text-muted-foreground">
+								{locale === "zh"
+									? "暂无待办，上下文为空"
+									: "No todos; context is empty"}
+							</span>
+						) : (
+							<>
+								<span className="text-muted-foreground">
+									{hasSelection
+										? locale === "zh"
+											? `使用已选待办（${effectiveTodos.length}）`
+											: `Using selected todos (${effectiveTodos.length})`
+										: locale === "zh"
+											? `将使用全部待办（共 ${effectiveTodos.length} 条）`
+											: `Using all todos (${effectiveTodos.length})`}
+								</span>
+								{previewTodos.map((todo) => (
+									<span
+										key={todo.id}
+										className="rounded-full border border-border bg-background px-2 py-1 text-foreground"
+									>
+										{todo.name}
+									</span>
+								))}
+								{hiddenCount > 0 && (
+									<span className="text-muted-foreground">+{hiddenCount}</span>
+								)}
+							</>
+						)}
+					</div>
+				</div>
 
 				<div className="flex items-end gap-2">
 					<div className="relative" ref={modeMenuRef}>

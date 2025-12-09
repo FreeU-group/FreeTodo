@@ -47,16 +47,19 @@ interface TodoCardProps {
 	isDragging?: boolean;
 	selected?: boolean;
 	isOverlay?: boolean;
+	onSelect: (e: React.MouseEvent<HTMLDivElement>) => void;
+	onSelectSingle: () => void;
 }
 
-function TodoCard({ todo, isDragging, selected, isOverlay }: TodoCardProps) {
-	const {
-		toggleTodoStatus,
-		deleteTodo,
-		setSelectedTodoId,
-		updateTodo,
-		addTodo,
-	} = useTodoStore();
+function TodoCard({
+	todo,
+	isDragging,
+	selected,
+	isOverlay,
+	onSelect,
+	onSelectSingle,
+}: TodoCardProps) {
+	const { toggleTodoStatus, deleteTodo, updateTodo, addTodo } = useTodoStore();
 	const [contextMenu, setContextMenu] = useState({
 		open: false,
 		x: 0,
@@ -162,7 +165,7 @@ function TodoCard({ todo, isDragging, selected, isOverlay }: TodoCardProps) {
 	const openContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
 		event.preventDefault();
 		event.stopPropagation();
-		setSelectedTodoId(todo.id);
+		onSelectSingle();
 
 		const menuWidth = 180;
 		const menuHeight = 90;
@@ -199,13 +202,13 @@ function TodoCard({ todo, isDragging, selected, isOverlay }: TodoCardProps) {
 				style={style}
 				role="button"
 				tabIndex={0}
-				onClick={() => setSelectedTodoId(todo.id)}
+				onClick={onSelect}
 				data-state={selected ? "selected" : "default"}
 				onContextMenu={openContextMenu}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
 						e.preventDefault();
-						setSelectedTodoId(todo.id);
+						onSelectSingle();
 					}
 				}}
 				className={cn(
@@ -426,7 +429,14 @@ function TodoCard({ todo, isDragging, selected, isOverlay }: TodoCardProps) {
 }
 
 export function TodoList() {
-	const { todos, reorderTodos, addTodo, selectedTodoId } = useTodoStore();
+	const {
+		todos,
+		reorderTodos,
+		addTodo,
+		selectedTodoIds,
+		setSelectedTodoId,
+		toggleTodoSelection,
+	} = useTodoStore();
 	const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [activeId, setActiveId] = useState<string | null>(null);
@@ -539,6 +549,18 @@ export function TodoList() {
 
 	const handleDragCancel = () => {
 		setActiveId(null);
+	};
+
+	const handleSelect = (
+		todoId: string,
+		event: React.MouseEvent<HTMLDivElement>,
+	) => {
+		const isMulti = event.metaKey || event.ctrlKey;
+		if (isMulti) {
+			toggleTodoSelection(todoId);
+		} else {
+			setSelectedTodoId(todoId);
+		}
 	};
 
 	const handleCreateTodo = (e?: React.FormEvent) => {
@@ -676,7 +698,9 @@ export function TodoList() {
 										<TodoCard
 											todo={todo}
 											isDragging={activeId === todo.id}
-											selected={selectedTodoId === todo.id}
+											selected={selectedTodoIds.includes(todo.id)}
+											onSelect={(event) => handleSelect(todo.id, event)}
+											onSelectSingle={() => setSelectedTodoId(todo.id)}
 										/>
 									</div>
 								))}
@@ -692,7 +716,9 @@ export function TodoList() {
 									<TodoCard
 										todo={activeTodo}
 										isDragging
-										selected={selectedTodoId === activeTodo.id}
+										selected={selectedTodoIds.includes(activeTodo.id)}
+										onSelect={(event) => handleSelect(activeTodo.id, event)}
+										onSelectSingle={() => setSelectedTodoId(activeTodo.id)}
 									/>
 								</div>
 							) : null}

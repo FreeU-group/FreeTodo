@@ -6,12 +6,16 @@ import type { CreateTodoInput, Todo, UpdateTodoInput } from "@/lib/types/todo";
 interface TodoStoreState {
 	todos: Todo[];
 	selectedTodoId: string | null;
+	selectedTodoIds: string[];
 	addTodo: (input: CreateTodoInput) => Todo;
 	updateTodo: (id: string, input: UpdateTodoInput) => void;
 	deleteTodo: (id: string) => void;
 	toggleTodoStatus: (id: string) => void;
 	reorderTodos: (newOrder: string[]) => void;
 	setSelectedTodoId: (id: string | null) => void;
+	setSelectedTodoIds: (ids: string[]) => void;
+	toggleTodoSelection: (id: string) => void;
+	clearTodoSelection: () => void;
 }
 
 const generateId = () => {
@@ -22,7 +26,30 @@ const todoStoreCreator: StateCreator<TodoStoreState> = persist<TodoStoreState>(
 	(set) => ({
 		todos: [],
 		selectedTodoId: null,
-		setSelectedTodoId: (id) => set({ selectedTodoId: id }),
+		selectedTodoIds: [],
+		setSelectedTodoId: (id) =>
+			set({
+				selectedTodoId: id,
+				selectedTodoIds: id ? [id] : [],
+			}),
+		setSelectedTodoIds: (ids) =>
+			set({
+				selectedTodoIds: ids,
+				selectedTodoId: ids[0] ?? null,
+			}),
+		toggleTodoSelection: (id) =>
+			set((state) => {
+				const exists = state.selectedTodoIds.includes(id);
+				const nextIds = exists
+					? state.selectedTodoIds.filter((item) => item !== id)
+					: [...state.selectedTodoIds, id];
+				return {
+					selectedTodoIds: nextIds,
+					selectedTodoId: nextIds[0] ?? null,
+				};
+			}),
+		clearTodoSelection: () =>
+			set({ selectedTodoId: null, selectedTodoIds: [] }),
 		addTodo: (input) => {
 			const now = new Date().toISOString();
 			const newTodo: Todo = {
