@@ -7,5 +7,10 @@
 				"useSemanticElements": "off"
 			}
 		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
 	}
 }

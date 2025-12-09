@@ -25,6 +25,7 @@ export interface Todo {
 }
 
 export interface CreateTodoInput {
+	id?: string;
 	name: string;
 	description?: string;
 	userNotes?: string;
@@ -32,6 +33,7 @@ export interface CreateTodoInput {
 	tags?: string[];
 	attachments?: TodoAttachment[];
 	parentTodoId?: string | null;
+	childTodoIds?: string[];
 	relatedActivities?: string[];
 	status?: TodoStatus;
 }

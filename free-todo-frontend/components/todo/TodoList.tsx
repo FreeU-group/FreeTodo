@@ -200,6 +200,7 @@ function TodoCard({ todo, isDragging, selected, isOverlay }: TodoCardProps) {
 				role="button"
 				tabIndex={0}
 				onClick={() => setSelectedTodoId(todo.id)}
+				data-state={selected ? "selected" : "default"}
 				onContextMenu={openContextMenu}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
@@ -208,8 +209,7 @@ function TodoCard({ todo, isDragging, selected, isOverlay }: TodoCardProps) {
 					}
 				}}
 				className={cn(
-					"group relative flex h-full flex-col gap-3 rounded-xl bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/5 hover:ring-1 hover:ring-primary/25 cursor-pointer",
-					selected && "bg-primary/8 ring-2 ring-primary/40",
+					"todo-card group relative flex h-full flex-col gap-3 rounded-xl p-4 cursor-pointer",
 					isDragging && "ring-2 ring-primary/30",
 				)}
 			>
