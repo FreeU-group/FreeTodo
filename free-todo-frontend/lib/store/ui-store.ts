@@ -63,7 +63,7 @@ export const useUiStore = create<UiStoreState>((set, get) => ({
 	// 位置槽位初始状态
 	isPanelAOpen: true,
 	isPanelBOpen: true,
-	isPanelCOpen: false,
+	isPanelCOpen: true,
 	panelAWidth: 0.5,
 	panelCWidth: 0.3,
 	// 动态功能分配初始状态：默认分配
