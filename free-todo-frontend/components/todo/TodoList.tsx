@@ -519,7 +519,7 @@ export function TodoList() {
 			{isCreateModalOpen && (
 				<button
 					type="button"
-					className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 border-0 p-0 cursor-default"
+					className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 border-0 cursor-default"
 					onClick={() => setIsCreateModalOpen(false)}
 					onKeyDown={(e) => {
 						if (e.key === "Escape") {
