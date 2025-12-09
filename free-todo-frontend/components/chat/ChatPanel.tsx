@@ -9,7 +9,7 @@ import {
 	Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ChatSessionSummary } from "@/lib/api";
+import type { ChatHistoryItem, ChatSessionSummary } from "@/lib/api";
 import { getChatHistory, sendChatMessageStream } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
@@ -28,6 +28,7 @@ type ParsedTodo = Pick<
 	CreateTodoInput,
 	"name" | "description" | "tags" | "deadline"
 >;
+type ParsedTodoTree = ParsedTodo & { subtasks?: ParsedTodoTree[] };
 
 const createId = () => {
 	if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -64,6 +65,7 @@ export function ChatPanel() {
 	const [historyLoading, setHistoryLoading] = useState(false);
 	const [historyError, setHistoryError] = useState<string | null>(null);
 	const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
+	const [isComposing, setIsComposing] = useState(false);
 
 	const messageListRef = useRef<HTMLDivElement>(null);
 	const modeMenuRef = useRef<HTMLDivElement | null>(null);
@@ -115,16 +117,16 @@ export function ChatPanel() {
 		() =>
 			locale === "zh"
 				? [
-						"你是任务规划助手，请先用简洁自然语言给出说明，然后输出一个 JSON，字段为 todos (数组)。",
-						"JSON 每个待办包含：name(必填)、description(可选)、tags(可选字符串数组)、deadline(可选 ISO 日期字符串)。",
-						"如果无法生成待办，返回空数组，但仍给出解释。",
-						"只输出一个 JSON，对可读内容可放在 JSON 之外或上方。JSON 可用 ```json ``` 包裹。",
+						"你是任务规划助手：请先简短说明，再输出一个 JSON 对象，字段为 todos（数组）。",
+						"每个 todo: name(必填)、description(可选)、tags(可选字符串数组)、deadline(可选 ISO 8601)、subtasks(可选数组，结构同上)。",
+						"若用户只有单一意图，用 1 个根任务，其余步骤放到 subtasks；若存在多个不同意图，则使用多个根任务并在各自 subtasks 中细化。",
+						"无法生成待办时，返回空数组并解释原因。只输出一个 JSON，可用 ```json ``` 包裹，JSON 外可保留可读解释。",
 					].join("\n")
 				: [
-						"You are a planning assistant. Give a short natural language explanation, then output ONE JSON object with key `todos` (array).",
-						"Each todo: name (required), description (optional), tags (optional string array), deadline (optional ISO date string).",
-						"If no tasks, return an empty array but still explain.",
-						"Only one JSON. It can be wrapped in ```json ```.",
+						"You are a planning assistant: give a brief explanation, then output ONE JSON object with key `todos` (array).",
+						"Each todo: name (required), description (optional), tags (optional string array), deadline (optional ISO 8601), subtasks (optional array with same shape).",
+						"If the prompt has a single intent, produce one root todo and put steps in subtasks; if multiple distinct intents, use multiple root todos with their own subtasks.",
+						"If nothing actionable, return an empty array but explain. Only one JSON, may be wrapped in ```json ```, natural text may appear outside.",
 					].join("\n"),
 		[locale],
 	);
@@ -133,7 +135,7 @@ export function ChatPanel() {
 		(
 			content: string,
 		): {
-			todos: ParsedTodo[];
+			todos: ParsedTodoTree[];
 			error: string | null;
 		} => {
 			const findJson = () => {
@@ -162,14 +164,12 @@ export function ChatPanel() {
 			try {
 				const parsed = JSON.parse(jsonText);
 				const rawTodos = Array.isArray(parsed?.todos) ? parsed.todos : [];
-				const todos: ParsedTodo[] = [];
-
-				rawTodos.forEach((item: unknown) => {
+				const normalizeTodo = (item: unknown): ParsedTodoTree | null => {
 					if (!item || typeof (item as { name?: unknown }).name !== "string") {
-						return;
+						return null;
 					}
 					const rawName = (item as { name: string }).name.trim();
-					if (!rawName) return;
+					if (!rawName) return null;
 
 					const rawDescription = (item as { description?: unknown })
 						.description;
@@ -192,13 +192,28 @@ export function ChatPanel() {
 							? rawDeadline.trim()
 							: undefined;
 
-					todos.push({
+					const rawSubtasks = (item as { subtasks?: unknown }).subtasks;
+					const subtasks = Array.isArray(rawSubtasks)
+						? rawSubtasks
+								.map((task: unknown) => normalizeTodo(task))
+								.filter((task): task is ParsedTodoTree => Boolean(task))
+						: undefined;
+
+					return {
 						name: rawName,
 						description,
 						tags,
 						deadline,
-					});
-				});
+						subtasks,
+					};
+				};
+
+				const todos: ParsedTodoTree[] = rawTodos
+					.map((item: unknown) => normalizeTodo(item))
+					.filter(
+						(item: ParsedTodoTree | null | undefined): item is ParsedTodoTree =>
+							Boolean(item),
+					);
 
 				if (!todos.length) {
 					return {
@@ -224,6 +239,28 @@ export function ChatPanel() {
 		},
 		[locale],
 	);
+
+	const buildTodoPayloads = useCallback((trees: ParsedTodoTree[]) => {
+		const payloads: CreateTodoInput[] = [];
+		const walk = (nodes: ParsedTodoTree[], parentId?: string | null) => {
+			nodes.forEach((node) => {
+				const id = createId();
+				payloads.push({
+					id,
+					name: node.name,
+					description: node.description,
+					tags: node.tags,
+					deadline: node.deadline,
+					parentTodoId: parentId ?? null,
+				});
+				if (node.subtasks?.length) {
+					walk(node.subtasks, id);
+				}
+			});
+		};
+		walk(trees, null);
+		return payloads;
+	}, []);
 
 	const fetchSessions = useCallback(async () => {
 		setHistoryLoading(true);
@@ -333,13 +370,14 @@ export function ChatPanel() {
 					);
 					setError(parseError);
 				} else {
-					for (const todo of todos) {
+					const payloads = buildTodoPayloads(todos);
+					payloads.forEach((todo) => {
 						addTodo(todo);
-					}
+					});
 					const addedText =
 						locale === "zh"
-							? `已添加 ${todos.length} 条待办到列表。`
-							: `Added ${todos.length} todos to the list.`;
+							? `已添加 ${payloads.length} 条待办到列表。`
+							: `Added ${payloads.length} todos to the list.`;
 					setMessages((prev) =>
 						prev.map((msg) =>
 							msg.id === assistantMessageId
@@ -372,7 +410,7 @@ export function ChatPanel() {
 		try {
 			const res = await getChatHistory(sessionId, 100);
 			const history = res.history || [];
-			const mapped = history.map((item) => ({
+			const mapped = history.map((item: ChatHistoryItem) => ({
 				id: createId(),
 				role: item.role,
 				content: item.content,
@@ -395,7 +433,12 @@ export function ChatPanel() {
 	};
 
 	const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (event.key === "Enter" && !event.shiftKey) {
+		if (
+			event.key === "Enter" &&
+			!event.shiftKey &&
+			!isComposing &&
+			!event.nativeEvent.isComposing
+		) {
 			event.preventDefault();
 			handleSend();
 		}
@@ -461,7 +504,7 @@ export function ChatPanel() {
 						<p className="text-xs text-red-500">{historyError}</p>
 					)}
 					{!historyError && (
-						<div className="space-y-2">
+						<div className="max-h-72 space-y-2 overflow-y-auto pr-1">
 							{!historyLoading && sessions.length === 0 ? (
 								<p className="text-xs text-muted-foreground">
 									{t.page.noHistory}
@@ -649,6 +692,8 @@ export function ChatPanel() {
 					<textarea
 						value={inputValue}
 						onChange={(e) => setInputValue(e.target.value)}
+						onCompositionStart={() => setIsComposing(true)}
+						onCompositionEnd={() => setIsComposing(false)}
 						onKeyDown={handleKeyDown}
 						placeholder={inputPlaceholder}
 						rows={2}
