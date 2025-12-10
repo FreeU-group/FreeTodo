@@ -38,14 +38,13 @@ class EventManager:
     ) -> bool:
         """判断是否应该复用事件
 
-        简化规则：
-        - 应用名相同 → 复用事件（允许窗口标题变化）
-        - 应用名不同 → 创建新事件
+        规则：
+        - 应用名相同 且 窗口标题相同 → 复用事件
+        - 应用名不同 或 窗口标题不同 → 创建新事件
 
         这样：
-        - 在同一个应用内的所有操作 → 同一事件
-        - 切换到不同应用 → 不同事件
-        - 窗口标题变化时，更新事件的窗口标题为最新的
+        - 只有当应用名和窗口标题都相同时，才复用事件
+        - 无论是应用名还是窗口标题变化，都会创建新事件
 
         Args:
             old_app: 旧应用名
@@ -59,17 +58,21 @@ class EventManager:
         # 标准化处理
         old_app_norm = (old_app or "").strip().lower()
         new_app_norm = (new_app or "").strip().lower()
+        old_title_norm = (old_title or "").strip()
+        new_title_norm = (new_title or "").strip()
 
         # 应用名不同 → 不复用，需要创建新事件
         if old_app_norm != new_app_norm:
-            logger.info(f"🔄 应用切换: {old_app} → {new_app}")
+            logger.info(f"🔄 应用切换: {old_app} → {new_app} (创建新事件)")
             return False
 
-        # 应用名相同 → 复用事件
-        # 窗口标题变化是正常的，在复用逻辑中会更新标题
-        if old_title != new_title:
-            logger.info(f"📝 窗口标题变化: {old_title} → {new_title} (复用事件)")
+        # 窗口标题不同 → 不复用，需要创建新事件
+        if old_title_norm != new_title_norm:
+            logger.info(f"📝 窗口标题变化: {old_title} → {new_title} (创建新事件)")
+            return False
 
+        # 应用名和窗口标题都相同 → 复用事件
+        logger.info("♻️  应用名和窗口标题都相同，复用事件")
         return True
 
     def get_active_event(self) -> int | None:
@@ -131,12 +134,7 @@ class EventManager:
                     logger.info(f"📊 事件复用判断结果: {should_reuse}")
 
                     if should_reuse:
-                        # 复用事件，更新窗口标题为最新的，不设置 end_time
-                        if window_title and window_title != last_event.window_title:
-                            logger.info(
-                                f"📝 更新事件 {last_event.id} 窗口标题: {last_event.window_title} → {window_title}"
-                            )
-                            last_event.window_title = window_title
+                        # 复用事件（应用名和窗口标题都相同），不设置 end_time
                         session.flush()
                         logger.info(f"♻️  复用事件 {last_event.id}（不关闭）")
                         return last_event.id
@@ -682,8 +680,9 @@ class EventManager:
 
                     app_usage_summary[app_name]["total_time"] += duration
                     app_usage_summary[app_name]["session_count"] += 1
-                    if event.end_time > app_usage_summary[app_name]["last_used"]:
-                        app_usage_summary[app_name]["last_used"] = event.end_time
+                    app_usage_summary[app_name]["last_used"] = max(
+                        app_usage_summary[app_name]["last_used"], event.end_time
+                    )
 
                     # 每日使用统计
                     if date_str not in daily_usage:
