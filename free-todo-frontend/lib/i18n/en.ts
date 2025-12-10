@@ -52,6 +52,8 @@ export const en: Translation = {
 		settingsPlaceholder: "Placeholder: plug a settings component here",
 		achievementsLabel: "Achievements",
 		achievementsPlaceholder: "Placeholder: plug an achievements component here",
+		screenshotsLabel: "Screenshots (Debug)",
+		screenshotsPlaceholder: "Event timeline with screenshots (dev mode only)",
 		debugShotsLabel: "Debug Shots",
 		debugShotsPlaceholder:
 			"Placeholder: manage debugging screenshots (dev mode only)",
@@ -64,6 +66,7 @@ export const en: Translation = {
 		diary: "Diary",
 		settings: "Settings",
 		achievements: "Achievements",
+		screenshots: "Screenshots",
 		debugShots: "Debug Shots",
 	},
 };

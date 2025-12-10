@@ -51,6 +51,8 @@ export const zh: Translation = {
 		settingsPlaceholder: "占位：在这里接入设置组件",
 		achievementsLabel: "成就",
 		achievementsPlaceholder: "占位：在这里接入成就组件",
+		screenshotsLabel: "截图管理（调试）",
+		screenshotsPlaceholder: "事件时间轴与截图展示（仅开发模式可见）",
 		debugShotsLabel: "截图管理（调试）",
 		debugShotsPlaceholder:
 			"占位：用于截图采集/管理的调试面板（仅开发模式可见）",
@@ -63,6 +65,7 @@ export const zh: Translation = {
 		diary: "日记",
 		settings: "设置",
 		achievements: "成就",
+		screenshots: "截图",
 		debugShots: "截图调试",
 	},
 };

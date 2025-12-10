@@ -65,9 +65,13 @@ const CORE_FEATURE_ICON_MAP: Record<CorePanelFeature, LucideIcon> = {
 	achievements: Award,
 };
 
+const DEV_FEATURE_ICON_MAP: Record<DevPanelFeature, LucideIcon> = {
+	debugShots: Camera,
+};
+
 export const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = IS_DEV_ENV
 	? {
 			...CORE_FEATURE_ICON_MAP,
-			debugShots: Camera,
+			...DEV_FEATURE_ICON_MAP,
 		}
 	: (CORE_FEATURE_ICON_MAP as Record<PanelFeature, LucideIcon>);

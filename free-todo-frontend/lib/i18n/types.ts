@@ -44,6 +44,8 @@ export type Translation = {
 		settingsPlaceholder: string;
 		achievementsLabel: string;
 		achievementsPlaceholder: string;
+		screenshotsLabel: string;
+		screenshotsPlaceholder: string;
 		debugShotsLabel: string;
 		debugShotsPlaceholder: string;
 	};
@@ -55,6 +57,7 @@ export type Translation = {
 		diary: string;
 		settings: string;
 		achievements: string;
+		screenshots: string;
 		debugShots: string;
 	};
 };
