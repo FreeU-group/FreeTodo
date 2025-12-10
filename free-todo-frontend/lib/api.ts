@@ -1,3 +1,5 @@
+import type { Activity } from "@/lib/types/activity";
+
 // 获取 API 基础 URL
 // 在客户端使用相对路径，通过 Next.js rewrites 代理到后端（避免 CORS）
 // 在服务端使用完整 URL
@@ -117,6 +119,79 @@ export async function getChatHistory(
 	return response.json();
 }
 
+// 活动相关 API
+export async function getActivities(params?: {
+	limit?: number;
+	offset?: number;
+	start_date?: string;
+	end_date?: string;
+}): Promise<{
+	data?: {
+		activities?: Activity[];
+		total_count?: number;
+	};
+}> {
+	const queryParams = new URLSearchParams();
+	if (params?.limit) queryParams.append("limit", String(params.limit));
+	if (params?.offset) queryParams.append("offset", String(params.offset));
+	if (params?.start_date) queryParams.append("start_date", params.start_date);
+	if (params?.end_date) queryParams.append("end_date", params.end_date);
+
+	const query = queryParams.toString();
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const url = `${baseUrl}/api/activities${query ? `?${query}` : ""}`;
+
+	const response = await fetch(url, {
+		headers: {
+			"Content-Type": "application/json",
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	const json = await response.json();
+	// 后端返回形态为 { activities, total_count }
+	if (json?.activities) {
+		return {
+			data: { activities: json.activities, total_count: json.total_count },
+		};
+	}
+	return json;
+}
+
+export async function getActivityEvents(
+	activityId: number,
+): Promise<{ data?: { event_ids?: number[] } }> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const response = await fetch(
+		`${baseUrl}/api/activities/${activityId}/events`,
+		{
+			headers: {
+				"Content-Type": "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	const json = await response.json();
+	// 后端返回形态为 { event_ids: [...] }
+	if (json && Array.isArray(json.event_ids)) {
+		return { data: { event_ids: json.event_ids } };
+	}
+	return json;
+}
+
 // 事件相关 API
 export async function getEvents(params?: {
 	limit?: number;
@@ -216,5 +291,3 @@ export function getScreenshotImage(id: number): string {
 			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 	return `${baseUrl}/api/screenshots/${id}/image`;
 }
-
-export { API_BASE_URL };

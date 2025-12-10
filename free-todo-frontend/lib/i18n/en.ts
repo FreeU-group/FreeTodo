@@ -21,6 +21,8 @@ export const en: Translation = {
 			"Calendar and Todos view side by side. Toggle via bottom dock and resize panels by dragging the handle.",
 		calendarLabel: "Calendar View",
 		calendarPlaceholder: "Placeholder: plug a calendar component here",
+		activityLabel: "Activity Stream",
+		activityPlaceholder: "Placeholder: plug an activity dashboard here",
 		todosLabel: "Todos View",
 		todosPlaceholder: "Placeholder: plug a Todo list here",
 		chatLabel: "AI Chat",
@@ -60,6 +62,7 @@ export const en: Translation = {
 	},
 	bottomDock: {
 		calendar: "Calendar",
+		activity: "Activity",
 		todos: "Todos",
 		chat: "Chat",
 		todoDetail: "Todo Detail",

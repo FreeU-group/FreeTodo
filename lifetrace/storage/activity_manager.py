@@ -114,6 +114,24 @@ class ActivityManager:
             logger.error(f"查询活动列表失败: {e}")
             return []
 
+    def count_activities(
+        self,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> int:
+        """统计活动总数"""
+        try:
+            with self.db_base.get_session() as session:
+                q = session.query(Activity).filter(Activity.deleted_at.is_(None))
+                if start_date:
+                    q = q.filter(Activity.start_time >= start_date)
+                if end_date:
+                    q = q.filter(Activity.start_time <= end_date)
+                return q.count()
+        except SQLAlchemyError as e:
+            logger.error(f"统计活动数量失败: {e}")
+            return 0
+
     def get_activity_events(self, activity_id: int) -> list[int]:
         """获取活动关联的事件ID列表
 

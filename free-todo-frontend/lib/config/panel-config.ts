@@ -5,6 +5,7 @@
  */
 
 import {
+	Activity,
 	Award,
 	BookOpen,
 	CalendarDays,
@@ -21,6 +22,7 @@ const IS_DEV_ENV = process.env.NODE_ENV === "development";
 export type PanelPosition = "panelA" | "panelB" | "panelC";
 export type CorePanelFeature =
 	| "calendar"
+	| "activity"
 	| "todos"
 	| "chat"
 	| "todoDetail"
@@ -32,6 +34,7 @@ export type PanelFeature = CorePanelFeature | DevPanelFeature;
 
 const CORE_PANEL_FEATURES: CorePanelFeature[] = [
 	"calendar",
+	"activity",
 	"todos",
 	"chat",
 	"todoDetail",
@@ -57,6 +60,7 @@ export const IS_DEV_FEATURE_ENABLED = IS_DEV_ENV;
  */
 const CORE_FEATURE_ICON_MAP: Record<CorePanelFeature, LucideIcon> = {
 	calendar: CalendarDays,
+	activity: Activity,
 	todos: LayoutPanelLeft,
 	chat: MessageSquare,
 	todoDetail: FileText,

@@ -9,6 +9,7 @@ from lifetrace.jobs.ocr import SimpleOCRProcessor
 from lifetrace.llm.rag_service import RAGService
 from lifetrace.llm.vector_service import create_vector_service
 from lifetrace.routers import (
+    activity,
     chat,
     context,
     cost_tracking,
@@ -118,6 +119,7 @@ deps.init_dependencies(
 app.include_router(health.router)
 app.include_router(config_router.router)
 app.include_router(chat.router)
+app.include_router(activity.router)
 app.include_router(search.router)
 app.include_router(screenshot.router)
 app.include_router(event.router)

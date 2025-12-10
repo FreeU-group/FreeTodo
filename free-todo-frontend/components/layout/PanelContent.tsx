@@ -1,6 +1,7 @@
 "use client";
 
 import { AchievementsPanel } from "@/components/achievements/AchievementsPanel";
+import { ActivityPanel } from "@/components/activity/ActivityPanel";
 import { CalendarPanel } from "@/components/calendar/CalendarPanel";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { TodoDetail } from "@/components/todo/TodoDetail";
@@ -35,6 +36,7 @@ export function PanelContent({ position }: PanelContentProps) {
 		if (!feat) return "";
 		const labelMap: Record<string, string> = {
 			calendar: t.page.calendarLabel,
+			activity: t.page.activityLabel,
 			todos: t.page.todosLabel,
 			chat: t.page.chatLabel,
 			todoDetail: t.page.todoDetailLabel,
@@ -51,6 +53,7 @@ export function PanelContent({ position }: PanelContentProps) {
 		if (!feat) return "";
 		const placeholderMap: Record<string, string> = {
 			calendar: t.page.calendarPlaceholder,
+			activity: t.page.activityPlaceholder,
 			todos: t.page.todosPlaceholder,
 			chat: t.page.chatPlaceholder,
 			todoDetail: t.page.todoDetailPlaceholder,
@@ -73,6 +76,11 @@ export function PanelContent({ position }: PanelContentProps) {
 	// 如果是日历功能，显示日历组件
 	if (feature === "calendar") {
 		return <CalendarPanel />;
+	}
+
+	// 如果是活动功能，显示活动面板
+	if (feature === "activity") {
+		return <ActivityPanel />;
 	}
 
 	// 如果是成就功能，显示成就组件

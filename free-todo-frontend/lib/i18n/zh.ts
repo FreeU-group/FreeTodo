@@ -21,6 +21,8 @@ export const zh: Translation = {
 			"日历视图与待办视图并列排布，可通过底部 Dock 快速切换与组合，并支持拖拽调整宽度。",
 		calendarLabel: "日历视图",
 		calendarPlaceholder: "占位：在这里接入日历组件",
+		activityLabel: "活动流",
+		activityPlaceholder: "占位：在这里接入活动流仪表盘",
 		todosLabel: "待办视图",
 		todosPlaceholder: "占位：在这里接入 Todo 待办",
 		chatLabel: "AI 聊天",
@@ -59,6 +61,7 @@ export const zh: Translation = {
 	},
 	bottomDock: {
 		calendar: "日历",
+		activity: "活动",
 		todos: "待办",
 		chat: "聊天",
 		todoDetail: "待办详情",
