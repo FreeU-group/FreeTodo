@@ -64,7 +64,7 @@ async def get_screenshot(screenshot_id: int):
     # 获取OCR结果
     ocr_data = None
     try:
-        with get_session.get_session() as session:
+        with get_session() as session:
             from lifetrace.storage.models import OCRResult
 
             ocr_result = session.query(OCRResult).filter_by(screenshot_id=screenshot_id).first()
