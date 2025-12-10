@@ -183,62 +183,156 @@ def create_activity_for_window(window_start: datetime, window_events: list[Event
         return False
 
 
+def _calculate_target_window(now: datetime) -> tuple[datetime, datetime] | None:
+    """计算目标处理窗口
+
+    Args:
+        now: 当前时间
+
+    Returns:
+        (window_start, window_end) 或 None（如果窗口尚未完成）
+    """
+    window_end = round_to_15_minutes(now)
+    window_start = window_end - timedelta(minutes=15)
+    safety_gap = timedelta(minutes=1)  # 留出1分钟缓冲，避免正在结束的事件
+
+    if now < window_end + safety_gap:
+        logger.info("当前窗口尚未完全结束，跳过本次聚合")
+        return None
+
+    return window_start, window_end
+
+
+def _filter_events_in_window(
+    events: list[Event], window_start: datetime, window_end: datetime
+) -> list[Event]:
+    """过滤出落在目标窗口内的事件
+
+    Args:
+        events: 事件列表
+        window_start: 窗口开始时间
+        window_end: 窗口结束时间
+
+    Returns:
+        窗口内的事件列表
+    """
+    events_in_window = []
+    for e in events:
+        if not e.end_time:
+            continue
+        # 事件结束时间必须在窗口内；开始时间只需早于窗口结束即可
+        if window_start <= e.end_time <= window_end and e.start_time < window_end:
+            events_in_window.append(e)
+    return events_in_window
+
+
+def _separate_long_and_short_events(
+    events: list[Event],
+) -> tuple[list[Event], list[Event]]:
+    """分离长事件和短事件
+
+    Args:
+        events: 事件列表
+
+    Returns:
+        (长事件列表, 短事件列表)
+    """
+    long_events = [e for e in events if is_long_event(e)]
+    short_events = [e for e in events if not is_long_event(e)]
+    return long_events, short_events
+
+
+def _process_long_events(long_events: list[Event]) -> int:
+    """处理长事件，为每个长事件单独创建活动
+
+    Args:
+        long_events: 长事件列表
+
+    Returns:
+        成功处理的长事件数量
+    """
+    long_event_count = 0
+    for event in long_events:
+        if activity_mgr.activity_exists_for_event(event):
+            logger.debug(f"长事件 {event.id} 已关联到活动，跳过")
+            continue
+
+        if create_activity_for_long_event(event):
+            long_event_count += 1
+
+    return long_event_count
+
+
+def _process_short_events(short_events: list[Event], window_start: datetime) -> tuple[int, int]:
+    """处理短事件，按窗口聚合
+
+    Args:
+        short_events: 短事件列表
+        window_start: 窗口开始时间
+
+    Returns:
+        (成功处理的窗口数, 处理的事件数)
+    """
+    unprocessed_short_events = [
+        e for e in short_events if not activity_mgr.activity_exists_for_event(e)
+    ]
+
+    if not unprocessed_short_events:
+        return 0, 0
+
+    grouped_events = {window_start: unprocessed_short_events}
+    window_count = 0
+    for ws, window_events in grouped_events.items():
+        if create_activity_for_window(ws, window_events):
+            window_count += 1
+
+    return window_count, len(unprocessed_short_events)
+
+
 def execute_activity_aggregation_task():
-    """执行活动聚合任务"""
+    """执行活动聚合任务
+
+    只处理“已结束的15分钟窗口”，避免在窗口刚开始时就生成活动导致未来事件无法合并。
+    """
     try:
         logger.info("开始执行活动聚合任务")
 
-        # 1. 计算查询时间范围（过去一段时间，确保覆盖所有待处理事件）
         now = datetime.now()
-        query_start_time = now - timedelta(hours=QUERY_LOOKBACK_HOURS)
+        window_result = _calculate_target_window(now)
+        if not window_result:
+            return
 
-        # 2. 查询已完成且有AI总结且未关联到活动的事件
+        window_start, window_end = window_result
+
+        # 查询近1小时未处理事件
+        query_start_time = now - timedelta(hours=QUERY_LOOKBACK_HOURS)
         events = activity_mgr.get_unprocessed_events(query_start_time)
 
-        # 3. 边界情况检查
         if not events:
             logger.debug("无待处理事件，跳过")
             return
 
-        logger.info(f"找到 {len(events)} 个待处理事件")
+        # 过滤窗口内的事件
+        events_in_window = _filter_events_in_window(events, window_start, window_end)
+        if not events_in_window:
+            logger.debug(f"窗口 {window_start} ~ {window_end} 内无可处理事件，跳过")
+            return
 
-        # 4. 分离长事件和短事件
-        long_events = [e for e in events if is_long_event(e)]  # >= 30分钟
-        short_events = [e for e in events if not is_long_event(e)]  # < 30分钟
+        logger.info(f"窗口 {window_start} ~ {window_end} 待处理事件 {len(events_in_window)} 个")
 
+        # 分离长事件和短事件
+        long_events, short_events = _separate_long_and_short_events(events_in_window)
         logger.info(f"长事件: {len(long_events)} 个，短事件: {len(short_events)} 个")
 
-        # 5. 处理长事件（单独创建活动）
-        long_event_count = 0
-        for event in long_events:
-            # 检查是否已关联
-            if activity_mgr.activity_exists_for_event(event):
-                logger.debug(f"长事件 {event.id} 已关联到活动，跳过")
-                continue
-
-            if create_activity_for_long_event(event):
-                long_event_count += 1
-
+        # 处理长事件
+        long_event_count = _process_long_events(long_events)
         logger.info(f"成功处理 {long_event_count} 个长事件")
 
-        # 6. 处理短事件（按15分钟窗口聚合）
-        # 先过滤掉已关联的短事件
-        unprocessed_short_events = [
-            e for e in short_events if not activity_mgr.activity_exists_for_event(e)
-        ]
-
-        if unprocessed_short_events:
-            # 按窗口分组
-            grouped_events = group_short_events_by_window(unprocessed_short_events)
-
-            # 对每个窗口进行处理
-            window_count = 0
-            for window_start, window_events in grouped_events.items():
-                if create_activity_for_window(window_start, window_events):
-                    window_count += 1
-
+        # 处理短事件
+        window_count, processed_event_count = _process_short_events(short_events, window_start)
+        if processed_event_count > 0:
             logger.info(
-                f"成功处理 {window_count} 个时间窗口，包含 {len(unprocessed_short_events)} 个短事件"
+                f"成功处理 {window_count} 个时间窗口，包含 {processed_event_count} 个短事件"
             )
 
         logger.info("活动聚合任务执行完成")
