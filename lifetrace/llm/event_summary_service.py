@@ -31,11 +31,16 @@ RESPONSE_PREVIEW_LENGTH = 500  # 响应预览文本长度
 try:
     import hdbscan
     import numpy as np
+    from scipy.spatial.distance import pdist, squareform
 
     HDBSCAN_AVAILABLE = True
+    SCIPY_AVAILABLE = True
 except ImportError:
     HDBSCAN_AVAILABLE = False
-    logger.warning("HDBSCAN not available, clustering will fallback to simple aggregation")
+    SCIPY_AVAILABLE = False
+    pdist = None
+    squareform = None
+    logger.warning("HDBSCAN or scipy not available, clustering will fallback to simple aggregation")
 
 
 class EventSummaryService:
@@ -659,13 +664,28 @@ class EventSummaryService:
                 f"使用HDBSCAN聚类: {len(valid_texts)} 个文本, min_cluster_size={min_cluster_size}"
             )
 
-            # 使用HDBSCAN进行聚类
-            clusterer = hdbscan.HDBSCAN(
-                min_cluster_size=min_cluster_size,
-                min_samples=1,
-                metric="cosine",
-            )
-            cluster_labels = clusterer.fit_predict(embeddings_array)
+            # 计算余弦距离矩阵（HDBSCAN可能不支持直接使用'cosine' metric）
+            # 使用scipy计算余弦距离矩阵
+            if SCIPY_AVAILABLE and pdist is not None and squareform is not None:
+                # 计算余弦距离（1 - cosine similarity）
+                cosine_distances = pdist(embeddings_array, metric="cosine")
+                distance_matrix = squareform(cosine_distances)
+                # 使用预计算的距离矩阵
+                clusterer = hdbscan.HDBSCAN(
+                    min_cluster_size=min_cluster_size,
+                    min_samples=1,
+                    metric="precomputed",
+                )
+                cluster_labels = clusterer.fit_predict(distance_matrix)
+            else:
+                # 如果没有scipy，回退到欧氏距离
+                logger.warning("scipy不可用，使用欧氏距离替代余弦距离")
+                clusterer = hdbscan.HDBSCAN(
+                    min_cluster_size=min_cluster_size,
+                    min_samples=1,
+                    metric="euclidean",
+                )
+                cluster_labels = clusterer.fit_predict(embeddings_array)
             info["cluster_labels"] = cluster_labels.tolist()
 
             # 统计聚类信息
