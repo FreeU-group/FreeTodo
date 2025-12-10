@@ -238,34 +238,25 @@ class ScreenRecorder:
             timestamp: 截图时间
         """
         try:
-            # 检查是否有该应用的活跃事件
-            active_event_id = event_mgr.get_active_event_by_app(app_name)
+            # 使用 get_or_create_event 方法，它会检查应用名和窗口标题
+            # 如果应用名或窗口标题变化，会自动关闭旧事件并创建新事件
+            event_id = event_mgr.get_or_create_event(
+                app_name=app_name,
+                window_title=window_title,
+                timestamp=timestamp,
+            )
 
-            if active_event_id:
-                # 有活跃事件，添加截图到该事件
-                success = event_mgr.add_screenshot_to_event(screenshot_id, active_event_id)
+            if event_id:
+                # 将截图关联到事件
+                success = event_mgr.add_screenshot_to_event(screenshot_id, event_id)
                 if success:
                     logger.info(
-                        f"📎 截图 {screenshot_id} 已添加到事件 {active_event_id} [{app_name}]"
+                        f"📎 截图 {screenshot_id} 已添加到事件 {event_id} [{app_name} - {window_title}]"
                     )
                 else:
                     logger.warning(f"⚠️  截图 {screenshot_id} 添加到事件失败")
             else:
-                # 没有活跃事件，需要完成其他应用的事件并创建新事件
-                self._complete_other_active_events(app_name, timestamp)
-
-                # 创建新事件
-                event_id = event_mgr.create_event_for_screenshot(
-                    screenshot_id=screenshot_id,
-                    app_name=app_name,
-                    window_title=window_title,
-                    timestamp=timestamp,
-                )
-
-                if event_id:
-                    logger.info(f"✨ 为截图 {screenshot_id} 创建新事件 {event_id} [{app_name}]")
-                else:
-                    logger.warning(f"⚠️  创建事件失败，截图ID: {screenshot_id}")
+                logger.warning(f"⚠️  获取或创建事件失败，截图ID: {screenshot_id}")
 
         except Exception as e:
             logger.error(f"处理截图事件失败: {e}", exc_info=True)

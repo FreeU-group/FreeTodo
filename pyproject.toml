@@ -39,6 +39,7 @@ dependencies = [
     "transformers>=4.21.0",
     # Numerical computing
     "scipy>=1.9.0",
+    "hdbscan>=0.8.0",
     # Embedding models and vector database
     "sentence-transformers>=2.2.0",
     "chromadb>=0.4.0",
