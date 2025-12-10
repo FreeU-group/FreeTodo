@@ -45,6 +45,9 @@ class DatabaseBase:
             # 进行 projects 表结构迁移（确保新列存在）
             self._migrate_projects_table()
 
+            # 进行 activities 表结构迁移（确保新表存在）
+            self._migrate_activities_table()
+
             # 只在数据库不存在时（新创建）打印日志
             if not db_exists:
                 logger.info(f"数据库初始化完成: {config.database_path}")
@@ -146,6 +149,22 @@ class DatabaseBase:
                     (
                         "idx_journal_tag_relations_tag_id",
                         "CREATE INDEX IF NOT EXISTS idx_journal_tag_relations_tag_id ON journal_tag_relations(tag_id)",
+                    ),
+                    (
+                        "idx_activities_start_time",
+                        "CREATE INDEX IF NOT EXISTS idx_activities_start_time ON activities(start_time)",
+                    ),
+                    (
+                        "idx_activities_end_time",
+                        "CREATE INDEX IF NOT EXISTS idx_activities_end_time ON activities(end_time)",
+                    ),
+                    (
+                        "idx_activity_event_relations_activity_id",
+                        "CREATE INDEX IF NOT EXISTS idx_activity_event_relations_activity_id ON activity_event_relations(activity_id)",
+                    ),
+                    (
+                        "idx_activity_event_relations_event_id",
+                        "CREATE INDEX IF NOT EXISTS idx_activity_event_relations_event_id ON activity_event_relations(event_id)",
                     ),
                 ]
 
@@ -294,6 +313,74 @@ class DatabaseBase:
                 logger.warning(
                     f"尝试删除 projects 表列 {col} 失败，可能是 SQLite 版本不支持 DROP COLUMN: {e}"
                 )
+
+    def _migrate_activities_table(self):
+        """迁移 activities 表结构，确保表存在（SQLite 兼容方式）"""
+        try:
+            with self.engine.connect() as conn:
+                # 检查 activities 表是否存在
+                tables = [
+                    row[0]
+                    for row in conn.execute(
+                        text(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='activities'"
+                        )
+                    ).fetchall()
+                ]
+
+                if "activities" not in tables:
+                    # 创建 activities 表
+                    conn.execute(
+                        text(
+                            """
+                        CREATE TABLE activities (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            start_time DATETIME NOT NULL,
+                            end_time DATETIME NOT NULL,
+                            ai_title VARCHAR(100),
+                            ai_summary TEXT,
+                            event_count INTEGER DEFAULT 0,
+                            created_at DATETIME NOT NULL,
+                            updated_at DATETIME NOT NULL,
+                            deleted_at DATETIME
+                        )
+                    """
+                        )
+                    )
+                    logger.info("已创建 activities 表")
+
+                # 检查 activity_event_relations 表是否存在
+                tables = [
+                    row[0]
+                    for row in conn.execute(
+                        text(
+                            "SELECT name FROM sqlite_master WHERE type='table' AND name='activity_event_relations'"
+                        )
+                    ).fetchall()
+                ]
+
+                if "activity_event_relations" not in tables:
+                    # 创建 activity_event_relations 表
+                    conn.execute(
+                        text(
+                            """
+                        CREATE TABLE activity_event_relations (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            activity_id INTEGER NOT NULL,
+                            event_id INTEGER NOT NULL,
+                            created_at DATETIME NOT NULL,
+                            deleted_at DATETIME
+                        )
+                    """
+                        )
+                    )
+                    logger.info("已创建 activity_event_relations 表")
+
+                conn.commit()
+
+        except Exception as e:
+            # 迁移失败不应阻止服务启动，但需要记录错误
+            logger.error(f"activities 表结构迁移失败: {e}")
 
     @contextmanager
     def get_session(self):

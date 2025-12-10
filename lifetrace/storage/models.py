@@ -349,3 +349,37 @@ class TokenUsage(Base):
 
     def __repr__(self):
         return f"<TokenUsage(id={self.id}, model={self.model}, total_tokens={self.total_tokens}, cost={self.total_cost})>"
+
+
+class Activity(Base):
+    """活动模型（聚合15分钟内的事件）"""
+
+    __tablename__ = "activities"
+
+    id = Column(Integer, primary_key=True)
+    start_time = Column(DateTime, nullable=False)  # 活动开始时间
+    end_time = Column(DateTime, nullable=False)  # 活动结束时间
+    ai_title = Column(String(100))  # LLM生成的活动标题
+    ai_summary = Column(Text)  # LLM生成的活动摘要
+    event_count = Column(Integer, default=0)  # 包含的事件数量
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time, nullable=False)
+    deleted_at = Column(DateTime)  # 软删除时间戳
+
+    def __repr__(self):
+        return f"<Activity(id={self.id}, start_time={self.start_time}, event_count={self.event_count})>"
+
+
+class ActivityEventRelation(Base):
+    """活动与事件的关联关系表"""
+
+    __tablename__ = "activity_event_relations"
+
+    id = Column(Integer, primary_key=True)
+    activity_id = Column(Integer, nullable=False)  # 关联的活动ID
+    event_id = Column(Integer, nullable=False)  # 关联的事件ID
+    created_at = Column(DateTime, default=get_local_time, nullable=False)
+    deleted_at = Column(DateTime)  # 软删除时间戳
+
+    def __repr__(self):
+        return f"<ActivityEventRelation(id={self.id}, activity_id={self.activity_id}, event_id={self.event_id})>"

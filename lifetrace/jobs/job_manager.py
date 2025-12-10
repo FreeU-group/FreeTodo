@@ -3,6 +3,10 @@
 负责管理所有后台任务的启动、停止和配置更新
 """
 
+from lifetrace.jobs.activity_aggregator import (
+    execute_activity_aggregation_task,
+    get_aggregator_instance,
+)
 from lifetrace.jobs.clean_data import execute_clean_data_task, get_clean_data_instance
 from lifetrace.jobs.ocr import execute_ocr_task
 from lifetrace.jobs.recorder import execute_capture_task, get_recorder_instance
@@ -43,6 +47,9 @@ class JobManager:
 
         # 启动任务摘要服务
         self._start_task_summary_service()
+
+        # 启动活动聚合任务
+        self._start_activity_aggregator()
 
         # 启动数据清理任务
         self._start_clean_data_job()
@@ -184,6 +191,34 @@ class JobManager:
                 logger.info("任务摘要服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动任务摘要服务失败: {e}", exc_info=True)
+
+    def _start_activity_aggregator(self):
+        """启动活动聚合任务"""
+        enabled = config.get("jobs.activity_aggregator.enabled")
+
+        try:
+            # 预先初始化全局实例
+            get_aggregator_instance()
+            logger.info("活动聚合服务实例已初始化")
+
+            # 添加到调度器（无论是否启用都添加）
+            interval = config.get("jobs.activity_aggregator.interval")
+            aggregator_id = config.get("jobs.activity_aggregator.id")
+            self.scheduler_manager.add_interval_job(
+                func=execute_activity_aggregation_task,
+                job_id="activity_aggregator_job",
+                name=aggregator_id,
+                seconds=interval,
+                replace_existing=True,
+            )
+            logger.info(f"活动聚合定时任务已添加，间隔: {interval}秒")
+
+            # 如果未启用，则暂停任务
+            if not enabled:
+                self.scheduler_manager.pause_job("activity_aggregator_job")
+                logger.info("活动聚合服务未启用，已暂停")
+        except Exception as e:
+            logger.error(f"启动活动聚合服务失败: {e}", exc_info=True)
 
     def _start_clean_data_job(self):
         """启动数据清理任务"""
