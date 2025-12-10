@@ -176,6 +176,19 @@ class ActivityManager:
                         .first()
                     )
                     if not relation:
+                        # 在session关闭前访问所有需要的属性，确保它们被加载
+                        # 这样可以避免在session外访问时触发refresh操作
+                        _ = (
+                            event.id,
+                            event.start_time,
+                            event.end_time,
+                            event.ai_title,
+                            event.ai_summary,
+                            event.app_name,
+                            event.window_title,
+                        )
+                        # 将对象从session中分离，使其可以在session外使用
+                        session.expunge(event)
                         unprocessed_events.append(event)
 
                 return unprocessed_events
