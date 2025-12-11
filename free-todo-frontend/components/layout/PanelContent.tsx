@@ -4,8 +4,8 @@ import { AchievementsPanel } from "@/components/achievements/AchievementsPanel";
 import { ActivityPanel } from "@/components/activity/ActivityPanel";
 import { CalendarPanel } from "@/components/calendar/CalendarPanel";
 import { ChatPanel } from "@/components/chat/ChatPanel";
-import { TodoDetail } from "@/components/todo/TodoDetail";
-import { TodoList } from "@/components/todo/TodoList";
+import { TodoDetail } from "@/components/todo/detail";
+import { TodoList } from "@/components/todo/list";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import {
 	FEATURE_ICON_MAP,

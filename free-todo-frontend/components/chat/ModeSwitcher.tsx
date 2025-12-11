@@ -8,6 +8,7 @@ type ModeSwitcherProps = {
 	modeMenuOpen: boolean;
 	onToggleMenu: () => void;
 	onChangeMode: (mode: ChatMode) => void;
+	variant?: "default" | "inline";
 };
 
 export function ModeSwitcher({
@@ -16,6 +17,7 @@ export function ModeSwitcher({
 	modeMenuOpen,
 	onToggleMenu,
 	onChangeMode,
+	variant = "default",
 }: ModeSwitcherProps) {
 	return (
 		<div className="relative">
@@ -27,8 +29,9 @@ export function ModeSwitcher({
 				id="chat-mode"
 				onClick={onToggleMenu}
 				className={cn(
-					"flex h-11 items-center gap-2 rounded-[var(--radius-panel)] border border-border bg-muted/60 px-3 text-sm text-foreground",
+					"flex items-center gap-2 rounded-[var(--radius-panel)] border border-border px-3 text-sm text-foreground",
 					"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+					variant === "inline" ? "h-10 bg-background/80" : "h-11 bg-muted/60",
 				)}
 				aria-label={
 					locale === "zh" ? "切换 Ask/Plan 模式" : "Toggle Ask/Plan mode"
@@ -77,15 +80,17 @@ export function ModeSwitcher({
 					))}
 				</div>
 			)}
-			<p className="mt-1 text-[11px] text-muted-foreground">
-				{chatMode === "plan"
-					? locale === "zh"
-						? "拆解需求并生成待办"
-						: "Break down and add todos"
-					: locale === "zh"
-						? "直接聊天或提问"
-						: "Chat freely"}
-			</p>
+			{variant === "default" && (
+				<p className="mt-1 text-[11px] text-muted-foreground">
+					{chatMode === "plan"
+						? locale === "zh"
+							? "拆解需求并生成待办"
+							: "Break down and add todos"
+						: locale === "zh"
+							? "直接聊天或提问"
+							: "Chat freely"}
+				</p>
+			)}
 		</div>
 	);
 }

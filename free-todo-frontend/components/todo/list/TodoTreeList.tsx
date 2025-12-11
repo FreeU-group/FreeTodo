@@ -14,7 +14,7 @@ import {
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import type React from "react";
-import type { OrderedTodo } from "@/components/todo/hooks/useOrderedTodos";
+import type { OrderedTodo } from "./hooks/useOrderedTodos";
 import { TodoCard } from "./TodoCard";
 
 interface TodoTreeListProps {

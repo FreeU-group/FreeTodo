@@ -1,8 +1,8 @@
 "use client";
 
 import { Search } from "lucide-react";
-import type { FilterStatus } from "@/components/todo/hooks/useOrderedTodos";
 import { cn } from "@/lib/utils";
+import type { FilterStatus } from "./hooks/useOrderedTodos";
 
 interface TodoToolbarProps {
 	filterStatus: FilterStatus;

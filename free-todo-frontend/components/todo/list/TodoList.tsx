@@ -11,12 +11,9 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import type React from "react";
 import { useState } from "react";
-import {
-	type FilterStatus,
-	useOrderedTodos,
-} from "@/components/todo/hooks/useOrderedTodos";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { CreateTodoInput } from "@/lib/types/todo";
+import { type FilterStatus, useOrderedTodos } from "./hooks/useOrderedTodos";
 import { NewTodoInlineForm } from "./NewTodoInlineForm";
 import { TodoToolbar } from "./TodoToolbar";
 import { TodoTreeList } from "./TodoTreeList";

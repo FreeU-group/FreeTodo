@@ -151,31 +151,32 @@ export function ChatPanel() {
 					onClearSelection={clearTodoSelection}
 				/>
 
-				<div className="flex items-end gap-2">
-					<div className="relative" ref={modeMenuRef}>
-						<ModeSwitcher
-							chatMode={chatMode}
-							locale={locale}
-							modeMenuOpen={modeMenuOpen}
-							onToggleMenu={() => setModeMenuOpen((prev) => !prev)}
-							onChangeMode={(mode) => {
-								setChatMode(mode);
-								setModeMenuOpen(false);
-							}}
-						/>
-					</div>
-					<InputBox
-						inputValue={inputValue}
-						placeholder={inputPlaceholder}
-						isStreaming={isStreaming}
-						locale={locale}
-						onChange={setInputValue}
-						onSend={handleSend}
-						onKeyDown={handleKeyDown}
-						onCompositionStart={() => setIsComposing(true)}
-						onCompositionEnd={() => setIsComposing(false)}
-					/>
-				</div>
+				<InputBox
+					modeSwitcher={
+						<div className="relative" ref={modeMenuRef}>
+							<ModeSwitcher
+								chatMode={chatMode}
+								locale={locale}
+								modeMenuOpen={modeMenuOpen}
+								onToggleMenu={() => setModeMenuOpen((prev) => !prev)}
+								onChangeMode={(mode) => {
+									setChatMode(mode);
+									setModeMenuOpen(false);
+								}}
+								variant="inline"
+							/>
+						</div>
+					}
+					inputValue={inputValue}
+					placeholder={inputPlaceholder}
+					isStreaming={isStreaming}
+					locale={locale}
+					onChange={setInputValue}
+					onSend={handleSend}
+					onKeyDown={handleKeyDown}
+					onCompositionStart={() => setIsComposing(true)}
+					onCompositionEnd={() => setIsComposing(false)}
+				/>
 
 				{error && <p className="mt-2 text-sm text-red-500">{error}</p>}
 			</div>

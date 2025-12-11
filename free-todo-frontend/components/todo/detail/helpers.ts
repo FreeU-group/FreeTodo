@@ -1,0 +1,89 @@
+import type { Todo, TodoPriority, TodoStatus } from "@/lib/types/todo";
+import { cn } from "@/lib/utils";
+
+export const statusOptions: TodoStatus[] = ["active", "completed", "canceled"];
+export const priorityOptions: TodoPriority[] = [
+	"high",
+	"medium",
+	"low",
+	"none",
+];
+
+export const getStatusClassNames = (status: TodoStatus) =>
+	cn(
+		"rounded-full border px-2 py-0.5 text-xs font-medium",
+		status === "completed"
+			? "border-green-500/50 text-green-600"
+			: status === "canceled"
+				? "border-gray-500/50 text-gray-500"
+				: "border-blue-500/50 text-blue-600",
+	);
+
+export const getPriorityClassNames = (priority: TodoPriority) =>
+	cn(
+		"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
+		priority === "high"
+			? "border-red-500/50 text-red-600"
+			: priority === "medium"
+				? "border-amber-500/50 text-amber-600"
+				: priority === "low"
+					? "border-emerald-500/50 text-emerald-600"
+					: "border-muted-foreground/40 text-muted-foreground",
+	);
+
+export const getPriorityIconColor = (priority: TodoPriority) => {
+	switch (priority) {
+		case "high":
+			return "text-red-500";
+		case "medium":
+			return "text-amber-500";
+		case "low":
+			return "text-emerald-500";
+		default:
+			return "text-muted-foreground";
+	}
+};
+
+export const getPriorityLabel = (priority: TodoPriority) => {
+	switch (priority) {
+		case "high":
+			return "高";
+		case "medium":
+			return "中";
+		case "low":
+			return "低";
+		default:
+			return "无";
+	}
+};
+
+export const formatDeadlineForInput = (value?: string) => {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+	const local = new Date(date.getTime() - offsetMs);
+	return local.toISOString().slice(0, 16);
+};
+
+export const parseInputToIso = (value: string) => {
+	if (!value) return undefined;
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return undefined;
+	return date.toISOString();
+};
+
+export const formatDateTime = (value?: string) => {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+	return date.toLocaleString();
+};
+
+export const getChildProgress = (todos: Todo[], parentId: string) => {
+	const children = todos.filter((item) => item.parentTodoId === parentId);
+	const completed = children.filter(
+		(item) => item.status === "completed",
+	).length;
+	return { completed, total: children.length };
+};

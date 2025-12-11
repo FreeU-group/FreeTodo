@@ -3,7 +3,7 @@
 import { AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LanguageToggle } from "@/components/common/LanguageToggle";
 import { ThemeToggle } from "@/components/common/ThemeToggle";
 import { UserAvatar } from "@/components/common/UserAvatar";
@@ -27,6 +27,16 @@ export default function HomePage() {
 	const [isDraggingPanelC, setIsDraggingPanelC] = useState(false);
 
 	const containerRef = useRef<HTMLDivElement | null>(null);
+	const setGlobalResizeCursor = useCallback((enabled: boolean) => {
+		if (typeof document === "undefined") return;
+		document.body.style.cursor = enabled ? "col-resize" : "";
+		document.body.style.userSelect = enabled ? "none" : "";
+	}, []);
+
+	useEffect(() => {
+		// 清理：防止在组件卸载时光标和选择状态残留
+		return () => setGlobalResizeCursor(false);
+	}, [setGlobalResizeCursor]);
 
 	const layoutState = useMemo(() => {
 		// 计算基础宽度（不包括 panelC）
@@ -196,6 +206,7 @@ export default function HomePage() {
 		event.stopPropagation();
 
 		setIsDraggingPanelA(true);
+		setGlobalResizeCursor(true);
 		handlePanelADragAtClientX(event.clientX);
 
 		const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -204,6 +215,7 @@ export default function HomePage() {
 
 		const handlePointerUp = () => {
 			setIsDraggingPanelA(false);
+			setGlobalResizeCursor(false);
 			window.removeEventListener("pointermove", handlePointerMove);
 			window.removeEventListener("pointerup", handlePointerUp);
 		};
@@ -219,6 +231,7 @@ export default function HomePage() {
 		event.stopPropagation();
 
 		setIsDraggingPanelC(true);
+		setGlobalResizeCursor(true);
 		handlePanelCDragAtClientX(event.clientX);
 
 		const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -227,6 +240,7 @@ export default function HomePage() {
 
 		const handlePointerUp = () => {
 			setIsDraggingPanelC(false);
+			setGlobalResizeCursor(false);
 			window.removeEventListener("pointermove", handlePointerMove);
 			window.removeEventListener("pointerup", handlePointerUp);
 		};
