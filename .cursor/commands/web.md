@@ -3,7 +3,7 @@
 ## 技术栈信息
 
 - **框架**: Next.js 16 + React 19（App Router）
-- **语言**: Node.js 20.x + TypeScript 5.x
+- **语言**: Node.js 22.x + TypeScript 5.x
 - **样式**: Tailwind CSS 4 + shadcn/ui
 - **状态管理**: Zustand + React Hooks
 - **主题**: next-themes（浅/深色切换）
