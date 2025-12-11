@@ -64,6 +64,7 @@ export function PanelContainer({
 			className={cn(
 				"relative flex h-full min-h-0 flex-1 flex-col",
 				"bg-white dark:bg-zinc-900",
+				"border border-[rgb(208,210,210)] dark:border-[rgb(70,71,75)]",
 				"rounded-[var(--radius-panel)]",
 				"overflow-hidden",
 				className,
