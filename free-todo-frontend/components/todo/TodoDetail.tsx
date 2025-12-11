@@ -30,7 +30,7 @@ export function TodoDetail() {
 		addTodo,
 	} = useTodoStore();
 
-	const [showDescription, setShowDescription] = useState(false);
+	const [showDescription, setShowDescription] = useState(true);
 	const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
 	const [isEditingDeadline, setIsEditingDeadline] = useState(false);
 	const [deadlineInput, setDeadlineInput] = useState("");
@@ -304,7 +304,7 @@ export function TodoDetail() {
 								{todo.status}
 							</button>
 							{isStatusMenuOpen && (
-								<div className="absolute z-[120] mt-2 min-w-[170px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg pointer-events-auto">
+								<div className="absolute z-120 mt-2 min-w-[170px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg pointer-events-auto">
 									<div className="py-1" role="listbox">
 										{statusOptions.map((status) => (
 											<button
@@ -471,6 +471,9 @@ export function TodoDetail() {
 				)}
 
 				{/* Notes 主面板 */}
+				<h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+					Notes
+				</h2>
 				<textarea
 					ref={notesRef}
 					value={todo.userNotes || ""}
