@@ -5,6 +5,11 @@ export const en: Translation = {
 		zh: "中文",
 		en: "English",
 	},
+	colorTheme: {
+		blue: "Blue",
+		neutral: "Neutral",
+		label: "Theme Style",
+	},
 	theme: {
 		light: "Light",
 		dark: "Dark",

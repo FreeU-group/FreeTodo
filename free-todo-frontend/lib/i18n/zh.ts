@@ -5,6 +5,11 @@ export const zh: Translation = {
 		zh: "中文",
 		en: "English",
 	},
+	colorTheme: {
+		blue: "蓝色",
+		neutral: "中性",
+		label: "配色风格",
+	},
 	theme: {
 		light: "浅色",
 		dark: "深色",

@@ -3,6 +3,11 @@ export type Translation = {
 		zh: string;
 		en: string;
 	};
+	colorTheme: {
+		blue: string;
+		neutral: string;
+		label: string;
+	};
 	theme: {
 		light: string;
 		dark: string;
