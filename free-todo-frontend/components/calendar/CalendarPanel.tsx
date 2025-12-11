@@ -267,19 +267,13 @@ function DayColumn({
 			</div>
 
 			<div className="flex flex-col gap-2">
-				{todos.length === 0 ? (
-					<div className="rounded-md border border-dashed border-muted-foreground/30 p-2 text-[11px] text-muted-foreground">
-						无截止待办，点击日期可新建
-					</div>
-				) : (
-					todos.map((item) => (
-						<DraggableTodo
-							key={item.todo.id}
-							calendarTodo={item}
-							onSelect={onSelectTodo}
-						/>
-					))
-				)}
+				{todos.map((item) => (
+					<DraggableTodo
+						key={item.todo.id}
+						calendarTodo={item}
+						onSelect={onSelectTodo}
+					/>
+				))}
 			</div>
 
 			{activeId && (
