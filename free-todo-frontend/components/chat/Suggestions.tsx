@@ -15,7 +15,7 @@ export function Suggestions({ suggestions, onSelect }: SuggestionsProps) {
 					onClick={() => onSelect(suggestion)}
 					className={cn(
 						"px-3 py-2 text-sm",
-						"rounded-[var(--radius-panel)] border border-foreground/10",
+						"rounded-[var(--radius)] border border-foreground/10",
 						"text-foreground transition-colors",
 						"hover:bg-foreground/5",
 						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",

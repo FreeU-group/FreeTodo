@@ -106,7 +106,7 @@ export function PanelContent({ position }: PanelContentProps) {
 
 	// 其他功能显示占位符
 	return (
-		<div className="flex h-full flex-col">
+		<div className="flex h-full flex-col rounded-(--radius) overflow-hidden">
 			<div className="flex h-10 shrink-0 items-center gap-2 bg-muted/30 px-4">
 				{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
 				<h2 className="text-sm font-medium text-foreground">

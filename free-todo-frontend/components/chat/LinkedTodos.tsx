@@ -23,7 +23,7 @@ export function LinkedTodos({
 	const hiddenCount = Math.max(0, effectiveTodos.length - previewTodos.length);
 
 	return (
-		<div className="mb-3 rounded-[var(--radius-panel)] border border-border bg-muted/40 px-3 py-2">
+		<div className="mb-3 rounded-[var(--radius)] border border-border bg-muted/40 px-3 py-2">
 			<div className="flex items-center justify-between gap-2">
 				<span className="text-xs font-semibold text-foreground">
 					{locale === "zh" ? "关联待办" : "Linked todos"}

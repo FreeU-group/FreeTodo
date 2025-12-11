@@ -29,7 +29,7 @@ export function ModeSwitcher({
 				id="chat-mode"
 				onClick={onToggleMenu}
 				className={cn(
-					"flex items-center gap-2 rounded-[var(--radius-panel)] border border-border px-3 text-sm text-foreground",
+					"flex items-center gap-2 rounded-[var(--radius)] border border-border px-3 text-sm text-foreground",
 					"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
 					variant === "inline" ? "h-10 bg-background/80" : "h-11 bg-muted/60",
 				)}

@@ -18,6 +18,8 @@ export type Translation = {
 		subtitle: string;
 		calendarLabel: string;
 		calendarPlaceholder: string;
+		activityLabel: string;
+		activityPlaceholder: string;
 		todosLabel: string;
 		todosPlaceholder: string;
 		chatLabel: string;

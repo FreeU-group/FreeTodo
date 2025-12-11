@@ -65,7 +65,7 @@ export function PanelContainer({
 				"relative flex h-full min-h-0 flex-1 flex-col",
 				"bg-[oklch(var(--card))]",
 				"border border-[oklch(var(--border))]",
-				"rounded-(--radius-panel)",
+				"rounded-(--radius)",
 				"overflow-hidden",
 				className,
 			)}

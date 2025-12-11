@@ -153,7 +153,7 @@ export function BottomDock({ className }: BottomDockProps) {
 					"border border-[oklch(var(--border))]",
 					"shadow-lg",
 					"px-2 py-1.5",
-					"rounded-(--radius-panel)",
+					"rounded-(--radius)",
 				)}
 			>
 				{groupEntries.map(([groupName, groupItems], groupIndex) => (

@@ -27,7 +27,7 @@ export function HeaderBar({
 					type="button"
 					onClick={onToggleHistory}
 					className={cn(
-						"flex h-9 w-9 items-center justify-center rounded-[var(--radius-panel)]",
+						"flex h-9 w-9 items-center justify-center rounded-[var(--radius)]",
 						"border border-border text-muted-foreground transition-colors",
 						"hover:bg-foreground/5 hover:text-foreground",
 						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
@@ -40,7 +40,7 @@ export function HeaderBar({
 					type="button"
 					onClick={onNewChat}
 					className={cn(
-						"flex h-9 w-9 items-center justify-center rounded-[var(--radius-panel)]",
+						"flex h-9 w-9 items-center justify-center rounded-[var(--radius)]",
 						"bg-blue-500 text-white transition-colors",
 						"hover:bg-blue-600",
 						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",

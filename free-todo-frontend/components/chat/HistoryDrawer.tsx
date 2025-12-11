@@ -52,7 +52,7 @@ export function HistoryDrawer({
 								onClick={() => onSelectSession(session.session_id)}
 								disabled={historyLoading}
 								className={cn(
-									"w-full rounded-[var(--radius-panel)] border border-border bg-background px-3 py-2 text-left text-sm",
+									"w-full rounded-[var(--radius)] border border-border bg-background px-3 py-2 text-left text-sm",
 									"transition-colors hover:bg-foreground/5",
 									"disabled:cursor-not-allowed disabled:opacity-60",
 									session.session_id === conversationId

@@ -34,7 +34,7 @@ export function InputBox({
 	return (
 		<div
 			className={cn(
-				"flex items-center gap-2 rounded-[var(--radius-panel)] border border-border",
+				"flex items-center gap-2 rounded-[var(--radius)] border border-border",
 				"bg-muted/60 px-3 py-2",
 			)}
 		>
