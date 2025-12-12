@@ -46,27 +46,6 @@
 
 ---
 
-## 🎯 页面开发
-
-### 创建新页面
-
-新页面：
-- 使用 Next.js App Router 规范
-- 实现国际化（支持中英文）
-- 添加页面元数据（SEO）
-- 实现响应式布局
-- 包含完整的中文注释
-
-### 实现 API 路由
-
-在 `free-todo-frontend/app/api/` 目录下创建 API 路由：
-- 使用 Next.js Route Handlers
-- 实现请求验证
-- 添加错误处理
-- 支持 TypeScript 类型安全
-
----
-
 ## 🌐 国际化
 
 项目使用本地类型化字典（非 next-intl）：
