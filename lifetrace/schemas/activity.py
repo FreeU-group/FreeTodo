@@ -21,3 +21,17 @@ class ActivityListResponse(BaseModel):
 
 class ActivityEventsResponse(BaseModel):
     event_ids: list[int]
+
+
+class ManualActivityCreateRequest(BaseModel):
+    event_ids: list[int]
+
+
+class ManualActivityCreateResponse(BaseModel):
+    id: int
+    start_time: datetime
+    end_time: datetime
+    ai_title: str | None = None
+    ai_summary: str | None = None
+    event_count: int
+    created_at: datetime | None = None

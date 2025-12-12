@@ -66,6 +66,39 @@ class ActivityManager:
             logger.error(f"创建活动失败: {e}")
             return None
 
+    def get_activity(self, activity_id: int) -> dict[str, Any] | None:
+        """获取单个活动信息
+
+        Args:
+            activity_id: 活动ID
+
+        Returns:
+            活动信息，不存在返回None
+        """
+        try:
+            with self.db_base.get_session() as session:
+                activity = (
+                    session.query(Activity)
+                    .filter(Activity.id == activity_id, Activity.deleted_at.is_(None))
+                    .first()
+                )
+                if not activity:
+                    return None
+
+                return {
+                    "id": activity.id,
+                    "start_time": activity.start_time,
+                    "end_time": activity.end_time,
+                    "ai_title": activity.ai_title,
+                    "ai_summary": activity.ai_summary,
+                    "event_count": activity.event_count,
+                    "created_at": activity.created_at,
+                    "updated_at": activity.updated_at,
+                }
+        except SQLAlchemyError as e:
+            logger.error(f"获取活动信息失败: {e}")
+            return None
+
     def get_activities(
         self,
         limit: int = 50,
@@ -262,6 +295,30 @@ class ActivityManager:
                 return relation is not None
         except SQLAlchemyError as e:
             logger.error(f"检查事件是否已关联失败: {e}")
+            return False
+
+    def activity_exists_for_event_id(self, event_id: int) -> bool:
+        """检查事件ID是否已关联到某个活动
+
+        Args:
+            event_id: 事件ID
+
+        Returns:
+            是否已关联
+        """
+        try:
+            with self.db_base.get_session() as session:
+                relation = (
+                    session.query(ActivityEventRelation)
+                    .filter(
+                        ActivityEventRelation.event_id == event_id,
+                        ActivityEventRelation.deleted_at.is_(None),
+                    )
+                    .first()
+                )
+                return relation is not None
+        except SQLAlchemyError as e:
+            logger.error(f"检查事件ID是否已关联失败: {e}")
             return False
 
     def activity_overlaps_with_event(self, event: Event, tolerance_seconds: int = 60) -> bool:

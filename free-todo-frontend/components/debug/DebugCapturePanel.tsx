@@ -1,16 +1,24 @@
 "use client";
 
 import {
+	Activity,
 	Camera,
+	Check,
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
 	ChevronUp,
 	Search,
+	Square,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getEvent, getEvents, getScreenshotImage } from "@/lib/api";
+import {
+	createActivityFromEvents,
+	getEvent,
+	getEvents,
+	getScreenshotImage,
+} from "@/lib/api";
 import type { Event, Screenshot } from "@/lib/types/event";
 import {
 	calculateDuration,
@@ -329,6 +337,8 @@ export function DebugCapturePanel() {
 	const [selectedScreenshot, setSelectedScreenshot] =
 		useState<Screenshot | null>(null);
 	const [isMobile, setIsMobile] = useState(false);
+	const [selectedEvents, setSelectedEvents] = useState<Set<number>>(new Set());
+	const [aggregating, setAggregating] = useState(false);
 
 	const pageSize = 10;
 
@@ -522,6 +532,58 @@ export function DebugCapturePanel() {
 		loadEvents(true);
 	};
 
+	// 切换事件选中状态
+	const toggleEventSelection = (eventId: number, e?: React.MouseEvent) => {
+		e?.stopPropagation();
+		const newSet = new Set(selectedEvents);
+		if (newSet.has(eventId)) {
+			newSet.delete(eventId);
+		} else {
+			newSet.add(eventId);
+		}
+		setSelectedEvents(newSet);
+	};
+
+	// 手动聚合选中事件为活动
+	const handleAggregateEvents = async () => {
+		if (selectedEvents.size === 0) {
+			alert("请先选择要聚合的事件");
+			return;
+		}
+
+		// 检查是否有未结束的事件
+		const unendedEvents = Array.from(selectedEvents).filter((eventId) => {
+			const event = events.find((e) => e.id === eventId);
+			return event && !event.end_time;
+		});
+
+		if (unendedEvents.length > 0) {
+			alert("所选事件中包含未结束的事件，无法聚合");
+			return;
+		}
+
+		setAggregating(true);
+		try {
+			const eventIds = Array.from(selectedEvents);
+			const response = await createActivityFromEvents(eventIds);
+			const activity = response.data;
+
+			alert(
+				`成功创建活动: ${activity?.ai_title || "活动"}\n包含 ${eventIds.length} 个事件`,
+			);
+
+			// 清空选中状态
+			setSelectedEvents(new Set());
+		} catch (error: unknown) {
+			console.error("聚合事件失败:", error);
+			const errorMsg =
+				error instanceof Error ? error.message : "聚合事件失败，请稍后重试";
+			alert(errorMsg);
+		} finally {
+			setAggregating(false);
+		}
+	};
+
 	// 按日期分组事件，并按时间倒序排列
 	const { grouped, sortedDates } = useMemo(() => {
 		if (events.length === 0) {
@@ -651,6 +713,46 @@ export function DebugCapturePanel() {
 				<Camera className="h-4 w-4" />
 				<h2 className="text-sm font-medium">截图管理（开发调试）</h2>
 			</div>
+
+			{/* 选中事件提示 */}
+			{selectedEvents.size > 0 && (
+				<div className="flex-shrink-0 flex items-center justify-between rounded-lg mx-3 sm:mx-4 mt-3 sm:mt-4 px-4 py-3 border bg-primary/10 border-primary/20">
+					<div className="flex items-center gap-2">
+						<Check className="h-5 w-5 text-primary" />
+						<span className="font-medium text-primary">
+							已选择 {selectedEvents.size} 个事件
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={handleAggregateEvents}
+							disabled={aggregating || selectedEvents.size === 0}
+							className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{aggregating ? (
+								<>
+									<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+									<span>聚合中...</span>
+								</>
+							) : (
+								<>
+									<Activity className="h-4 w-4" />
+									<span>聚合为活动 ({selectedEvents.size})</span>
+								</>
+							)}
+						</button>
+						<button
+							type="button"
+							onClick={() => setSelectedEvents(new Set())}
+							disabled={aggregating}
+							className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							清空选择
+						</button>
+					</div>
+				</div>
+			)}
 
 			{/* 搜索表单 */}
 			<div className="flex-shrink-0 border-b border-border bg-muted/30 p-3 sm:p-4">
@@ -792,13 +894,48 @@ export function DebugCapturePanel() {
 														.filter(Boolean)
 														.join("\n\n");
 
+													const isSelected = selectedEvents.has(event.id);
+
 													return (
 														<div key={event.id} className="relative">
 															<div
+																role="button"
+																tabIndex={0}
 																className={cn(
-																	"ml-0 border border-border rounded-lg hover:border-primary/50 transition-colors p-3 sm:p-4 bg-card",
+																	"ml-0 border rounded-lg hover:border-primary/50 transition-colors p-3 sm:p-4 bg-card cursor-pointer relative group",
+																	isSelected
+																		? "border-primary bg-primary/5"
+																		: "border-border",
 																)}
+																onClick={() => toggleEventSelection(event.id)}
+																onKeyDown={(e) => {
+																	if (e.key === "Enter" || e.key === " ") {
+																		e.preventDefault();
+																		toggleEventSelection(event.id);
+																	}
+																}}
 															>
+																{/* 选择按钮 */}
+																<button
+																	type="button"
+																	onClick={(e) =>
+																		toggleEventSelection(event.id, e)
+																	}
+																	className={cn(
+																		"absolute left-2 bottom-2 z-10 rounded p-0.5 transition-all",
+																		isSelected
+																			? "opacity-100"
+																			: "opacity-0 group-hover:opacity-100",
+																		"hover:bg-muted",
+																	)}
+																	aria-label={isSelected ? "取消选择" : "选择"}
+																>
+																	{isSelected ? (
+																		<Check className="h-5 w-5 text-primary" />
+																	) : (
+																		<Square className="h-5 w-5 text-primary/60 transition-colors" />
+																	)}
+																</button>
 																<div className="flex flex-col sm:flex-row gap-4">
 																	<div className="flex-1 min-w-0 space-y-2">
 																		<div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap">

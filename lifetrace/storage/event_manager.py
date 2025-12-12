@@ -438,6 +438,62 @@ class EventManager:
             logger.error(f"获取事件摘要失败: {e}")
             return None
 
+    def get_events_by_ids(self, event_ids: list[int]) -> list[dict[str, Any]]:
+        """批量获取事件的摘要信息
+
+        Args:
+            event_ids: 事件ID列表
+
+        Returns:
+            事件摘要列表，按ID顺序返回
+        """
+        if not event_ids:
+            return []
+
+        try:
+            with self.db_base.get_session() as session:
+                events = session.query(Event).filter(Event.id.in_(event_ids)).all()
+                if not events:
+                    return []
+
+                # 创建ID到事件的映射
+                event_map = {ev.id: ev for ev in events}
+
+                results = []
+                for event_id in event_ids:
+                    ev = event_map.get(event_id)
+                    if not ev:
+                        continue
+
+                    first_shot = (
+                        session.query(Screenshot)
+                        .filter(Screenshot.event_id == ev.id)
+                        .order_by(Screenshot.created_at.asc())
+                        .first()
+                    )
+                    shot_count = (
+                        session.query(Screenshot).filter(Screenshot.event_id == ev.id).count()
+                    )
+
+                    results.append(
+                        {
+                            "id": ev.id,
+                            "app_name": ev.app_name,
+                            "window_title": ev.window_title,
+                            "start_time": ev.start_time,
+                            "end_time": ev.end_time,
+                            "screenshot_count": shot_count,
+                            "first_screenshot_id": first_shot.id if first_shot else None,
+                            "ai_title": ev.ai_title,
+                            "ai_summary": ev.ai_summary,
+                        }
+                    )
+
+                return results
+        except SQLAlchemyError as e:
+            logger.error(f"批量获取事件摘要失败: {e}")
+            return []
+
     def get_event_id_by_screenshot(self, screenshot_id: int) -> int | None:
         """根据截图ID获取所属事件ID"""
         try:

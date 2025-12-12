@@ -98,6 +98,7 @@ export default function EventsPage() {
 	const [activeQuickAction, setActiveQuickAction] = useState<string | null>(
 		null,
 	);
+	const [aggregating, setAggregating] = useState(false);
 	const [isChatCollapsed, setIsChatCollapsed] = useState(false);
 	const [showHistory, setShowHistory] = useState(false);
 	const [sessionHistory, setSessionHistory] = useState<SessionInfo[]>([]);
@@ -567,6 +568,55 @@ export default function EventsPage() {
 		setSelectedEvents(newSet);
 	};
 
+	// 手动聚合选中事件为活动
+	const handleAggregateEvents = async () => {
+		if (selectedEvents.size === 0) {
+			toast.error(t.eventsPage.noEventsSelected || "请先选择要聚合的事件");
+			return;
+		}
+
+		// 检查是否有未结束的事件
+		const unendedEvents = selectedEventsData.filter((e) => !e.end_time);
+		if (unendedEvents.length > 0) {
+			toast.error(
+				t.eventsPage.unendedEventsCannotAggregate ||
+					"所选事件中包含未结束的事件，无法聚合",
+			);
+			return;
+		}
+
+		setAggregating(true);
+		try {
+			const eventIds = Array.from(selectedEvents);
+			const response = await api.createActivityFromEvents(eventIds);
+			const activity = response.data;
+
+			toast.success(
+				t.eventsPage.aggregateSuccess?.replace(
+					"{title}",
+					activity.ai_title || "活动",
+				) || `成功创建活动: ${activity.ai_title || "活动"}`,
+			);
+
+			// 清空选中状态
+			setSelectedEvents(new Set());
+			setSelectedEventsData([]);
+		} catch (error: unknown) {
+			console.error("聚合事件失败:", error);
+			let errorMsg = t.eventsPage.aggregateFailed || "聚合事件失败";
+			if (error instanceof Error) {
+				errorMsg =
+					(error as { response?: { data?: { detail?: string } } })?.response
+						?.data?.detail ||
+					error.message ||
+					errorMsg;
+			}
+			toast.error(errorMsg);
+		} finally {
+			setAggregating(false);
+		}
+	};
+
 	// 按日期分组事件，并按时间倒序排列（使用 useMemo 缓存结果）
 	const { grouped, sortedDates } = useMemo(() => {
 		if (events.length === 0) {
@@ -764,16 +814,41 @@ export default function EventsPage() {
 								)}
 							</span>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => {
-								setSelectedEvents(new Set());
-								setSelectedEventsData([]);
-							}}
-						>
-							{t.eventsPage.clearSelection}
-						</Button>
+						<div className="flex items-center gap-2">
+							<Button
+								variant="default"
+								size="sm"
+								onClick={handleAggregateEvents}
+								disabled={aggregating || selectedEvents.size === 0}
+								className="flex items-center gap-2"
+							>
+								{aggregating ? (
+									<>
+										<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+										<span>{t.eventsPage.aggregating || "聚合中..."}</span>
+									</>
+								) : (
+									<>
+										<Activity className="h-4 w-4" />
+										<span>
+											{t.eventsPage.aggregateToActivity ||
+												`聚合为活动 (${selectedEvents.size})`}
+										</span>
+									</>
+								)}
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => {
+									setSelectedEvents(new Set());
+									setSelectedEventsData([]);
+								}}
+								disabled={aggregating}
+							>
+								{t.eventsPage.clearSelection}
+							</Button>
+						</div>
 					</div>
 				)}
 

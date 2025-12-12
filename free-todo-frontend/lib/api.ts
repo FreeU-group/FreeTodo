@@ -305,3 +305,30 @@ export function getScreenshotImage(id: number): string {
 			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 	return `${baseUrl}/api/screenshots/${id}/image`;
 }
+
+// 手动聚合事件为活动
+export async function createActivityFromEvents(eventIds: number[]): Promise<{
+	data?: Activity;
+}> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const response = await fetch(`${baseUrl}/api/activities/manual`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({ event_ids: eventIds }),
+	});
+
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		throw new Error(
+			errorData.detail || `Request failed with status ${response.status}`,
+		);
+	}
+
+	const data = await response.json();
+	return { data };
+}
