@@ -30,7 +30,7 @@ export function ModeSwitcher({
 				onClick={onToggleMenu}
 				className={cn(
 					"flex items-center gap-2 rounded-(--radius) border border-border px-3 text-sm text-foreground",
-					"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+					"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 					variant === "inline" ? "h-10 bg-background/80" : "h-11 bg-muted/60",
 				)}
 				aria-label={
@@ -72,7 +72,7 @@ export function ModeSwitcher({
 										: "Plan"}
 							</span>
 							{mode === chatMode && (
-								<span className="text-xs text-blue-500">
+								<span className="text-xs text-primary">
 									{locale === "zh" ? "当前" : "Active"}
 								</span>
 							)}

@@ -13,32 +13,32 @@ export const getStatusClassNames = (status: TodoStatus) =>
 	cn(
 		"rounded-full border px-2 py-0.5 text-xs font-medium",
 		status === "completed"
-			? "border-green-500/50 text-green-600"
+			? "border-primary/60 bg-primary/10 text-primary"
 			: status === "canceled"
-				? "border-gray-500/50 text-gray-500"
-				: "border-blue-500/50 text-blue-600",
+				? "border-muted-foreground/50 bg-muted/20 text-muted-foreground"
+				: "border-accent/60 bg-accent/10 text-accent-foreground",
 	);
 
 export const getPriorityClassNames = (priority: TodoPriority) =>
 	cn(
 		"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
 		priority === "high"
-			? "border-red-500/50 text-red-600"
+			? "border-destructive/60 bg-destructive/10 text-destructive"
 			: priority === "medium"
-				? "border-amber-500/50 text-amber-600"
+				? "border-primary/60 bg-primary/10 text-primary"
 				: priority === "low"
-					? "border-emerald-500/50 text-emerald-600"
+					? "border-secondary/60 bg-secondary/20 text-secondary-foreground"
 					: "border-muted-foreground/40 text-muted-foreground",
 	);
 
 export const getPriorityIconColor = (priority: TodoPriority) => {
 	switch (priority) {
 		case "high":
-			return "text-red-500";
+			return "text-destructive";
 		case "medium":
-			return "text-amber-500";
+			return "text-primary";
 		case "low":
-			return "text-emerald-500";
+			return "text-secondary-foreground";
 		default:
 			return "text-muted-foreground";
 	}

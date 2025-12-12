@@ -251,9 +251,9 @@ export default function HomePage() {
 	};
 
 	return (
-		<main className="relative flex h-screen flex-col overflow-hidden bg-background">
-			<div className="relative z-10 flex h-full flex-col">
-				<header className="flex h-12 shrink-0 items-center justify-between gap-3 bg-background px-4">
+		<main className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
+			<div className="relative z-10 flex h-full flex-col text-foreground">
+				<header className="flex h-12 shrink-0 items-center justify-between gap-3 bg-background px-4 text-foreground">
 					<div className="flex items-center gap-2">
 						<Image
 							src="/logo.png"

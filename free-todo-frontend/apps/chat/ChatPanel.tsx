@@ -178,7 +178,7 @@ export function ChatPanel() {
 					onCompositionEnd={() => setIsComposing(false)}
 				/>
 
-				{error && <p className="mt-2 text-sm text-red-500">{error}</p>}
+				{error && <p className="mt-2 text-sm text-destructive">{error}</p>}
 			</div>
 		</div>
 	);

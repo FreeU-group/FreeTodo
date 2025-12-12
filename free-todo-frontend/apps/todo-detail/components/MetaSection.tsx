@@ -125,7 +125,7 @@ export function MetaSection({
 						{todo.status}
 					</button>
 					{isStatusMenuOpen && (
-						<div className="absolute z-120 mt-2 min-w-[170px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg pointer-events-auto">
+						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
 							<div className="py-1" role="listbox">
 								{statusOptions.map((status) => (
 									<button
@@ -174,7 +174,7 @@ export function MetaSection({
 						{getPriorityLabel(todo.priority ?? "none")}
 					</button>
 					{isPriorityMenuOpen && (
-						<div className="absolute z-120 mt-2 min-w-[170px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-lg pointer-events-auto">
+						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
 							<div className="py-1" role="listbox">
 								{priorityOptions.map((priority) => (
 									<button
@@ -255,7 +255,7 @@ export function MetaSection({
 					<button
 						type="button"
 						onClick={handleDeadlineSave}
-						className="rounded-md bg-primary px-2 py-1 text-white transition-colors hover:bg-primary/90"
+						className="rounded-md bg-primary px-2 py-1 text-primary-foreground transition-colors hover:bg-primary/90"
 					>
 						保存
 					</button>
@@ -291,7 +291,7 @@ export function MetaSection({
 					<button
 						type="button"
 						onClick={handleTagsSave}
-						className="rounded-md bg-primary px-2 py-1 text-white transition-colors hover:bg-primary/90"
+						className="rounded-md bg-primary px-2 py-1 text-primary-foreground transition-colors hover:bg-primary/90"
 					>
 						保存
 					</button>

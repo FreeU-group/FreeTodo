@@ -19,7 +19,7 @@ export function HeaderBar({
 	return (
 		<div className="flex items-center justify-between gap-2">
 			<div className="flex items-center gap-2">
-				<Sparkles className="h-5 w-5 text-blue-500" />
+				<Sparkles className="h-5 w-5 text-primary" />
 				<h1 className="text-lg font-semibold text-foreground">{title}</h1>
 			</div>
 			<div className="flex items-center gap-2">
@@ -27,10 +27,10 @@ export function HeaderBar({
 					type="button"
 					onClick={onToggleHistory}
 					className={cn(
-						"flex h-9 w-9 items-center justify-center rounded-[var(--radius)]",
+						"flex h-9 w-9 items-center justify-center rounded-(--radius)",
 						"border border-border text-muted-foreground transition-colors",
 						"hover:bg-foreground/5 hover:text-foreground",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 					)}
 					aria-label={chatHistoryLabel}
 				>
@@ -40,10 +40,10 @@ export function HeaderBar({
 					type="button"
 					onClick={onNewChat}
 					className={cn(
-						"flex h-9 w-9 items-center justify-center rounded-[var(--radius)]",
-						"bg-blue-500 text-white transition-colors",
-						"hover:bg-blue-600",
-						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+						"flex h-9 w-9 items-center justify-center rounded-(--radius)",
+						"bg-primary text-primary-foreground transition-colors",
+						"hover:bg-primary/90",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 					)}
 					aria-label={newChatLabel}
 				>

@@ -39,7 +39,9 @@ export function HistoryDrawer({
 					</span>
 				)}
 			</div>
-			{historyError && <p className="text-xs text-red-500">{historyError}</p>}
+			{historyError && (
+				<p className="text-xs text-destructive">{historyError}</p>
+			)}
 			{!historyError && (
 				<div className="max-h-72 space-y-2 overflow-y-auto pr-1">
 					{!historyLoading && sessions.length === 0 ? (
@@ -52,11 +54,11 @@ export function HistoryDrawer({
 								onClick={() => onSelectSession(session.session_id)}
 								disabled={historyLoading}
 								className={cn(
-									"w-full rounded-[var(--radius)] border border-border bg-background px-3 py-2 text-left text-sm",
+									"w-full rounded-(--radius) border border-border bg-background px-3 py-2 text-left text-sm",
 									"transition-colors hover:bg-foreground/5",
 									"disabled:cursor-not-allowed disabled:opacity-60",
 									session.session_id === conversationId
-										? "ring-2 ring-blue-500"
+										? "ring-2 ring-ring"
 										: "",
 								)}
 							>

@@ -45,7 +45,7 @@ export function MessageList({
 							"max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm",
 							msg.role === "assistant"
 								? "bg-muted text-foreground"
-								: "bg-blue-500 text-white",
+								: "bg-primary text-primary-foreground",
 						)}
 					>
 						<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">

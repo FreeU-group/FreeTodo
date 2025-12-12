@@ -34,7 +34,7 @@ export function InputBox({
 	return (
 		<div
 			className={cn(
-				"flex items-center gap-2 rounded-[var(--radius)] border border-border",
+				"flex items-center gap-2 rounded-(--radius) border border-border",
 				"bg-muted/60 px-3 py-2",
 			)}
 		>
@@ -66,7 +66,7 @@ export function InputBox({
 						onClick={onAtClick}
 						className={cn(
 							"flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground",
-							"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+							"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 						)}
 						aria-label={
 							locale === "zh" ? "提及文件或任务" : "Mention a file or todo"
@@ -81,10 +81,10 @@ export function InputBox({
 						disabled={isSendDisabled}
 						className={cn(
 							"flex h-10 w-10 items-center justify-center rounded-lg",
-							"bg-blue-500 text-white transition-colors",
-							"hover:bg-blue-600",
+							"bg-primary text-primary-foreground transition-colors",
+							"hover:bg-primary/90",
 							"disabled:cursor-not-allowed disabled:opacity-50",
-							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 						)}
 						aria-label={locale === "zh" ? "发送" : "Send"}
 					>

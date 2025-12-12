@@ -61,11 +61,11 @@ export function TodoCard({
 	const getStatusColor = (status: TodoStatus) => {
 		switch (status) {
 			case "active":
-				return "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30";
+				return "bg-[oklch(var(--primary))/0.12] text-[oklch(var(--primary))] border-[oklch(var(--primary))/0.32]";
 			case "completed":
-				return "bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30";
+				return "bg-[oklch(var(--accent))/0.16] text-[oklch(var(--accent-foreground))] border-[oklch(var(--accent))/0.28]";
 			case "canceled":
-				return "bg-gray-500/20 text-gray-600 dark:text-gray-400 border-gray-500/30";
+				return "bg-[oklch(var(--muted))/0.35] text-[oklch(var(--muted-foreground))] border-[oklch(var(--border))]";
 			default:
 				return "";
 		}
@@ -87,11 +87,11 @@ export function TodoCard({
 	const getPriorityColor = (priority: TodoPriority) => {
 		switch (priority) {
 			case "high":
-				return "text-red-500";
+				return "text-[oklch(var(--destructive))]";
 			case "medium":
-				return "text-amber-500";
+				return "text-[oklch(var(--primary))]";
 			case "low":
-				return "text-emerald-500";
+				return "text-[oklch(var(--accent-foreground))]";
 			default:
 				return "text-muted-foreground";
 		}
@@ -223,8 +223,10 @@ export function TodoCard({
 						className="mt-1 shrink-0"
 					>
 						{todo.status === "completed" ? (
-							<div className="flex h-5 w-5 items-center justify-center rounded-md bg-green-500 dark:bg-green-400 border border-green-600 dark:border-green-500 shadow-inner">
-								<span className="text-[10px] text-white font-semibold">✓</span>
+							<div className="flex h-5 w-5 items-center justify-center rounded-md bg-[oklch(var(--primary))] border border-[oklch(var(--primary))] shadow-inner">
+								<span className="text-[10px] text-[oklch(var(--primary-foreground))] font-semibold">
+									✓
+								</span>
 							</div>
 						) : (
 							<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40 hover:border-foreground transition-colors" />
@@ -384,7 +386,7 @@ export function TodoCard({
 						>
 							<button
 								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors first:rounded-t-md"
+								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors first:rounded-t-md"
 								onClick={() => {
 									setContextMenu((state) =>
 										state.open ? { ...state, open: false } : state,
@@ -397,7 +399,7 @@ export function TodoCard({
 							</button>
 							<button
 								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors"
 								onClick={() => {
 									updateTodo(todo.id, { status: "canceled" });
 									setContextMenu((state) =>
@@ -410,7 +412,7 @@ export function TodoCard({
 							</button>
 							<button
 								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-black dark:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors last:rounded-b-md"
+								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors last:rounded-b-md"
 								onClick={() => {
 									deleteTodo(todo.id);
 									setContextMenu((state) =>
