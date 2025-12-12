@@ -60,4 +60,26 @@ export type Translation = {
 		screenshots: string;
 		debugShots: string;
 	};
+	todoExtraction: {
+		extractButton: string;
+		extracting: string;
+		extractSuccess: string;
+		extractFailed: string;
+		noTodosFound: string;
+		notWhitelistApp: string;
+		modalTitle: string;
+		modalDescription: string;
+		selectAll: string;
+		deselectAll: string;
+		confirmAdd: string;
+		cancel: string;
+		todoTitle: string;
+		todoDescription: string;
+		todoTime: string;
+		todoSource: string;
+		todoScheduledTime: string;
+		addSuccess: string;
+		addFailed: string;
+		selectedCount: string;
+	};
 };

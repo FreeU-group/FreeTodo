@@ -332,3 +332,66 @@ export async function createActivityFromEvents(eventIds: number[]): Promise<{
 	const data = await response.json();
 	return { data };
 }
+
+// 待办提取相关 API
+export interface TodoTimeInfo {
+	time_type: "relative" | "absolute";
+	relative_days?: number | null;
+	relative_time?: string | null;
+	absolute_time?: string | null;
+	raw_text: string;
+}
+
+export interface ExtractedTodo {
+	title: string;
+	description?: string | null;
+	time_info: TodoTimeInfo;
+	scheduled_time?: string | null;
+	source_text: string;
+	confidence?: number | null;
+	screenshot_ids: number[];
+}
+
+export interface TodoExtractionResponse {
+	event_id: number;
+	app_name?: string | null;
+	window_title?: string | null;
+	event_start_time?: string | null;
+	event_end_time?: string | null;
+	todos: ExtractedTodo[];
+	extraction_timestamp: string;
+	screenshot_count: number;
+	error_message?: string | null;
+}
+
+/**
+ * 从事件中提取待办事项
+ */
+export async function extractTodosFromEvent(
+	eventId: number,
+	screenshotSampleRatio?: number,
+): Promise<TodoExtractionResponse> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const response = await fetch(`${baseUrl}/api/todo-extraction/extract`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			event_id: eventId,
+			screenshot_sample_ratio: screenshotSampleRatio,
+		}),
+	});
+
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		throw new Error(
+			errorData.detail || `Request failed with status ${response.status}`,
+		);
+	}
+
+	return response.json();
+}

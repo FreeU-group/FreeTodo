@@ -8,17 +8,25 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ChevronUp,
+	ClipboardList,
 	Search,
 	Square,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TodoExtractionModal } from "@/components/todo/TodoExtractionModal";
 import {
 	createActivityFromEvents,
+	type ExtractedTodo,
+	extractTodosFromEvent,
 	getEvent,
 	getEvents,
 	getScreenshotImage,
+	type TodoExtractionResponse,
 } from "@/lib/api";
+import { useTranslations } from "@/lib/i18n";
+import { useLocaleStore } from "@/lib/store/locale";
+import { toastError, toastInfo, toastSuccess } from "@/lib/toast";
 import type { Event, Screenshot } from "@/lib/types/event";
 import {
 	calculateDuration,
@@ -33,6 +41,23 @@ function formatDate(date: Date) {
 	const month = String(date.getMonth() + 1).padStart(2, "0");
 	const day = String(date.getDate()).padStart(2, "0");
 	return `${year}-${month}-${day}`;
+}
+
+// 白名单应用列表
+const WHITELIST_APPS = [
+	"微信",
+	"WeChat",
+	"飞书",
+	"Feishu",
+	"Lark",
+	"钉钉",
+	"DingTalk",
+];
+
+function isWhitelistApp(appName: string | null | undefined): boolean {
+	if (!appName) return false;
+	const appLower = appName.toLowerCase();
+	return WHITELIST_APPS.some((app) => appLower.includes(app.toLowerCase()));
 }
 
 // 截图模态框组件
@@ -321,6 +346,8 @@ function ScreenshotModal({
 }
 
 export function DebugCapturePanel() {
+	const { locale } = useLocaleStore();
+	const t = useTranslations(locale);
 	const [events, setEvents] = useState<Event[]>([]);
 	const [totalCount, setTotalCount] = useState(0);
 	const [loading, setLoading] = useState(true);
@@ -339,6 +366,15 @@ export function DebugCapturePanel() {
 	const [isMobile, setIsMobile] = useState(false);
 	const [selectedEvents, setSelectedEvents] = useState<Set<number>>(new Set());
 	const [aggregating, setAggregating] = useState(false);
+	const [extractingTodos, setExtractingTodos] = useState<Set<number>>(
+		new Set(),
+	);
+	const [extractionResult, setExtractionResult] = useState<{
+		todos: ExtractedTodo[];
+		eventId: number;
+		appName: string | null;
+	} | null>(null);
+	const [isExtractionModalOpen, setIsExtractionModalOpen] = useState(false);
 
 	const pageSize = 10;
 
@@ -581,6 +617,63 @@ export function DebugCapturePanel() {
 			alert(errorMsg);
 		} finally {
 			setAggregating(false);
+		}
+	};
+
+	// 提取待办事项
+	const handleExtractTodos = async (eventId: number, eventAppName: string) => {
+		if (!isWhitelistApp(eventAppName)) {
+			toastError(t.todoExtraction.notWhitelistApp);
+			return;
+		}
+
+		setExtractingTodos((prev) => new Set(prev).add(eventId));
+		toastInfo(t.todoExtraction.extracting);
+
+		try {
+			const response: TodoExtractionResponse =
+				await extractTodosFromEvent(eventId);
+
+			if (response.error_message) {
+				toastError(
+					t.todoExtraction.extractFailed.replace(
+						"{error}",
+						response.error_message,
+					),
+				);
+				return;
+			}
+
+			if (response.todos.length === 0) {
+				toastInfo(t.todoExtraction.noTodosFound);
+				return;
+			}
+
+			toastSuccess(
+				t.todoExtraction.extractSuccess.replace(
+					"{count}",
+					String(response.todos.length),
+				),
+			);
+
+			// 打开确认弹窗
+			setExtractionResult({
+				todos: response.todos,
+				eventId: response.event_id,
+				appName: response.app_name || null,
+			});
+			setIsExtractionModalOpen(true);
+		} catch (error: unknown) {
+			console.error("提取待办失败:", error);
+			const errorMsg =
+				error instanceof Error ? error.message : "提取待办失败，请稍后重试";
+			toastError(t.todoExtraction.extractFailed.replace("{error}", errorMsg));
+		} finally {
+			setExtractingTodos((prev) => {
+				const newSet = new Set(prev);
+				newSet.delete(eventId);
+				return newSet;
+			});
 		}
 	};
 
@@ -936,6 +1029,49 @@ export function DebugCapturePanel() {
 																		<Square className="h-5 w-5 text-primary/60 transition-colors" />
 																	)}
 																</button>
+
+																{/* 提取待办按钮（仅白名单应用显示） */}
+																{isWhitelistApp(event.app_name) && (
+																	<button
+																		type="button"
+																		onClick={(e) => {
+																			e.stopPropagation();
+																			handleExtractTodos(
+																				event.id,
+																				event.app_name,
+																			);
+																		}}
+																		disabled={extractingTodos.has(event.id)}
+																		className={cn(
+																			"absolute right-2 top-2 z-10",
+																			"flex items-center gap-1.5",
+																			"rounded-md px-2 py-1.5",
+																			"text-xs font-medium",
+																			"bg-primary/10 text-primary border border-primary/20",
+																			"hover:bg-primary/20 hover:border-primary/30",
+																			"transition-all",
+																			"opacity-0 group-hover:opacity-100",
+																			"disabled:opacity-50 disabled:cursor-not-allowed",
+																		)}
+																		aria-label={t.todoExtraction.extractButton}
+																	>
+																		{extractingTodos.has(event.id) ? (
+																			<>
+																				<div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+																				<span className="hidden sm:inline">
+																					{t.todoExtraction.extracting}
+																				</span>
+																			</>
+																		) : (
+																			<>
+																				<ClipboardList className="h-3.5 w-3.5" />
+																				<span className="hidden sm:inline">
+																					{t.todoExtraction.extractButton}
+																				</span>
+																			</>
+																		)}
+																	</button>
+																)}
 																<div className="flex flex-col sm:flex-row gap-4">
 																	<div className="flex-1 min-w-0 space-y-2">
 																		<div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap">
@@ -1140,6 +1276,20 @@ export function DebugCapturePanel() {
 						/>
 					);
 				})()}
+
+			{/* 待办提取确认弹窗 */}
+			{extractionResult && (
+				<TodoExtractionModal
+					isOpen={isExtractionModalOpen}
+					onClose={() => {
+						setIsExtractionModalOpen(false);
+						setExtractionResult(null);
+					}}
+					todos={extractionResult.todos}
+					eventId={extractionResult.eventId}
+					appName={extractionResult.appName}
+				/>
+			)}
 		</div>
 	);
 }
