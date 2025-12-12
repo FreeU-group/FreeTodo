@@ -1,11 +1,11 @@
 import { AppWindow, Clock3, ListChecks } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ActivitySummary } from "@/components/activity/ActivitySummary";
+import { ActivitySummary } from "@/apps/activity/ActivitySummary";
 import {
 	formatRelativeTime,
 	formatTimeRange,
-} from "@/components/activity/utils/timeUtils";
+} from "@/apps/activity/utils/timeUtils";
 import type { Activity } from "@/lib/types/activity";
 import type { Event } from "@/lib/types/event";
 import { cn } from "@/lib/utils";

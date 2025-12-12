@@ -356,7 +356,9 @@ export function DebugCapturePanel() {
 	const loadEventDetail = useCallback(async (eventId: number) => {
 		try {
 			const response = await getEvent(eventId);
-			const eventData = response.data || {};
+			const eventData = (response.data || {}) as Partial<Event> & {
+				screenshots?: Screenshot[];
+			};
 
 			// 为每个截图加载 OCR 结果（如果需要）
 			if (eventData.screenshots && eventData.screenshots.length > 0) {
@@ -682,9 +684,12 @@ export function DebugCapturePanel() {
 
 				const response = await getEvents(params);
 
-				const responseData = response.data || response;
+				const responseData = (response.data || response) as {
+					events?: Event[];
+					total_count?: number;
+				};
 
-				const newEvents = responseData.events || responseData || [];
+				const newEvents = responseData.events || [];
 				const totalCount = responseData.total_count ?? 0;
 
 				setEvents(newEvents);

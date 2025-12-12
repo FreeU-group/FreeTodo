@@ -98,6 +98,29 @@ const todoStoreCreator: StateCreator<TodoStoreState> = persist<TodoStoreState>(
 
 			set((state) => {
 				const nextTodos = [newTodo, ...state.todos];
+				// #region agent log
+				fetch(
+					"http://127.0.0.1:7242/ingest/60db1f8b-8093-4a1d-a587-94a63cffac9e",
+					{
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							sessionId: "debug-session",
+							runId: "run1",
+							hypothesisId: "H2",
+							location: "lib/store/todo-store.ts:addTodo",
+							message: "addTodo state mutation",
+							data: {
+								inputName: newTodo.name,
+								totalBefore: state.todos.length,
+								totalAfter: nextTodos.length,
+								parent: newTodo.parentTodoId,
+							},
+							timestamp: Date.now(),
+						}),
+					},
+				).catch(() => {});
+				// #endregion
 				if (!newTodo.parentTodoId) {
 					return { todos: nextTodos };
 				}
@@ -183,6 +206,24 @@ const todoStoreCreator: StateCreator<TodoStoreState> = persist<TodoStoreState>(
 					...todo,
 					priority: normalizePriority(todo.priority),
 				}));
+				// #region agent log
+				fetch(
+					"http://127.0.0.1:7242/ingest/60db1f8b-8093-4a1d-a587-94a63cffac9e",
+					{
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							sessionId: "debug-session",
+							runId: "run1",
+							hypothesisId: "H3",
+							location: "lib/store/todo-store.ts:migrate",
+							message: "persist migrate invoked",
+							data: { persistedCount: todos.length },
+							timestamp: Date.now(),
+						}),
+					},
+				).catch(() => {});
+				// #endregion
 				return {
 					...state.state,
 					todos: migratedTodos,

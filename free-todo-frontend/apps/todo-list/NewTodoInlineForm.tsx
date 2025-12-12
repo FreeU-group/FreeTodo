@@ -36,8 +36,14 @@ export function NewTodoInlineForm({
 			className="group flex items-center gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 transition-colors focus-within:border-primary focus-within:bg-background focus-within:ring-2 focus-within:ring-primary/40"
 			onClick={() => inputRef.current?.focus()}
 			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
+				// 仅在表单容器聚焦时处理键盘操作，避免阻断输入框的 Enter 提交
+				if (e.currentTarget !== e.target) return;
+				if (e.key === " ") {
 					e.preventDefault();
+					inputRef.current?.focus();
+					return;
+				}
+				if (e.key === "Enter") {
 					inputRef.current?.focus();
 				}
 			}}

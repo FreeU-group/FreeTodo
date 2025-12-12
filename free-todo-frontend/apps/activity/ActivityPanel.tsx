@@ -2,10 +2,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ActivityDetail } from "@/components/activity/ActivityDetail";
-import { ActivityHeader } from "@/components/activity/ActivityHeader";
-import { ActivitySidebar } from "@/components/activity/ActivitySidebar";
-import { groupActivitiesByTime } from "@/components/activity/utils/timeUtils";
+import { ActivityDetail } from "@/apps/activity/ActivityDetail";
+import { ActivityHeader } from "@/apps/activity/ActivityHeader";
+import { ActivitySidebar } from "@/apps/activity/ActivitySidebar";
+import { groupActivitiesByTime } from "@/apps/activity/utils/timeUtils";
 import { getActivities, getActivityEvents, getEvent } from "@/lib/api";
 import type { Activity, ActivityWithEvents } from "@/lib/types/activity";
 import type { Event } from "@/lib/types/event";

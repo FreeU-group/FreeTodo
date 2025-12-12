@@ -1,11 +1,11 @@
 "use client";
 
-import { AchievementsPanel } from "@/components/achievements/AchievementsPanel";
-import { ActivityPanel } from "@/components/activity/ActivityPanel";
-import { CalendarPanel } from "@/components/calendar/CalendarPanel";
-import { ChatPanel } from "@/components/chat/ChatPanel";
-import { TodoDetail } from "@/components/todo/detail";
-import { TodoList } from "@/components/todo/list";
+import { AchievementsPanel } from "@/apps/achievements/AchievementsPanel";
+import { ActivityPanel } from "@/apps/activity/ActivityPanel";
+import { CalendarPanel } from "@/apps/calendar/CalendarPanel";
+import { ChatPanel } from "@/apps/chat/ChatPanel";
+import { TodoDetail } from "@/apps/todo-detail";
+import { TodoList } from "@/apps/todo-list";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import {
 	FEATURE_ICON_MAP,
@@ -15,8 +15,9 @@ import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useUiStore } from "@/lib/store/ui-store";
 
+// 动态导入调试面板（仅开发环境）
 const DebugCapturePanel = IS_DEV_FEATURE_ENABLED
-	? require("@/components/debug/DebugCapturePanel").DebugCapturePanel
+	? require("@/apps/debug/DebugCapturePanel").DebugCapturePanel
 	: null;
 
 interface PanelContentProps {

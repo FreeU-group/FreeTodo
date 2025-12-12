@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { HeaderBar } from "@/components/chat/HeaderBar";
-import { HistoryDrawer } from "@/components/chat/HistoryDrawer";
-import { useChatController } from "@/components/chat/hooks/useChatController";
-import { InputBox } from "@/components/chat/InputBox";
-import { LinkedTodos } from "@/components/chat/LinkedTodos";
-import { MessageList } from "@/components/chat/MessageList";
-import { ModeSwitcher } from "@/components/chat/ModeSwitcher";
-import { Suggestions } from "@/components/chat/Suggestions";
+import { HeaderBar } from "@/apps/chat/HeaderBar";
+import { HistoryDrawer } from "@/apps/chat/HistoryDrawer";
+import { useChatController } from "@/apps/chat/hooks/useChatController";
+import { InputBox } from "@/apps/chat/InputBox";
+import { LinkedTodos } from "@/apps/chat/LinkedTodos";
+import { MessageList } from "@/apps/chat/MessageList";
+import { ModeSwitcher } from "@/apps/chat/ModeSwitcher";
+import { Suggestions } from "@/apps/chat/Suggestions";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useTodoStore } from "@/lib/store/todo-store";

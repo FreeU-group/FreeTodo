@@ -64,7 +64,7 @@ export function ChildTodoSection({
 									<Flag
 										className={getPriorityIconColor(child.priority ?? "none")}
 										fill="currentColor"
-										title={`优先级：${getPriorityLabel(child.priority ?? "none")}`}
+										aria-label={`优先级：${getPriorityLabel(child.priority ?? "none")}`}
 									/>
 									<span className="text-sm font-semibold text-foreground">
 										{child.name}

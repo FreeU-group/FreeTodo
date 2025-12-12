@@ -5,7 +5,7 @@ import type { ChangeEvent } from "react";
 interface NotesEditorProps {
 	value: string;
 	onChange: (value: string) => void;
-	notesRef: React.RefObject<HTMLTextAreaElement>;
+	notesRef: React.RefObject<HTMLTextAreaElement | null>;
 	adjustHeight: () => void;
 }
 

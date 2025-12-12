@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
-import type { ChatMessage } from "@/components/chat/types";
+import type { ChatMessage } from "@/apps/chat/types";
 import { cn } from "@/lib/utils";
 
 type MessageListProps = {

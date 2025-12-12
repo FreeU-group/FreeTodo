@@ -1,9 +1,9 @@
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { usePlanParser } from "@/components/chat/hooks/usePlanParser";
-import type { ChatMessage, ChatMode } from "@/components/chat/types";
-import { createId } from "@/components/chat/utils/id";
-import { buildTodoContextBlock } from "@/components/chat/utils/todoContext";
+import { usePlanParser } from "@/apps/chat/hooks/usePlanParser";
+import type { ChatMessage, ChatMode } from "@/apps/chat/types";
+import { createId } from "@/apps/chat/utils/id";
+import { buildTodoContextBlock } from "@/apps/chat/utils/todoContext";
 import type { ChatHistoryItem, ChatSessionSummary } from "@/lib/api";
 import { getChatHistory, sendChatMessageStream } from "@/lib/api";
 import type { CreateTodoInput, Todo } from "@/lib/types/todo";

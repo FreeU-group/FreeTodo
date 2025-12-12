@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
-import type { ParsedTodoTree } from "@/components/chat/types";
-import { createId } from "@/components/chat/utils/id";
+import type { ParsedTodoTree } from "@/apps/chat/types";
+import { createId } from "@/apps/chat/utils/id";
 import type { CreateTodoInput } from "@/lib/types/todo";
 
 export const usePlanParser = (locale: string) => {

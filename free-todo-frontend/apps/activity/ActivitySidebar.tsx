@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
-import { ActivityCard } from "@/components/activity/ActivityCard";
-import type { ActivityGroup } from "@/components/activity/utils/timeUtils";
-import { formatTimeRange } from "@/components/activity/utils/timeUtils";
+import { ActivityCard } from "@/apps/activity/ActivityCard";
+import type { ActivityGroup } from "@/apps/activity/utils/timeUtils";
+import { formatTimeRange } from "@/apps/activity/utils/timeUtils";
 import type { Activity } from "@/lib/types/activity";
 import { cn } from "@/lib/utils";
 

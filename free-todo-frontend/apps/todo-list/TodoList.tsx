@@ -97,6 +97,26 @@ export function TodoList() {
 			name: newTodoName.trim(),
 		};
 
+		// #region agent log
+		fetch("http://127.0.0.1:7242/ingest/60db1f8b-8093-4a1d-a587-94a63cffac9e", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				sessionId: "debug-session",
+				runId: "run1",
+				hypothesisId: "H1",
+				location: "apps/todo-list/TodoList.tsx:handleCreateTodo",
+				message: "handleCreateTodo invoked",
+				data: {
+					name: input.name,
+					hasEvent: Boolean(e),
+					length: input.name.length,
+				},
+				timestamp: Date.now(),
+			}),
+		}).catch(() => {});
+		// #endregion
+
 		addTodo(input);
 		setNewTodoName("");
 	};
