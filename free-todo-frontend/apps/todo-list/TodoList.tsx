@@ -97,32 +97,12 @@ export function TodoList() {
 			name: newTodoName.trim(),
 		};
 
-		// #region agent log
-		fetch("http://127.0.0.1:7242/ingest/60db1f8b-8093-4a1d-a587-94a63cffac9e", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				sessionId: "debug-session",
-				runId: "run1",
-				hypothesisId: "H1",
-				location: "apps/todo-list/TodoList.tsx:handleCreateTodo",
-				message: "handleCreateTodo invoked",
-				data: {
-					name: input.name,
-					hasEvent: Boolean(e),
-					length: input.name.length,
-				},
-				timestamp: Date.now(),
-			}),
-		}).catch(() => {});
-		// #endregion
-
 		addTodo(input);
 		setNewTodoName("");
 	};
 
 	return (
-		<div className="relative flex h-full flex-col overflow-hidden bg-[oklch(var(--accent))/0.08] dark:bg-[oklch(var(--accent))/0.14]">
+		<div className="relative flex h-full flex-col overflow-hidden bg-accent/10 dark:bg-accent/15">
 			<TodoToolbar
 				filterStatus={filterStatus}
 				onFilterChange={setFilterStatus}
@@ -131,7 +111,7 @@ export function TodoList() {
 			/>
 
 			<div className="flex-1 overflow-y-auto">
-				<div className="px-4 pb-4">
+				<div className="px-4 py-4 pb-4">
 					<NewTodoInlineForm
 						value={newTodoName}
 						onChange={setNewTodoName}
