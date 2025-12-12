@@ -15,6 +15,12 @@ from lifetrace.schemas.stats import (
     TimeAllocationResponse,
 )
 from lifetrace.schemas.system import ProcessInfo, SystemResourcesResponse
+from lifetrace.schemas.todo_extraction import (
+    ExtractedTodo,
+    TodoExtractionRequest,
+    TodoExtractionResponse,
+    TodoTimeInfo,
+)
 from lifetrace.schemas.vector import (
     SemanticSearchRequest,
     SemanticSearchResult,
@@ -49,4 +55,9 @@ __all__ = [
     # Vision
     "VisionChatRequest",
     "VisionChatResponse",
+    # Todo Extraction
+    "TodoExtractionRequest",
+    "TodoExtractionResponse",
+    "ExtractedTodo",
+    "TodoTimeInfo",
 ]

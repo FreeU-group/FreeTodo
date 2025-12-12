@@ -26,6 +26,7 @@ from lifetrace.routers import (
     system,
     task,
     time_allocation,
+    todo_extraction,
     vector,
     vision,
 )
@@ -136,6 +137,7 @@ app.include_router(rag.router)
 app.include_router(scheduler.router)
 app.include_router(cost_tracking.router)
 app.include_router(time_allocation.router)
+app.include_router(todo_extraction.router)
 app.include_router(vision.router)
 
 
