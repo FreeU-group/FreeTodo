@@ -263,6 +263,27 @@ class TodoManager:
             logger.error(f"更新 todo 失败: {e}")
             return False
 
+    def _delete_todo_recursive(self, session, todo_id: int) -> None:
+        """递归删除 todo 及其所有子任务"""
+        # 查找所有子任务
+        child_todos = session.query(Todo).filter(Todo.parent_todo_id == todo_id).all()
+
+        # 递归删除所有子任务
+        for child in child_todos:
+            self._delete_todo_recursive(session, child.id)
+
+        # 清理关联关系（不删除 Tag/Attachment 实体）
+        session.query(TodoTagRelation).filter(TodoTagRelation.todo_id == todo_id).delete()
+        session.query(TodoAttachmentRelation).filter(
+            TodoAttachmentRelation.todo_id == todo_id
+        ).delete()
+
+        # 删除 todo 本身
+        todo = session.query(Todo).filter_by(id=todo_id).first()
+        if todo:
+            session.delete(todo)
+            logger.info(f"删除 todo: {todo_id}")
+
     def delete_todo(self, todo_id: int) -> bool:
         try:
             with self.db_base.get_session() as session:
@@ -271,20 +292,10 @@ class TodoManager:
                     logger.warning(f"todo 不存在: {todo_id}")
                     return False
 
-                # 删除前将子 todo 提升为根（避免悬挂 parent_todo_id）
-                session.query(Todo).filter(Todo.parent_todo_id == todo_id).update(
-                    {"parent_todo_id": None}
-                )
-
-                # 清理关联关系（不删除 Tag/Attachment 实体）
-                session.query(TodoTagRelation).filter(TodoTagRelation.todo_id == todo_id).delete()
-                session.query(TodoAttachmentRelation).filter(
-                    TodoAttachmentRelation.todo_id == todo_id
-                ).delete()
-
-                session.delete(todo)
+                # 递归删除 todo 及其所有子任务
+                self._delete_todo_recursive(session, todo_id)
                 session.flush()
-                logger.info(f"删除 todo: {todo_id}")
+                logger.info(f"删除 todo 及其子任务: {todo_id}")
                 return True
         except SQLAlchemyError as e:
             logger.error(f"删除 todo 失败: {e}")

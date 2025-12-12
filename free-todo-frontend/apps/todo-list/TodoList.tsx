@@ -13,7 +13,7 @@ import type React from "react";
 import { useState } from "react";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { CreateTodoInput } from "@/lib/types/todo";
-import { type FilterStatus, useOrderedTodos } from "./hooks/useOrderedTodos";
+import { useOrderedTodos } from "./hooks/useOrderedTodos";
 import { NewTodoInlineForm } from "./NewTodoInlineForm";
 import { TodoToolbar } from "./TodoToolbar";
 import { TodoTreeList } from "./TodoTreeList";
@@ -27,7 +27,6 @@ export function TodoList() {
 		setSelectedTodoId,
 		toggleTodoSelection,
 	} = useTodoStore();
-	const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
 	const [searchQuery, setSearchQuery] = useState("");
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [newTodoName, setNewTodoName] = useState("");
@@ -43,10 +42,11 @@ export function TodoList() {
 		}),
 	);
 
+	const { collapsedTodoIds } = useTodoStore();
 	const { filteredTodos, orderedTodos } = useOrderedTodos(
 		todos,
-		filterStatus,
 		searchQuery,
+		collapsedTodoIds,
 	);
 
 	const handleDragStart = (event: DragStartEvent) => {
@@ -103,12 +103,7 @@ export function TodoList() {
 
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-accent/10 dark:bg-accent/15">
-			<TodoToolbar
-				filterStatus={filterStatus}
-				onFilterChange={setFilterStatus}
-				searchQuery={searchQuery}
-				onSearch={setSearchQuery}
-			/>
+			<TodoToolbar searchQuery={searchQuery} onSearch={setSearchQuery} />
 
 			<div className="flex-1 overflow-y-auto">
 				<div className="px-4 py-4 pb-4">

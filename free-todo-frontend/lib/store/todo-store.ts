@@ -19,6 +19,7 @@ interface TodoStoreState {
 	todos: Todo[];
 	selectedTodoId: string | null;
 	selectedTodoIds: string[];
+	collapsedTodoIds: Set<string>;
 	hydrated: boolean;
 	isSyncing: boolean;
 	syncError: string | null;
@@ -37,6 +38,8 @@ interface TodoStoreState {
 	setSelectedTodoIds: (ids: string[]) => void;
 	toggleTodoSelection: (id: string) => void;
 	clearTodoSelection: () => void;
+	toggleTodoExpanded: (id: string) => void;
+	isTodoExpanded: (id: string) => boolean;
 }
 
 const normalizePriority = (priority: unknown): TodoPriority => {
@@ -114,6 +117,7 @@ export const useTodoStore = create<TodoStoreState>()((set, get) => ({
 	todos: [],
 	selectedTodoId: null,
 	selectedTodoIds: [],
+	collapsedTodoIds: new Set<string>(),
 	hydrated: false,
 	isSyncing: false,
 	syncError: null,
@@ -278,13 +282,37 @@ export const useTodoStore = create<TodoStoreState>()((set, get) => ({
 	deleteTodo: async (id) => {
 		set({ syncError: null });
 		try {
+			// 递归查找所有子任务 ID（包括子任务的子任务）
+			const findAllChildIds = (
+				parentId: string,
+				allTodos: Todo[],
+			): string[] => {
+				const childIds: string[] = [];
+				const children = allTodos.filter((t) => t.parentTodoId === parentId);
+				for (const child of children) {
+					childIds.push(child.id);
+					// 递归查找子任务的子任务
+					childIds.push(...findAllChildIds(child.id, allTodos));
+				}
+				return childIds;
+			};
+
+			const state = get();
+			const allIdsToDelete = [id, ...findAllChildIds(id, state.todos)];
+
 			await deleteTodoApi(toApiId(id));
-			set((state) => ({
-				todos: state.todos.filter((t) => t.id !== id),
-				selectedTodoId:
-					state.selectedTodoId === id ? null : state.selectedTodoId,
-				selectedTodoIds: state.selectedTodoIds.filter((x) => x !== id),
-			}));
+			set((state) => {
+				const idsToDeleteSet = new Set(allIdsToDelete);
+				return {
+					todos: state.todos.filter((t) => !idsToDeleteSet.has(t.id)),
+					selectedTodoId: idsToDeleteSet.has(state.selectedTodoId ?? "")
+						? null
+						: state.selectedTodoId,
+					selectedTodoIds: state.selectedTodoIds.filter(
+						(x) => !idsToDeleteSet.has(x),
+					),
+				};
+			});
 		} catch (err) {
 			console.error(err);
 			set({ syncError: err instanceof Error ? err.message : "删除失败" });
@@ -315,4 +343,22 @@ export const useTodoStore = create<TodoStoreState>()((set, get) => ({
 			);
 			return { todos: [...reorderedTodos, ...remainingTodos] };
 		}),
+
+	toggleTodoExpanded: (id) =>
+		set((state) => {
+			const newCollapsed = new Set(state.collapsedTodoIds);
+			if (newCollapsed.has(id)) {
+				// 如果已折叠，则展开（从 Set 中移除）
+				newCollapsed.delete(id);
+			} else {
+				// 如果已展开，则折叠（添加到 Set 中）
+				newCollapsed.add(id);
+			}
+			return { collapsedTodoIds: newCollapsed };
+		}),
+
+	isTodoExpanded: (id) => {
+		// 如果 id 不在 collapsedTodoIds 中，说明是展开的
+		return !get().collapsedTodoIds.has(id);
+	},
 }));

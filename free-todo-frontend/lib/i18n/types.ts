@@ -27,6 +27,7 @@ export type Translation = {
 		activityPlaceholder: string;
 		todosLabel: string;
 		todosPlaceholder: string;
+		todoListTitle: string;
 		chatLabel: string;
 		chatPlaceholder: string;
 		chatTitle: string;

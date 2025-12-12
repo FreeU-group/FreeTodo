@@ -2,7 +2,16 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, Flag, Paperclip, Plus, Tag, Trash2, X } from "lucide-react";
+import {
+	Calendar,
+	ChevronRight,
+	Flag,
+	Paperclip,
+	Plus,
+	Tag,
+	Trash2,
+	X,
+} from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -27,7 +36,15 @@ export function TodoCard({
 	onSelect,
 	onSelectSingle,
 }: TodoCardProps) {
-	const { toggleTodoStatus, deleteTodo, updateTodo, addTodo } = useTodoStore();
+	const {
+		toggleTodoStatus,
+		deleteTodo,
+		updateTodo,
+		addTodo,
+		todos,
+		toggleTodoExpanded,
+		isTodoExpanded,
+	} = useTodoStore();
 	const [contextMenu, setContextMenu] = useState({
 		open: false,
 		x: 0,
@@ -44,6 +61,13 @@ export function TodoCard({
 	const transform = sortable.transform;
 	const transition = sortable.transition;
 	const isSortableDragging = sortable.isDragging;
+
+	// 检查是否有子任务
+	const hasChildren = useMemo(() => {
+		return todos.some((t) => t.parentTodoId === todo.id);
+	}, [todos, todo.id]);
+
+	const isExpanded = isTodoExpanded(todo.id);
 
 	const formatDate = useMemo(
 		() => (dateString?: string) => {
@@ -214,6 +238,25 @@ export function TodoCard({
 				)}
 			>
 				<div className="flex items-start gap-3">
+					{hasChildren && (
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								toggleTodoExpanded(todo.id);
+							}}
+							className="mt-1 shrink-0 flex h-5 w-5 items-center justify-center rounded-md hover:bg-muted/50 transition-colors"
+							aria-label={isExpanded ? "折叠子任务" : "展开子任务"}
+						>
+							<ChevronRight
+								className={cn(
+									"h-4 w-4 text-muted-foreground transition-transform duration-200",
+									isExpanded && "rotate-90",
+								)}
+							/>
+						</button>
+					)}
+					{!hasChildren && <div className="w-5 shrink-0" />}
 					<button
 						type="button"
 						onClick={(e) => {
@@ -253,19 +296,21 @@ export function TodoCard({
 							</div>
 
 							<div className="flex items-center gap-2 shrink-0">
-								<div
-									className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
-									title={`优先级：${getPriorityLabel(todo.priority ?? "none")}`}
-								>
-									<Flag
-										className={cn(
-											"h-3.5 w-3.5",
-											getPriorityColor(todo.priority ?? "none"),
-										)}
-										fill="currentColor"
-									/>
-									<span>{getPriorityLabel(todo.priority ?? "none")}</span>
-								</div>
+								{todo.priority && todo.priority !== "none" && (
+									<div
+										className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+										title={`优先级：${getPriorityLabel(todo.priority)}`}
+									>
+										<Flag
+											className={cn(
+												"h-3.5 w-3.5",
+												getPriorityColor(todo.priority),
+											)}
+											fill="currentColor"
+										/>
+										<span>{getPriorityLabel(todo.priority)}</span>
+									</div>
+								)}
 								{todo.status && (
 									<span
 										className={cn(

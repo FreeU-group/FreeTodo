@@ -1,7 +1,5 @@
 import { useMemo } from "react";
-import type { Todo, TodoStatus } from "@/lib/types/todo";
-
-export type FilterStatus = "all" | TodoStatus;
+import type { Todo } from "@/lib/types/todo";
 
 export type OrderedTodo = {
 	todo: Todo;
@@ -10,15 +8,11 @@ export type OrderedTodo = {
 
 export function useOrderedTodos(
 	todos: Todo[],
-	filterStatus: FilterStatus,
 	searchQuery: string,
+	collapsedTodoIds?: Set<string>,
 ) {
 	return useMemo(() => {
 		let result = todos;
-
-		if (filterStatus !== "all") {
-			result = result.filter((todo) => todo.status === filterStatus);
-		}
 
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase();
@@ -64,9 +58,14 @@ export function useOrderedTodos(
 			sortByOriginalOrder(items).forEach((item) => {
 				ordered.push({ todo: item, depth });
 				const children = childrenMap.get(item.id);
+				// 如果有子任务且父任务已展开（collapsedTodoIds 为空或未定义时默认展开，否则检查是否不在 Set 中）
 				if (children?.length) {
-					// 子任务按创建时间升序排序
-					traverse(sortChildrenByCreatedAt(children), depth + 1);
+					const isExpanded =
+						collapsedTodoIds === undefined || !collapsedTodoIds.has(item.id);
+					if (isExpanded) {
+						// 子任务按创建时间升序排序
+						traverse(sortChildrenByCreatedAt(children), depth + 1);
+					}
 				}
 			});
 		};
@@ -74,5 +73,5 @@ export function useOrderedTodos(
 		traverse(sortByOriginalOrder(roots), 0);
 
 		return { filteredTodos: result, orderedTodos: ordered };
-	}, [todos, filterStatus, searchQuery]);
+	}, [todos, searchQuery, collapsedTodoIds]);
 }

@@ -1,26 +1,25 @@
 "use client";
 
-import { Search } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { FilterStatus } from "./hooks/useOrderedTodos";
+import { ListTodo, Search } from "lucide-react";
+import { useTranslations } from "@/lib/i18n";
+import { useLocaleStore } from "@/lib/store/locale";
 
 interface TodoToolbarProps {
-	filterStatus: FilterStatus;
-	onFilterChange: (status: FilterStatus) => void;
 	searchQuery: string;
 	onSearch: (value: string) => void;
 }
 
-export function TodoToolbar({
-	filterStatus,
-	onFilterChange,
-	searchQuery,
-	onSearch,
-}: TodoToolbarProps) {
+export function TodoToolbar({ searchQuery, onSearch }: TodoToolbarProps) {
+	const { locale } = useLocaleStore();
+	const t = useTranslations(locale);
+
 	return (
 		<div className="shrink-0 bg-background">
 			<div className="flex items-center justify-between px-4 py-3">
-				<h2 className="text-lg font-semibold text-foreground">Todo List</h2>
+				<h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+					<ListTodo className="h-5 w-5" />
+					{t.page.todoListTitle}
+				</h2>
 
 				<div className="flex items-center gap-2">
 					<div className="relative">
@@ -34,26 +33,6 @@ export function TodoToolbar({
 						/>
 					</div>
 				</div>
-			</div>
-
-			<div className="flex items-center gap-2 px-4 pb-3">
-				{(["all", "active", "completed", "canceled"] as const).map((status) => (
-					<button
-						key={status}
-						type="button"
-						onClick={() => onFilterChange(status)}
-						className={cn(
-							"rounded-full px-3 py-1 text-xs font-medium transition-colors",
-							filterStatus === status
-								? "bg-primary text-primary-foreground"
-								: "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
-						)}
-					>
-						{status === "all"
-							? "All"
-							: status.charAt(0).toUpperCase() + status.slice(1)}
-					</button>
-				))}
 			</div>
 		</div>
 	);
