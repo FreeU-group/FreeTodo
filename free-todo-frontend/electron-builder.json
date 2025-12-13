@@ -8,14 +8,12 @@
 	},
 	"files": [
 		"electron/**/*",
-		".next/**/*",
+		".next/standalone/**/*",
+		".next/static/**/*",
 		"public/**/*",
-		"package.json",
-		"next.config.mjs",
-		"postcss.config.mjs",
-		"tailwind.config.ts",
-		"node_modules/**/*"
+		"package.json"
 	],
+	"asarUnpack": ["**/*.node", ".next/standalone/**"],
 	"extraResources": [
 		{
 			"from": "public",

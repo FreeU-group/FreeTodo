@@ -1,6 +1,8 @@
 {
 	"name": "free-todo-frontend",
 	"version": "0.1.0",
+	"description": "A modern todo and project management application built with Next.js and Electron",
+	"author": "FreeTodo Team",
 	"private": true,
 	"main": "electron/main.js",
 	"scripts": {
@@ -11,7 +13,7 @@
 		"format": "biome format --write ./app ./components",
 		"check": "biome check ./app ./components",
 		"electron:dev": "concurrently \"cross-env BROWSER=none next dev\" \"wait-on http://localhost:3000 && electron .\"",
-		"electron:build": "next build",
+		"electron:build": "next build && node electron/prepare-standalone.cjs",
 		"electron:pack": "electron-builder --dir",
 		"electron:dist": "electron-builder",
 		"electron:dist:mac": "electron-builder --mac",
@@ -24,6 +26,7 @@
 		"@dnd-kit/utilities": "^3.2.2",
 		"clsx": "^2.1.1",
 		"dayjs": "^1.11.19",
+		"electron-serve": "^3.0.0",
 		"framer-motion": "^11.11.10",
 		"lucide-react": "^0.469.0",
 		"next": "16.0.8",

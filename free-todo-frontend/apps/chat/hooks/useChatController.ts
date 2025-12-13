@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePlanParser } from "@/apps/chat/hooks/usePlanParser";
-import type { ChatMessage, ChatMode } from "@/apps/chat/types";
+import type { ChatMessage } from "@/apps/chat/types";
 import { createId } from "@/apps/chat/utils/id";
 import { buildTodoContextBlock } from "@/apps/chat/utils/todoContext";
 import type { ChatHistoryItem, ChatSessionSummary } from "@/lib/api";
@@ -166,7 +166,8 @@ export const useChatController = ({
 					);
 				},
 				(sessionId) => {
-					setConversationId((prev) => prev || sessionId);
+					// chat-store 的 setConversationId 不是 React setState，不支持函数式更新
+					if (!conversationId) setConversationId(sessionId);
 				},
 			);
 

@@ -11,7 +11,6 @@ import { MessageList } from "@/apps/chat/MessageList";
 import { ModeSwitcher } from "@/apps/chat/ModeSwitcher";
 import { PlanSummary } from "@/apps/chat/PlanSummary";
 import { Questionnaire } from "@/apps/chat/Questionnaire";
-import { Suggestions } from "@/apps/chat/Suggestions";
 import { SummaryStreaming } from "@/apps/chat/SummaryStreaming";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
@@ -174,7 +173,6 @@ export function ChatPanel() {
 		handleSend,
 		handleNewChat,
 		handleLoadSession,
-		handleSuggestionClick,
 		handleKeyDown,
 		effectiveTodos,
 		hasSelection,
@@ -293,13 +291,6 @@ export function ChatPanel() {
 			)}
 
 			<div className="bg-background p-4">
-				{!modeMenuOpen && (
-					<Suggestions
-						suggestions={t.page.chatSuggestions}
-						onSelect={handleSuggestionClick}
-					/>
-				)}
-
 				<LinkedTodos
 					effectiveTodos={effectiveTodos}
 					hasSelection={hasSelection}

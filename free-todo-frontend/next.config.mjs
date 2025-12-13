@@ -6,6 +6,7 @@ const apiUrl = new URL(API_BASE_URL);
 const nextConfig = {
 	reactStrictMode: true,
 	typedRoutes: true,
+	output: "standalone", // 生成独立构建，自动包含最小依赖
 	async rewrites() {
 		return [
 			{
