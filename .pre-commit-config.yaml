@@ -33,3 +33,12 @@ repos:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.8"]
         files: ^(frontend/|free-todo-frontend/)
+  # TypeScript type checking for free-todo-frontend
+  - repo: local
+    hooks:
+      - id: tsc-free-todo-frontend
+        name: TypeScript type check (free-todo-frontend)
+        entry: bash -c 'cd free-todo-frontend && pnpm run type-check'
+        language: system
+        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        pass_filenames: false
