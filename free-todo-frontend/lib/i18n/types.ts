@@ -110,4 +110,38 @@ export type Translation = {
 		acceptFailed: string;
 		rejectFailed: string;
 	};
+	chat: {
+		planModeInputPlaceholder: string;
+		aiThinking: string;
+		generatingQuestions: string;
+		generateQuestionsFailed: string;
+		generateSummaryFailed: string;
+		loading: string;
+	};
+	calendar: {
+		title: string;
+		monthView: string;
+		weekView: string;
+		dayView: string;
+		today: string;
+		previous: string;
+		next: string;
+		create: string;
+		dragTip: string;
+		createOnDate: string;
+		closeCreate: string;
+		inputTodoTitle: string;
+		noTodosDue: string;
+		allDay: string;
+		weekdays: {
+			monday: string;
+			tuesday: string;
+			wednesday: string;
+			thursday: string;
+			friday: string;
+			saturday: string;
+			sunday: string;
+		};
+		weekPrefix: string;
+	};
 };

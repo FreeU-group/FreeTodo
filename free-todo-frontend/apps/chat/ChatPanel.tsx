@@ -85,9 +85,7 @@ export function ChatPanel() {
 							error:
 								error instanceof Error
 									? error.message
-									: locale === "zh"
-										? "生成问题失败，请重试"
-										: "Failed to generate questions, please try again",
+									: t.chat.generateQuestionsFailed,
 							isLoading: false,
 						});
 					}
@@ -105,7 +103,7 @@ export function ChatPanel() {
 		planLoading,
 		generateQuestions,
 		setQuestions,
-		locale,
+		t.chat.generateQuestionsFailed,
 	]);
 
 	// 处理提交回答
@@ -136,11 +134,7 @@ export function ChatPanel() {
 			// 设置错误状态
 			usePlanStore.setState({
 				error:
-					error instanceof Error
-						? error.message
-						: locale === "zh"
-							? "生成总结失败，请重试"
-							: "Failed to generate summary, please try again",
+					error instanceof Error ? error.message : t.chat.generateSummaryFailed,
 			});
 		}
 	}, [
@@ -150,7 +144,7 @@ export function ChatPanel() {
 		setSummary,
 		setIsGeneratingSummary,
 		setSummaryStreaming,
-		locale,
+		t.chat.generateSummaryFailed,
 	]);
 
 	// 处理接收计划
@@ -191,16 +185,11 @@ export function ChatPanel() {
 		createTodo: createTodoWithResult,
 	});
 
-	const typingText = useMemo(
-		() => (locale === "zh" ? "AI 正在思考..." : "AI is thinking..."),
-		[locale],
-	);
+	const typingText = useMemo(() => t.chat.aiThinking, [t.chat.aiThinking]);
 
 	const inputPlaceholder =
 		chatMode === "plan"
-			? locale === "zh"
-				? "例如：帮我规划周末搬家需要做的事"
-				: "e.g. Help me plan the tasks for moving this weekend"
+			? t.chat.planModeInputPlaceholder
 			: t.page.chatInputPlaceholder;
 
 	const formatMessageCount = useCallback(
@@ -228,7 +217,7 @@ export function ChatPanel() {
 			<HeaderBar
 				chatHistoryLabel={t.page.chatHistory}
 				newChatLabel={t.page.newChat}
-				onToggleHistory={() => setHistoryOpen((prev) => !prev)}
+				onToggleHistory={() => setHistoryOpen(!historyOpen)}
 				onNewChat={handleNewChat}
 			/>
 
@@ -242,7 +231,7 @@ export function ChatPanel() {
 					labels={{
 						recentSessions: t.page.recentSessions,
 						noHistory: t.page.noHistory,
-						loading: locale === "zh" ? "加载中" : "Loading",
+						loading: t.chat.loading,
 						chatHistory: t.page.chatHistory,
 					}}
 					onSelectSession={handleLoadSession}
@@ -265,9 +254,7 @@ export function ChatPanel() {
 					<div className="flex-1 flex items-center justify-center">
 						<div className="text-center">
 							<p className="text-muted-foreground">
-								{locale === "zh"
-									? "AI正在生成问题..."
-									: "AI is generating questions..."}
+								{t.chat.generatingQuestions}
 							</p>
 							{planError && (
 								<p className="mt-2 text-sm text-destructive">{planError}</p>

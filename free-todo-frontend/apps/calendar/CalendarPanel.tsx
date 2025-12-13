@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PanelHeader } from "@/components/common/PanelHeader";
+import { useTranslations } from "@/lib/i18n";
+import { useLocaleStore } from "@/lib/store/locale";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { Todo, TodoStatus } from "@/lib/types/todo";
 import { cn } from "@/lib/utils";
@@ -37,14 +39,6 @@ interface CalendarDay {
 	date: Date;
 	inCurrentMonth?: boolean;
 }
-
-const VIEW_OPTIONS: { id: CalendarView; label: string }[] = [
-	{ id: "month", label: "月视图" },
-	{ id: "week", label: "周视图" },
-	{ id: "day", label: "日视图" },
-];
-
-const WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
 
 const DEFAULT_NEW_TIME = "09:00";
 
@@ -101,8 +95,8 @@ function formatHumanDate(date: Date): string {
 	return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
 }
 
-function formatTimeLabel(date: Date | null): string {
-	if (!date) return "全天";
+function formatTimeLabel(date: Date | null, allDayText: string): string {
+	if (!date) return allDayText;
 	const hh = `${date.getHours()}`.padStart(2, "0");
 	const mm = `${date.getMinutes()}`.padStart(2, "0");
 	return `${hh}:${mm}`;
@@ -145,9 +139,11 @@ function buildWeekDays(currentDate: Date): CalendarDay[] {
 function DraggableTodo({
 	calendarTodo,
 	onSelect,
+	allDayText,
 }: {
 	calendarTodo: CalendarTodo;
 	onSelect: (todo: Todo) => void;
+	allDayText: string;
 }) {
 	const { attributes, listeners, setNodeRef, transform, isDragging } =
 		useDraggable({ id: calendarTodo.todo.id });
@@ -193,7 +189,7 @@ function DraggableTodo({
 					{calendarTodo.todo.name}
 				</p>
 				<span className={cn("shrink-0 text-[11px] font-medium", badge)}>
-					{formatTimeLabel(calendarTodo.deadline)}
+					{formatTimeLabel(calendarTodo.deadline, allDayText)}
 				</span>
 			</div>
 			{calendarTodo.todo.tags && calendarTodo.todo.tags.length > 0 && (
@@ -224,6 +220,8 @@ function DayColumn({
 	onSelectTodo,
 	activeId,
 	view,
+	todayText,
+	allDayText,
 }: {
 	day: CalendarDay;
 	todos: CalendarTodo[];
@@ -231,6 +229,8 @@ function DayColumn({
 	onSelectTodo: (todo: Todo) => void;
 	activeId: string | null;
 	view: CalendarView;
+	todayText: string;
+	allDayText: string;
 }) {
 	const dayId = `day-${toDateKey(day.date)}`;
 	const { isOver, setNodeRef } = useDroppable({ id: dayId });
@@ -265,7 +265,9 @@ function DayColumn({
 				>
 					{day.date.getDate()}
 				</span>
-				{isToday && <span className="text-[11px] text-primary">今天</span>}
+				{isToday && (
+					<span className="text-[11px] text-primary">{todayText}</span>
+				)}
 			</div>
 
 			<div className="flex flex-col gap-2">
@@ -274,6 +276,7 @@ function DayColumn({
 						key={item.todo.id}
 						calendarTodo={item}
 						onSelect={onSelectTodo}
+						allDayText={allDayText}
 					/>
 				))}
 			</div>
@@ -295,6 +298,7 @@ function QuickCreateBar({
 	onTimeChange,
 	onConfirm,
 	onCancel,
+	labels,
 }: {
 	targetDate: Date | null;
 	value: string;
@@ -303,6 +307,12 @@ function QuickCreateBar({
 	onTimeChange: (v: string) => void;
 	onConfirm: () => void;
 	onCancel: () => void;
+	labels: {
+		createOnDate: string;
+		closeCreate: string;
+		inputTodoTitle: string;
+		create: string;
+	};
 }) {
 	if (!targetDate) return null;
 	return (
@@ -311,13 +321,18 @@ function QuickCreateBar({
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2 text-sm text-muted-foreground">
 						<Calendar className="h-4 w-4" />
-						<span>在 {formatHumanDate(targetDate)} 创建待办</span>
+						<span>
+							{labels.createOnDate.replace(
+								"{date}",
+								formatHumanDate(targetDate),
+							)}
+						</span>
 					</div>
 					<button
 						type="button"
 						onClick={onCancel}
 						className="rounded-md p-1 text-muted-foreground hover:bg-muted/50"
-						aria-label="关闭创建"
+						aria-label={labels.closeCreate}
 					>
 						<X className="h-4 w-4" />
 					</button>
@@ -326,7 +341,7 @@ function QuickCreateBar({
 					<input
 						value={value}
 						onChange={(e) => onChange(e.target.value)}
-						placeholder="输入待办标题..."
+						placeholder={labels.inputTodoTitle}
 						className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
 					/>
 					<div className="flex items-center gap-2">
@@ -346,7 +361,7 @@ function QuickCreateBar({
 							)}
 						>
 							<Plus className="h-4 w-4" />
-							创建
+							{labels.create}
 						</button>
 					</div>
 				</div>
@@ -356,6 +371,8 @@ function QuickCreateBar({
 }
 
 export function CalendarPanel() {
+	const { locale } = useLocaleStore();
+	const t = useTranslations(locale);
 	const { todos, updateTodo, addTodo, setSelectedTodoId } = useTodoStore();
 	const [view, setView] = useState<CalendarView>("month");
 	const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
@@ -371,6 +388,22 @@ export function CalendarPanel() {
 			},
 		}),
 	);
+
+	const VIEW_OPTIONS: { id: CalendarView; label: string }[] = [
+		{ id: "month", label: t.calendar.monthView },
+		{ id: "week", label: t.calendar.weekView },
+		{ id: "day", label: t.calendar.dayView },
+	];
+
+	const WEEKDAY_LABELS = [
+		t.calendar.weekdays.monday,
+		t.calendar.weekdays.tuesday,
+		t.calendar.weekdays.wednesday,
+		t.calendar.weekdays.thursday,
+		t.calendar.weekdays.friday,
+		t.calendar.weekdays.saturday,
+		t.calendar.weekdays.sunday,
+	];
 
 	const range = useMemo(() => {
 		if (view === "month") {
@@ -498,6 +531,8 @@ export function CalendarPanel() {
 					onSelectDay={handleSelectDay}
 					onSelectTodo={(todo) => setSelectedTodoId(todo.id)}
 					todos={groupedByDay.get(toDateKey(day.date)) || []}
+					todayText={t.calendar.today}
+					allDayText={t.calendar.allDay}
 				/>
 			))}
 		</div>
@@ -514,6 +549,8 @@ export function CalendarPanel() {
 					onSelectDay={handleSelectDay}
 					onSelectTodo={(todo) => setSelectedTodoId(todo.id)}
 					todos={groupedByDay.get(toDateKey(day.date)) || []}
+					todayText={t.calendar.today}
+					allDayText={t.calendar.allDay}
 				/>
 			))}
 		</div>
@@ -527,7 +564,7 @@ export function CalendarPanel() {
 				<div className="flex flex-col gap-3">
 					{todaysTodos.length === 0 ? (
 						<div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-							无截止待办，点击下方创建一个吧
+							{t.calendar.noTodosDue}
 						</div>
 					) : (
 						todaysTodos.map((item) => (
@@ -561,7 +598,7 @@ export function CalendarPanel() {
 													: "text-muted-foreground",
 										)}
 									>
-										{formatTimeLabel(item.deadline)}
+										{formatTimeLabel(item.deadline, t.calendar.allDay)}
 									</span>
 								</div>
 								{item.todo.tags && item.todo.tags.length > 0 && (
@@ -592,18 +629,18 @@ export function CalendarPanel() {
 		>
 			<div className="flex h-full flex-col overflow-hidden bg-background">
 				{/* 顶部标题栏 */}
-				<PanelHeader icon={Calendar} title="日历" />
+				<PanelHeader icon={Calendar} title={t.calendar.title} />
 				{/* 顶部工具栏 */}
 				<div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-4 py-3">
 					<span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-						拖拽待办可调整截止日期
+						{t.calendar.dragTip}
 					</span>
 					<div className="flex items-center gap-2">
 						<button
 							type="button"
 							onClick={() => handleNavigate("prev")}
 							className="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-card text-muted-foreground hover:bg-muted/60"
-							aria-label="上一段"
+							aria-label={t.calendar.previous}
 						>
 							<ChevronLeft className="h-4 w-4" />
 						</button>
@@ -613,13 +650,13 @@ export function CalendarPanel() {
 							className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/60"
 						>
 							<RotateCcw className="h-4 w-4" />
-							今天
+							{t.calendar.today}
 						</button>
 						<button
 							type="button"
 							onClick={() => handleNavigate("next")}
 							className="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-card text-muted-foreground hover:bg-muted/60"
-							aria-label="下一段"
+							aria-label={t.calendar.next}
 						>
 							<ChevronRight className="h-4 w-4" />
 						</button>
@@ -646,7 +683,7 @@ export function CalendarPanel() {
 							className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
 						>
 							<Plus className="h-4 w-4" />
-							新建
+							{t.calendar.create}
 						</button>
 					</div>
 				</div>
@@ -657,7 +694,8 @@ export function CalendarPanel() {
 						<div className="grid grid-cols-7 gap-2 pb-2 text-center text-xs text-muted-foreground">
 							{WEEKDAY_LABELS.map((label) => (
 								<span key={label} className="font-medium">
-									周{label}
+									{t.calendar.weekPrefix}
+									{label}
 								</span>
 							))}
 						</div>
@@ -680,6 +718,12 @@ export function CalendarPanel() {
 					onCancel={() => {
 						setQuickTargetDate(null);
 						setQuickTitle("");
+					}}
+					labels={{
+						createOnDate: t.calendar.createOnDate,
+						closeCreate: t.calendar.closeCreate,
+						inputTodoTitle: t.calendar.inputTodoTitle,
+						create: t.calendar.create,
 					}}
 				/>
 
