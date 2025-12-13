@@ -50,7 +50,8 @@ const normalizePriority = (priority: unknown): TodoPriority => {
 };
 
 const normalizeStatus = (status: unknown): TodoStatus => {
-	if (status === "completed" || status === "canceled") return status;
+	if (status === "completed" || status === "canceled" || status === "draft")
+		return status;
 	return "active";
 };
 
@@ -327,7 +328,9 @@ export const useTodoStore = create<TodoStoreState>()((set, get) => ({
 				? "active"
 				: todo.status === "canceled"
 					? "canceled"
-					: "completed";
+					: todo.status === "draft"
+						? "active" // draft -> active when toggling
+						: "completed";
 		await get().updateTodo(id, { status: next });
 	},
 

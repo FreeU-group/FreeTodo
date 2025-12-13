@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AchievementsPanel } from "@/apps/achievements/AchievementsPanel";
 import { ActivityPanel } from "@/apps/activity/ActivityPanel";
 import { CalendarPanel } from "@/apps/calendar/CalendarPanel";
@@ -32,9 +32,11 @@ export function PanelContent({ position }: PanelContentProps) {
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
 	const { hydrate } = useTodoStore();
+	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
 		void hydrate();
+		setMounted(true);
 	}, [hydrate]);
 
 	const feature = getFeatureByPosition(position);
@@ -76,6 +78,24 @@ export function PanelContent({ position }: PanelContentProps) {
 
 	// 获取对应的图标
 	const Icon = feature ? FEATURE_ICON_MAP[feature] : null;
+
+	// 在 hydration 完成前，对于可能从 localStorage 读取的功能，显示占位符以避免不匹配
+	// 特别是 debugShots 功能，因为它依赖于开发环境配置
+	if (!mounted && feature === "debugShots") {
+		return (
+			<div className="flex h-full flex-col rounded-(--radius) overflow-hidden">
+				<div className="flex h-10 shrink-0 items-center gap-2 bg-muted/30 px-4">
+					{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+					<h2 className="text-sm font-medium text-foreground">
+						{getFeatureLabel(position)}
+					</h2>
+				</div>
+				<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+					{getFeaturePlaceholder(position)}
+				</div>
+			</div>
+		);
+	}
 
 	// 如果是待办功能，显示待办组件
 	if (feature === "todos") {

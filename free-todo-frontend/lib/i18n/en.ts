@@ -78,6 +78,18 @@ export const en: Translation = {
 		screenshots: "Screenshots",
 		debugShots: "Debug Shots",
 	},
+	settings: {
+		autoTodoDetectionTitle: "Auto Todo Detection",
+		autoTodoDetectionDescription:
+			"Automatically detect todos from screenshots of whitelisted apps (WeChat, Feishu, etc.) and create draft todos for confirmation",
+		autoTodoDetectionLabel: "Enable Auto Todo Detection",
+		autoTodoDetectionHint:
+			"Enabled: System will automatically detect todos from whitelisted apps (WeChat, Feishu, DingTalk, etc.)",
+		autoTodoDetectionEnabled: "Auto todo detection enabled",
+		autoTodoDetectionDisabled: "Auto todo detection disabled",
+		loadFailed: "Failed to load config: {error}",
+		saveFailed: "Failed to save config: {error}",
+	},
 	todoExtraction: {
 		extractButton: "Extract Todos",
 		extracting: "Extracting todos...",
@@ -99,5 +111,14 @@ export const en: Translation = {
 		addSuccess: "Successfully added {count} todos",
 		addFailed: "Failed to add todos: {error}",
 		selectedCount: "Selected {count} items",
+		newDraftTodoNotification: "New Todo Pending Confirmation",
+		accept: "Accept",
+		reject: "Reject",
+		accepting: "Processing...",
+		rejecting: "Processing...",
+		acceptSuccess: "Added to todo list",
+		rejectSuccess: "Rejected",
+		acceptFailed: "Failed: {error}",
+		rejectFailed: "Failed: {error}",
 	},
 };

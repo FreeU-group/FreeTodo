@@ -11,6 +11,9 @@ import { BottomDock } from "@/components/layout/BottomDock";
 import { PanelContainer } from "@/components/layout/PanelContainer";
 import { PanelContent } from "@/components/layout/PanelContent";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
+import { DynamicIsland } from "@/components/notification/DynamicIsland";
+import { getNotificationPoller } from "@/lib/services/notification-poller";
+import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
 
 export default function HomePage() {
@@ -37,6 +40,53 @@ export default function HomePage() {
 		// 清理：防止在组件卸载时光标和选择状态残留
 		return () => setGlobalResizeCursor(false);
 	}, [setGlobalResizeCursor]);
+
+	// 初始化并管理轮询
+	useEffect(() => {
+		const poller = getNotificationPoller();
+		const store = useNotificationStore.getState();
+
+		// 注册 draft todo 轮询端点（如果尚未注册）
+		const draftTodoEndpoint = store.getEndpoint("draft-todos");
+		if (!draftTodoEndpoint) {
+			store.registerEndpoint({
+				id: "draft-todos",
+				url: "/api/todos?status=draft&limit=1",
+				interval: 1000, // 1秒轮询一次，实现近实时更新
+				enabled: true,
+			});
+		}
+
+		// 同步当前所有端点
+		const syncEndpoints = () => {
+			const allEndpoints = store.getAllEndpoints();
+
+			// 更新或注册已启用的端点
+			for (const endpoint of allEndpoints) {
+				if (endpoint.enabled) {
+					poller.updateEndpoint(endpoint);
+				} else {
+					poller.unregisterEndpoint(endpoint.id);
+				}
+			}
+
+			// 清理已删除的端点（通过检查当前注册的端点）
+			// 注意：这里我们依赖 updateEndpoint 和 unregisterEndpoint 来管理
+		};
+
+		// 初始同步
+		syncEndpoints();
+
+		// 订阅端点变化
+		const unsubscribe = useNotificationStore.subscribe(() => {
+			syncEndpoints();
+		});
+
+		// 清理函数
+		return () => {
+			unsubscribe();
+		};
+	}, []);
 
 	const layoutState = useMemo(() => {
 		// 计算基础宽度（不包括 panelC）
@@ -252,8 +302,9 @@ export default function HomePage() {
 	return (
 		<main className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
 			<div className="relative z-10 flex h-full flex-col text-foreground">
-				<header className="flex h-12 shrink-0 items-center justify-between gap-3 bg-background px-4 text-foreground">
-					<div className="flex items-center gap-2">
+				<header className="relative flex h-12 shrink-0 items-center gap-3 bg-background px-4 text-foreground overflow-visible">
+					{/* 左侧：Logo */}
+					<div className="flex items-center gap-2 shrink-0">
 						<Image
 							src="/logo.png"
 							alt="Free Todo Logo"
@@ -266,7 +317,13 @@ export default function HomePage() {
 						</h1>
 					</div>
 
-					<div className="flex items-center gap-2">
+					{/* 中间：通知区域（灵动岛） */}
+					<div className="flex-1 flex items-center justify-center relative min-w-0 overflow-visible">
+						<DynamicIsland />
+					</div>
+
+					{/* 右侧：工具 */}
+					<div className="flex items-center gap-2 shrink-0">
 						<ThemeToggle />
 						<LanguageToggle />
 						<UserAvatar />

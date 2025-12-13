@@ -323,7 +323,7 @@ export type ApiTodo = {
 	user_notes?: string | null;
 	parent_todo_id?: number | null;
 	deadline?: string | null;
-	status: "active" | "completed" | "canceled" | string;
+	status: "active" | "completed" | "canceled" | "draft" | string;
 	priority: "high" | "medium" | "low" | "none" | string;
 	tags?: string[];
 	attachments?: ApiTodoAttachment[];
@@ -516,6 +516,123 @@ export async function extractTodosFromEvent(
 			event_id: eventId,
 			screenshot_sample_ratio: screenshotSampleRatio,
 		}),
+	});
+
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		throw new Error(
+			errorData.detail || `Request failed with status ${response.status}`,
+		);
+	}
+
+	return response.json();
+}
+
+/**
+ * 通知响应格式
+ */
+export interface NotificationResponse {
+	id?: string;
+	title: string;
+	content: string;
+	timestamp?: string;
+}
+
+/**
+ * 从指定端点获取通知
+ * @param url 轮询端点 URL
+ * @returns 通知数据，如果没有新通知则返回 null
+ */
+export async function fetchNotification(
+	url: string,
+): Promise<NotificationResponse | null> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+	try {
+		const response = await fetch(`${baseUrl}${url}`, {
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+		});
+
+		if (!response.ok) {
+			// 404 或其他错误表示没有新通知，返回 null
+			if (response.status === 404) {
+				return null;
+			}
+			throw new Error(`Request failed with status ${response.status}`);
+		}
+
+		// 检查响应是否为空
+		const text = await response.text();
+		if (!text || text.trim() === "") {
+			return null;
+		}
+
+		const data = JSON.parse(text) as NotificationResponse;
+
+		// 如果没有 title 或 content，视为无效通知
+		if (!data.title && !data.content) {
+			return null;
+		}
+
+		return data;
+	} catch (error) {
+		// 网络错误或其他异常，返回 null 而不是抛出错误
+		// 这样轮询可以继续，不会中断
+		console.warn(`Failed to fetch notification from ${url}:`, error);
+		return null;
+	}
+}
+
+/**
+ * 获取配置
+ */
+export async function getConfig(): Promise<{
+	success: boolean;
+	config?: Record<string, unknown>;
+	error?: string;
+}> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const url = `${baseUrl}/api/get-config`;
+
+	const response = await fetch(url, {
+		headers: { "Content-Type": "application/json" },
+	});
+
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		throw new Error(
+			errorData.detail || `Request failed with status ${response.status}`,
+		);
+	}
+
+	return response.json();
+}
+
+/**
+ * 保存配置
+ */
+export async function saveConfig(
+	config: Record<string, unknown>,
+): Promise<{ success: boolean; message?: string; error?: string }> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const url = `${baseUrl}/api/save-config`;
+
+	const response = await fetch(url, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(config),
 	});
 
 	if (!response.ok) {

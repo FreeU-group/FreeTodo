@@ -50,6 +50,16 @@ export type Translation = {
 		diaryPlaceholder: string;
 		settingsLabel: string;
 		settingsPlaceholder: string;
+		settings: {
+			autoTodoDetectionTitle: string;
+			autoTodoDetectionDescription: string;
+			autoTodoDetectionLabel: string;
+			autoTodoDetectionHint: string;
+			autoTodoDetectionEnabled: string;
+			autoTodoDetectionDisabled: string;
+			loadFailed: string;
+			saveFailed: string;
+		};
 		achievementsLabel: string;
 		achievementsPlaceholder: string;
 		screenshotsLabel: string;
@@ -90,5 +100,14 @@ export type Translation = {
 		addSuccess: string;
 		addFailed: string;
 		selectedCount: string;
+		newDraftTodoNotification: string;
+		accept: string;
+		reject: string;
+		accepting: string;
+		rejecting: string;
+		acceptSuccess: string;
+		rejectSuccess: string;
+		acceptFailed: string;
+		rejectFailed: string;
 	};
 };

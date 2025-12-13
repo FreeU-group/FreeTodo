@@ -90,6 +90,8 @@ export function TodoCard({
 				return "bg-[oklch(var(--accent)/0.16)] text-[oklch(var(--accent-foreground))] border-[oklch(var(--accent)/0.28)]";
 			case "canceled":
 				return "bg-[oklch(var(--muted)/0.35)] text-[oklch(var(--muted-foreground))] border-[oklch(var(--border))]";
+			case "draft":
+				return "bg-orange-500/12 text-orange-600 dark:text-orange-400 border-orange-500/32";
 			default:
 				return "";
 		}
@@ -103,6 +105,8 @@ export function TodoCard({
 				return "Completed";
 			case "canceled":
 				return "Canceled";
+			case "draft":
+				return "Draft";
 			default:
 				return status;
 		}

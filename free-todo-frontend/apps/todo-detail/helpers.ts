@@ -1,7 +1,12 @@
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types/todo";
 import { cn } from "@/lib/utils";
 
-export const statusOptions: TodoStatus[] = ["active", "completed", "canceled"];
+export const statusOptions: TodoStatus[] = [
+	"active",
+	"completed",
+	"canceled",
+	"draft",
+];
 export const priorityOptions: TodoPriority[] = [
 	"high",
 	"medium",
@@ -16,7 +21,9 @@ export const getStatusClassNames = (status: TodoStatus) =>
 			? "border-primary/60 bg-primary/10 text-primary"
 			: status === "canceled"
 				? "border-muted-foreground/50 bg-muted/20 text-muted-foreground"
-				: "border-accent/60 bg-accent/10 text-accent-foreground",
+				: status === "draft"
+					? "border-orange-500/60 bg-orange-500/10 text-orange-600 dark:text-orange-400"
+					: "border-accent/60 bg-accent/10 text-accent-foreground",
 	);
 
 export const getPriorityClassNames = (priority: TodoPriority) =>

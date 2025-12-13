@@ -1,133 +1,134 @@
 "use client";
 
 import { Settings } from "lucide-react";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
-import { LanguageToggle } from "@/components/common/LanguageToggle";
-import { PanelHeader } from "@/components/common/PanelHeader";
-import { ThemeStyleSelect } from "@/components/common/ThemeStyleSelect";
-import { ThemeToggle } from "@/components/common/ThemeToggle";
+import { useCallback, useEffect, useState } from "react";
+import { getConfig, saveConfig } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
-import { useColorThemeStore } from "@/lib/store/color-theme";
 import { useLocaleStore } from "@/lib/store/locale";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 /**
  * 设置面板组件
- * 用于展示和管理应用设置，包括主题、语言、配色等
+ * 用于配置系统各项功能
  */
 export function SettingsPanel() {
 	const { locale } = useLocaleStore();
-	const { colorTheme } = useColorThemeStore();
-	const { theme } = useTheme();
 	const t = useTranslations(locale);
-	const [mounted, setMounted] = useState(false);
+	const [loading, setLoading] = useState(false);
+	const [autoTodoDetectionEnabled, setAutoTodoDetectionEnabled] =
+		useState(false);
 
+	const loadConfig = useCallback(async () => {
+		setLoading(true);
+		try {
+			const response = await getConfig();
+			if (response.success && response.config) {
+				setAutoTodoDetectionEnabled(
+					(response.config.jobsAutoTodoDetectionEnabled as boolean) ?? false,
+				);
+			}
+		} catch (error) {
+			console.error("加载配置失败:", error);
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			toastError(t.settings.loadFailed.replace("{error}", errorMsg));
+		} finally {
+			setLoading(false);
+		}
+	}, [t]);
+
+	// 加载配置
 	useEffect(() => {
-		setMounted(true);
-	}, []);
+		void loadConfig();
+	}, [loadConfig]);
 
-	// 获取当前主题标签
-	const getCurrentThemeLabel = () => {
-		if (!mounted) return t.theme.system;
-		const themes = [
-			{ value: "light" as const, label: t.theme.light },
-			{ value: "dark" as const, label: t.theme.dark },
-			{ value: "system" as const, label: t.theme.system },
-		];
-		const validThemes = themes.map((t) => t.value);
-		const currentTheme =
-			theme && validThemes.includes(theme as (typeof validThemes)[number])
-				? (theme as (typeof validThemes)[number])
-				: "system";
-		return (
-			themes.find((t) => t.value === currentTheme)?.label || t.theme.system
-		);
-	};
-
-	// 获取当前语言标签
-	const getCurrentLanguageLabel = () => {
-		return locale === "zh" ? t.language.zh : t.language.en;
-	};
-
-	// 获取当前配色风格标签
-	const getCurrentColorThemeLabel = () => {
-		return colorTheme === "blue" ? t.colorTheme.blue : t.colorTheme.neutral;
+	const handleToggleAutoTodoDetection = async (enabled: boolean) => {
+		setLoading(true);
+		try {
+			await saveConfig({
+				jobsAutoTodoDetectionEnabled: enabled,
+			});
+			setAutoTodoDetectionEnabled(enabled);
+			toastSuccess(
+				enabled
+					? t.settings.autoTodoDetectionEnabled
+					: t.settings.autoTodoDetectionDisabled,
+			);
+		} catch (error) {
+			console.error("保存配置失败:", error);
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			toastError(t.settings.saveFailed.replace("{error}", errorMsg));
+			// 恢复原状态
+			setAutoTodoDetectionEnabled(!enabled);
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-background">
 			{/* 顶部标题栏 */}
-			<PanelHeader icon={Settings} title={t.page.settingsLabel} />
+			<div className="shrink-0 bg-primary/15">
+				<div className="flex items-center justify-between px-4 py-2.5">
+					<h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+						<Settings className="h-5 w-5 text-primary" />
+						{t.page.settingsLabel}
+					</h2>
+				</div>
+			</div>
 
 			{/* 设置内容区域 */}
 			<div className="flex-1 overflow-y-auto px-4 py-6">
-				<div className="mx-auto max-w-2xl space-y-4">
-					{/* 用户设置标题 */}
-					<div className="mb-2">
-						<h3 className="text-lg font-semibold text-foreground">
-							{t.layout.userSettings}
+				{/* 自动待办检测设置 */}
+				<div className="mb-6 rounded-lg border border-border bg-card p-4">
+					<div className="mb-4">
+						<h3 className="mb-1 text-base font-semibold text-foreground">
+							{t.settings.autoTodoDetectionTitle}
 						</h3>
+						<p className="text-sm text-muted-foreground">
+							{t.settings.autoTodoDetectionDescription}
+						</p>
 					</div>
-
-					{/* 主题设置 */}
-					<div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-						<div className="mb-3">
-							<div className="text-sm font-medium text-foreground">
-								{t.layout.currentTheme}
-							</div>
-							<p className="mt-1 text-xs text-muted-foreground">
-								{mounted ? getCurrentThemeLabel() : t.theme.system}
+					<div className="flex items-center justify-between">
+						<div className="flex-1">
+							<label
+								htmlFor="auto-todo-detection-toggle"
+								className="text-sm font-medium text-foreground"
+							>
+								{t.settings.autoTodoDetectionLabel}
+							</label>
+						</div>
+						<button
+							type="button"
+							id="auto-todo-detection-toggle"
+							disabled={loading}
+							onClick={() =>
+								handleToggleAutoTodoDetection(!autoTodoDetectionEnabled)
+							}
+							className={`
+                relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+                focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+                disabled:opacity-50 disabled:cursor-not-allowed
+                ${autoTodoDetectionEnabled ? "bg-primary" : "bg-muted"}
+              `}
+							aria-label={t.settings.autoTodoDetectionLabel}
+						>
+							<span
+								className={`
+                  inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                  ${
+										autoTodoDetectionEnabled ? "translate-x-6" : "translate-x-1"
+									}
+                `}
+							/>
+						</button>
+					</div>
+					{autoTodoDetectionEnabled && (
+						<div className="mt-3 rounded-md bg-primary/10 p-3">
+							<p className="text-xs text-primary">
+								{t.settings.autoTodoDetectionHint}
 							</p>
 						</div>
-						<div className="flex items-center gap-3">
-							<ThemeToggle />
-							<span className="text-sm text-muted-foreground">
-								{locale === "zh"
-									? "点击切换主题（浅色/深色/系统）"
-									: "Click to toggle theme (Light/Dark/System)"}
-							</span>
-						</div>
-					</div>
-
-					{/* 语言设置 */}
-					<div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-						<div className="mb-3">
-							<div className="text-sm font-medium text-foreground">
-								{t.layout.currentLanguage}
-							</div>
-							<p className="mt-1 text-xs text-muted-foreground">
-								{getCurrentLanguageLabel()}
-							</p>
-						</div>
-						<div className="flex items-center gap-3">
-							<LanguageToggle />
-							<span className="text-sm text-muted-foreground">
-								{locale === "zh"
-									? "点击切换语言（中文/英文）"
-									: "Click to toggle language (Chinese/English)"}
-							</span>
-						</div>
-					</div>
-
-					{/* 配色风格设置 */}
-					<div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-						<div className="mb-3">
-							<div className="text-sm font-medium text-foreground">
-								{t.colorTheme.label}
-							</div>
-							<p className="mt-1 text-xs text-muted-foreground">
-								{getCurrentColorThemeLabel()}
-							</p>
-						</div>
-						<div className="flex items-center gap-3">
-							<ThemeStyleSelect />
-							<span className="text-sm text-muted-foreground">
-								{locale === "zh"
-									? "选择应用的配色风格"
-									: "Choose application color theme"}
-							</span>
-						</div>
-					</div>
+					)}
 				</div>
 			</div>
 		</div>

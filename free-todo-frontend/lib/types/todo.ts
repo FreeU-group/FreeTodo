@@ -1,4 +1,4 @@
-export type TodoStatus = "active" | "completed" | "canceled";
+export type TodoStatus = "active" | "completed" | "canceled" | "draft";
 export type TodoPriority = "high" | "medium" | "low" | "none";
 
 export interface TodoAttachment {

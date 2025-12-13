@@ -19,6 +19,7 @@ class TodoStatus(str, Enum):
     ACTIVE = "active"
     COMPLETED = "completed"
     CANCELED = "canceled"
+    DRAFT = "draft"
 
 
 class TodoPriority(str, Enum):
