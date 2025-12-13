@@ -47,8 +47,13 @@ function formatCurrentTime(locale: string): { time: string; date: string } {
 }
 
 export function DynamicIsland() {
-	const { currentNotification, isExpanded, toggleExpanded, setNotification } =
-		useNotificationStore();
+	const {
+		currentNotification,
+		isExpanded,
+		toggleExpanded,
+		setNotification,
+		setExpanded,
+	} = useNotificationStore();
 	const { locale } = useLocaleStore();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [currentTime, setCurrentTime] = useState(() =>
@@ -120,12 +125,20 @@ export function DynamicIsland() {
 					<motion.button
 						type="button"
 						onClick={toggleExpanded}
+						whileHover={{
+							scale: 1.02,
+							y: -2,
+						}}
+						whileTap={{
+							scale: 0.98,
+						}}
 						className={`
 						relative flex items-center gap-2 overflow-hidden rounded-full
 						bg-background/95 backdrop-blur-sm border border-border/50
-						shadow-lg transition-all duration-200
-						hover:shadow-xl hover:border-border
-						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
+						shadow-lg transition-all duration-300
+						hover:shadow-2xl hover:shadow-primary/10 hover:border-primary/30
+						hover:bg-background
+						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
 						${isExpanded ? "px-4 py-3" : "px-3 py-2"}
 					`}
 						aria-label={isExpanded ? "收起通知" : "展开通知"}
@@ -141,7 +154,19 @@ export function DynamicIsland() {
 									transition={{ duration: 0.2 }}
 									className="flex items-center gap-2"
 								>
-									<Bell className="h-4 w-4 text-primary shrink-0" />
+									<motion.div
+										animate={{
+											rotate: [0, -10, 10, -10, 0],
+										}}
+										transition={{
+											duration: 0.5,
+											repeat: Infinity,
+											repeatDelay: 2,
+											ease: "easeInOut",
+										}}
+									>
+										<Bell className="h-4 w-4 text-primary shrink-0" />
+									</motion.div>
 									<span className="text-sm font-medium text-foreground truncate max-w-[120px]">
 										{currentNotification.title || "新通知"}
 									</span>
@@ -165,14 +190,16 @@ export function DynamicIsland() {
 												</h3>
 											</div>
 										</div>
-										<button
+										<motion.button
 											type="button"
 											onClick={handleClose}
-											className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+											whileHover={{ scale: 1.1, rotate: 90 }}
+											whileTap={{ scale: 0.9 }}
+											className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
 											aria-label="关闭通知"
 										>
 											<X className="h-3.5 w-3.5" />
-										</button>
+										</motion.button>
 									</div>
 									{currentNotification.content && (
 										<p className="text-xs text-muted-foreground line-clamp-2 pl-6">
@@ -193,16 +220,32 @@ export function DynamicIsland() {
 					<motion.div
 						initial={{ opacity: 0, scale: 0.9 }}
 						animate={{ opacity: 1, scale: 1 }}
-						transition={{ duration: 0.3 }}
+						whileHover={{
+							scale: 1.03,
+							y: -2,
+						}}
+						transition={{
+							duration: 0.3,
+							hover: { duration: 0.2 },
+						}}
 						className="relative flex items-center gap-2 overflow-hidden rounded-full
 						bg-background/95 backdrop-blur-sm border border-border/50
-						shadow-lg px-3 py-2"
+						shadow-lg px-3 py-2
+						hover:shadow-2xl hover:shadow-primary/5 hover:border-primary/20
+						hover:bg-background transition-all duration-300
+						cursor-default"
 					>
 						<Clock className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
 						<div className="flex items-baseline gap-1.5">
-							<span className="text-sm font-medium text-foreground tabular-nums">
+							<motion.span
+								key={currentTime.time}
+								initial={{ opacity: 0, y: -4 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ duration: 0.2 }}
+								className="text-sm font-medium text-foreground tabular-nums"
+							>
 								{currentTime.time}
-							</span>
+							</motion.span>
 							<span className="text-xs text-muted-foreground/70 font-normal">
 								{currentTime.date}
 							</span>
