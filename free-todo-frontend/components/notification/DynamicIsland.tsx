@@ -1,10 +1,13 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Clock, X } from "lucide-react";
+import { Bell, Check, Clock, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { updateTodoApi } from "@/lib/api";
+import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
+import { toastError, toastSuccess } from "@/lib/toast";
 
 // 简单的相对时间格式化
 function formatTime(timestamp: string, locale: string): string {
@@ -55,10 +58,17 @@ export function DynamicIsland() {
 		setExpanded,
 	} = useNotificationStore();
 	const { locale } = useLocaleStore();
+	const t = useTranslations(locale);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [currentTime, setCurrentTime] = useState(() =>
 		formatCurrentTime(locale),
 	);
+	const [isProcessing, setIsProcessing] = useState(false);
+
+	// 检查是否是 draft todo 通知
+	const isDraftTodo =
+		currentNotification?.source === "draft-todos" &&
+		currentNotification?.todoId;
 
 	// 更新时间
 	useEffect(() => {
@@ -100,18 +110,60 @@ export function DynamicIsland() {
 		setExpanded(false);
 	};
 
+	// 同意 draft todo
+	const handleAccept = async (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (!isDraftTodo || !currentNotification?.todoId || isProcessing) return;
+
+		setIsProcessing(true);
+		try {
+			await updateTodoApi(currentNotification.todoId, {
+				status: "active",
+			});
+			toastSuccess(t.todoExtraction.acceptSuccess);
+			setNotification(null);
+			setExpanded(false);
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			toastError(t.todoExtraction.acceptFailed.replace("{error}", errorMsg));
+		} finally {
+			setIsProcessing(false);
+		}
+	};
+
+	// 拒绝 draft todo
+	const handleReject = async (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (!isDraftTodo || !currentNotification?.todoId || isProcessing) return;
+
+		setIsProcessing(true);
+		try {
+			await updateTodoApi(currentNotification.todoId, {
+				status: "canceled",
+			});
+			toastSuccess(t.todoExtraction.rejectSuccess);
+			setNotification(null);
+			setExpanded(false);
+		} catch (error) {
+			const errorMsg = error instanceof Error ? error.message : String(error);
+			toastError(t.todoExtraction.rejectFailed.replace("{error}", errorMsg));
+		} finally {
+			setIsProcessing(false);
+		}
+	};
+
 	return (
 		<div
 			ref={containerRef}
-			className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+			className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50"
 		>
 			<motion.div
 				initial={false}
 				animate={{
 					width: isExpanded ? "auto" : "auto",
 					height: isExpanded ? "auto" : "auto",
-					minWidth: isExpanded ? 600 : currentNotification ? 400 : 200,
-					maxWidth: isExpanded ? 700 : currentNotification ? 500 : 300,
+					minWidth: isExpanded ? 800 : currentNotification ? 400 : 200,
+					maxWidth: isExpanded ? 1200 : currentNotification ? 500 : 300,
 				}}
 				transition={{
 					type: "spring",
@@ -122,8 +174,7 @@ export function DynamicIsland() {
 			>
 				{currentNotification ? (
 					// 有通知时显示通知内容
-					<motion.button
-						type="button"
+					<motion.div
 						onClick={toggleExpanded}
 						whileHover={{
 							scale: 1.02,
@@ -132,14 +183,22 @@ export function DynamicIsland() {
 						whileTap={{
 							scale: 0.98,
 						}}
+						role="button"
+						tabIndex={0}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								toggleExpanded();
+							}
+						}}
 						className={`
 						relative flex items-center gap-2 overflow-hidden rounded-full
 						bg-background/95 backdrop-blur-sm border border-border/50
-						shadow-lg transition-all duration-300
+						shadow-lg transition-all duration-300 cursor-pointer
 						hover:shadow-2xl hover:shadow-primary/10 hover:border-primary/30
 						hover:bg-background
 						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
-						${isExpanded ? "px-4 py-3" : "px-3 py-2"}
+						${isExpanded ? "px-4 py-2.5" : "px-3 py-2"}
 					`}
 						aria-label={isExpanded ? "收起通知" : "展开通知"}
 					>
@@ -172,49 +231,119 @@ export function DynamicIsland() {
 									</span>
 								</motion.div>
 							) : (
-								// 展开状态：显示完整内容
+								// 展开状态：显示完整内容（横向布局）
 								<motion.div
 									key="expanded"
-									initial={{ opacity: 0, y: -10 }}
-									animate={{ opacity: 1, y: 0 }}
-									exit={{ opacity: 0, y: -10 }}
+									initial={{ opacity: 0, scale: 0.95 }}
+									animate={{ opacity: 1, scale: 1 }}
+									exit={{ opacity: 0, scale: 0.95 }}
 									transition={{ duration: 0.2 }}
-									className="flex flex-col gap-2 w-full"
+									className="flex items-center gap-3 w-full"
 								>
-									<div className="flex items-start justify-between gap-2">
-										<div className="flex items-center gap-2 flex-1 min-w-0">
-											<Bell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-											<div className="flex-1 min-w-0">
-												<h3 className="text-sm font-semibold text-foreground truncate">
-													{currentNotification.title}
-												</h3>
-											</div>
-										</div>
-										<motion.button
-											type="button"
-											onClick={handleClose}
-											whileHover={{ scale: 1.1, rotate: 90 }}
-											whileTap={{ scale: 0.9 }}
-											className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-											aria-label="关闭通知"
-										>
-											<X className="h-3.5 w-3.5" />
-										</motion.button>
+									{/* 左侧：图标 */}
+									<Bell className="h-4 w-4 text-primary shrink-0" />
+									{/* 中间：标题和内容（一行显示） */}
+									<div className="flex-1 min-w-0 flex items-center gap-2">
+										<h3 className="text-sm font-semibold text-foreground truncate">
+											{currentNotification.title}
+										</h3>
+										{currentNotification.content && (
+											<>
+												<span className="text-xs text-muted-foreground/60">
+													•
+												</span>
+												<p className="text-xs text-muted-foreground truncate">
+													{currentNotification.content}
+												</p>
+											</>
+										)}
 									</div>
-									{currentNotification.content && (
-										<p className="text-xs text-muted-foreground line-clamp-2 pl-6">
-											{currentNotification.content}
-										</p>
-									)}
+									{/* 时间戳 */}
 									{currentNotification.timestamp && (
-										<p className="text-xs text-muted-foreground/70 pl-6">
+										<span className="text-xs text-muted-foreground/70 shrink-0 whitespace-nowrap">
 											{formatTime(currentNotification.timestamp, locale)}
-										</p>
+										</span>
 									)}
+									{/* Draft Todo 操作按钮 */}
+									{isDraftTodo && (
+										<div className="flex items-center gap-2 shrink-0 border-l border-border/50 pl-3">
+											<motion.button
+												type="button"
+												onClick={handleAccept}
+												disabled={isProcessing}
+												whileHover={!isProcessing ? { scale: 1.05 } : {}}
+												whileTap={!isProcessing ? { scale: 0.95 } : {}}
+												className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+												aria-label={t.todoExtraction.accept}
+											>
+												{isProcessing ? (
+													<>
+														<motion.div
+															animate={{ rotate: 360 }}
+															transition={{
+																duration: 1,
+																repeat: Infinity,
+																ease: "linear",
+															}}
+														>
+															<Clock className="h-4 w-4" />
+														</motion.div>
+														<span>{t.todoExtraction.accepting}</span>
+													</>
+												) : (
+													<>
+														<Check className="h-4 w-4" />
+														<span>{t.todoExtraction.accept}</span>
+													</>
+												)}
+											</motion.button>
+											<motion.button
+												type="button"
+												onClick={handleReject}
+												disabled={isProcessing}
+												whileHover={!isProcessing ? { scale: 1.05 } : {}}
+												whileTap={!isProcessing ? { scale: 0.95 } : {}}
+												className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+												aria-label={t.todoExtraction.reject}
+											>
+												{isProcessing ? (
+													<>
+														<motion.div
+															animate={{ rotate: 360 }}
+															transition={{
+																duration: 1,
+																repeat: Infinity,
+																ease: "linear",
+															}}
+														>
+															<Clock className="h-4 w-4" />
+														</motion.div>
+														<span>{t.todoExtraction.rejecting}</span>
+													</>
+												) : (
+													<>
+														<X className="h-4 w-4" />
+														<span>{t.todoExtraction.reject}</span>
+													</>
+												)}
+											</motion.button>
+										</div>
+									)}
+									{/* 关闭按钮 */}
+									<motion.button
+										type="button"
+										onClick={handleClose}
+										whileHover={{ scale: 1.1, rotate: 90 }}
+										whileTap={{ scale: 0.9 }}
+										className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors ml-1"
+										aria-label="关闭通知"
+									>
+										<X className="h-3.5 w-3.5" />
+									</motion.button>
 								</motion.div>
 							)}
 						</AnimatePresence>
-					</motion.button>
+					</motion.div>
 				) : (
 					// 没有通知时显示当前时间
 					<motion.div

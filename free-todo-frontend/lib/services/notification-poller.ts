@@ -1,4 +1,4 @@
-import { fetchNotification } from "@/lib/api";
+import { fetchNotification, getTodos } from "@/lib/api";
 import type {
 	Notification,
 	PollingEndpoint,
@@ -65,6 +65,16 @@ class NotificationPoller {
 	 */
 	private async pollEndpoint(endpoint: PollingEndpoint): Promise<void> {
 		try {
+			// 检查是否是 draft todo 端点
+			if (
+				endpoint.url.includes("/api/todos") &&
+				endpoint.url.includes("status=draft")
+			) {
+				await this.pollDraftTodos(endpoint);
+				return;
+			}
+
+			// 标准通知端点
 			const response = await fetchNotification(endpoint.url);
 			if (response) {
 				// 转换为通知格式
@@ -90,6 +100,65 @@ class NotificationPoller {
 		} catch (error) {
 			// 静默处理错误，避免频繁失败请求
 			console.warn(`Failed to poll endpoint ${endpoint.id}:`, error);
+		}
+	}
+
+	/**
+	 * 轮询 draft todo 端点
+	 */
+	private async pollDraftTodos(endpoint: PollingEndpoint): Promise<void> {
+		try {
+			// 解析 URL 参数
+			let limit = 1;
+			try {
+				const urlStr = endpoint.url.startsWith("/")
+					? `http://localhost${endpoint.url}`
+					: endpoint.url;
+				const url = new URL(urlStr);
+				const limitParam = url.searchParams.get("limit");
+				if (limitParam) {
+					limit = parseInt(limitParam, 10) || 1;
+				}
+			} catch {
+				// URL解析失败，使用默认值
+				limit = 1;
+			}
+
+			// 获取 draft todos
+			const result = await getTodos({
+				status: "draft",
+				limit,
+				offset: 0,
+			});
+
+			if (result.todos && result.todos.length > 0) {
+				// 取最新的一个 todo
+				const latestTodo = result.todos[0];
+
+				// 转换为通知格式
+				const notification: Notification = {
+					id: `draft-todo-${latestTodo.id}`,
+					title: "新待办事项待确认",
+					content: latestTodo.name || "待办事项",
+					timestamp: latestTodo.created_at || new Date().toISOString(),
+					source: endpoint.id,
+					todoId: latestTodo.id, // 添加 todoId 以便后续操作
+				};
+
+				// 检查是否是新通知（比较 todo ID）
+				const store = useNotificationStore.getState();
+				const current = store.currentNotification;
+				if (
+					!current ||
+					current.id !== notification.id ||
+					current.content !== notification.content
+				) {
+					store.setNotification(notification);
+				}
+			}
+		} catch (error) {
+			// 静默处理错误，避免频繁失败请求
+			console.warn(`Failed to poll draft todos from ${endpoint.id}:`, error);
 		}
 	}
 

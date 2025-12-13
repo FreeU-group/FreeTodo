@@ -90,5 +90,14 @@ export type Translation = {
 		addSuccess: string;
 		addFailed: string;
 		selectedCount: string;
+		newDraftTodoNotification: string;
+		accept: string;
+		reject: string;
+		accepting: string;
+		rejecting: string;
+		acceptSuccess: string;
+		rejectSuccess: string;
+		acceptFailed: string;
+		rejectFailed: string;
 	};
 };

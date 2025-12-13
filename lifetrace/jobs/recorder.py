@@ -591,12 +591,75 @@ class ScreenRecorder:
 
             # 立即处理事件：将截图关联到事件
             self._process_screenshot_event(screenshot_id, app_name, window_title, timestamp)
+
+            # 检查是否需要自动待办检测
+            if self._should_detect_todos(app_name):
+                # 异步触发检测（避免阻塞）
+                self._trigger_todo_detection_async(screenshot_id, app_name)
         else:
             logger.warning(f"[窗口 {screen_id}] 数据库保存失败，但文件已保存: {filename}")
 
         file_size = os.path.getsize(file_path)
         file_size_kb = file_size / 1024
         logger.info(f"[窗口 {screen_id}] 截图保存: {filename} ({file_size_kb:.2f} KB) - {app_name}")
+
+    def _should_detect_todos(self, app_name: str) -> bool:
+        """判断是否需要触发待办检测
+
+        Args:
+            app_name: 应用名称
+
+        Returns:
+            是否需要检测
+        """
+        # 检查配置是否启用自动检测
+        try:
+            enabled = self.config.get("jobs.auto_todo_detection.enabled")
+            if not enabled:
+                return False
+        except KeyError:
+            # 配置项不存在，默认不启用
+            return False
+
+        # 检查是否为白名单应用（直接使用常量）
+        if not app_name:
+            return False
+        from lifetrace.llm.auto_todo_detection_service import TODO_EXTRACTION_WHITELIST_APPS
+
+        app_name_lower = app_name.lower()
+        return any(
+            whitelist_app.lower() in app_name_lower
+            for whitelist_app in TODO_EXTRACTION_WHITELIST_APPS
+        )
+
+    def _trigger_todo_detection_async(self, screenshot_id: int, app_name: str):
+        """异步触发待办检测
+
+        Args:
+            screenshot_id: 截图ID
+            app_name: 应用名称
+        """
+
+        def _detect_todos():
+            try:
+                from lifetrace.llm.auto_todo_detection_service import AutoTodoDetectionService
+
+                service = AutoTodoDetectionService()
+                result = service.detect_and_create_todos_from_screenshot(screenshot_id)
+                logger.info(
+                    f"截图 {screenshot_id} 待办检测完成，创建 {result.get('created_count', 0)} 个draft待办"
+                )
+            except Exception as e:
+                logger.error(
+                    f"截图 {screenshot_id} 待办检测失败: {e}",
+                    exc_info=True,
+                )
+
+        # 使用后台线程异步执行，避免阻塞截图流程
+        import threading
+
+        thread = threading.Thread(target=_detect_todos, daemon=True)
+        thread.start()
 
     def capture_all_screens(self) -> list[str]:
         """只截取活跃窗口所在的屏幕"""

@@ -6,6 +6,7 @@ export interface Notification {
 	content: string;
 	timestamp: string;
 	source?: string; // 来源端点标识
+	todoId?: number; // draft todo 的 ID（如果通知来自 draft todo）
 }
 
 export interface PollingEndpoint {

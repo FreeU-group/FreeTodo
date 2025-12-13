@@ -45,10 +45,22 @@ export default function HomePage() {
 	// 初始化并管理轮询
 	useEffect(() => {
 		const poller = getNotificationPoller();
+		const store = useNotificationStore.getState();
+
+		// 注册 draft todo 轮询端点（如果尚未注册）
+		const draftTodoEndpoint = store.getEndpoint("draft-todos");
+		if (!draftTodoEndpoint) {
+			store.registerEndpoint({
+				id: "draft-todos",
+				url: "/api/todos?status=draft&limit=1",
+				interval: 1000, // 1秒轮询一次，实现近实时更新
+				enabled: true,
+			});
+		}
 
 		// 同步当前所有端点
 		const syncEndpoints = () => {
-			const allEndpoints = useNotificationStore.getState().getAllEndpoints();
+			const allEndpoints = store.getAllEndpoints();
 
 			// 更新或注册已启用的端点
 			for (const endpoint of allEndpoints) {
@@ -291,7 +303,7 @@ export default function HomePage() {
 	return (
 		<main className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
 			<div className="relative z-10 flex h-full flex-col text-foreground">
-				<header className="relative flex h-12 shrink-0 items-center gap-3 bg-background px-4 text-foreground">
+				<header className="relative flex h-12 shrink-0 items-center gap-3 bg-background px-4 text-foreground overflow-visible">
 					{/* 左侧：Logo */}
 					<div className="flex items-center gap-2 shrink-0">
 						<Image
@@ -307,7 +319,7 @@ export default function HomePage() {
 					</div>
 
 					{/* 中间：通知区域（灵动岛） */}
-					<div className="flex-1 flex items-center justify-center relative min-w-0">
+					<div className="flex-1 flex items-center justify-center relative min-w-0 overflow-visible">
 						<DynamicIsland />
 					</div>
 
