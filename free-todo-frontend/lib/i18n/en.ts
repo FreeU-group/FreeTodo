@@ -65,6 +65,18 @@ export const en: Translation = {
 		debugShotsLabel: "Debug Shots",
 		debugShotsPlaceholder:
 			"Placeholder: manage debugging screenshots (dev mode only)",
+		settings: {
+			autoTodoDetectionTitle: "Auto Todo Detection",
+			autoTodoDetectionDescription:
+				"Automatically detect todos from screenshots of whitelisted apps (WeChat, Feishu, etc.) and create draft todos for confirmation",
+			autoTodoDetectionLabel: "Enable Auto Todo Detection",
+			autoTodoDetectionHint:
+				"Enabled: System will automatically detect todos from whitelisted apps (WeChat, Feishu, DingTalk, etc.)",
+			autoTodoDetectionEnabled: "Auto todo detection enabled",
+			autoTodoDetectionDisabled: "Auto todo detection disabled",
+			loadFailed: "Failed to load config: {error}",
+			saveFailed: "Failed to save config: {error}",
+		},
 	},
 	bottomDock: {
 		calendar: "Calendar",
@@ -77,18 +89,6 @@ export const en: Translation = {
 		achievements: "Achievements",
 		screenshots: "Screenshots",
 		debugShots: "Debug Shots",
-	},
-	settings: {
-		autoTodoDetectionTitle: "Auto Todo Detection",
-		autoTodoDetectionDescription:
-			"Automatically detect todos from screenshots of whitelisted apps (WeChat, Feishu, etc.) and create draft todos for confirmation",
-		autoTodoDetectionLabel: "Enable Auto Todo Detection",
-		autoTodoDetectionHint:
-			"Enabled: System will automatically detect todos from whitelisted apps (WeChat, Feishu, DingTalk, etc.)",
-		autoTodoDetectionEnabled: "Auto todo detection enabled",
-		autoTodoDetectionDisabled: "Auto todo detection disabled",
-		loadFailed: "Failed to load config: {error}",
-		saveFailed: "Failed to save config: {error}",
 	},
 	todoExtraction: {
 		extractButton: "Extract Todos",

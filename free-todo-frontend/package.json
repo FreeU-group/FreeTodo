@@ -8,7 +8,8 @@
 		"start": "next start",
 		"lint": "biome lint ./app ./components",
 		"format": "biome format --write ./app ./components",
-		"check": "biome check ./app ./apps ./components ./lib"
+		"check": "biome check ./app ./apps ./components ./lib",
+		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",

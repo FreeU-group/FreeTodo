@@ -30,7 +30,7 @@ export function SettingsPanel() {
 		} catch (error) {
 			console.error("加载配置失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.settings.loadFailed.replace("{error}", errorMsg));
+			toastError(t.page.settings.loadFailed.replace("{error}", errorMsg));
 		} finally {
 			setLoading(false);
 		}
@@ -50,13 +50,13 @@ export function SettingsPanel() {
 			setAutoTodoDetectionEnabled(enabled);
 			toastSuccess(
 				enabled
-					? t.settings.autoTodoDetectionEnabled
-					: t.settings.autoTodoDetectionDisabled,
+					? t.page.settings.autoTodoDetectionEnabled
+					: t.page.settings.autoTodoDetectionDisabled,
 			);
 		} catch (error) {
 			console.error("保存配置失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.settings.saveFailed.replace("{error}", errorMsg));
+			toastError(t.page.settings.saveFailed.replace("{error}", errorMsg));
 			// 恢复原状态
 			setAutoTodoDetectionEnabled(!enabled);
 		} finally {
@@ -82,10 +82,10 @@ export function SettingsPanel() {
 				<div className="mb-6 rounded-lg border border-border bg-card p-4">
 					<div className="mb-4">
 						<h3 className="mb-1 text-base font-semibold text-foreground">
-							{t.settings.autoTodoDetectionTitle}
+							{t.page.settings.autoTodoDetectionTitle}
 						</h3>
 						<p className="text-sm text-muted-foreground">
-							{t.settings.autoTodoDetectionDescription}
+							{t.page.settings.autoTodoDetectionDescription}
 						</p>
 					</div>
 					<div className="flex items-center justify-between">
@@ -94,7 +94,7 @@ export function SettingsPanel() {
 								htmlFor="auto-todo-detection-toggle"
 								className="text-sm font-medium text-foreground"
 							>
-								{t.settings.autoTodoDetectionLabel}
+								{t.page.settings.autoTodoDetectionLabel}
 							</label>
 						</div>
 						<button
@@ -110,7 +110,7 @@ export function SettingsPanel() {
                 disabled:opacity-50 disabled:cursor-not-allowed
                 ${autoTodoDetectionEnabled ? "bg-primary" : "bg-muted"}
               `}
-							aria-label={t.settings.autoTodoDetectionLabel}
+							aria-label={t.page.settings.autoTodoDetectionLabel}
 						>
 							<span
 								className={`
@@ -125,7 +125,7 @@ export function SettingsPanel() {
 					{autoTodoDetectionEnabled && (
 						<div className="mt-3 rounded-md bg-primary/10 p-3">
 							<p className="text-xs text-primary">
-								{t.settings.autoTodoDetectionHint}
+								{t.page.settings.autoTodoDetectionHint}
 							</p>
 						</div>
 					)}

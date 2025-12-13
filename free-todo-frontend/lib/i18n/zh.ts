@@ -64,6 +64,18 @@ export const zh: Translation = {
 		debugShotsLabel: "截图管理（调试）",
 		debugShotsPlaceholder:
 			"占位：用于截图采集/管理的调试面板（仅开发模式可见）",
+		settings: {
+			autoTodoDetectionTitle: "自动待办检测",
+			autoTodoDetectionDescription:
+				"自动从微信、飞书等应用截图中检测待办事项，并创建为待确认的草稿待办",
+			autoTodoDetectionLabel: "启用自动待办检测",
+			autoTodoDetectionHint:
+				"已启用：系统将自动检测白名单应用（微信、飞书、钉钉等）中的待办事项",
+			autoTodoDetectionEnabled: "已启用自动待办检测",
+			autoTodoDetectionDisabled: "已关闭自动待办检测",
+			loadFailed: "加载配置失败：{error}",
+			saveFailed: "保存配置失败：{error}",
+		},
 	},
 	bottomDock: {
 		calendar: "日历",
@@ -76,18 +88,6 @@ export const zh: Translation = {
 		achievements: "成就",
 		screenshots: "截图",
 		debugShots: "截图调试",
-	},
-	settings: {
-		autoTodoDetectionTitle: "自动待办检测",
-		autoTodoDetectionDescription:
-			"自动从微信、飞书等应用截图中检测待办事项，并创建为待确认的草稿待办",
-		autoTodoDetectionLabel: "启用自动待办检测",
-		autoTodoDetectionHint:
-			"已启用：系统将自动检测白名单应用（微信、飞书、钉钉等）中的待办事项",
-		autoTodoDetectionEnabled: "已启用自动待办检测",
-		autoTodoDetectionDisabled: "已关闭自动待办检测",
-		loadFailed: "加载配置失败：{error}",
-		saveFailed: "保存配置失败：{error}",
 	},
 	todoExtraction: {
 		extractButton: "提取待办",
