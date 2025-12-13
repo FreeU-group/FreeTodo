@@ -14,7 +14,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { TodoExtractionModal } from "@/components/todo/TodoExtractionModal";
+import { TodoExtractionModal } from "@/apps/todo-list/TodoExtractionModal";
 import {
 	createActivityFromEvents,
 	type ExtractedTodo,
