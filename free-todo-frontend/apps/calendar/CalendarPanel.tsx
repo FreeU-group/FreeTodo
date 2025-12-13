@@ -617,13 +617,15 @@ export function CalendarPanel() {
 
 				{/* 视图主体 */}
 				<div className="flex-1 overflow-y-auto border-t border-border bg-card p-3">
-					<div className="grid grid-cols-7 gap-2 pb-2 text-center text-xs text-muted-foreground">
-						{WEEKDAY_LABELS.map((label) => (
-							<span key={label} className="font-medium">
-								周{label}
-							</span>
-						))}
-					</div>
+					{view !== "day" && (
+						<div className="grid grid-cols-7 gap-2 pb-2 text-center text-xs text-muted-foreground">
+							{WEEKDAY_LABELS.map((label) => (
+								<span key={label} className="font-medium">
+									周{label}
+								</span>
+							))}
+						</div>
+					)}
 					<div className="space-y-4">
 						{view === "month" && renderMonthView()}
 						{view === "week" && renderWeekView()}
