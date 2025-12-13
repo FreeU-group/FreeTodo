@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,13 @@ export function PanelContainer({
 	isDragging = false,
 }: PanelContainerProps) {
 	const { getFeatureByPosition } = useUiStore();
+	const [mounted, setMounted] = useState(false);
+
+	// 确保客户端 hydration 完成后再渲染，避免 SSR 和客户端不一致
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
 	const flexBasis = `${Math.round(width * 1000) / 10}%`;
 	// panelA 从左侧滑入，panelB 和 panelC 从右侧滑入
 	const isLeftPanel = position === "panelA";
@@ -44,7 +52,8 @@ export function PanelContainer({
 	const getExitX = () => (isLeftPanel ? "-100%" : "100%");
 
 	// 获取位置对应的功能，用于 aria-label
-	const feature = getFeatureByPosition(position);
+	// 在 SSR 时使用默认值，避免 hydration 错误
+	const feature = mounted ? getFeatureByPosition(position) : null;
 	const ariaLabelMap: Record<string, string> = {
 		calendar: "Calendar Panel",
 		todos: "Todos Panel",
@@ -57,10 +66,15 @@ export function PanelContainer({
 	// 拖动时使用即时更新，禁用动画
 	const transition = isDragging ? { duration: 0 } : ANIMATION_CONFIG.spring;
 
+	// 在 SSR 时使用默认值，避免 hydration 错误
+	const ariaLabel =
+		mounted && feature ? ariaLabelMap[feature] || "Panel" : "Panel";
+
 	return (
 		<motion.section
 			key={position}
-			aria-label={feature ? ariaLabelMap[feature] || "Panel" : "Panel"}
+			aria-label={ariaLabel}
+			suppressHydrationWarning
 			className={cn(
 				"relative flex h-full min-h-0 flex-1 flex-col",
 				"bg-[oklch(var(--card))]",

@@ -6,6 +6,7 @@ import { createId } from "@/apps/chat/utils/id";
 import { buildTodoContextBlock } from "@/apps/chat/utils/todoContext";
 import type { ChatHistoryItem, ChatSessionSummary } from "@/lib/api";
 import { getChatHistory, sendChatMessageStream } from "@/lib/api";
+import { useChatStore } from "@/lib/store/chat-store";
 import type { CreateTodoInput, Todo } from "@/lib/types/todo";
 
 type UseChatControllerParams = {
@@ -24,6 +25,16 @@ export const useChatController = ({
 	const { planSystemPrompt, parsePlanTodos, buildTodoPayloads } =
 		usePlanParser(locale);
 
+	// 使用 chat-store 管理持久化状态
+	const {
+		chatMode,
+		conversationId,
+		historyOpen,
+		setChatMode,
+		setConversationId,
+		setHistoryOpen,
+	} = useChatStore();
+
 	const buildInitialAssistantMessage = useCallback(
 		(): ChatMessage => ({
 			id: createId(),
@@ -39,12 +50,9 @@ export const useChatController = ({
 	const [messages, setMessages] = useState<ChatMessage[]>(() => [
 		buildInitialAssistantMessage(),
 	]);
-	const [chatMode, setChatMode] = useState<ChatMode>("ask");
 	const [inputValue, setInputValue] = useState("");
-	const [conversationId, setConversationId] = useState<string | null>(null);
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [historyOpen, setHistoryOpen] = useState(false);
 	const [historyLoading, setHistoryLoading] = useState(false);
 	const [historyError, setHistoryError] = useState<string | null>(null);
 	const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
@@ -67,7 +75,7 @@ export const useChatController = ({
 		setInputValue("");
 		setError(null);
 		setHistoryOpen(false);
-	}, [buildInitialAssistantMessage]);
+	}, [buildInitialAssistantMessage, setConversationId, setHistoryOpen]);
 
 	const handleSuggestionClick = useCallback((suggestion: string) => {
 		setInputValue(suggestion);
@@ -97,7 +105,7 @@ export const useChatController = ({
 				setHistoryLoading(false);
 			}
 		},
-		[buildInitialAssistantMessage, locale],
+		[buildInitialAssistantMessage, locale, setConversationId, setHistoryOpen],
 	);
 
 	const handleSend = useCallback(async () => {
@@ -249,6 +257,7 @@ export const useChatController = ({
 		locale,
 		parsePlanTodos,
 		planSystemPrompt,
+		setConversationId,
 	]);
 
 	const handleKeyDown = useCallback(

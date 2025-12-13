@@ -42,3 +42,15 @@ class NewChatResponse(BaseModel):
 class AddMessageRequest(BaseModel):
     role: str
     content: str
+
+
+class PlanQuestionnaireRequest(BaseModel):
+    todo_name: str
+    todo_id: int | None = None  # 新增：用于查询上下文
+    session_id: str | None = None  # 会话ID，用于保存聊天记录
+
+
+class PlanSummaryRequest(BaseModel):
+    todo_name: str
+    answers: dict[str, list[str]]  # question_id -> selected_options
+    session_id: str | None = None  # 会话ID，用于保存聊天记录

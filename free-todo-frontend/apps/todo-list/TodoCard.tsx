@@ -8,6 +8,7 @@ import {
 	Flag,
 	Paperclip,
 	Plus,
+	Sparkles,
 	Tag,
 	Trash2,
 	X,
@@ -15,7 +16,9 @@ import {
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePlanStore } from "@/lib/store/plan-store";
 import { useTodoStore } from "@/lib/store/todo-store";
+import { useUiStore } from "@/lib/store/ui-store";
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types/todo";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +48,8 @@ export function TodoCard({
 		toggleTodoExpanded,
 		isTodoExpanded,
 	} = useTodoStore();
+	const { startPlan } = usePlanStore();
+	const { setPanelFeature, getFeatureByPosition } = useUiStore();
 	const [contextMenu, setContextMenu] = useState({
 		open: false,
 		x: 0,
@@ -219,6 +224,47 @@ export function TodoCard({
 		setIsAddingChild(false);
 	};
 
+	const handleStartPlan = () => {
+		// 确保聊天Panel打开并切换到聊天功能
+		const chatPosition = getFeatureByPosition("panelA");
+		if (chatPosition !== "chat") {
+			// 找到聊天功能所在的位置，或分配到第一个可用位置
+			const positions: Array<"panelA" | "panelB" | "panelC"> = [
+				"panelA",
+				"panelB",
+				"panelC",
+			];
+			for (const pos of positions) {
+				if (getFeatureByPosition(pos) === "chat") {
+					// 如果聊天功能已经在某个位置，确保该位置打开
+					if (pos === "panelA" && !useUiStore.getState().isPanelAOpen) {
+						useUiStore.getState().togglePanelA();
+					} else if (pos === "panelB" && !useUiStore.getState().isPanelBOpen) {
+						useUiStore.getState().togglePanelB();
+					} else if (pos === "panelC" && !useUiStore.getState().isPanelCOpen) {
+						useUiStore.getState().togglePanelC();
+					}
+					break;
+				}
+			}
+			// 如果聊天功能不在任何位置，分配到panelB
+			if (!positions.some((pos) => getFeatureByPosition(pos) === "chat")) {
+				setPanelFeature("panelB", "chat");
+				if (!useUiStore.getState().isPanelBOpen) {
+					useUiStore.getState().togglePanelB();
+				}
+			}
+		} else {
+			// 如果聊天功能在panelA，确保panelA打开
+			if (!useUiStore.getState().isPanelAOpen) {
+				useUiStore.getState().togglePanelA();
+			}
+		}
+
+		// 开始Plan流程
+		startPlan(todo.id);
+	};
+
 	return (
 		<>
 			<div
@@ -287,7 +333,7 @@ export function TodoCard({
 
 					<div className="flex-1 min-w-0 space-y-1">
 						<div className="flex items-start justify-between gap-2">
-							<div className="min-w-0 space-y-1">
+							<div className="min-w-0 flex-1 space-y-1">
 								<h3
 									className={cn(
 										"text-sm font-semibold text-foreground",
@@ -303,6 +349,19 @@ export function TodoCard({
 									</p>
 								)}
 							</div>
+							{/* AI规划按钮 - hover时显示 */}
+							<button
+								type="button"
+								onClick={(e) => {
+									e.stopPropagation();
+									handleStartPlan();
+								}}
+								className="opacity-0 group-hover:opacity-100 shrink-0 flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted/50 transition-all"
+								aria-label="使用AI规划"
+								title="使用AI规划"
+							>
+								<Sparkles className="h-4 w-4 text-primary" />
+							</button>
 
 							<div className="flex items-center gap-2 shrink-0">
 								{todo.priority && todo.priority !== "none" && (
@@ -450,6 +509,19 @@ export function TodoCard({
 							>
 								<Plus className="h-4 w-4" />
 								<span>添加子待办</span>
+							</button>
+							<button
+								type="button"
+								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors"
+								onClick={() => {
+									setContextMenu((state) =>
+										state.open ? { ...state, open: false } : state,
+									);
+									handleStartPlan();
+								}}
+							>
+								<Sparkles className="h-4 w-4" />
+								<span>使用AI规划</span>
 							</button>
 							<button
 								type="button"

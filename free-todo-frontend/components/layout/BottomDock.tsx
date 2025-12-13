@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PanelFeature, PanelPosition } from "@/lib/config/panel-config";
 import { FEATURE_ICON_MAP } from "@/lib/config/panel-config";
 import { useTranslations } from "@/lib/i18n";
@@ -58,6 +58,11 @@ export function BottomDock({ className }: BottomDockProps) {
 	} = useUiStore();
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
+	const [mounted, setMounted] = useState(false);
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	const [menuState, setMenuState] = useState<{
 		isOpen: boolean;
@@ -76,10 +81,19 @@ export function BottomDock({ className }: BottomDockProps) {
 	});
 
 	// 基于配置生成 dock items，每个位置槽位对应一个 item
+	// 在 SSR 时使用默认值，避免 hydration 错误
 	const DOCK_ITEMS: DockItem[] = (
 		["panelA", "panelB", "panelC"] as PanelPosition[]
 	).map((position) => {
-		const feature = getFeatureByPosition(position);
+		// 在 SSR 时使用默认功能分配，客户端挂载后使用实际值
+		const defaultFeatureMap: Record<PanelPosition, PanelFeature> = {
+			panelA: "todos",
+			panelB: "todoDetail",
+			panelC: "chat",
+		};
+		const feature = mounted
+			? getFeatureByPosition(position)
+			: defaultFeatureMap[position];
 		if (!feature) {
 			// 如果位置没有分配功能，返回一个占位 item
 			return {

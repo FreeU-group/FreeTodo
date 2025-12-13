@@ -7,19 +7,20 @@ import { ActivityHeader } from "@/apps/activity/ActivityHeader";
 import { ActivitySidebar } from "@/apps/activity/ActivitySidebar";
 import { groupActivitiesByTime } from "@/apps/activity/utils/timeUtils";
 import { getActivities, getActivityEvents, getEvent } from "@/lib/api";
+import { useActivityStore } from "@/lib/store/activity-store";
 import type { Activity, ActivityWithEvents } from "@/lib/types/activity";
 import type { Event } from "@/lib/types/event";
 
 export function ActivityPanel() {
 	const [activities, setActivities] = useState<Activity[]>([]);
 	const [filteredActivities, setFilteredActivities] = useState<Activity[]>([]);
-	const [selectedId, setSelectedId] = useState<number | null>(null);
+	const { selectedActivityId, search, setSelectedActivityId, setSearch } =
+		useActivityStore();
 	const [selectedActivity, setSelectedActivity] =
 		useState<ActivityWithEvents | null>(null);
 	const [events, setEvents] = useState<Event[]>([]);
 	const [loadingList, setLoadingList] = useState(true);
 	const [loadingDetail, setLoadingDetail] = useState(false);
-	const [search, setSearch] = useState("");
 
 	// load activities
 	useEffect(() => {
@@ -30,8 +31,8 @@ export function ActivityPanel() {
 				const list = res.data?.activities ?? [];
 				setActivities(list);
 				setFilteredActivities(list);
-				if (list.length > 0) {
-					setSelectedId(list[0].id);
+				if (list.length > 0 && selectedActivityId === null) {
+					setSelectedActivityId(list[0].id);
 				}
 			} catch (e) {
 				console.error("Failed to load activities", e);
@@ -40,7 +41,7 @@ export function ActivityPanel() {
 			}
 		};
 		load();
-	}, []);
+	}, [selectedActivityId, setSelectedActivityId]);
 
 	// filter by search
 	useEffect(() => {
@@ -115,13 +116,13 @@ export function ActivityPanel() {
 			}
 		};
 
-		if (selectedId != null) {
-			loadDetail(selectedId);
+		if (selectedActivityId != null) {
+			loadDetail(selectedActivityId);
 		} else {
 			setSelectedActivity(null);
 			setEvents([]);
 		}
-	}, [selectedId, filteredActivities, activities]);
+	}, [selectedActivityId, filteredActivities, activities]);
 
 	const groups = useMemo(
 		() => groupActivitiesByTime(filteredActivities),
@@ -134,8 +135,8 @@ export function ActivityPanel() {
 			<div className="flex min-h-0 flex-1 gap-4 overflow-hidden">
 				<ActivitySidebar
 					groups={groups}
-					selectedId={selectedId}
-					onSelect={(activity) => setSelectedId(activity.id)}
+					selectedId={selectedActivityId}
+					onSelect={(activity) => setSelectedActivityId(activity.id)}
 					loading={loadingList}
 				/>
 				<div className="flex-1 min-w-[500px] shrink-0 overflow-hidden">

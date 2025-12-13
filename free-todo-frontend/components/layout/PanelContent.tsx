@@ -35,14 +35,16 @@ export function PanelContent({ position }: PanelContentProps) {
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
-		void hydrate();
 		setMounted(true);
+		void hydrate();
 	}, [hydrate]);
 
-	const feature = getFeatureByPosition(position);
+	// 在 SSR 时使用 null，避免 hydration 错误
+	const feature = mounted ? getFeatureByPosition(position) : null;
 
 	// 获取位置对应的功能标签和占位符
 	const getFeatureLabel = (pos: PanelPosition): string => {
+		if (!mounted) return "";
 		const feat = getFeatureByPosition(pos);
 		if (!feat) return "";
 		const labelMap: Record<string, string> = {
@@ -60,6 +62,7 @@ export function PanelContent({ position }: PanelContentProps) {
 	};
 
 	const getFeaturePlaceholder = (pos: PanelPosition): string => {
+		if (!mounted) return "";
 		const feat = getFeatureByPosition(pos);
 		if (!feat) return "";
 		const placeholderMap: Record<string, string> = {

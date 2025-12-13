@@ -1,6 +1,7 @@
 """聊天相关路由"""
 
 from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.requests import Request
@@ -14,9 +15,12 @@ from lifetrace.schemas.chat import (
     ChatResponse,
     NewChatRequest,
     NewChatResponse,
+    PlanQuestionnaireRequest,
+    PlanSummaryRequest,
 )
-from lifetrace.storage import chat_mgr
+from lifetrace.storage import chat_mgr, todo_mgr
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.prompt_loader import get_prompt
 
 logger = get_logger()
 
@@ -124,7 +128,7 @@ async def chat_with_llm(message: ChatMessage, request: Request):
 
 
 @router.post("/stream")
-async def chat_with_llm_stream(message: ChatMessage):
+async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
     """与LLM聊天接口（流式输出）"""
     try:
         logger.info(
@@ -146,34 +150,69 @@ async def chat_with_llm_stream(message: ChatMessage):
             chat_mgr.create_chat(
                 session_id=session_id,
                 chat_type=chat_type,
-                title=message.message[:50] if len(message.message) > 50 else message.message,
+                title=message.message[:50] if len(message.message) > 50 else message.message,  # noqa: PLR2004
                 context_id=message.project_id if message.project_id else None,
             )
             logger.info(f"[stream] 在数据库中创建会话: {session_id}, 类型: {chat_type}")
 
-        # 使用RAG服务的流式处理方法，避免重复的意图识别
-        rag_result = await deps.rag_service.process_query_stream(
-            message.message, message.project_id, message.task_ids, session_id
-        )
+        # 根据use_rag参数决定是否使用RAG服务
+        user_message_to_save = message.message  # 用于保存到数据库的原始消息
 
-        if not rag_result.get("success", False):
-            # 如果RAG处理失败，返回错误信息
-            error_msg = rag_result.get("response", "处理您的查询时出现了错误，请稍后重试。")
+        if message.use_rag:
+            # 使用RAG服务的流式处理方法，避免重复的意图识别
+            rag_result = await deps.rag_service.process_query_stream(
+                message.message, message.project_id, message.task_ids, session_id
+            )
 
-            async def error_generator():
-                yield error_msg
+            if not rag_result.get("success", False):
+                # 如果RAG处理失败，返回错误信息
+                error_msg = rag_result.get("response", "处理您的查询时出现了错误，请稍后重试。")
 
-            return StreamingResponse(error_generator(), media_type="text/plain; charset=utf-8")
+                async def error_generator():
+                    yield error_msg
 
-        # 获取构建好的messages和temperature
-        messages = rag_result.get("messages", [])
-        temperature = rag_result.get("temperature", 0.7)
+                return StreamingResponse(error_generator(), media_type="text/plain; charset=utf-8")
 
-        # 保存用户消息到数据库
+            # 获取构建好的messages和temperature
+            messages = rag_result.get("messages", [])
+            temperature = rag_result.get("temperature", 0.7)
+        else:
+            # 不使用RAG，直接构建消息
+            # 前端已经构建了完整的prompt（包含system和user消息）
+            # 这里需要解析消息，检查是否包含system prompt
+            full_message = message.message
+
+            # 检查消息格式：如果包含"用户输入:"或"User input:"，说明前端已经构建了system prompt
+            if "用户输入:" in full_message or "User input:" in full_message:
+                # 分离system prompt和user input
+                if "用户输入:" in full_message:
+                    parts = full_message.split("用户输入:", 1)
+                else:
+                    parts = full_message.split("User input:", 1)
+
+                if len(parts) == 2:  # noqa: PLR2004
+                    system_prompt = parts[0].strip()
+                    user_input = parts[1].strip()
+                    messages = [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_input},
+                    ]
+                    # 保存时只保存用户输入部分
+                    user_message_to_save = user_input
+                else:
+                    # 如果没有找到分隔符，将整个消息作为user消息
+                    messages = [{"role": "user", "content": full_message}]
+            else:
+                # 普通消息，直接作为user消息
+                messages = [{"role": "user", "content": full_message}]
+
+            temperature = 0.7
+
+        # 保存用户消息到数据库（保存原始用户输入，不包含system prompt）
         chat_mgr.add_message(
             session_id=session_id,
             role="user",
-            content=message.message,
+            content=user_message_to_save,
         )
 
         # 调用LLM流式API并逐块返回
@@ -271,7 +310,7 @@ async def chat_with_llm_stream(message: ChatMessage):
 
 
 @router.post("/stream-with-context")
-async def chat_with_context_stream(message: ChatMessageWithContext):
+async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C901, PLR0915
     """带事件上下文的流式聊天接口"""
     try:
         logger.info(
@@ -291,7 +330,7 @@ async def chat_with_context_stream(message: ChatMessageWithContext):
             chat_mgr.create_chat(
                 session_id=session_id,
                 chat_type="event",
-                title=message.message[:50] if len(message.message) > 50 else message.message,
+                title=message.message[:50] if len(message.message) > 50 else message.message,  # noqa: PLR2004
             )
             logger.info(f"[stream-with-context] 在数据库中创建会话: {session_id}")
 
@@ -538,3 +577,307 @@ async def get_supported_query_types():
     except Exception as e:
         logger.error(f"获取查询类型失败: {e}")
         raise HTTPException(status_code=500, detail="获取查询类型失败") from e
+
+
+def _format_todo_context(context: dict[str, Any]) -> str:  # noqa: C901
+    """格式化任务上下文信息为易读的文本"""
+    lines: list[str] = []
+
+    # 格式化单个任务信息
+    def _format_todo(todo: dict[str, Any], prefix: str = "") -> str:
+        parts: list[str] = []
+        parts.append(f"{prefix}- **{todo.get('name', '未知任务')}**")
+        # 包含描述信息（如果存在）
+        description = todo.get("description")
+        if description and description.strip():
+            parts.append(f"  描述: {description}")
+        # 包含用户笔记（如果存在）
+        user_notes = todo.get("user_notes")
+        if user_notes and user_notes.strip():
+            parts.append(f"  用户笔记: {user_notes}")
+        if todo.get("deadline"):
+            parts.append(f"  截止日期: {todo['deadline']}")
+        if todo.get("priority") and todo["priority"] != "none":
+            parts.append(f"  优先级: {todo['priority']}")
+        if todo.get("tags"):
+            parts.append(f"  标签: {', '.join(todo['tags'])}")
+        if todo.get("status"):
+            parts.append(f"  状态: {todo['status']}")
+        return "\n".join(parts)
+
+    # 父任务链
+    parents = context.get("parents", [])
+    if parents:
+        lines.append("**父任务链（从直接父任务到根任务）：**")
+        for i, parent in enumerate(parents):
+            indent = "  " * (len(parents) - i - 1)
+            lines.append(_format_todo(parent, indent))
+
+    # 同级任务
+    siblings = context.get("siblings", [])
+    if siblings:
+        lines.append("\n**同级任务：**")
+        for sibling in siblings:
+            lines.append(_format_todo(sibling, "  "))
+
+    # 子任务（递归格式化）
+    def _format_children(children: list[dict[str, Any]], depth: int = 0) -> list[str]:
+        result: list[str] = []
+        for child in children:
+            indent = "  " * (depth + 1)
+            result.append(_format_todo(child, indent))
+            # 递归处理子任务的子任务
+            if child.get("children"):
+                result.extend(_format_children(child["children"], depth + 1))
+        return result
+
+    children = context.get("children", [])
+    if children:
+        lines.append("\n**子任务：**")
+        lines.extend(_format_children(children))
+
+    return "\n".join(lines) if lines else ""
+
+
+@router.post("/plan/questionnaire/stream")
+async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa: C901, PLR0915
+    """Plan功能：生成选择题（流式输出）"""
+    try:
+        logger.info(
+            f"[plan/questionnaire] 收到请求，任务名称: {request.todo_name}, todo_id: {request.todo_id}, session_id: {request.session_id}"
+        )
+
+        # 确保有 session_id，如果没有则创建
+        session_id = request.session_id
+        if not session_id:
+            session_id = deps.generate_session_id()
+            logger.info(f"[plan/questionnaire] 创建新会话: {session_id}")
+
+        # 检查数据库中是否存在该会话，如果不存在则创建
+        chat = chat_mgr.get_chat_by_session_id(session_id)
+        if not chat:
+            # 创建新的聊天会话，类型为 "plan"
+            chat_mgr.create_chat(
+                session_id=session_id,
+                chat_type="plan",
+                title=f"规划任务: {request.todo_name}",
+                context_id=request.todo_id,
+            )
+            logger.info(f"[plan/questionnaire] 在数据库中创建会话: {session_id}, 类型: plan")
+
+        # 获取任务上下文（如果提供了 todo_id）
+        context_info = ""
+        if request.todo_id is not None:
+            context = todo_mgr.get_todo_context(request.todo_id)
+            if context:
+                context_info = _format_todo_context(context)
+                logger.info(
+                    f"[plan/questionnaire] 获取到任务上下文，包含 {len(context.get('parents', []))} 个父任务, "
+                    f"{len(context.get('siblings', []))} 个同级任务, {len(context.get('children', []))} 个子任务"
+                )
+            else:
+                logger.warning(f"[plan/questionnaire] 无法获取 todo_id={request.todo_id} 的上下文")
+
+        # 从 prompt.yaml 读取 prompt
+        system_prompt = get_prompt("plan_questionnaire", "system_assistant")
+        user_prompt = get_prompt(
+            "plan_questionnaire",
+            "user_prompt",
+            todo_name=request.todo_name,
+            context_info=context_info,
+        )
+
+        if not system_prompt or not user_prompt:
+            raise HTTPException(status_code=500, detail="无法加载 prompt 配置，请检查 prompt.yaml")
+
+        # 构建消息
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # 保存用户消息到数据库（保存用户请求的任务名称和上下文信息）
+        user_message_content = f"请求为任务生成选择题：{request.todo_name}"
+        if context_info:
+            user_message_content += f"\n\n任务上下文：\n{context_info}"
+        chat_mgr.add_message(
+            session_id=session_id,
+            role="user",
+            content=user_message_content,
+        )
+
+        # 调用LLM流式API并逐块返回
+        def token_generator():
+            try:
+                if not deps.rag_service.llm_client.is_available():
+                    yield "抱歉，LLM服务当前不可用，请稍后重试。"
+                    return
+
+                # 使用LLM客户端进行流式生成
+                response = deps.rag_service.llm_client.client.chat.completions.create(
+                    model=deps.rag_service.llm_client.model,
+                    messages=messages,
+                    temperature=0.7,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                )
+
+                total_content = ""
+                usage_info = None
+
+                for chunk in response:
+                    # 检查是否有usage信息（通常在最后一个chunk中）
+                    if hasattr(chunk, "usage") and chunk.usage:
+                        usage_info = chunk.usage
+
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        total_content += content
+                        yield content
+
+                # 流式响应结束后，保存助手回复到数据库
+                if total_content:
+                    chat_mgr.add_message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=total_content,
+                        token_count=usage_info.total_tokens if usage_info else None,
+                        model=deps.rag_service.llm_client.model,
+                    )
+                    logger.info("[plan/questionnaire] 消息已保存到数据库")
+
+            except Exception as e:
+                logger.error(f"[plan/questionnaire] 生成失败: {e}")
+                yield "\n[提示] 流式生成出现异常，已结束。"
+
+        headers = {
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Session-Id": session_id,  # 返回 session_id 供前端使用
+        }
+        return StreamingResponse(
+            token_generator(), media_type="text/plain; charset=utf-8", headers=headers
+        )
+
+    except Exception as e:
+        logger.error(f"[plan/questionnaire] 处理失败: {e}")
+        raise HTTPException(status_code=500, detail="生成选择题失败") from e
+
+
+@router.post("/plan/summary/stream")
+async def plan_summary_stream(request: PlanSummaryRequest):  # noqa: C901
+    """Plan功能：生成任务总结和子任务（流式输出）"""
+    try:
+        logger.info(
+            f"[plan/summary] 收到请求，任务名称: {request.todo_name}, 回答数量: {len(request.answers)}, session_id: {request.session_id}"
+        )
+
+        # 确保有 session_id，如果没有则创建
+        session_id = request.session_id
+        if not session_id:
+            session_id = deps.generate_session_id()
+            logger.info(f"[plan/summary] 创建新会话: {session_id}")
+
+        # 检查数据库中是否存在该会话，如果不存在则创建
+        chat = chat_mgr.get_chat_by_session_id(session_id)
+        if not chat:
+            # 创建新的聊天会话，类型为 "plan"
+            chat_mgr.create_chat(
+                session_id=session_id,
+                chat_type="plan",
+                title=f"规划任务: {request.todo_name}",
+            )
+            logger.info(f"[plan/summary] 在数据库中创建会话: {session_id}, 类型: plan")
+
+        # 构建用户回答文本
+        answers_text = "\n".join(
+            [
+                f"问题 {question_id}: {', '.join(selected_options)}"
+                for question_id, selected_options in request.answers.items()
+            ]
+        )
+
+        # 处理自定义答案（移除 custom: 前缀）
+        answers_text = answers_text.replace("custom:", "")
+
+        # 从 prompt.yaml 读取 prompt
+        system_prompt = get_prompt("plan_summary", "system_assistant")
+        user_prompt = get_prompt(
+            "plan_summary", "user_prompt", todo_name=request.todo_name, answers_text=answers_text
+        )
+
+        if not system_prompt or not user_prompt:
+            raise HTTPException(status_code=500, detail="无法加载 prompt 配置，请检查 prompt.yaml")
+
+        # 构建消息
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # 保存用户消息到数据库（保存用户回答）
+        user_message_content = (
+            f"为任务生成总结和子任务：{request.todo_name}\n\n用户回答：\n{answers_text}"
+        )
+        chat_mgr.add_message(
+            session_id=session_id,
+            role="user",
+            content=user_message_content,
+        )
+
+        # 调用LLM流式API并逐块返回
+        def token_generator():
+            try:
+                if not deps.rag_service.llm_client.is_available():
+                    yield "抱歉，LLM服务当前不可用，请稍后重试。"
+                    return
+
+                # 使用LLM客户端进行流式生成
+                response = deps.rag_service.llm_client.client.chat.completions.create(
+                    model=deps.rag_service.llm_client.model,
+                    messages=messages,
+                    temperature=0.7,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                )
+
+                total_content = ""
+                usage_info = None
+
+                for chunk in response:
+                    # 检查是否有usage信息（通常在最后一个chunk中）
+                    if hasattr(chunk, "usage") and chunk.usage:
+                        usage_info = chunk.usage
+
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        total_content += content
+                        yield content
+
+                # 流式响应结束后，保存助手回复到数据库
+                if total_content:
+                    chat_mgr.add_message(
+                        session_id=session_id,
+                        role="assistant",
+                        content=total_content,
+                        token_count=usage_info.total_tokens if usage_info else None,
+                        model=deps.rag_service.llm_client.model,
+                    )
+                    logger.info("[plan/summary] 消息已保存到数据库")
+
+            except Exception as e:
+                logger.error(f"[plan/summary] 生成失败: {e}")
+                yield "\n[提示] 流式生成出现异常，已结束。"
+
+        headers = {
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Session-Id": session_id,  # 返回 session_id 供前端使用
+        }
+        return StreamingResponse(
+            token_generator(), media_type="text/plain; charset=utf-8", headers=headers
+        )
+
+    except Exception as e:
+        logger.error(f"[plan/summary] 处理失败: {e}")
+        raise HTTPException(status_code=500, detail="生成总结失败") from e

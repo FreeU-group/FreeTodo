@@ -98,6 +98,68 @@ class TodoManager:
             "updated_at": todo.updated_at,
         }
 
+    def get_todo_context(self, todo_id: int) -> dict[str, Any] | None:
+        """获取任务的所有相关上下文（父任务链、同级任务、子任务）"""
+        try:
+            with self.db_base.get_session() as session:
+                # 获取当前任务
+                current_todo = session.query(Todo).filter_by(id=todo_id).first()
+                if not current_todo:
+                    return None
+
+                current_dict = self._todo_to_dict(session, current_todo)
+
+                # 递归向上查找所有父任务
+                parents: list[dict[str, Any]] = []
+                parent_id = current_todo.parent_todo_id
+                visited_parents = set()  # 防止循环引用
+
+                while parent_id is not None and parent_id not in visited_parents:
+                    visited_parents.add(parent_id)
+                    parent_todo = session.query(Todo).filter_by(id=parent_id).first()
+                    if not parent_todo:
+                        break
+                    parents.append(self._todo_to_dict(session, parent_todo))
+                    parent_id = parent_todo.parent_todo_id
+
+                # 查找所有同级任务（相同 parent_todo_id，排除当前任务）
+                siblings: list[dict[str, Any]] = []
+                if current_todo.parent_todo_id is not None:
+                    sibling_todos = (
+                        session.query(Todo)
+                        .filter(
+                            Todo.parent_todo_id == current_todo.parent_todo_id,
+                            Todo.id != todo_id,
+                        )
+                        .all()
+                    )
+                    siblings = [self._todo_to_dict(session, t) for t in sibling_todos]
+
+                # 递归向下查找所有子任务
+                def _get_children_recursive(parent_todo_id: int) -> list[dict[str, Any]]:
+                    children: list[dict[str, Any]] = []
+                    child_todos = (
+                        session.query(Todo).filter(Todo.parent_todo_id == parent_todo_id).all()
+                    )
+                    for child in child_todos:
+                        child_dict = self._todo_to_dict(session, child)
+                        # 递归获取子任务的子任务
+                        child_dict["children"] = _get_children_recursive(child.id)
+                        children.append(child_dict)
+                    return children
+
+                children = _get_children_recursive(todo_id)
+
+                return {
+                    "current": current_dict,
+                    "parents": parents,
+                    "siblings": siblings,
+                    "children": children,
+                }
+        except SQLAlchemyError as e:
+            logger.error(f"获取 todo 上下文失败: {e}")
+            return None
+
     # ========== CRUD ==========
     def create_todo(  # noqa: PLR0913
         self,
