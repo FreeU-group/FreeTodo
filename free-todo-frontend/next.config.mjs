@@ -4,6 +4,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const apiUrl = new URL(API_BASE_URL);
 
 const nextConfig = {
+	output: "standalone",
 	reactStrictMode: true,
 	typedRoutes: true,
 	async rewrites() {

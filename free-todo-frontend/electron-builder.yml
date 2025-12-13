@@ -1,0 +1,82 @@
+appId: com.lifetrace.freetodo
+productName: FreeTodo
+copyright: Copyright © 2024 LifeTrace
+
+directories:
+  output: dist-electron-app
+  buildResources: build
+
+# 主进程文件
+files:
+  - "dist-electron/**/*"
+
+# 将 Next.js standalone 构建结果作为资源打包
+extraResources:
+  - from: ".next/standalone"
+    to: "standalone"
+    filter:
+      - "**/*"
+  - from: ".next/static"
+    to: "standalone/.next/static"
+    filter:
+      - "**/*"
+  - from: "public"
+    to: "standalone/public"
+    filter:
+      - "**/*"
+
+# Windows 配置
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+    - target: nsis
+      arch:
+        - x64
+  icon: public/logo.png
+  artifactName: "${productName}-${version}-win-${arch}.${ext}"
+
+portable:
+  artifactName: "${productName}-${version}-portable.exe"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# macOS 配置
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: public/logo.png
+  category: public.app-category.productivity
+  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+# Linux 配置
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: public/logo.png
+  category: Utility
+  artifactName: "${productName}-${version}-linux-${arch}.${ext}"
+
+# 打包时不使用 asar（因为需要运行 Node.js 服务器）
+asar: false
