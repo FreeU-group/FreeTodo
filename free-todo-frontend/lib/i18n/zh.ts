@@ -77,6 +77,18 @@ export const zh: Translation = {
 		screenshots: "截图",
 		debugShots: "截图调试",
 	},
+	settings: {
+		autoTodoDetectionTitle: "自动待办检测",
+		autoTodoDetectionDescription:
+			"自动从微信、飞书等应用截图中检测待办事项，并创建为待确认的草稿待办",
+		autoTodoDetectionLabel: "启用自动待办检测",
+		autoTodoDetectionHint:
+			"已启用：系统将自动检测白名单应用（微信、飞书、钉钉等）中的待办事项",
+		autoTodoDetectionEnabled: "已启用自动待办检测",
+		autoTodoDetectionDisabled: "已关闭自动待办检测",
+		loadFailed: "加载配置失败：{error}",
+		saveFailed: "保存配置失败：{error}",
+	},
 	todoExtraction: {
 		extractButton: "提取待办",
 		extracting: "正在提取待办事项...",

@@ -78,6 +78,18 @@ export const en: Translation = {
 		screenshots: "Screenshots",
 		debugShots: "Debug Shots",
 	},
+	settings: {
+		autoTodoDetectionTitle: "Auto Todo Detection",
+		autoTodoDetectionDescription:
+			"Automatically detect todos from screenshots of whitelisted apps (WeChat, Feishu, etc.) and create draft todos for confirmation",
+		autoTodoDetectionLabel: "Enable Auto Todo Detection",
+		autoTodoDetectionHint:
+			"Enabled: System will automatically detect todos from whitelisted apps (WeChat, Feishu, DingTalk, etc.)",
+		autoTodoDetectionEnabled: "Auto todo detection enabled",
+		autoTodoDetectionDisabled: "Auto todo detection disabled",
+		loadFailed: "Failed to load config: {error}",
+		saveFailed: "Failed to save config: {error}",
+	},
 	todoExtraction: {
 		extractButton: "Extract Todos",
 		extracting: "Extracting todos...",

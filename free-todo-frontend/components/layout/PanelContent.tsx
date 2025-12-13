@@ -5,6 +5,7 @@ import { AchievementsPanel } from "@/apps/achievements/AchievementsPanel";
 import { ActivityPanel } from "@/apps/activity/ActivityPanel";
 import { CalendarPanel } from "@/apps/calendar/CalendarPanel";
 import { ChatPanel } from "@/apps/chat/ChatPanel";
+import { SettingsPanel } from "@/apps/settings/SettingsPanel";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
 import type { PanelPosition } from "@/lib/config/panel-config";
@@ -104,6 +105,11 @@ export function PanelContent({ position }: PanelContentProps) {
 	// 如果是聊天功能，显示聊天组件
 	if (feature === "chat") {
 		return <ChatPanel />;
+	}
+
+	// 如果是设置功能，显示设置组件
+	if (feature === "settings") {
+		return <SettingsPanel />;
 	}
 
 	// 如果是开发调试截图面板（仅开发环境可见）

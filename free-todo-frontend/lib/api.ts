@@ -588,3 +588,59 @@ export async function fetchNotification(
 		return null;
 	}
 }
+
+/**
+ * 获取配置
+ */
+export async function getConfig(): Promise<{
+	success: boolean;
+	config?: Record<string, unknown>;
+	error?: string;
+}> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const url = `${baseUrl}/api/get-config`;
+
+	const response = await fetch(url, {
+		headers: { "Content-Type": "application/json" },
+	});
+
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		throw new Error(
+			errorData.detail || `Request failed with status ${response.status}`,
+		);
+	}
+
+	return response.json();
+}
+
+/**
+ * 保存配置
+ */
+export async function saveConfig(
+	config: Record<string, unknown>,
+): Promise<{ success: boolean; message?: string; error?: string }> {
+	const baseUrl =
+		typeof window !== "undefined"
+			? ""
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+	const url = `${baseUrl}/api/save-config`;
+
+	const response = await fetch(url, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(config),
+	});
+
+	if (!response.ok) {
+		const errorData = await response.json().catch(() => ({}));
+		throw new Error(
+			errorData.detail || `Request failed with status ${response.status}`,
+		);
+	}
+
+	return response.json();
+}

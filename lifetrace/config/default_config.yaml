@@ -51,6 +51,10 @@ jobs:
         enabled: false # 是否启用黑名单功能
         apps: ['微信'] # 应用黑名单，使用友好名称，例如: ["微信", "QQ", "钉钉"]
         windows: [] # 窗口标题黑名单，例如: ["记事本", "计算器"]
+  auto_todo_detection:
+    id: auto_todo_detection # 任务ID
+    name: 自动待办检测 # 任务显示名称（中文）
+    enabled: true # 是否启用自动待办检测（默认开启）
   ocr:
     id: ocr # 任务ID
     name: OCR识别 # 任务显示名称（中文）
@@ -109,7 +113,7 @@ llm:
   api_key: YOUR_LLM_KEY_HERE # LLM 密钥，需要用户配置
   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1 # LLM API基础URL
   model: qwen-plus # 使用的模型名称
-  vision_model: qwen-vl-plus # 视觉多模态模型名称（用于图片分析）
+  vision_model: qwen3-vl-plus # 视觉多模态模型名称（用于图片分析）
   temperature: 0.7 # 温度参数
   max_tokens: 2048 # 最大token数
   # 模型价格配置（单位：人民币/千token）
@@ -126,6 +130,6 @@ llm:
     qwen-turbo:
       input_price: 0.0003
       output_price: 0.0006
-    qwen-vl-plus: # 视觉模型价格
-      input_price: 0.012
-      output_price: 0.012
+    qwen3-vl-plus: # 视觉模型价格（非思考模式，0<Token≤32K）
+      input_price: 0.001 # 输入token价格（元/千token）
+      output_price: 0.01 # 输出token价格（元/千token）

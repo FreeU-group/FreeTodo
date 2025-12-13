@@ -114,6 +114,8 @@ class ConfigService:
             # 聊天配置
             "chat.enable_history",
             "chat.history_limit",
+            # 自动待办检测配置
+            "jobs.auto_todo_detection.enabled",
         ]
 
         config_dict = {}

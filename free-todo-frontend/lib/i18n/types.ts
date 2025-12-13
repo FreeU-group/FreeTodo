@@ -50,6 +50,16 @@ export type Translation = {
 		diaryPlaceholder: string;
 		settingsLabel: string;
 		settingsPlaceholder: string;
+		settings: {
+			autoTodoDetectionTitle: string;
+			autoTodoDetectionDescription: string;
+			autoTodoDetectionLabel: string;
+			autoTodoDetectionHint: string;
+			autoTodoDetectionEnabled: string;
+			autoTodoDetectionDisabled: string;
+			loadFailed: string;
+			saveFailed: string;
+		};
 		achievementsLabel: string;
 		achievementsPlaceholder: string;
 		screenshotsLabel: string;
