@@ -69,7 +69,7 @@
 		--popover-foreground: 0.141 0.005 285.823;
 		--primary: 0.488 0.243 264.376;
 		--primary-foreground: 0.97 0.014 254.604;
-		--primary-weak: 0.488 0.243 264.376 / 0.12;
+		--primary-weak: 0.488 0.243 264.376 / 0.05;
 		--primary-weak-hover: 0.488 0.243 264.376 / 0.18;
 		--primary-border: 0.488 0.243 264.376;
 		--secondary: 0.967 0.001 286.375;
@@ -108,7 +108,7 @@
 		--popover-foreground: 0.985 0 0;
 		--primary: 0.488 0.243 264.376;
 		--primary-foreground: 0.97 0.014 254.604;
-		--primary-weak: 0.488 0.243 264.376 / 0.22;
+		--primary-weak: 0.488 0.243 264.376 / 0.1;
 		--primary-weak-hover: 0.488 0.243 264.376 / 0.28;
 		--primary-border: 0.488 0.243 264.376;
 		--secondary: 0.274 0.006 286.033;
