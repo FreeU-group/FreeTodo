@@ -91,6 +91,97 @@ export async function sendChatMessageStream(
 }
 
 /**
+ * Plan功能：生成选择题（流式输出）
+ */
+export async function planQuestionnaireStream(
+	todoName: string,
+	onChunk: (chunk: string) => void,
+	todoId?: number,
+): Promise<void> {
+	const baseUrl = getApiBaseUrl();
+	const response = await fetch(
+		`${baseUrl}/api/chat/plan/questionnaire/stream`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				todo_name: todoName,
+				todo_id: todoId,
+			}),
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	if (!response.body) {
+		throw new Error("ReadableStream is not supported in this environment");
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+
+		if (value) {
+			const chunk = decoder.decode(value, { stream: true });
+			if (chunk) {
+				onChunk(chunk);
+			}
+		}
+	}
+}
+
+/**
+ * Plan功能：生成任务总结和子任务（流式输出）
+ */
+export async function planSummaryStream(
+	todoName: string,
+	answers: Record<string, string[]>,
+	onChunk: (chunk: string) => void,
+): Promise<void> {
+	const baseUrl = getApiBaseUrl();
+	const response = await fetch(`${baseUrl}/api/chat/plan/summary/stream`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify({
+			todo_name: todoName,
+			answers: answers,
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	if (!response.body) {
+		throw new Error("ReadableStream is not supported in this environment");
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) break;
+
+		if (value) {
+			const chunk = decoder.decode(value, { stream: true });
+			if (chunk) {
+				onChunk(chunk);
+			}
+		}
+	}
+}
+
+/**
  * 获取聊天历史（不传 sessionId 时返回会话列表，传入时返回该会话的消息）
  */
 export async function getChatHistory(
