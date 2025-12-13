@@ -15,7 +15,6 @@ import {
 	Calendar,
 	ChevronLeft,
 	ChevronRight,
-	Clock,
 	Plus,
 	RotateCcw,
 	X,
@@ -525,10 +524,6 @@ export function CalendarPanel() {
 		const todaysTodos = groupedByDay.get(key) || [];
 		return (
 			<div className="flex flex-col gap-3">
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
-					<Clock className="h-4 w-4" />
-					<span>{formatHumanDate(currentDate)} 的待办</span>
-				</div>
 				<div className="flex flex-col gap-3">
 					{todaysTodos.length === 0 ? (
 						<div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -536,11 +531,52 @@ export function CalendarPanel() {
 						</div>
 					) : (
 						todaysTodos.map((item) => (
-							<DraggableTodo
+							<div
 								key={item.todo.id}
-								calendarTodo={item}
-								onSelect={(todo) => setSelectedTodoId(todo.id)}
-							/>
+								className={cn(
+									"group relative flex flex-col gap-1 rounded-lg border bg-card p-3 text-xs shadow-sm transition-all",
+									getStatusStyle(item.todo.status),
+								)}
+								onClick={() => setSelectedTodoId(item.todo.id)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										setSelectedTodoId(item.todo.id);
+									}
+								}}
+								role="button"
+								tabIndex={0}
+							>
+								<div className="flex items-center justify-between gap-2">
+									<p className="truncate text-base font-semibold">
+										{item.todo.name}
+									</p>
+									<span
+										className={cn(
+											"shrink-0 text-sm font-medium",
+											getDeadlineSeverity(item.deadline) === "overdue"
+												? "text-red-600"
+												: getDeadlineSeverity(item.deadline) === "soon"
+													? "text-amber-600"
+													: "text-muted-foreground",
+										)}
+									>
+										{formatTimeLabel(item.deadline)}
+									</span>
+								</div>
+								{item.todo.tags && item.todo.tags.length > 0 && (
+									<div className="flex flex-wrap gap-1">
+										{item.todo.tags.map((tag) => (
+											<span
+												key={tag}
+												className="rounded-full bg-white/50 px-2 py-0.5 text-xs text-muted-foreground"
+											>
+												{tag}
+											</span>
+										))}
+									</div>
+								)}
+							</div>
 						))
 					)}
 				</div>
