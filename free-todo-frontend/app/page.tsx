@@ -12,6 +12,7 @@ import { PanelContainer } from "@/components/layout/PanelContainer";
 import { PanelContent } from "@/components/layout/PanelContent";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { DynamicIsland } from "@/components/notification/DynamicIsland";
+import { getConfig } from "@/lib/api";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -47,16 +48,48 @@ export default function HomePage() {
 		const poller = getNotificationPoller();
 		const store = useNotificationStore.getState();
 
-		// 注册 draft todo 轮询端点（如果尚未注册）
-		const draftTodoEndpoint = store.getEndpoint("draft-todos");
-		if (!draftTodoEndpoint) {
-			store.registerEndpoint({
-				id: "draft-todos",
-				url: "/api/todos?status=draft&limit=1",
-				interval: 1000, // 1秒轮询一次，实现近实时更新
-				enabled: true,
-			});
-		}
+		// 从后端获取配置并初始化 draft todo 轮询
+		const initDraftTodoPolling = async () => {
+			try {
+				const response = await getConfig();
+				const autoTodoDetectionEnabled =
+					response.success &&
+					response.config?.jobsAutoTodoDetectionEnabled === true;
+
+				// 注册或更新 draft todo 轮询端点
+				const existingEndpoint = store.getEndpoint("draft-todos");
+				if (!existingEndpoint) {
+					store.registerEndpoint({
+						id: "draft-todos",
+						url: "/api/todos?status=draft&limit=1",
+						interval: 1000, // 1秒轮询一次，实现近实时更新
+						enabled: autoTodoDetectionEnabled,
+					});
+				} else if (existingEndpoint.enabled !== autoTodoDetectionEnabled) {
+					// 配置变化时更新端点状态
+					store.registerEndpoint({
+						...existingEndpoint,
+						enabled: autoTodoDetectionEnabled,
+					});
+				}
+
+				console.log(
+					`[DraftTodo轮询] 自动待办检测配置: ${autoTodoDetectionEnabled ? "已启用" : "已禁用"}`,
+				);
+			} catch (error) {
+				console.warn("[DraftTodo轮询] 获取配置失败，默认启用轮询:", error);
+				// 获取配置失败时默认启用轮询
+				const existingEndpoint = store.getEndpoint("draft-todos");
+				if (!existingEndpoint) {
+					store.registerEndpoint({
+						id: "draft-todos",
+						url: "/api/todos?status=draft&limit=1",
+						interval: 1000,
+						enabled: true,
+					});
+				}
+			}
+		};
 
 		// 同步当前所有端点
 		const syncEndpoints = () => {
@@ -70,13 +103,13 @@ export default function HomePage() {
 					poller.unregisterEndpoint(endpoint.id);
 				}
 			}
-
-			// 清理已删除的端点（通过检查当前注册的端点）
-			// 注意：这里我们依赖 updateEndpoint 和 unregisterEndpoint 来管理
 		};
 
-		// 初始同步
-		syncEndpoints();
+		// 初始化轮询配置
+		void initDraftTodoPolling().then(() => {
+			// 初始同步
+			syncEndpoints();
+		});
 
 		// 订阅端点变化
 		const unsubscribe = useNotificationStore.subscribe(() => {

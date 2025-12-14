@@ -616,9 +616,11 @@ class ScreenRecorder:
         try:
             enabled = self.config.get("jobs.auto_todo_detection.enabled")
             if not enabled:
+                logger.debug(f"自动待办检测已禁用，跳过应用: {app_name}")
                 return False
         except KeyError:
             # 配置项不存在，默认不启用
+            logger.debug("自动待办检测配置项不存在，跳过检测")
             return False
 
         # 检查是否为白名单应用（直接使用常量）
@@ -627,10 +629,17 @@ class ScreenRecorder:
         from lifetrace.llm.auto_todo_detection_service import TODO_EXTRACTION_WHITELIST_APPS
 
         app_name_lower = app_name.lower()
-        return any(
+        is_whitelist = any(
             whitelist_app.lower() in app_name_lower
             for whitelist_app in TODO_EXTRACTION_WHITELIST_APPS
         )
+
+        if is_whitelist:
+            logger.info(f"🔍 检测到白名单应用: {app_name}，将触发自动待办检测")
+        else:
+            logger.debug(f"应用 {app_name} 不在白名单中，跳过自动待办检测")
+
+        return is_whitelist
 
     def _trigger_todo_detection_async(self, screenshot_id: int, app_name: str):
         """异步触发待办检测

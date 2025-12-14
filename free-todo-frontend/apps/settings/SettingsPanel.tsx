@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getConfig, saveConfig } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
+import { useNotificationStore } from "@/lib/store/notification-store";
 import { toastError, toastSuccess } from "@/lib/toast";
 
 /**
@@ -48,6 +49,17 @@ export function SettingsPanel() {
 				jobsAutoTodoDetectionEnabled: enabled,
 			});
 			setAutoTodoDetectionEnabled(enabled);
+
+			// 同步更新轮询端点状态
+			const store = useNotificationStore.getState();
+			const existingEndpoint = store.getEndpoint("draft-todos");
+			if (existingEndpoint) {
+				store.registerEndpoint({
+					...existingEndpoint,
+					enabled: enabled,
+				});
+			}
+
 			toastSuccess(
 				enabled
 					? t.page.settings.autoTodoDetectionEnabled
