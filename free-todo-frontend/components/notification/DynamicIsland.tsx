@@ -7,6 +7,7 @@ import { updateTodoApi } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
+import { useTodoStore } from "@/lib/store/todo-store";
 import { toastError, toastSuccess } from "@/lib/toast";
 
 // 简单的相对时间格式化
@@ -57,6 +58,7 @@ export function DynamicIsland() {
 		setNotification,
 		setExpanded,
 	} = useNotificationStore();
+	const { refreshTodos } = useTodoStore();
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -120,6 +122,8 @@ export function DynamicIsland() {
 			await updateTodoApi(currentNotification.todoId, {
 				status: "active",
 			});
+			// 接受草稿待办后刷新待办列表，确保待办面板立即显示新待办
+			await refreshTodos();
 			toastSuccess(t.todoExtraction.acceptSuccess);
 			setNotification(null);
 			setExpanded(false);
@@ -141,6 +145,8 @@ export function DynamicIsland() {
 			await updateTodoApi(currentNotification.todoId, {
 				status: "canceled",
 			});
+			// 拒绝草稿待办后也刷新列表，移除对应待办
+			await refreshTodos();
 			toastSuccess(t.todoExtraction.rejectSuccess);
 			setNotification(null);
 			setExpanded(false);
