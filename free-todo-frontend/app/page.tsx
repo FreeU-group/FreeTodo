@@ -13,6 +13,7 @@ import { PanelContent } from "@/components/layout/PanelContent";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { DynamicIsland } from "@/components/notification/DynamicIsland";
 import { getConfig } from "@/lib/api";
+import { GlobalDndProvider } from "@/lib/dnd";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -334,107 +335,109 @@ export default function HomePage() {
 	};
 
 	return (
-		<main className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
-			<div className="relative z-10 flex h-full flex-col text-foreground">
-				<header className="relative flex h-12 shrink-0 items-center gap-3 bg-background px-4 text-foreground overflow-visible">
-					{/* 左侧：Logo */}
-					<div className="flex items-center gap-2 shrink-0">
-						<Image
-							src="/logo.png"
-							alt="Free Todo Logo"
-							width={24}
-							height={24}
-							className="shrink-0"
-						/>
-						<h1 className="text-sm font-semibold tracking-tight text-foreground">
-							Free Todo
-						</h1>
-					</div>
-
-					{/* 中间：通知区域（灵动岛） - 只在有通知时显示 */}
-					{currentNotification && (
-						<div className="flex-1 flex items-center justify-center relative min-w-0 overflow-visible">
-							<DynamicIsland />
+		<GlobalDndProvider>
+			<main className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
+				<div className="relative z-10 flex h-full flex-col text-foreground">
+					<header className="relative flex h-12 shrink-0 items-center gap-3 bg-background px-4 text-foreground overflow-visible">
+						{/* 左侧：Logo */}
+						<div className="flex items-center gap-2 shrink-0">
+							<Image
+								src="/logo.png"
+								alt="Free Todo Logo"
+								width={24}
+								height={24}
+								className="shrink-0"
+							/>
+							<h1 className="text-sm font-semibold tracking-tight text-foreground">
+								Free Todo
+							</h1>
 						</div>
-					)}
 
-					{/* 占位符：当没有通知时保持布局平衡 */}
-					{!currentNotification && <div className="flex-1" />}
+						{/* 中间：通知区域（灵动岛） - 只在有通知时显示 */}
+						{currentNotification && (
+							<div className="flex-1 flex items-center justify-center relative min-w-0 overflow-visible">
+								<DynamicIsland />
+							</div>
+						)}
 
-					{/* 右侧：工具 */}
-					<div className="flex items-center gap-2 shrink-0">
-						<ThemeToggle />
-						<LanguageToggle />
-						<UserAvatar />
+						{/* 占位符：当没有通知时保持布局平衡 */}
+						{!currentNotification && <div className="flex-1" />}
+
+						{/* 右侧：工具 */}
+						<div className="flex items-center gap-2 shrink-0">
+							<ThemeToggle />
+							<LanguageToggle />
+							<UserAvatar />
+						</div>
+					</header>
+
+					<div
+						ref={containerRef}
+						className="relative flex min-h-0 flex-1 gap-1.5 overflow-hidden p-3"
+					>
+						<AnimatePresence mode="sync" initial={false}>
+							{layoutState.showPanelA && (
+								<PanelContainer
+									position="panelA"
+									isVisible={layoutState.showPanelA}
+									width={layoutState.panelAWidth}
+									isDragging={isDraggingPanelA || isDraggingPanelC}
+								>
+									<PanelContent position="panelA" />
+								</PanelContainer>
+							)}
+						</AnimatePresence>
+
+						<AnimatePresence mode="sync" initial={false}>
+							{layoutState.showPanelAResizeHandle && (
+								<ResizeHandle
+									key="panelA-resize-handle"
+									onPointerDown={handlePanelAResizePointerDown}
+									isDragging={isDraggingPanelA}
+								/>
+							)}
+						</AnimatePresence>
+
+						<AnimatePresence mode="sync" initial={false}>
+							{layoutState.showPanelB && (
+								<PanelContainer
+									position="panelB"
+									isVisible={layoutState.showPanelB}
+									width={layoutState.panelBWidth}
+									isDragging={isDraggingPanelA || isDraggingPanelC}
+								>
+									<PanelContent position="panelB" />
+								</PanelContainer>
+							)}
+						</AnimatePresence>
+
+						<AnimatePresence mode="sync" initial={false}>
+							{layoutState.showPanelCResizeHandle && (
+								<ResizeHandle
+									key="panelC-resize-handle"
+									onPointerDown={handlePanelCResizePointerDown}
+									isDragging={isDraggingPanelC}
+								/>
+							)}
+						</AnimatePresence>
+
+						<AnimatePresence mode="sync" initial={false}>
+							{layoutState.showPanelC && (
+								<PanelContainer
+									position="panelC"
+									isVisible={layoutState.showPanelC}
+									width={layoutState.panelCWidth}
+									isDragging={isDraggingPanelA || isDraggingPanelC}
+								>
+									<PanelContent position="panelC" />
+								</PanelContainer>
+							)}
+						</AnimatePresence>
 					</div>
-				</header>
-
-				<div
-					ref={containerRef}
-					className="relative flex min-h-0 flex-1 gap-1.5 overflow-hidden p-3"
-				>
-					<AnimatePresence mode="sync" initial={false}>
-						{layoutState.showPanelA && (
-							<PanelContainer
-								position="panelA"
-								isVisible={layoutState.showPanelA}
-								width={layoutState.panelAWidth}
-								isDragging={isDraggingPanelA || isDraggingPanelC}
-							>
-								<PanelContent position="panelA" />
-							</PanelContainer>
-						)}
-					</AnimatePresence>
-
-					<AnimatePresence mode="sync" initial={false}>
-						{layoutState.showPanelAResizeHandle && (
-							<ResizeHandle
-								key="panelA-resize-handle"
-								onPointerDown={handlePanelAResizePointerDown}
-								isDragging={isDraggingPanelA}
-							/>
-						)}
-					</AnimatePresence>
-
-					<AnimatePresence mode="sync" initial={false}>
-						{layoutState.showPanelB && (
-							<PanelContainer
-								position="panelB"
-								isVisible={layoutState.showPanelB}
-								width={layoutState.panelBWidth}
-								isDragging={isDraggingPanelA || isDraggingPanelC}
-							>
-								<PanelContent position="panelB" />
-							</PanelContainer>
-						)}
-					</AnimatePresence>
-
-					<AnimatePresence mode="sync" initial={false}>
-						{layoutState.showPanelCResizeHandle && (
-							<ResizeHandle
-								key="panelC-resize-handle"
-								onPointerDown={handlePanelCResizePointerDown}
-								isDragging={isDraggingPanelC}
-							/>
-						)}
-					</AnimatePresence>
-
-					<AnimatePresence mode="sync" initial={false}>
-						{layoutState.showPanelC && (
-							<PanelContainer
-								position="panelC"
-								isVisible={layoutState.showPanelC}
-								width={layoutState.panelCWidth}
-								isDragging={isDraggingPanelA || isDraggingPanelC}
-							>
-								<PanelContent position="panelC" />
-							</PanelContainer>
-						)}
-					</AnimatePresence>
 				</div>
-			</div>
 
-			<BottomDock />
-		</main>
+				<BottomDock />
+			</main>
+		</GlobalDndProvider>
 	);
 }

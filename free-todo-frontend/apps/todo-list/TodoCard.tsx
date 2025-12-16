@@ -16,6 +16,7 @@ import {
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { DragData } from "@/lib/dnd";
 import { usePlanStore } from "@/lib/store/plan-store";
 import { useTodoStore } from "@/lib/store/todo-store";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 
 export interface TodoCardProps {
 	todo: Todo;
+	depth?: number; // 树形结构的层级深度
 	isDragging?: boolean;
 	selected?: boolean;
 	isOverlay?: boolean;
@@ -33,6 +35,7 @@ export interface TodoCardProps {
 
 export function TodoCard({
 	todo,
+	depth = 0,
 	isDragging,
 	selected,
 	isOverlay,
@@ -59,7 +62,25 @@ export function TodoCard({
 	const [childName, setChildName] = useState("");
 	const childInputRef = useRef<HTMLInputElement | null>(null);
 	const menuRef = useRef<HTMLDivElement | null>(null);
-	const sortable = useSortable({ id: todo.id, disabled: isOverlay });
+
+	// 构建类型化的拖拽数据
+	const dragData: DragData = useMemo(
+		() => ({
+			type: "TODO_CARD" as const,
+			payload: {
+				todo,
+				depth,
+				sourcePanel: "todoList",
+			},
+		}),
+		[todo, depth],
+	);
+
+	const sortable = useSortable({
+		id: todo.id,
+		disabled: isOverlay,
+		data: dragData, // 传递类型化的拖拽数据
+	});
 	const attributes = isOverlay ? {} : sortable.attributes;
 	const listeners = isOverlay ? {} : sortable.listeners;
 	const setNodeRef = sortable.setNodeRef;

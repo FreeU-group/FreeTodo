@@ -1,16 +1,15 @@
 "use client";
 
-import {
-	type DragEndEvent,
-	type DragStartEvent,
-	KeyboardSensor,
-	PointerSensor,
-	useSensor,
-	useSensors,
-} from "@dnd-kit/core";
-import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+/**
+ * Todo 列表主组件
+ * 使用全局 DndContext，通过 useDndMonitor 监听拖拽事件处理内部排序
+ */
+
+import { type DragEndEvent, useDndMonitor } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 import type React from "react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import type { DragData } from "@/lib/dnd";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { CreateTodoInput } from "@/lib/types/todo";
 import { useOrderedTodos } from "./hooks/useOrderedTodos";
@@ -28,19 +27,7 @@ export function TodoList() {
 		toggleTodoSelection,
 	} = useTodoStore();
 	const [searchQuery, setSearchQuery] = useState("");
-	const [activeId, setActiveId] = useState<string | null>(null);
 	const [newTodoName, setNewTodoName] = useState("");
-
-	const sensors = useSensors(
-		useSensor(PointerSensor, {
-			activationConstraint: {
-				distance: 5,
-			},
-		}),
-		useSensor(KeyboardSensor, {
-			coordinateGetter: sortableKeyboardCoordinates,
-		}),
-	);
 
 	const { collapsedTodoIds } = useTodoStore();
 	const { filteredTodos, orderedTodos } = useOrderedTodos(
@@ -49,33 +36,47 @@ export function TodoList() {
 		collapsedTodoIds,
 	);
 
-	const handleDragStart = (event: DragStartEvent) => {
-		setActiveId(event.active.id as string);
-	};
+	// 处理内部排序 - 当 TODO_CARD 在列表内移动时
+	const handleInternalReorder = useCallback(
+		(event: DragEndEvent) => {
+			const { active, over } = event;
 
-	const handleDragEnd = (event: DragEndEvent) => {
-		const { active, over } = event;
+			if (!over || active.id === over.id) return;
 
-		if (over && active.id !== over.id) {
-			const oldIndex = orderedTodos.findIndex(
-				({ todo }) => todo.id === active.id,
+			// 检查是否是 TODO_CARD 类型的拖拽
+			const dragData = active.data.current as DragData | undefined;
+			if (dragData?.type !== "TODO_CARD") return;
+
+			// 检查是否放在了另一个 TODO 上（内部排序）
+			// 通过检查 over.id 是否在 orderedTodos 中来判断
+			const overIdStr = String(over.id);
+			const isInternalDrop = orderedTodos.some(
+				({ todo }) => todo.id === overIdStr,
 			);
-			const newIndex = orderedTodos.findIndex(
-				({ todo }) => todo.id === over.id,
-			);
 
-			const newOrder = arrayMove(orderedTodos, oldIndex, newIndex).map(
-				({ todo }) => todo.id,
-			);
-			reorderTodos(newOrder);
-		}
+			if (isInternalDrop) {
+				const oldIndex = orderedTodos.findIndex(
+					({ todo }) => todo.id === active.id,
+				);
+				const newIndex = orderedTodos.findIndex(
+					({ todo }) => todo.id === over.id,
+				);
 
-		setActiveId(null);
-	};
+				if (oldIndex !== -1 && newIndex !== -1) {
+					const newOrder = arrayMove(orderedTodos, oldIndex, newIndex).map(
+						({ todo }) => todo.id,
+					);
+					reorderTodos(newOrder);
+				}
+			}
+		},
+		[orderedTodos, reorderTodos],
+	);
 
-	const handleDragCancel = () => {
-		setActiveId(null);
-	};
+	// 使用 useDndMonitor 监听全局拖拽事件
+	useDndMonitor({
+		onDragEnd: handleInternalReorder,
+	});
 
 	const handleSelect = (
 		todoId: string,
@@ -122,12 +123,7 @@ export function TodoList() {
 				) : (
 					<TodoTreeList
 						orderedTodos={orderedTodos}
-						activeId={activeId}
 						selectedTodoIds={selectedTodoIds}
-						sensors={sensors}
-						onDragStart={handleDragStart}
-						onDragEnd={handleDragEnd}
-						onDragCancel={handleDragCancel}
 						onSelect={handleSelect}
 						onSelectSingle={(id) => setSelectedTodoId(id)}
 					/>

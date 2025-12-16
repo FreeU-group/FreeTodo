@@ -1,0 +1,306 @@
+"use client";
+
+/**
+ * 全局拖拽预览组件
+ * Global Drag Overlay Components
+ */
+
+import { DragOverlay } from "@dnd-kit/core";
+import { Calendar, Flag, Paperclip, Tag } from "lucide-react";
+import { createPortal } from "react-dom";
+import type { Todo, TodoPriority, TodoStatus } from "@/lib/types/todo";
+import { cn } from "@/lib/utils";
+import type { ActiveDragState, DragData } from "./types";
+
+// ============================================================================
+// 样式辅助函数
+// ============================================================================
+
+function getStatusColor(status: TodoStatus) {
+	switch (status) {
+		case "active":
+			return "bg-[oklch(var(--primary)/0.12)] text-[oklch(var(--primary))] border-[oklch(var(--primary)/0.32)]";
+		case "completed":
+			return "bg-[oklch(var(--accent)/0.16)] text-[oklch(var(--accent-foreground))] border-[oklch(var(--accent)/0.28)]";
+		case "canceled":
+			return "bg-[oklch(var(--muted)/0.35)] text-[oklch(var(--muted-foreground))] border-[oklch(var(--border))]";
+		case "draft":
+			return "bg-orange-500/12 text-orange-600 dark:text-orange-400 border-orange-500/32";
+		default:
+			return "";
+	}
+}
+
+function getPriorityColor(priority: TodoPriority) {
+	switch (priority) {
+		case "high":
+			return "text-[oklch(var(--destructive))]";
+		case "medium":
+			return "text-[oklch(var(--primary))]";
+		case "low":
+			return "text-[oklch(var(--accent-foreground))]";
+		default:
+			return "text-muted-foreground";
+	}
+}
+
+function getPriorityLabel(priority: TodoPriority) {
+	switch (priority) {
+		case "high":
+			return "高";
+		case "medium":
+			return "中";
+		case "low":
+			return "低";
+		default:
+			return "无";
+	}
+}
+
+function getStatusLabel(status: TodoStatus) {
+	switch (status) {
+		case "active":
+			return "Active";
+		case "completed":
+			return "Completed";
+		case "canceled":
+			return "Canceled";
+		case "draft":
+			return "Draft";
+		default:
+			return status;
+	}
+}
+
+function formatDate(dateString?: string) {
+	if (!dateString) return null;
+	const date = new Date(dateString);
+	return date.toLocaleDateString("en-US", {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+	});
+}
+
+// ============================================================================
+// Todo 卡片预览组件
+// ============================================================================
+
+interface TodoCardOverlayProps {
+	todo: Todo;
+	depth?: number;
+}
+
+function TodoCardOverlay({ todo, depth = 0 }: TodoCardOverlayProps) {
+	return (
+		<div
+			className="opacity-90 pointer-events-none"
+			style={{ marginLeft: depth * 16 }}
+		>
+			<div
+				className={cn(
+					"todo-card group relative flex h-full flex-col gap-3 rounded-xl p-3",
+					"border border-transparent transition-all duration-200",
+					"bg-card shadow-lg ring-2 ring-primary/30",
+				)}
+			>
+				<div className="flex items-start gap-2">
+					<div className="w-5 shrink-0" />
+					<div className="shrink-0">
+						{todo.status === "completed" ? (
+							<div className="flex h-5 w-5 items-center justify-center rounded-md bg-[oklch(var(--primary))] border border-[oklch(var(--primary))] shadow-inner">
+								<span className="text-[10px] text-[oklch(var(--primary-foreground))] font-semibold">
+									✓
+								</span>
+							</div>
+						) : (
+							<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40" />
+						)}
+					</div>
+
+					<div className="flex-1 min-w-0 space-y-1">
+						<div className="flex items-start justify-between gap-2">
+							<div className="min-w-0 flex-1 space-y-1">
+								<h3
+									className={cn(
+										"text-sm font-semibold text-foreground",
+										todo.status === "completed" &&
+											"line-through text-muted-foreground",
+									)}
+								>
+									{todo.name}
+								</h3>
+								{todo.description && (
+									<p className="text-xs text-muted-foreground line-clamp-2">
+										{todo.description}
+									</p>
+								)}
+							</div>
+
+							<div className="flex items-center gap-2 shrink-0">
+								{todo.priority && todo.priority !== "none" && (
+									<div
+										className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+										title={`优先级：${getPriorityLabel(todo.priority)}`}
+									>
+										<Flag
+											className={cn(
+												"h-3.5 w-3.5",
+												getPriorityColor(todo.priority),
+											)}
+											fill="currentColor"
+										/>
+										<span>{getPriorityLabel(todo.priority)}</span>
+									</div>
+								)}
+								{todo.status && (
+									<span
+										className={cn(
+											"px-2 py-0.5 rounded-full text-xs font-medium border shadow-sm",
+											getStatusColor(todo.status),
+										)}
+									>
+										{getStatusLabel(todo.status)}
+									</span>
+								)}
+							</div>
+						</div>
+
+						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+							{todo.deadline && (
+								<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
+									<Calendar className="h-3 w-3" />
+									<span>{formatDate(todo.deadline)}</span>
+								</div>
+							)}
+
+							{todo.attachments && todo.attachments.length > 0 && (
+								<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
+									<Paperclip className="h-3 w-3" />
+									<span>{todo.attachments.length}</span>
+								</div>
+							)}
+
+							{todo.tags && todo.tags.length > 0 && (
+								<div className="flex flex-wrap items-center gap-1">
+									<Tag className="h-3 w-3" />
+									{todo.tags.slice(0, 3).map((tag) => (
+										<span
+											key={tag}
+											className="px-2 py-0.5 rounded-full bg-muted text-[11px] font-medium text-foreground"
+										>
+											{tag}
+										</span>
+									))}
+									{todo.tags.length > 3 && (
+										<span className="text-[11px] text-muted-foreground">
+											+{todo.tags.length - 3}
+										</span>
+									)}
+								</div>
+							)}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// ============================================================================
+// 简化的日历 Todo 预览
+// ============================================================================
+
+interface CalendarTodoOverlayProps {
+	todo: Todo;
+}
+
+function CalendarTodoOverlay({ todo }: CalendarTodoOverlayProps) {
+	return (
+		<div
+			className={cn(
+				"opacity-90 pointer-events-none flex flex-col gap-1 rounded-lg border bg-card p-2 text-xs shadow-lg ring-2 ring-primary/30",
+				getStatusColor(todo.status),
+			)}
+		>
+			<div className="flex items-center justify-between gap-2">
+				<p className="truncate text-[13px] font-semibold">{todo.name}</p>
+			</div>
+			{todo.tags && todo.tags.length > 0 && (
+				<div className="flex flex-wrap gap-1">
+					{todo.tags.slice(0, 2).map((tag) => (
+						<span
+							key={tag}
+							className="rounded-full bg-white/50 px-2 py-0.5 text-[10px] text-muted-foreground"
+						>
+							{tag}
+						</span>
+					))}
+				</div>
+			)}
+		</div>
+	);
+}
+
+// ============================================================================
+// 根据拖拽类型渲染预览
+// ============================================================================
+
+interface DragOverlayContentProps {
+	data: DragData;
+}
+
+function DragOverlayContent({ data }: DragOverlayContentProps) {
+	switch (data.type) {
+		case "TODO_CARD": {
+			const { todo, depth, sourcePanel } = data.payload;
+			// 根据来源面板决定使用哪种预览样式
+			if (sourcePanel === "calendar") {
+				return <CalendarTodoOverlay todo={todo} />;
+			}
+			return <TodoCardOverlay todo={todo} depth={depth} />;
+		}
+		case "FILE": {
+			return (
+				<div className="flex items-center gap-2 rounded-lg border bg-card p-3 shadow-lg">
+					<Paperclip className="h-4 w-4 text-muted-foreground" />
+					<span className="text-sm font-medium">
+						{data.payload.file.fileName}
+					</span>
+				</div>
+			);
+		}
+		case "USER": {
+			return (
+				<div className="flex items-center gap-2 rounded-lg border bg-card p-3 shadow-lg">
+					<div className="h-6 w-6 rounded-full bg-primary/20" />
+					<span className="text-sm font-medium">{data.payload.userName}</span>
+				</div>
+			);
+		}
+		default:
+			return null;
+	}
+}
+
+// ============================================================================
+// 全局拖拽预览组件
+// ============================================================================
+
+interface GlobalDragOverlayProps {
+	activeDrag: ActiveDragState | null;
+}
+
+export function GlobalDragOverlay({ activeDrag }: GlobalDragOverlayProps) {
+	// 使用 Portal 渲染到 body，避免父容器 transform 导致的坐标偏移
+	if (typeof document === "undefined") {
+		return null;
+	}
+
+	return createPortal(
+		<DragOverlay dropAnimation={null}>
+			{activeDrag ? <DragOverlayContent data={activeDrag.data} /> : null}
+		</DragOverlay>,
+		document.body,
+	);
+}
