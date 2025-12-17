@@ -12,11 +12,13 @@
 		"check": "biome check ./app ./apps ./components ./lib",
 		"type-check": "tsc --noEmit",
 		"electron:build-main": "node scripts/build-electron.js",
+		"electron:resolve-symlinks": "node scripts/resolve-symlinks.js",
+		"electron:copy-missing-deps": "node scripts/copy-missing-deps.js",
 		"electron:dev": "pnpm electron:build-main && electron .",
-		"electron:build": "pnpm build && pnpm electron:build-main && electron-builder",
-		"electron:build-win": "pnpm build && pnpm electron:build-main && electron-builder --win",
-		"electron:build-mac": "pnpm build && pnpm electron:build-main && electron-builder --mac",
-		"electron:build-linux": "pnpm build && pnpm electron:build-main && electron-builder --linux"
+		"electron:build": "pnpm build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder",
+		"electron:build-win": "pnpm build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --win",
+		"electron:build-mac": "pnpm build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --mac",
+		"electron:build-linux": "pnpm build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --linux"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",

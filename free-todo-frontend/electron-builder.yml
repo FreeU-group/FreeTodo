@@ -8,22 +8,33 @@ directories:
 
 # 主进程文件
 files:
-  - "dist-electron/**/*"
+  - 'dist-electron/**/*'
 
 # 将 Next.js standalone 构建结果作为资源打包
 extraResources:
-  - from: ".next/standalone"
-    to: "standalone"
+  # 复制 standalone 构建（包含 server.js 和必要的运行时文件）
+  - from: '.next/standalone'
+    to: 'standalone'
     filter:
-      - "**/*"
-  - from: ".next/static"
-    to: "standalone/.next/static"
+      - '**/*'
+      # 注意：.pnpm 目录在 resolve-symlinks 后应该已经不需要了
+      # 但如果仍有缺失依赖，可以取消下面的排除
+      - '!**/.pnpm/**' # 排除 .pnpm 目录（已通过 resolve-symlinks 解析）
+  # 明确复制 node_modules（确保包含所有依赖）
+  - from: '.next/standalone/node_modules'
+    to: 'standalone/node_modules'
     filter:
-      - "**/*"
-  - from: "public"
-    to: "standalone/public"
+      - '**/*'
+  # 复制静态文件（CSS, JS chunks等）- Next.js standalone 不包含这些文件，必须单独复制
+  - from: '.next/static'
+    to: 'standalone/.next/static'
     filter:
-      - "**/*"
+      - '**/*'
+  # 复制 public 目录（图片、字体等静态资源）
+  - from: 'public'
+    to: 'standalone/public'
+    filter:
+      - '**/*'
 
 # Windows 配置
 win:
@@ -35,10 +46,10 @@ win:
       arch:
         - x64
   icon: public/logo.png
-  artifactName: "${productName}-${version}-win-${arch}.${ext}"
+  artifactName: '${productName}-${version}-win-${arch}.${ext}'
 
 portable:
-  artifactName: "${productName}-${version}-portable.exe"
+  artifactName: '${productName}-${version}-portable.exe'
 
 nsis:
   oneClick: false
@@ -57,7 +68,7 @@ mac:
         - arm64
   icon: public/logo.png
   category: public.app-category.productivity
-  artifactName: "${productName}-${version}-mac-${arch}.${ext}"
+  artifactName: '${productName}-${version}-mac-${arch}.${ext}'
 
 dmg:
   contents:
@@ -76,7 +87,7 @@ linux:
         - x64
   icon: public/logo.png
   category: Utility
-  artifactName: "${productName}-${version}-linux-${arch}.${ext}"
+  artifactName: '${productName}-${version}-linux-${arch}.${ext}'
 
 # 打包时不使用 asar（因为需要运行 Node.js 服务器）
 asar: false
