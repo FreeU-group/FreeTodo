@@ -19,6 +19,7 @@ import { useMemo, useState } from "react";
 import { PanelHeader } from "@/components/common/PanelHeader";
 import type { DragData, DropData } from "@/lib/dnd";
 import { useTranslations } from "@/lib/i18n";
+import { useCreateTodo, useTodos } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { Todo, TodoStatus } from "@/lib/types/todo";
@@ -397,7 +398,16 @@ function QuickCreateBar({
 export function CalendarPanel() {
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
-	const { todos, addTodo, setSelectedTodoId } = useTodoStore();
+
+	// 从 TanStack Query 获取 todos 数据
+	const { data: todos = [] } = useTodos();
+
+	// 从 TanStack Query 获取创建 todo 的 mutation
+	const createTodoMutation = useCreateTodo();
+
+	// 从 Zustand 获取 UI 状态
+	const { setSelectedTodoId } = useTodoStore();
+
 	const [view, setView] = useState<CalendarView>("month");
 	const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
 	const [quickTargetDate, setQuickTargetDate] = useState<Date | null>(null);
@@ -493,18 +503,22 @@ export function CalendarPanel() {
 		setQuickTargetDate(startOfDay(date));
 	};
 
-	const handleQuickCreate = () => {
+	const handleQuickCreate = async () => {
 		if (!quickTargetDate || !quickTitle.trim()) return;
 		const [hh, mm] = quickTime.split(":").map((n) => Number.parseInt(n, 10));
 		const deadline = startOfDay(quickTargetDate);
 		deadline.setHours(hh || 0, mm || 0, 0, 0);
-		addTodo({
-			name: quickTitle.trim(),
-			deadline: deadline.toISOString(),
-			status: "active",
-		});
-		setQuickTitle("");
-		setQuickTargetDate(null);
+		try {
+			await createTodoMutation.mutateAsync({
+				name: quickTitle.trim(),
+				deadline: deadline.toISOString(),
+				status: "active",
+			});
+			setQuickTitle("");
+			setQuickTargetDate(null);
+		} catch (err) {
+			console.error("Failed to create todo:", err);
+		}
 	};
 
 	const renderMonthView = () => (

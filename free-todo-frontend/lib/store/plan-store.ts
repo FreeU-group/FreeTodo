@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { ParsedTodoTree } from "@/apps/chat/types";
-import { useTodoStore } from "./todo-store";
+import { createTodo, updateTodoApi } from "@/lib/api";
+import { fromApiTodo, getQueryClient, queryKeys } from "@/lib/query";
 
 export interface Question {
 	id: string;
@@ -142,11 +143,9 @@ export const usePlanStore = create<PlanStoreState>()((set, get) => ({
 
 		set({ isLoading: true, error: null });
 
-		const { updateTodo, createTodoWithResult } = useTodoStore.getState();
-
 		try {
 			// 更新任务描述
-			await updateTodo(state.activePlanTodoId, {
+			await updateTodoApi(Number.parseInt(state.activePlanTodoId, 10), {
 				description: state.summary,
 			});
 
@@ -157,12 +156,13 @@ export const usePlanStore = create<PlanStoreState>()((set, get) => ({
 			): Promise<void> => {
 				for (const node of trees) {
 					// 创建当前子任务
-					const created = await createTodoWithResult({
+					const apiTodo = await createTodo({
 						name: node.name,
 						description: node.description,
 						order: node.order,
-						parentTodoId: parentId,
+						parent_todo_id: parentId ? Number.parseInt(parentId, 10) : null,
 					});
+					const created = fromApiTodo(apiTodo);
 
 					// 如果有嵌套子任务，递归创建
 					if (created && node.subtasks && node.subtasks.length > 0) {
@@ -172,6 +172,10 @@ export const usePlanStore = create<PlanStoreState>()((set, get) => ({
 			};
 
 			await createSubtasks(state.subtasks, state.activePlanTodoId);
+
+			// 使 todos 缓存失效，触发重新获取
+			const queryClient = getQueryClient();
+			await queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 
 			// 标记为完成
 			set({

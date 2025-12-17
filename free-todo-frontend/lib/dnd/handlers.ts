@@ -3,7 +3,8 @@
  * Drag Drop Handlers - Strategy Pattern Dispatch
  */
 
-import { useTodoStore } from "@/lib/store/todo-store";
+import { updateTodoApi } from "@/lib/api";
+import { getQueryClient, queryKeys } from "@/lib/query";
 import type {
 	DragData,
 	DragDropHandler,
@@ -55,9 +56,6 @@ const handleTodoToCalendarDate: DragDropHandler = (
 	const { todo } = dragData.payload;
 	const { date } = dropData.metadata;
 
-	// 获取 store 的 updateTodo 方法
-	const { updateTodo } = useTodoStore.getState();
-
 	// 保留原有时间部分，只更新日期
 	const existingDeadline = todo.deadline ? new Date(todo.deadline) : null;
 	const newDeadline = new Date(date);
@@ -74,7 +72,14 @@ const handleTodoToCalendarDate: DragDropHandler = (
 		newDeadline.setHours(9, 0, 0, 0);
 	}
 
-	updateTodo(todo.id, { deadline: newDeadline.toISOString() });
+	// 使用 API 更新并刷新缓存
+	const todoId = Number.parseInt(todo.id, 10);
+	void updateTodoApi(todoId, { deadline: newDeadline.toISOString() }).then(
+		() => {
+			const queryClient = getQueryClient();
+			void queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+		},
+	);
 
 	return {
 		success: true,
@@ -100,8 +105,12 @@ const handleTodoToTodoList: DragDropHandler = (
 
 	// 如果指定了父级 ID，更新父子关系
 	if (parentTodoId !== undefined) {
-		const { updateTodo } = useTodoStore.getState();
-		updateTodo(todo.id, { parentTodoId });
+		const todoId = Number.parseInt(todo.id, 10);
+		const parentId = parentTodoId ? Number.parseInt(parentTodoId, 10) : null;
+		void updateTodoApi(todoId, { parent_todo_id: parentId }).then(() => {
+			const queryClient = getQueryClient();
+			void queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+		});
 	}
 
 	// 注意：列表内部排序由 TodoList 组件的 useDndMonitor 处理

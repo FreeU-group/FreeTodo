@@ -14,21 +14,38 @@ import { PlanSummary } from "@/apps/chat/PlanSummary";
 import { Questionnaire } from "@/apps/chat/Questionnaire";
 import { SummaryStreaming } from "@/apps/chat/SummaryStreaming";
 import { useTranslations } from "@/lib/i18n";
+import { useCreateTodo, useTodos } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 import { usePlanStore } from "@/lib/store/plan-store";
 import { useTodoStore } from "@/lib/store/todo-store";
-import type { Todo } from "@/lib/types/todo";
+import type { CreateTodoInput, Todo } from "@/lib/types/todo";
 
 export function ChatPanel() {
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
-	const {
-		createTodoWithResult,
-		todos,
-		selectedTodoIds,
-		clearTodoSelection,
-		toggleTodoSelection,
-	} = useTodoStore();
+
+	// 从 TanStack Query 获取 todos 数据（用于 Plan 功能）
+	const { data: todos = [] } = useTodos();
+
+	// 从 TanStack Query 获取创建 todo 的 mutation
+	const createTodoMutation = useCreateTodo();
+
+	// 包装 createTodo 函数以匹配 useChatController 期望的签名
+	const createTodoWithResult = useCallback(
+		async (input: CreateTodoInput): Promise<Todo | null> => {
+			try {
+				return await createTodoMutation.mutateAsync(input);
+			} catch (error) {
+				console.error("Failed to create todo:", error);
+				return null;
+			}
+		},
+		[createTodoMutation],
+	);
+
+	// 从 Zustand 获取 UI 状态
+	const { selectedTodoIds, clearTodoSelection, toggleTodoSelection } =
+		useTodoStore();
 
 	// Plan功能相关状态
 	const {
@@ -201,7 +218,6 @@ export function ChatPanel() {
 		hasSelection,
 	} = useChatController({
 		locale,
-		todos,
 		selectedTodoIds,
 		createTodo: createTodoWithResult,
 	});

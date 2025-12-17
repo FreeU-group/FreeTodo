@@ -4,8 +4,8 @@ import { Check, Clock, X } from "lucide-react";
 import { useState } from "react";
 import type { ExtractedTodo } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
+import { useCreateTodo } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
-import { useTodoStore } from "@/lib/store/todo-store";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { CreateTodoInput } from "@/lib/types/todo";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -27,7 +27,7 @@ export function TodoExtractionModal({
 }: TodoExtractionModalProps) {
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
-	const { addTodo } = useTodoStore();
+	const createTodoMutation = useCreateTodo();
 	const [selectedTodos, setSelectedTodos] = useState<Set<number>>(
 		new Set(todos.map((_, index) => index)),
 	);
@@ -50,7 +50,7 @@ export function TodoExtractionModal({
 		}
 	};
 
-	const handleConfirm = () => {
+	const handleConfirm = async () => {
 		if (selectedTodos.size === 0) {
 			toastError(t.todoExtraction.noTodosFound);
 			return;
@@ -59,7 +59,8 @@ export function TodoExtractionModal({
 		let successCount = 0;
 		let failCount = 0;
 
-		selectedTodos.forEach((index) => {
+		// 使用 Promise.all 并发创建 todos
+		const createPromises = Array.from(selectedTodos).map(async (index) => {
 			const todo = todos[index];
 			try {
 				const todoInput: CreateTodoInput = {
@@ -70,13 +71,22 @@ export function TodoExtractionModal({
 					userNotes: `来源：${todo.source_text}\n时间：${todo.time_info.raw_text}\n事件ID：${eventId}`,
 				};
 
-				addTodo(todoInput);
-				successCount++;
+				await createTodoMutation.mutateAsync(todoInput);
+				return { success: true };
 			} catch (error) {
 				console.error("添加待办失败:", error);
-				failCount++;
+				return { success: false };
 			}
 		});
+
+		const results = await Promise.all(createPromises);
+		for (const result of results) {
+			if (result.success) {
+				successCount++;
+			} else {
+				failCount++;
+			}
+		}
 
 		if (successCount > 0) {
 			toastSuccess(

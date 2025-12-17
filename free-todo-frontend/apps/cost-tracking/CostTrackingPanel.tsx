@@ -1,4 +1,3 @@
-/* eslint-disable react/no-array-index-key */
 "use client";
 
 import {
@@ -9,10 +8,9 @@ import {
 	RefreshCw,
 	TrendingUp,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { CostStats } from "@/lib/api";
-import { getCostStats } from "@/lib/api";
+import { useMemo, useState } from "react";
 import { useTranslations } from "@/lib/i18n";
+import { useCostStats } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 
 const DEFAULT_DAYS = 30;
@@ -20,35 +18,15 @@ const DEFAULT_DAYS = 30;
 export function CostTrackingPanel() {
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
-
-	const [stats, setStats] = useState<CostStats | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
 	const [days, setDays] = useState<number>(DEFAULT_DAYS);
 
-	const loadCostStats = useCallback(async () => {
-		setLoading(true);
-		setError(null);
-		try {
-			const response = await getCostStats(days);
-			if (response?.data) {
-				setStats(response.data);
-			} else {
-				setStats(null);
-				setError(t.page.costTracking.loadFailed);
-			}
-		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : t.page.costTracking.loadFailed;
-			setError(message);
-		} finally {
-			setLoading(false);
-		}
-	}, [days, t]);
-
-	useEffect(() => {
-		void loadCostStats();
-	}, [loadCostStats]);
+	// 使用 TanStack Query 获取费用统计
+	const {
+		data: stats,
+		isLoading: loading,
+		error,
+		refetch,
+	} = useCostStats(days);
 
 	const formatCurrency = (amount: number | undefined | null) => {
 		if (amount === undefined || amount === null || Number.isNaN(amount)) {
@@ -112,7 +90,7 @@ export function CostTrackingPanel() {
 					</select>
 					<button
 						type="button"
-						onClick={() => void loadCostStats()}
+						onClick={() => refetch()}
 						className="inline-flex items-center gap-2 rounded-lg border border-[oklch(var(--border))] px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-[oklch(var(--muted))]"
 					>
 						<RefreshCw className="h-4 w-4" />
@@ -123,7 +101,7 @@ export function CostTrackingPanel() {
 				{error && (
 					<div className="flex items-start gap-2 rounded-lg border border-[oklch(var(--destructive))]/40 bg-[oklch(var(--destructive))]/10 px-3 py-2 text-sm text-[oklch(var(--destructive))]">
 						<AlertCircle className="mt-0.5 h-4 w-4" />
-						<span>{error}</span>
+						<span>{error.message || t.page.costTracking.loadFailed}</span>
 					</div>
 				)}
 

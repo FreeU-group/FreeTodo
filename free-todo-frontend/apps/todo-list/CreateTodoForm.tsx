@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useTodoStore } from "@/lib/store/todo-store";
+import { useCreateTodo } from "@/lib/query";
 import type { CreateTodoInput, TodoPriority } from "@/lib/types/todo";
 import { cn } from "@/lib/utils";
 
@@ -9,7 +9,7 @@ interface CreateTodoFormProps {
 }
 
 export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
-	const { addTodo } = useTodoStore();
+	const createTodoMutation = useCreateTodo();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
@@ -18,7 +18,7 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 	const [userNotes, setUserNotes] = useState("");
 	const [priority, setPriority] = useState<TodoPriority>("none");
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!name.trim()) return;
 
@@ -35,15 +35,19 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 					.filter(Boolean) || [],
 		};
 
-		addTodo(input);
-		setName("");
-		setDescription("");
-		setDeadline("");
-		setTags("");
-		setUserNotes("");
-		setPriority("none");
-		setIsExpanded(false);
-		onSuccess?.();
+		try {
+			await createTodoMutation.mutateAsync(input);
+			setName("");
+			setDescription("");
+			setDeadline("");
+			setTags("");
+			setUserNotes("");
+			setPriority("none");
+			setIsExpanded(false);
+			onSuccess?.();
+		} catch (err) {
+			console.error("Failed to create todo:", err);
+		}
 	};
 
 	return (

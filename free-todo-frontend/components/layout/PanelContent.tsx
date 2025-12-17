@@ -16,7 +16,6 @@ import {
 } from "@/lib/config/panel-config";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
-import { useTodoStore } from "@/lib/store/todo-store";
 import { useUiStore } from "@/lib/store/ui-store";
 
 // 动态导入调试面板（仅开发环境）
@@ -32,13 +31,11 @@ export function PanelContent({ position }: PanelContentProps) {
 	const { getFeatureByPosition } = useUiStore();
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
-	const { hydrate } = useTodoStore();
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
 		setMounted(true);
-		void hydrate();
-	}, [hydrate]);
+	}, []);
 
 	// 在 SSR 时使用 null，避免 hydration 错误
 	const feature = mounted ? getFeatureByPosition(position) : null;

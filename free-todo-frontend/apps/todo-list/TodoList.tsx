@@ -6,10 +6,10 @@
  */
 
 import { type DragEndEvent, useDndMonitor } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
 import type React from "react";
 import { useCallback, useState } from "react";
 import type { DragData } from "@/lib/dnd";
+import { useTodoMutations, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { CreateTodoInput } from "@/lib/types/todo";
 import { useOrderedTodos } from "./hooks/useOrderedTodos";
@@ -18,18 +18,23 @@ import { TodoToolbar } from "./TodoToolbar";
 import { TodoTreeList } from "./TodoTreeList";
 
 export function TodoList() {
+	// 从 TanStack Query 获取 todos 数据
+	const { data: todos = [], isLoading, error } = useTodos();
+
+	// 从 TanStack Query 获取 mutation 操作
+	const { createTodo } = useTodoMutations();
+
+	// 从 Zustand 获取 UI 状态
 	const {
-		todos,
-		reorderTodos,
-		addTodo,
 		selectedTodoIds,
 		setSelectedTodoId,
 		toggleTodoSelection,
+		collapsedTodoIds,
 	} = useTodoStore();
+
 	const [searchQuery, setSearchQuery] = useState("");
 	const [newTodoName, setNewTodoName] = useState("");
 
-	const { collapsedTodoIds } = useTodoStore();
 	const { filteredTodos, orderedTodos } = useOrderedTodos(
 		todos,
 		searchQuery,
@@ -37,6 +42,7 @@ export function TodoList() {
 	);
 
 	// 处理内部排序 - 当 TODO_CARD 在列表内移动时
+	// 注意：重排序操作需要更新后端，这里暂时只更新本地视图顺序
 	const handleInternalReorder = useCallback(
 		(event: DragEndEvent) => {
 			const { active, over } = event;
@@ -48,13 +54,14 @@ export function TodoList() {
 			if (dragData?.type !== "TODO_CARD") return;
 
 			// 检查是否放在了另一个 TODO 上（内部排序）
-			// 通过检查 over.id 是否在 orderedTodos 中来判断
 			const overIdStr = String(over.id);
 			const isInternalDrop = orderedTodos.some(
 				({ todo }) => todo.id === overIdStr,
 			);
 
 			if (isInternalDrop) {
+				// 注意：排序逻辑需要通过 mutation 更新后端
+				// 目前暂时在此打印日志，后续可以添加 reorder mutation
 				const oldIndex = orderedTodos.findIndex(
 					({ todo }) => todo.id === active.id,
 				);
@@ -63,14 +70,12 @@ export function TodoList() {
 				);
 
 				if (oldIndex !== -1 && newIndex !== -1) {
-					const newOrder = arrayMove(orderedTodos, oldIndex, newIndex).map(
-						({ todo }) => todo.id,
-					);
-					reorderTodos(newOrder);
+					console.log("Reorder:", active.id, "from", oldIndex, "to", newIndex);
+					// TODO: 实现 reorder mutation
 				}
 			}
 		},
-		[orderedTodos, reorderTodos],
+		[orderedTodos],
 	);
 
 	// 使用 useDndMonitor 监听全局拖拽事件
@@ -90,7 +95,7 @@ export function TodoList() {
 		}
 	};
 
-	const handleCreateTodo = (e?: React.FormEvent) => {
+	const handleCreateTodo = async (e?: React.FormEvent) => {
 		if (e) e.preventDefault();
 		if (!newTodoName.trim()) return;
 
@@ -98,9 +103,31 @@ export function TodoList() {
 			name: newTodoName.trim(),
 		};
 
-		addTodo(input);
-		setNewTodoName("");
+		try {
+			await createTodo(input);
+			setNewTodoName("");
+		} catch (err) {
+			console.error("Failed to create todo:", err);
+		}
 	};
+
+	// 加载状态
+	if (isLoading) {
+		return (
+			<div className="flex h-full items-center justify-center">
+				<div className="h-6 w-6 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+			</div>
+		);
+	}
+
+	// 错误状态
+	if (error) {
+		return (
+			<div className="flex h-full items-center justify-center text-destructive">
+				加载失败: {error.message}
+			</div>
+		);
+	}
 
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-background dark:bg-background">

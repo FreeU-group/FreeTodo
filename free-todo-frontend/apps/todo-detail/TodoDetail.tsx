@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTodoMutations, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
 import { ChildTodoSection } from "./components/ChildTodoSection";
 import { DescriptionSection } from "./components/DescriptionSection";
@@ -11,15 +12,15 @@ import { NotesEditor } from "./components/NotesEditor";
 import { useNotesAutosize } from "./hooks/useNotesAutosize";
 
 export function TodoDetail() {
-	const {
-		todos,
-		selectedTodoId,
-		updateTodo,
-		toggleTodoStatus,
-		deleteTodo,
-		setSelectedTodoId,
-		addTodo,
-	} = useTodoStore();
+	// 从 TanStack Query 获取 todos 数据
+	const { data: todos = [] } = useTodos();
+
+	// 从 TanStack Query 获取 mutation 操作
+	const { createTodo, updateTodo, deleteTodo, toggleTodoStatus } =
+		useTodoMutations();
+
+	// 从 Zustand 获取 UI 状态
+	const { selectedTodoId, setSelectedTodoId, onTodoDeleted } = useTodoStore();
 
 	const [showDescription, setShowDescription] = useState(true);
 
@@ -51,27 +52,81 @@ export function TodoDetail() {
 		);
 	}
 
-	const handleNotesChange = (userNotes: string) => {
-		updateTodo(todo.id, { userNotes });
-		requestAnimationFrame(adjustNotesHeight);
+	const handleNotesChange = async (userNotes: string) => {
+		try {
+			await updateTodo(todo.id, { userNotes });
+			requestAnimationFrame(adjustNotesHeight);
+		} catch (err) {
+			console.error("Failed to update notes:", err);
+		}
 	};
 
-	const handleDescriptionChange = (description: string) => {
-		updateTodo(todo.id, { description });
+	const handleDescriptionChange = async (description: string) => {
+		try {
+			await updateTodo(todo.id, { description });
+		} catch (err) {
+			console.error("Failed to update description:", err);
+		}
 	};
 
-	const handleNameChange = (name: string) => {
-		updateTodo(todo.id, { name });
+	const handleNameChange = async (name: string) => {
+		try {
+			await updateTodo(todo.id, { name });
+		} catch (err) {
+			console.error("Failed to update name:", err);
+		}
+	};
+
+	const handleToggleComplete = async () => {
+		try {
+			await toggleTodoStatus(todo.id);
+		} catch (err) {
+			console.error("Failed to toggle status:", err);
+		}
+	};
+
+	const handleDelete = async () => {
+		try {
+			// 递归查找所有子任务 ID
+			const findAllChildIds = (
+				parentId: string,
+				allTodos: typeof todos,
+			): string[] => {
+				const childIds: string[] = [];
+				const children = allTodos.filter((t) => t.parentTodoId === parentId);
+				for (const child of children) {
+					childIds.push(child.id);
+					childIds.push(...findAllChildIds(child.id, allTodos));
+				}
+				return childIds;
+			};
+
+			const allIdsToDelete = [todo.id, ...findAllChildIds(todo.id, todos)];
+
+			await deleteTodo(todo.id);
+			onTodoDeleted(allIdsToDelete);
+			setSelectedTodoId(null);
+		} catch (err) {
+			console.error("Failed to delete todo:", err);
+		}
+	};
+
+	const handleCreateChild = async (name: string) => {
+		try {
+			await createTodo({
+				name,
+				parentTodoId: todo.id,
+			});
+		} catch (err) {
+			console.error("Failed to create child todo:", err);
+		}
 	};
 
 	return (
 		<div className="flex h-full flex-col overflow-hidden bg-background">
 			<DetailHeader
-				onToggleComplete={() => toggleTodoStatus(todo.id)}
-				onDelete={() => {
-					deleteTodo(todo.id);
-					setSelectedTodoId(null);
-				}}
+				onToggleComplete={handleToggleComplete}
+				onDelete={handleDelete}
 			/>
 
 			<div className="flex-1 overflow-y-auto px-4 py-6">
@@ -111,12 +166,7 @@ export function TodoDetail() {
 					childTodos={childTodos}
 					allTodos={todos}
 					onSelectTodo={setSelectedTodoId}
-					onCreateChild={(name) =>
-						addTodo({
-							name,
-							parentTodoId: todo.id,
-						})
-					}
+					onCreateChild={handleCreateChild}
 				/>
 			</div>
 		</div>

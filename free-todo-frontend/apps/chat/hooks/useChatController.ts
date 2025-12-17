@@ -8,26 +8,28 @@ import {
 	buildHierarchicalTodoContext,
 	buildTodoContextBlock,
 } from "@/apps/chat/utils/todoContext";
-import type { ChatHistoryItem, ChatSessionSummary } from "@/lib/api";
-import { getChatHistory, sendChatMessageStream } from "@/lib/api";
+import type { ChatHistoryItem } from "@/lib/api";
+import { sendChatMessageStream } from "@/lib/api";
+import { useChatHistory, useChatSessions, useTodos } from "@/lib/query";
 import { useChatStore } from "@/lib/store/chat-store";
 import type { CreateTodoInput, Todo } from "@/lib/types/todo";
 
 type UseChatControllerParams = {
 	locale: string;
-	todos: Todo[];
 	selectedTodoIds: string[];
 	createTodo: (todo: CreateTodoInput) => Promise<Todo | null>;
 };
 
 export const useChatController = ({
 	locale,
-	todos,
 	selectedTodoIds,
 	createTodo,
 }: UseChatControllerParams) => {
 	const { planSystemPrompt, parsePlanTodos, buildTodoPayloads } =
 		usePlanParser(locale);
+
+	// 从 TanStack Query 获取 todos 数据
+	const { data: todos = [] } = useTodos();
 
 	// 使用 chat-store 管理持久化状态
 	const {
@@ -38,6 +40,18 @@ export const useChatController = ({
 		setConversationId,
 		setHistoryOpen,
 	} = useChatStore();
+
+	// 使用 TanStack Query 获取会话列表
+	const {
+		data: sessions = [],
+		isLoading: historyLoading,
+		error: sessionsError,
+	} = useChatSessions({
+		enabled: historyOpen,
+	});
+
+	// 使用 TanStack Query 获取当前会话的历史记录
+	const { data: sessionHistory = [] } = useChatHistory(conversationId);
 
 	const buildInitialAssistantMessage = useCallback(
 		(): ChatMessage => ({
@@ -57,10 +71,13 @@ export const useChatController = ({
 	const [inputValue, setInputValue] = useState("");
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [historyLoading, setHistoryLoading] = useState(false);
-	const [historyError, setHistoryError] = useState<string | null>(null);
-	const [sessions, setSessions] = useState<ChatSessionSummary[]>([]);
 	const [isComposing, setIsComposing] = useState(false);
+
+	const historyError = sessionsError
+		? locale === "zh"
+			? "加载历史记录失败"
+			: "Failed to load history"
+		: null;
 
 	const selectedTodos = useMemo(
 		() => todos.filter((todo) => selectedTodoIds.includes(todo.id)),
@@ -87,30 +104,25 @@ export const useChatController = ({
 
 	const handleLoadSession = useCallback(
 		async (sessionId: string) => {
-			setHistoryLoading(true);
-			setHistoryError(null);
-			try {
-				const res = await getChatHistory(sessionId, 100);
-				const history = res.history || [];
-				const mapped = history.map((item: ChatHistoryItem) => ({
-					id: createId(),
-					role: item.role,
-					content: item.content,
-				}));
-				setMessages(mapped.length ? mapped : [buildInitialAssistantMessage()]);
-				setConversationId(sessionId);
-				setHistoryOpen(false);
-			} catch (err) {
-				console.error(err);
-				setHistoryError(
-					locale === "zh" ? "加载会话失败" : "Failed to load session",
-				);
-			} finally {
-				setHistoryLoading(false);
-			}
+			// 使用 TanStack Query 的数据
+			// 当 conversationId 改变时，useChatHistory 会自动获取新的历史记录
+			setConversationId(sessionId);
+			setHistoryOpen(false);
 		},
-		[buildInitialAssistantMessage, locale, setConversationId, setHistoryOpen],
+		[setConversationId, setHistoryOpen],
 	);
+
+	// 当会话历史加载完成后，更新 messages
+	useEffect(() => {
+		if (sessionHistory.length > 0 && conversationId) {
+			const mapped = sessionHistory.map((item: ChatHistoryItem) => ({
+				id: createId(),
+				role: item.role,
+				content: item.content,
+			}));
+			setMessages(mapped.length ? mapped : [buildInitialAssistantMessage()]);
+		}
+	}, [sessionHistory, conversationId, buildInitialAssistantMessage]);
 
 	const handleSend = useCallback(async () => {
 		const text = inputValue.trim();
@@ -279,28 +291,6 @@ export const useChatController = ({
 		},
 		[handleSend, isComposing],
 	);
-
-	const fetchSessions = useCallback(async () => {
-		setHistoryLoading(true);
-		setHistoryError(null);
-		try {
-			const res = await getChatHistory(undefined, 30);
-			setSessions(res.sessions || []);
-		} catch (err) {
-			console.error(err);
-			setHistoryError(
-				locale === "zh" ? "加载历史记录失败" : "Failed to load history",
-			);
-		} finally {
-			setHistoryLoading(false);
-		}
-	}, [locale]);
-
-	useEffect(() => {
-		if (historyOpen) {
-			void fetchSessions();
-		}
-	}, [fetchSessions, historyOpen]);
 
 	return {
 		chatMode,

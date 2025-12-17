@@ -17,6 +17,7 @@ import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { DragData } from "@/lib/dnd";
+import { useTodoMutations, useTodos } from "@/lib/query";
 import { usePlanStore } from "@/lib/store/plan-store";
 import { useTodoStore } from "@/lib/store/todo-store";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -42,15 +43,16 @@ export function TodoCard({
 	onSelect,
 	onSelectSingle,
 }: TodoCardProps) {
-	const {
-		toggleTodoStatus,
-		deleteTodo,
-		updateTodo,
-		addTodo,
-		todos,
-		toggleTodoExpanded,
-		isTodoExpanded,
-	} = useTodoStore();
+	// 从 TanStack Query 获取 todos 数据（用于检查是否有子任务）
+	const { data: todos = [] } = useTodos();
+
+	// 从 TanStack Query 获取 mutation 操作
+	const { createTodo, updateTodo, deleteTodo, toggleTodoStatus } =
+		useTodoMutations();
+
+	// 从 Zustand 获取 UI 状态操作
+	const { toggleTodoExpanded, isTodoExpanded, onTodoDeleted } = useTodoStore();
+
 	const { startPlan } = usePlanStore();
 	const { setPanelFeature, getFeatureByPosition } = useUiStore();
 	const [contextMenu, setContextMenu] = useState({
@@ -235,14 +237,18 @@ export function TodoCard({
 		});
 	};
 
-	const handleCreateChild = (e?: React.FormEvent) => {
+	const handleCreateChild = async (e?: React.FormEvent) => {
 		if (e) e.preventDefault();
 		const name = childName.trim();
 		if (!name) return;
 
-		addTodo({ name, parentTodoId: todo.id });
-		setChildName("");
-		setIsAddingChild(false);
+		try {
+			await createTodo({ name, parentTodoId: todo.id });
+			setChildName("");
+			setIsAddingChild(false);
+		} catch (err) {
+			console.error("Failed to create child todo:", err);
+		}
 	};
 
 	const handleStartPlan = () => {
@@ -284,6 +290,49 @@ export function TodoCard({
 
 		// 开始Plan流程
 		startPlan(todo.id);
+	};
+
+	const handleToggleStatus = async (e: React.MouseEvent) => {
+		e.stopPropagation();
+		try {
+			await toggleTodoStatus(todo.id);
+		} catch (err) {
+			console.error("Failed to toggle todo status:", err);
+		}
+	};
+
+	const handleDelete = async () => {
+		try {
+			// 递归查找所有子任务 ID
+			const findAllChildIds = (
+				parentId: string,
+				allTodos: Todo[],
+			): string[] => {
+				const childIds: string[] = [];
+				const children = allTodos.filter((t) => t.parentTodoId === parentId);
+				for (const child of children) {
+					childIds.push(child.id);
+					childIds.push(...findAllChildIds(child.id, allTodos));
+				}
+				return childIds;
+			};
+
+			const allIdsToDelete = [todo.id, ...findAllChildIds(todo.id, todos)];
+
+			await deleteTodo(todo.id);
+			// 清理 UI 状态
+			onTodoDeleted(allIdsToDelete);
+		} catch (err) {
+			console.error("Failed to delete todo:", err);
+		}
+	};
+
+	const handleCancel = async () => {
+		try {
+			await updateTodo(todo.id, { status: "canceled" });
+		} catch (err) {
+			console.error("Failed to cancel todo:", err);
+		}
 	};
 
 	return (
@@ -335,10 +384,7 @@ export function TodoCard({
 					{!hasChildren && <div className="w-5 shrink-0" />}
 					<button
 						type="button"
-						onClick={(e) => {
-							e.stopPropagation();
-							toggleTodoStatus(todo.id);
-						}}
+						onClick={handleToggleStatus}
 						className="shrink-0"
 					>
 						{todo.status === "completed" ? (
@@ -548,7 +594,7 @@ export function TodoCard({
 								type="button"
 								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors"
 								onClick={() => {
-									updateTodo(todo.id, { status: "canceled" });
+									handleCancel();
 									setContextMenu((state) =>
 										state.open ? { ...state, open: false } : state,
 									);
@@ -561,7 +607,7 @@ export function TodoCard({
 								type="button"
 								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors last:rounded-b-md"
 								onClick={() => {
-									deleteTodo(todo.id);
+									handleDelete();
 									setContextMenu((state) =>
 										state.open ? { ...state, open: false } : state,
 									);

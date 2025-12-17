@@ -1,9 +1,9 @@
 "use client";
 
 import { Settings } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { getConfig, saveConfig } from "@/lib/api";
+import { useEffect, useState } from "react";
 import { useTranslations } from "@/lib/i18n";
+import { useConfig, useSaveConfig } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -16,7 +16,13 @@ import { toastError, toastSuccess } from "@/lib/toast";
 export function SettingsPanel() {
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
-	const [loading, setLoading] = useState(false);
+
+	// 使用 TanStack Query 获取配置
+	const { data: config, isLoading: configLoading } = useConfig();
+
+	// 使用 TanStack Query 保存配置
+	const saveConfigMutation = useSaveConfig();
+
 	const [autoTodoDetectionEnabled, setAutoTodoDetectionEnabled] =
 		useState(false);
 	const [costPanelEnabled, setCostPanelEnabled] = useState<boolean>(() =>
@@ -24,37 +30,23 @@ export function SettingsPanel() {
 	);
 	const setFeatureEnabled = useUiStore((state) => state.setFeatureEnabled);
 
-	const loadConfig = useCallback(async () => {
-		setLoading(true);
-		try {
-			const response = await getConfig();
-			if (response.success && response.config) {
-				setAutoTodoDetectionEnabled(
-					(response.config.jobsAutoTodoDetectionEnabled as boolean) ?? false,
-				);
-				const costEnabled =
-					(response.config.uiCostTrackingEnabled as boolean) ?? true;
-				setCostPanelEnabled(costEnabled);
-				setFeatureEnabled("costTracking", costEnabled);
-			}
-		} catch (error) {
-			console.error("加载配置失败:", error);
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.page.settings.loadFailed.replace("{error}", errorMsg));
-		} finally {
-			setLoading(false);
-		}
-	}, [setFeatureEnabled, t]);
-
-	// 加载配置
+	// 当配置加载完成后，同步本地状态
 	useEffect(() => {
-		void loadConfig();
-	}, [loadConfig]);
+		if (config) {
+			setAutoTodoDetectionEnabled(
+				(config.jobsAutoTodoDetectionEnabled as boolean) ?? false,
+			);
+			const costEnabled = (config.uiCostTrackingEnabled as boolean) ?? true;
+			setCostPanelEnabled(costEnabled);
+			setFeatureEnabled("costTracking", costEnabled);
+		}
+	}, [config, setFeatureEnabled]);
+
+	const loading = configLoading || saveConfigMutation.isPending;
 
 	const handleToggleAutoTodoDetection = async (enabled: boolean) => {
-		setLoading(true);
 		try {
-			await saveConfig({
+			await saveConfigMutation.mutateAsync({
 				jobsAutoTodoDetectionEnabled: enabled,
 			});
 			setAutoTodoDetectionEnabled(enabled);
@@ -80,15 +72,12 @@ export function SettingsPanel() {
 			toastError(t.page.settings.saveFailed.replace("{error}", errorMsg));
 			// 恢复原状态
 			setAutoTodoDetectionEnabled(!enabled);
-		} finally {
-			setLoading(false);
 		}
 	};
 
 	const handleToggleCostPanel = async (enabled: boolean) => {
-		setLoading(true);
 		try {
-			await saveConfig({
+			await saveConfigMutation.mutateAsync({
 				uiCostTrackingEnabled: enabled,
 			});
 			setCostPanelEnabled(enabled);
@@ -104,8 +93,6 @@ export function SettingsPanel() {
 			toastError(t.page.settings.saveFailed.replace("{error}", errorMsg));
 			setCostPanelEnabled(!enabled);
 			setFeatureEnabled("costTracking", !enabled);
-		} finally {
-			setLoading(false);
 		}
 	};
 

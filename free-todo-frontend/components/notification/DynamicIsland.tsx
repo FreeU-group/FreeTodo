@@ -1,13 +1,14 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Check, Clock, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { updateTodoApi } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
+import { queryKeys } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
-import { useTodoStore } from "@/lib/store/todo-store";
 import { toastError, toastSuccess } from "@/lib/toast";
 
 // 简单的相对时间格式化
@@ -58,7 +59,7 @@ export function DynamicIsland() {
 		setNotification,
 		setExpanded,
 	} = useNotificationStore();
-	const { refreshTodos } = useTodoStore();
+	const queryClient = useQueryClient();
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -122,8 +123,8 @@ export function DynamicIsland() {
 			await updateTodoApi(currentNotification.todoId, {
 				status: "active",
 			});
-			// 接受草稿待办后刷新待办列表，确保待办面板立即显示新待办
-			await refreshTodos();
+			// 接受草稿待办后使 todos 缓存失效，触发重新获取
+			await queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 			toastSuccess(t.todoExtraction.acceptSuccess);
 			setNotification(null);
 			setExpanded(false);
@@ -145,8 +146,8 @@ export function DynamicIsland() {
 			await updateTodoApi(currentNotification.todoId, {
 				status: "canceled",
 			});
-			// 拒绝草稿待办后也刷新列表，移除对应待办
-			await refreshTodos();
+			// 拒绝草稿待办后使 todos 缓存失效，触发重新获取
+			await queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 			toastSuccess(t.todoExtraction.rejectSuccess);
 			setNotification(null);
 			setExpanded(false);

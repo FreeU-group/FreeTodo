@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/common/ThemeProvider";
+import { QueryProvider } from "@/lib/query/provider";
 import "./globals.css";
 
 interface RootLayoutProps {
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
 				className="min-h-screen bg-background text-foreground antialiased"
 				suppressHydrationWarning
 			>
-				<ThemeProvider>{children}</ThemeProvider>
+				<QueryProvider>
+					<ThemeProvider>{children}</ThemeProvider>
+				</QueryProvider>
 			</body>
 		</html>
 	);

@@ -12,8 +12,8 @@ import { PanelContainer } from "@/components/layout/PanelContainer";
 import { PanelContent } from "@/components/layout/PanelContent";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { DynamicIsland } from "@/components/notification/DynamicIsland";
-import { getConfig } from "@/lib/api";
 import { GlobalDndProvider } from "@/lib/dnd";
+import { useConfig } from "@/lib/query";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -32,6 +32,9 @@ export default function HomePage() {
 	const [isDraggingPanelA, setIsDraggingPanelA] = useState(false);
 	const [isDraggingPanelC, setIsDraggingPanelC] = useState(false);
 
+	// 使用 TanStack Query 获取配置
+	const { data: config } = useConfig();
+
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const setGlobalResizeCursor = useCallback((enabled: boolean) => {
 		if (typeof document === "undefined") return;
@@ -49,49 +52,6 @@ export default function HomePage() {
 		const poller = getNotificationPoller();
 		const store = useNotificationStore.getState();
 
-		// 从后端获取配置并初始化 draft todo 轮询
-		const initDraftTodoPolling = async () => {
-			try {
-				const response = await getConfig();
-				const autoTodoDetectionEnabled =
-					response.success &&
-					response.config?.jobsAutoTodoDetectionEnabled === true;
-
-				// 注册或更新 draft todo 轮询端点
-				const existingEndpoint = store.getEndpoint("draft-todos");
-				if (!existingEndpoint) {
-					store.registerEndpoint({
-						id: "draft-todos",
-						url: "/api/todos?status=draft&limit=1",
-						interval: 1000, // 1秒轮询一次，实现近实时更新
-						enabled: autoTodoDetectionEnabled,
-					});
-				} else if (existingEndpoint.enabled !== autoTodoDetectionEnabled) {
-					// 配置变化时更新端点状态
-					store.registerEndpoint({
-						...existingEndpoint,
-						enabled: autoTodoDetectionEnabled,
-					});
-				}
-
-				console.log(
-					`[DraftTodo轮询] 自动待办检测配置: ${autoTodoDetectionEnabled ? "已启用" : "已禁用"}`,
-				);
-			} catch (error) {
-				console.warn("[DraftTodo轮询] 获取配置失败，默认启用轮询:", error);
-				// 获取配置失败时默认启用轮询
-				const existingEndpoint = store.getEndpoint("draft-todos");
-				if (!existingEndpoint) {
-					store.registerEndpoint({
-						id: "draft-todos",
-						url: "/api/todos?status=draft&limit=1",
-						interval: 1000,
-						enabled: true,
-					});
-				}
-			}
-		};
-
 		// 同步当前所有端点
 		const syncEndpoints = () => {
 			const allEndpoints = store.getAllEndpoints();
@@ -106,11 +66,33 @@ export default function HomePage() {
 			}
 		};
 
-		// 初始化轮询配置
-		void initDraftTodoPolling().then(() => {
-			// 初始同步
-			syncEndpoints();
-		});
+		// 使用 TanStack Query 获取的配置初始化 draft todo 轮询
+		const autoTodoDetectionEnabled =
+			(config?.jobsAutoTodoDetectionEnabled as boolean) ?? false;
+
+		// 注册或更新 draft todo 轮询端点
+		const existingEndpoint = store.getEndpoint("draft-todos");
+		if (!existingEndpoint) {
+			store.registerEndpoint({
+				id: "draft-todos",
+				url: "/api/todos?status=draft&limit=1",
+				interval: 1000, // 1秒轮询一次，实现近实时更新
+				enabled: autoTodoDetectionEnabled,
+			});
+		} else if (existingEndpoint.enabled !== autoTodoDetectionEnabled) {
+			// 配置变化时更新端点状态
+			store.registerEndpoint({
+				...existingEndpoint,
+				enabled: autoTodoDetectionEnabled,
+			});
+		}
+
+		console.log(
+			`[DraftTodo轮询] 自动待办检测配置: ${autoTodoDetectionEnabled ? "已启用" : "已禁用"}`,
+		);
+
+		// 初始同步
+		syncEndpoints();
 
 		// 订阅端点变化
 		const unsubscribe = useNotificationStore.subscribe(() => {
@@ -121,7 +103,7 @@ export default function HomePage() {
 		return () => {
 			unsubscribe();
 		};
-	}, []);
+	}, [config]);
 
 	const layoutState = useMemo(() => {
 		// 计算基础宽度（不包括 panelC）
