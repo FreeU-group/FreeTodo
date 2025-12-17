@@ -153,9 +153,11 @@ function DraggableTodo({
 		[calendarTodo.todo],
 	);
 
+	// 使用带前缀的 id，避免与 TodoList 中的同一 todo 产生 id 冲突
+	// 这样当在 TodoList 中拖动时，Calendar 中的对应 todo 不会跟着移动
 	const { attributes, listeners, setNodeRef, transform, isDragging } =
 		useDraggable({
-			id: calendarTodo.todo.id,
+			id: `calendar-${calendarTodo.todo.id}`,
 			data: dragData,
 		});
 
