@@ -257,10 +257,18 @@ export function useUpdateTodo() {
 						pendingUpdatePayloads.delete(id);
 						if (!body || Object.keys(body).length === 0) {
 							// 没有要更新的内容，返回当前缓存的 todo
-							const cached = queryClient.getQueryData<Todo[]>(
+							// 注意：query cache 中存储的是原始 API 响应 { total, todos: TodoResponse[] }
+							const cachedData = queryClient.getQueryData<TodoListResponse>(
 								queryKeys.todos.list(),
 							);
-							const todo = cached?.find((t) => t.id === id);
+							let todos: Todo[] | undefined;
+							if (cachedData && Array.isArray(cachedData.todos)) {
+								todos = cachedData.todos.map(fromApiTodo);
+							} else if (Array.isArray(cachedData)) {
+								// 向后兼容：如果缓存中已经是数组格式
+								todos = cachedData as Todo[];
+							}
+							const todo = todos?.find((t) => t.id === id);
 							if (todo) {
 								resolve(todo);
 							} else {
@@ -407,9 +415,19 @@ export function useDeleteTodo() {
 		onMutate: async (id) => {
 			await queryClient.cancelQueries({ queryKey: queryKeys.todos.all });
 
-			const previousTodos = queryClient.getQueryData<Todo[]>(
+			// 注意：query cache 中存储的是原始 API 响应 { total, todos: TodoResponse[] }
+			const previousData = queryClient.getQueryData<TodoListResponse>(
 				queryKeys.todos.list(),
 			);
+
+			// 获取转换后的 todos 数组
+			let previousTodos: Todo[] | undefined;
+			if (previousData && Array.isArray(previousData.todos)) {
+				previousTodos = previousData.todos.map(fromApiTodo);
+			} else if (Array.isArray(previousData)) {
+				// 向后兼容：如果缓存中已经是数组格式
+				previousTodos = previousData as Todo[];
+			}
 
 			// 递归查找所有子任务 ID
 			const findAllChildIds = (
@@ -432,16 +450,35 @@ export function useDeleteTodo() {
 			const idsToDeleteSet = new Set(allIdsToDelete);
 
 			// 乐观更新：移除 todo 及其所有子任务
-			queryClient.setQueryData<Todo[]>(queryKeys.todos.list(), (old) => {
-				if (!old || !Array.isArray(old)) return old;
-				return old.filter((t) => !idsToDeleteSet.has(t.id));
-			});
+			// 更新原始 API 响应结构
+			queryClient.setQueryData(
+				queryKeys.todos.list(),
+				(old: TodoListResponse | undefined) => {
+					if (!old) return old;
+					if (old && "todos" in old && Array.isArray(old.todos)) {
+						const updatedTodos = old.todos.filter((todo: TodoResponse) => {
+							const todoId = String(todo.id);
+							return !idsToDeleteSet.has(todoId);
+						});
+						return {
+							...old,
+							todos: updatedTodos,
+							total: updatedTodos.length,
+						};
+					}
+					// 向后兼容：如果是数组格式
+					if (Array.isArray(old)) {
+						return old.filter((t: Todo) => !idsToDeleteSet.has(t.id));
+					}
+					return old;
+				},
+			);
 
-			return { previousTodos, deletedIds: allIdsToDelete };
+			return { previousData, deletedIds: allIdsToDelete };
 		},
 		onError: (_err, _id, context) => {
-			if (context?.previousTodos) {
-				queryClient.setQueryData(queryKeys.todos.list(), context.previousTodos);
+			if (context?.previousData) {
+				queryClient.setQueryData(queryKeys.todos.list(), context.previousData);
 			}
 		},
 		onSettled: () => {
@@ -459,7 +496,21 @@ export function useToggleTodoStatus() {
 
 	return useMutation({
 		mutationFn: async (id: string) => {
-			const todos = queryClient.getQueryData<Todo[]>(queryKeys.todos.list());
+			// 注意：query cache 中存储的是原始 API 响应 { total, todos: TodoResponse[] }
+			// 但 useTodos 使用了 select 转换，所以我们需要获取原始数据并转换
+			const cachedData = queryClient.getQueryData<TodoListResponse>(
+				queryKeys.todos.list(),
+			);
+
+			// 获取转换后的 todos 数组
+			let todos: Todo[] | undefined;
+			if (cachedData && Array.isArray(cachedData.todos)) {
+				todos = cachedData.todos.map(fromApiTodo);
+			} else if (Array.isArray(cachedData)) {
+				// 向后兼容：如果缓存中已经是数组格式
+				todos = cachedData as Todo[];
+			}
+
 			const todo = todos?.find((t) => t.id === id);
 			if (!todo) throw new Error("Todo not found");
 
@@ -518,35 +569,68 @@ export function useReorderTodos() {
 			await queryClient.cancelQueries({ queryKey: queryKeys.todos.all });
 
 			// 保存之前的数据用于回滚
-			const previousTodos = queryClient.getQueryData<Todo[]>(
+			// 注意：query cache 中存储的是原始 API 响应 { total, todos: TodoResponse[] }
+			const previousData = queryClient.getQueryData<TodoListResponse>(
 				queryKeys.todos.list(),
 			);
 
-			// 乐观更新
-			queryClient.setQueryData<Todo[]>(queryKeys.todos.list(), (old) => {
-				if (!old || !Array.isArray(old)) return old;
-				return old.map((todo) => {
-					const item = items.find((i) => i.id === todo.id);
-					if (item) {
+			// 乐观更新 - 更新原始 API 响应结构
+			queryClient.setQueryData(
+				queryKeys.todos.list(),
+				(old: TodoListResponse | undefined) => {
+					if (!old) return old;
+					if (old && "todos" in old && Array.isArray(old.todos)) {
+						const updatedTodos = old.todos.map((todo: TodoResponse) => {
+							const todoId = String(todo.id);
+							const item = items.find((i) => i.id === todoId);
+							if (item) {
+								return {
+									...todo,
+									order: item.order,
+									...(item.parentTodoId !== undefined
+										? {
+												parent_todo_id: item.parentTodoId
+													? Number.parseInt(item.parentTodoId, 10)
+													: null,
+											}
+										: {}),
+									updated_at: new Date().toISOString(),
+								};
+							}
+							return todo;
+						});
 						return {
-							...todo,
-							order: item.order,
-							...(item.parentTodoId !== undefined
-								? { parentTodoId: item.parentTodoId }
-								: {}),
-							updatedAt: new Date().toISOString(),
+							...old,
+							todos: updatedTodos,
 						};
 					}
-					return todo;
-				});
-			});
+					// 向后兼容：如果是数组格式
+					if (Array.isArray(old)) {
+						return old.map((todo: Todo) => {
+							const item = items.find((i) => i.id === todo.id);
+							if (item) {
+								return {
+									...todo,
+									order: item.order,
+									...(item.parentTodoId !== undefined
+										? { parentTodoId: item.parentTodoId }
+										: {}),
+									updatedAt: new Date().toISOString(),
+								};
+							}
+							return todo;
+						});
+					}
+					return old;
+				},
+			);
 
-			return { previousTodos };
+			return { previousData };
 		},
 		onError: (_err, _variables, context) => {
 			// 发生错误时回滚
-			if (context?.previousTodos) {
-				queryClient.setQueryData(queryKeys.todos.list(), context.previousTodos);
+			if (context?.previousData) {
+				queryClient.setQueryData(queryKeys.todos.list(), context.previousData);
 			}
 		},
 		onSettled: () => {
