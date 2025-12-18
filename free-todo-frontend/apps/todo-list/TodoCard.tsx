@@ -181,16 +181,16 @@ export function TodoCard({
 		}
 	};
 
-	const getPriorityColor = (priority: TodoPriority) => {
+	const getPriorityBgColor = (priority: TodoPriority) => {
 		switch (priority) {
 			case "high":
-				return "text-[oklch(var(--destructive))]";
+				return "border-destructive/60 bg-destructive/10 text-destructive";
 			case "medium":
-				return "text-[oklch(var(--primary))]";
+				return "border-primary/60 bg-primary/10 text-primary";
 			case "low":
-				return "text-[oklch(var(--accent-foreground))]";
+				return "border-secondary/60 bg-secondary/20 text-secondary-foreground";
 			default:
-				return "text-muted-foreground";
+				return "border-muted-foreground/40 text-muted-foreground";
 		}
 	};
 
@@ -395,16 +395,13 @@ export function TodoCard({
 						<div className="flex items-center gap-2 shrink-0">
 							{todo.priority && todo.priority !== "none" && (
 								<div
-									className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+									className={cn(
+										"flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
+										getPriorityBgColor(todo.priority),
+									)}
 									title={`优先级：${getPriorityLabel(todo.priority)}`}
 								>
-									<Flag
-										className={cn(
-											"h-3.5 w-3.5",
-											getPriorityColor(todo.priority),
-										)}
-										fill="currentColor"
-									/>
+									<Flag className="h-3.5 w-3.5" fill="currentColor" />
 									<span>{getPriorityLabel(todo.priority)}</span>
 								</div>
 							)}
