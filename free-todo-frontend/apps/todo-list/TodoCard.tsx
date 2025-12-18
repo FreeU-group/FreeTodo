@@ -283,7 +283,7 @@ export function TodoCard({
 			className={cn(
 				"todo-card group relative flex h-full flex-col gap-3 rounded-xl p-3 cursor-pointer",
 				"border border-transparent transition-all duration-200",
-				"bg-card hover:bg-muted/40",
+				"bg-card dark:bg-background hover:bg-muted/40",
 				selected &&
 					"bg-[oklch(var(--primary-weak))] border-[oklch(var(--primary-border)/0.3)]",
 				selected && "hover:bg-[oklch(var(--primary-weak-hover))]",
