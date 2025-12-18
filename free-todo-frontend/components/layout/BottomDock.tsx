@@ -58,6 +58,7 @@ interface DockItemButtonProps {
 		position: PanelPosition,
 	) => void;
 	setItemRef: (position: PanelPosition, el: HTMLButtonElement | null) => void;
+	mounted: boolean;
 }
 
 function DockItemButton({
@@ -65,6 +66,7 @@ function DockItemButton({
 	position,
 	onContextMenu,
 	setItemRef,
+	mounted,
 }: DockItemButtonProps) {
 	const Icon = item.icon;
 
@@ -90,7 +92,7 @@ function DockItemButton({
 		[position],
 	);
 
-	// 可拖拽
+	// 可拖拽 - 只在客户端挂载后使用，避免 SSR hydration 问题
 	const {
 		attributes: dragAttributes,
 		listeners: dragListeners,
@@ -100,19 +102,23 @@ function DockItemButton({
 	} = useDraggable({
 		id: `dock-item-${position}`,
 		data: dragData,
+		disabled: !mounted,
 	});
 
-	// 可放置
+	// 可放置 - 只在客户端挂载后使用
 	const { setNodeRef: setDropRef, isOver: isOverItem } = useDroppable({
 		id: `dock-drop-${position}`,
 		data: dropData,
+		disabled: !mounted,
 	});
 
 	// 合并 refs
 	const setRefs = (el: HTMLButtonElement | null) => {
 		setItemRef(position, el);
-		setDragRef(el);
-		setDropRef(el);
+		if (mounted) {
+			setDragRef(el);
+			setDropRef(el);
+		}
 	};
 
 	const dragStyle = dragTransform
@@ -126,8 +132,8 @@ function DockItemButton({
 			ref={setRefs}
 			type="button"
 			style={dragStyle}
-			{...dragAttributes}
-			{...dragListeners}
+			{...(mounted ? dragAttributes : {})}
+			{...(mounted ? dragListeners : {})}
 			onClick={item.onClick}
 			onContextMenu={(e) => onContextMenu(e, position)}
 			className={cn(
@@ -135,7 +141,7 @@ function DockItemButton({
 				"px-3 py-2 rounded-lg",
 				"transition-all duration-200",
 				"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(var(--ring))] focus-visible:ring-offset-2",
-				"cursor-grab active:cursor-grabbing",
+				mounted && "cursor-grab active:cursor-grabbing",
 				isDraggingItem && "opacity-50",
 				isOverItem && !isDraggingItem && "ring-2 ring-primary/50 ring-offset-2",
 				item.isActive
@@ -307,6 +313,7 @@ export function BottomDock({ className }: BottomDockProps) {
 									key={item.id}
 									item={item}
 									position={position}
+									mounted={mounted}
 									onContextMenu={(e, pos) => {
 										e.preventDefault();
 										setMenuState({

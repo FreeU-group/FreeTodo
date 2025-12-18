@@ -13,6 +13,7 @@ import { PanelContent } from "@/components/layout/PanelContent";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { DynamicIsland } from "@/components/notification/DynamicIsland";
 import { GlobalDndProvider } from "@/lib/dnd";
+import { useWindowAdaptivePanels } from "@/lib/hooks/useWindowAdaptivePanels";
 import { useConfig } from "@/lib/query";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
 import { useNotificationStore } from "@/lib/store/notification-store";
@@ -41,6 +42,9 @@ export default function HomePage() {
 		document.body.style.cursor = enabled ? "col-resize" : "";
 		document.body.style.userSelect = enabled ? "none" : "";
 	}, []);
+
+	// 窗口自适应panel管理
+	useWindowAdaptivePanels(containerRef);
 
 	useEffect(() => {
 		// 清理：防止在组件卸载时光标和选择状态残留

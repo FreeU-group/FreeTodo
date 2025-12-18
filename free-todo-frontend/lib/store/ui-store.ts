@@ -46,6 +46,8 @@ interface UiStoreState {
 	panelFeatureMap: Record<PanelPosition, PanelFeature | null>;
 	// 被禁用的功能列表
 	disabledFeatures: PanelFeature[];
+	// 自动关闭的panel栈（记录因窗口缩小而自动关闭的panel，从右到左的顺序）
+	autoClosedPanels: PanelPosition[];
 	// 位置槽位 toggle 方法
 	togglePanelA: () => void;
 	togglePanelB: () => void;
@@ -73,6 +75,10 @@ interface UiStoreState {
 		position1: PanelPosition,
 		position2: PanelPosition,
 	) => void;
+	// 自动关闭panel管理方法
+	setAutoClosePanel: (position: PanelPosition) => void;
+	restoreAutoClosedPanel: () => void;
+	clearAutoClosedPanels: () => void;
 }
 
 const MIN_PANEL_WIDTH = 0.2;
@@ -114,6 +120,7 @@ const DEFAULT_PANEL_STATE = {
 		panelB: "todoDetail" as PanelFeature,
 		panelC: "chat" as PanelFeature,
 	},
+	autoClosedPanels: [] as PanelPosition[],
 };
 
 // 验证 panelFeatureMap 的有效性
@@ -160,22 +167,47 @@ export const useUiStore = create<UiStoreState>()(
 			panelFeatureMap: DEFAULT_PANEL_STATE.panelFeatureMap,
 			// 默认没有禁用的功能
 			disabledFeatures: DEFAULT_PANEL_STATE.disabledFeatures,
+			// 自动关闭的panel栈
+			autoClosedPanels: DEFAULT_PANEL_STATE.autoClosedPanels,
 
 			// 位置槽位 toggle 方法
 			togglePanelA: () =>
-				set((state) => ({
-					isPanelAOpen: !state.isPanelAOpen,
-				})),
+				set((state) => {
+					const newIsOpen = !state.isPanelAOpen;
+					// 如果用户手动关闭panel，从自动关闭栈中移除
+					// 如果用户手动打开panel，清空自动关闭栈（用户意图改变了布局）
+					const newAutoClosedPanels = newIsOpen
+						? []
+						: state.autoClosedPanels.filter((pos) => pos !== "panelA");
+					return {
+						isPanelAOpen: newIsOpen,
+						autoClosedPanels: newAutoClosedPanels,
+					};
+				}),
 
 			togglePanelB: () =>
-				set((state) => ({
-					isPanelBOpen: !state.isPanelBOpen,
-				})),
+				set((state) => {
+					const newIsOpen = !state.isPanelBOpen;
+					const newAutoClosedPanels = newIsOpen
+						? []
+						: state.autoClosedPanels.filter((pos) => pos !== "panelB");
+					return {
+						isPanelBOpen: newIsOpen,
+						autoClosedPanels: newAutoClosedPanels,
+					};
+				}),
 
 			togglePanelC: () =>
-				set((state) => ({
-					isPanelCOpen: !state.isPanelCOpen,
-				})),
+				set((state) => {
+					const newIsOpen = !state.isPanelCOpen;
+					const newAutoClosedPanels = newIsOpen
+						? []
+						: state.autoClosedPanels.filter((pos) => pos !== "panelC");
+					return {
+						isPanelCOpen: newIsOpen,
+						autoClosedPanels: newAutoClosedPanels,
+					};
+				}),
 
 			// 位置槽位宽度设置方法
 			setPanelAWidth: (width: number) =>
@@ -374,6 +406,68 @@ export const useUiStore = create<UiStoreState>()(
 					return { panelFeatureMap: newMap };
 				});
 			},
+
+			// 自动关闭panel管理方法
+			setAutoClosePanel: (position) =>
+				set((state) => {
+					// 如果panel已经在栈中，不重复添加
+					if (state.autoClosedPanels.includes(position)) {
+						return state;
+					}
+					// 关闭panel并推入栈
+					const newAutoClosedPanels = [...state.autoClosedPanels, position];
+					const updates: Partial<UiStoreState> = {
+						autoClosedPanels: newAutoClosedPanels,
+					};
+					switch (position) {
+						case "panelA":
+							updates.isPanelAOpen = false;
+							break;
+						case "panelB":
+							updates.isPanelBOpen = false;
+							break;
+						case "panelC":
+							updates.isPanelCOpen = false;
+							break;
+					}
+					return updates;
+				}),
+
+			restoreAutoClosedPanel: () =>
+				set((state) => {
+					// 如果栈为空，不执行任何操作
+					if (state.autoClosedPanels.length === 0) {
+						return state;
+					}
+					// 从栈顶弹出最近关闭的panel
+					const newAutoClosedPanels = [...state.autoClosedPanels];
+					const positionToRestore = newAutoClosedPanels.pop();
+					// 如果pop返回undefined，不执行任何操作
+					if (!positionToRestore) {
+						return state;
+					}
+					const updates: Partial<UiStoreState> = {
+						autoClosedPanels: newAutoClosedPanels,
+					};
+					// 恢复panel
+					switch (positionToRestore) {
+						case "panelA":
+							updates.isPanelAOpen = true;
+							break;
+						case "panelB":
+							updates.isPanelBOpen = true;
+							break;
+						case "panelC":
+							updates.isPanelCOpen = true;
+							break;
+					}
+					return updates;
+				}),
+
+			clearAutoClosedPanels: () =>
+				set(() => ({
+					autoClosedPanels: [],
+				})),
 		}),
 		{
 			name: "ui-panel-config",
@@ -434,6 +528,22 @@ export const useUiStore = create<UiStoreState>()(
 								);
 							} else {
 								state.disabledFeatures = DEFAULT_PANEL_STATE.disabledFeatures;
+							}
+
+							// 校验自动关闭的panel栈
+							if (Array.isArray(state.autoClosedPanels)) {
+								const validPositions: PanelPosition[] = [
+									"panelA",
+									"panelB",
+									"panelC",
+								];
+								state.autoClosedPanels = state.autoClosedPanels.filter(
+									(pos: unknown): pos is PanelPosition =>
+										typeof pos === "string" &&
+										validPositions.includes(pos as PanelPosition),
+								);
+							} else {
+								state.autoClosedPanels = DEFAULT_PANEL_STATE.autoClosedPanels;
 							}
 
 							// 如果有功能被禁用，确保对应位置不再保留
