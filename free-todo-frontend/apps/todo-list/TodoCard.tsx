@@ -48,7 +48,7 @@ export function TodoCard({
 	const { data: todos = [] } = useTodos();
 
 	// 从 TanStack Query 获取 mutation 操作
-	const { createTodo, toggleTodoStatus } = useTodoMutations();
+	const { createTodo, updateTodo, toggleTodoStatus } = useTodoMutations();
 
 	// 从 Zustand 获取 UI 状态操作
 	const { toggleTodoExpanded, isTodoExpanded } = useTodoStore();
@@ -279,7 +279,13 @@ export function TodoCard({
 	const handleToggleStatus = async (e: React.MouseEvent) => {
 		e.stopPropagation();
 		try {
-			await toggleTodoStatus(todo.id);
+			if (todo.status === "canceled") {
+				// 如果是 canceled 状态，点击复选框回到 active 状态
+				await updateTodo(todo.id, { status: "active" });
+			} else {
+				// 其他状态使用通用的切换逻辑
+				await toggleTodoStatus(todo.id);
+			}
 		} catch (err) {
 			console.error("Failed to toggle todo status:", err);
 		}
