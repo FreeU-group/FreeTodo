@@ -1,5 +1,6 @@
 "use client";
 
+import { useDroppable } from "@dnd-kit/core";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import type { PanelPosition } from "@/lib/config/panel-config";
@@ -63,12 +64,24 @@ export function PanelContainer({
 	const ariaLabel =
 		mounted && feature ? ariaLabelMap[feature] || "Panel" : "Panel";
 
+	// 设置面板header作为可放置区域
+	const { setNodeRef: setDroppableRef, isOver } = useDroppable({
+		id: `panel-drop-${position}`,
+		data: {
+			type: "PANEL_HEADER",
+			metadata: {
+				position,
+			},
+		},
+	});
+
 	return (
 		<motion.section
 			key={position}
 			aria-label={ariaLabel}
 			suppressHydrationWarning
 			data-panel={position}
+			ref={setDroppableRef}
 			className={cn(
 				"relative flex h-full min-h-0 flex-col",
 				"bg-[oklch(var(--card))]",
@@ -77,6 +90,8 @@ export function PanelContainer({
 				"overflow-hidden",
 				// 当不可见时，隐藏边框和背景，避免残留视觉元素
 				!isVisible && "border-transparent bg-transparent",
+				// 拖拽悬停时的视觉反馈
+				isOver && isVisible && "ring-2 ring-primary/50",
 				className,
 			)}
 			initial={false}

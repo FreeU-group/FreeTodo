@@ -8,6 +8,11 @@
 import { DragOverlay } from "@dnd-kit/core";
 import { Calendar, Flag, Paperclip, Tag } from "lucide-react";
 import { createPortal } from "react-dom";
+import type { PanelPosition } from "@/lib/config/panel-config";
+import { FEATURE_ICON_MAP } from "@/lib/config/panel-config";
+import { useTranslations } from "@/lib/i18n";
+import { useLocaleStore } from "@/lib/store/locale";
+import { useUiStore } from "@/lib/store/ui-store";
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { ActiveDragState, DragData } from "./types";
@@ -251,6 +256,59 @@ function CalendarTodoOverlay({ todo }: CalendarTodoOverlayProps) {
 }
 
 // ============================================================================
+// 面板 Header 预览组件
+// ============================================================================
+
+interface PanelHeaderOverlayProps {
+	position: PanelPosition;
+}
+
+function PanelHeaderOverlay({ position }: PanelHeaderOverlayProps) {
+	const { getFeatureByPosition } = useUiStore();
+	const { locale } = useLocaleStore();
+	const t = useTranslations(locale);
+
+	const feature = getFeatureByPosition(position);
+
+	// 获取功能标签
+	const getFeatureLabel = (): string => {
+		if (!feature) return "";
+		const labelMap: Record<string, string> = {
+			calendar: t.page.calendarLabel,
+			activity: t.page.activityLabel,
+			todos: t.page.todosLabel,
+			chat: t.page.chatLabel,
+			todoDetail: t.page.todoDetailLabel,
+			diary: t.page.diaryLabel,
+			settings: t.page.settingsLabel,
+			costTracking: t.page.costTrackingLabel,
+			achievements: t.page.achievementsLabel,
+			debugShots: t.page.debugShotsLabel,
+		};
+		return labelMap[feature] || "";
+	};
+
+	const Icon = feature ? FEATURE_ICON_MAP[feature] : null;
+
+	if (!feature || !Icon) {
+		return null;
+	}
+
+	return (
+		<div className="opacity-90 pointer-events-none">
+			<div className="shrink-0 bg-primary/15 shadow-lg ring-2 ring-primary/30">
+				<div className="flex items-center justify-between px-4 py-2.5">
+					<h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+						{Icon && <Icon className="h-5 w-5 text-primary" />}
+						{getFeatureLabel()}
+					</h2>
+				</div>
+			</div>
+		</div>
+	);
+}
+
+// ============================================================================
 // 根据拖拽类型渲染预览
 // ============================================================================
 
@@ -285,6 +343,9 @@ function DragOverlayContent({ data }: DragOverlayContentProps) {
 					<span className="text-sm font-medium">{data.payload.userName}</span>
 				</div>
 			);
+		}
+		case "PANEL_HEADER": {
+			return <PanelHeaderOverlay position={data.payload.position} />;
 		}
 		default:
 			return null;

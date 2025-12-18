@@ -7,6 +7,7 @@ import { flushSync } from "react-dom";
 import type { TodoListResponse, TodoResponse } from "@/lib/generated/schemas";
 import { updateTodoApiTodosTodoIdPut } from "@/lib/generated/todos/todos";
 import { getQueryClient, queryKeys } from "@/lib/query";
+import { useUiStore } from "@/lib/store/ui-store";
 import type {
 	DragData,
 	DragDropHandler,
@@ -263,6 +264,35 @@ const handleTodoToTodoDropZone: DragDropHandler = (
 	return { success: false, message: "Unknown position" };
 };
 
+/**
+ * PANEL_HEADER -> PANEL_HEADER
+ * 交换两个面板的位置（功能分配）
+ */
+const handlePanelHeaderToPanelHeader: DragDropHandler = (
+	dragData,
+	dropData,
+): DragDropResult => {
+	if (dragData.type !== "PANEL_HEADER" || dropData.type !== "PANEL_HEADER") {
+		return { success: false, message: "Invalid drag/drop type combination" };
+	}
+
+	const { position: sourcePosition } = dragData.payload;
+	const { position: targetPosition } = dropData.metadata;
+
+	// 如果源位置和目标位置相同，不需要交换
+	if (sourcePosition === targetPosition) {
+		return { success: false, message: "Cannot swap panel with itself" };
+	}
+
+	// 交换面板位置
+	useUiStore.getState().swapPanelPositions(sourcePosition, targetPosition);
+
+	return {
+		success: true,
+		message: `已交换 ${sourcePosition} 和 ${targetPosition} 的位置`,
+	};
+};
+
 // ============================================================================
 // 注册内置处理器
 // ============================================================================
@@ -271,6 +301,7 @@ registerHandler("TODO_CARD->CALENDAR_DATE", handleTodoToCalendarDate);
 registerHandler("TODO_CARD->TODO_LIST", handleTodoToTodoList);
 registerHandler("TODO_CARD->TODO_CARD_SLOT", handleTodoToTodoCardSlot);
 registerHandler("TODO_CARD->TODO_DROP_ZONE", handleTodoToTodoDropZone);
+registerHandler("PANEL_HEADER->PANEL_HEADER", handlePanelHeaderToPanelHeader);
 
 // ============================================================================
 // 分发函数 (Dispatch Function)

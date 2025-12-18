@@ -13,7 +13,7 @@ import type { Todo, TodoAttachment } from "@/lib/types";
 /**
  * 可拖拽元素的类型，可扩展
  */
-export type DragSourceType = "TODO_CARD" | "FILE" | "USER";
+export type DragSourceType = "TODO_CARD" | "FILE" | "USER" | "PANEL_HEADER";
 
 /**
  * 类型安全的拖拽数据 - 使用可辨识联合类型
@@ -41,6 +41,12 @@ export type DragData =
 				userId: string;
 				userName: string;
 			};
+	  }
+	| {
+			type: "PANEL_HEADER";
+			payload: {
+				position: "panelA" | "panelB" | "panelC";
+			};
 	  };
 
 // ============================================================================
@@ -55,7 +61,8 @@ export type DropTargetType =
 	| "TODO_LIST"
 	| "TODO_CARD_SLOT"
 	| "TODO_DROP_ZONE"
-	| "CHAT_WINDOW";
+	| "CHAT_WINDOW"
+	| "PANEL_HEADER";
 
 /**
  * 类型安全的放置区数据 - 使用可辨识联合类型
@@ -94,6 +101,12 @@ export type DropData =
 			type: "CHAT_WINDOW";
 			metadata: {
 				conversationId?: string;
+			};
+	  }
+	| {
+			type: "PANEL_HEADER";
+			metadata: {
+				position: "panelA" | "panelB" | "panelC";
 			};
 	  };
 

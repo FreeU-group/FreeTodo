@@ -68,6 +68,11 @@ interface UiStoreState {
 	setFeatureWidth: (feature: PanelFeature, width: number) => void;
 	// 应用预设布局
 	applyLayout: (layoutId: string) => void;
+	// 交换两个面板的位置（功能分配）
+	swapPanelPositions: (
+		position1: PanelPosition,
+		position2: PanelPosition,
+	) => void;
 }
 
 const MIN_PANEL_WIDTH = 0.2;
@@ -351,6 +356,22 @@ export const useUiStore = create<UiStoreState>()(
 					...(layout.panelCWidth !== undefined && {
 						panelCWidth: layout.panelCWidth,
 					}),
+				});
+			},
+
+			swapPanelPositions: (position1, position2) => {
+				set((state) => {
+					// 如果两个位置相同，不需要交换
+					if (position1 === position2) return state;
+
+					const newMap = { ...state.panelFeatureMap };
+					// 交换两个位置的功能
+					const feature1 = newMap[position1];
+					const feature2 = newMap[position2];
+					newMap[position1] = feature2;
+					newMap[position2] = feature1;
+
+					return { panelFeatureMap: newMap };
 				});
 			},
 		}),

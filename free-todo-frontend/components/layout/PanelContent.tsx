@@ -9,6 +9,7 @@ import { CostTrackingPanel } from "@/apps/cost-tracking";
 import { SettingsPanel } from "@/apps/settings";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
+import { PanelPositionProvider } from "@/components/common/PanelHeader";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import {
 	FEATURE_ICON_MAP,
@@ -102,48 +103,84 @@ export function PanelContent({ position }: PanelContentProps) {
 
 	// 如果是待办功能，显示待办组件
 	if (feature === "todos") {
-		return <TodoList />;
+		return (
+			<PanelPositionProvider position={position}>
+				<TodoList />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是日历功能，显示日历组件
 	if (feature === "calendar") {
-		return <CalendarPanel />;
+		return (
+			<PanelPositionProvider position={position}>
+				<CalendarPanel />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是活动功能，显示活动面板
 	if (feature === "activity") {
-		return <ActivityPanel />;
+		return (
+			<PanelPositionProvider position={position}>
+				<ActivityPanel />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是成就功能，显示成就组件
 	if (feature === "achievements") {
-		return <AchievementsPanel />;
+		return (
+			<PanelPositionProvider position={position}>
+				<AchievementsPanel />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是待办详情功能，显示待办详情组件
 	if (feature === "todoDetail") {
-		return <TodoDetail />;
+		return (
+			<PanelPositionProvider position={position}>
+				<TodoDetail />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是聊天功能，显示聊天组件
 	if (feature === "chat") {
-		return <ChatPanel />;
+		return (
+			<PanelPositionProvider position={position}>
+				<ChatPanel />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是设置功能，显示设置组件
 	if (feature === "settings") {
-		return <SettingsPanel />;
+		return (
+			<PanelPositionProvider position={position}>
+				<SettingsPanel />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是费用统计功能，显示费用面板
 	if (feature === "costTracking") {
-		return <CostTrackingPanel />;
+		return (
+			<PanelPositionProvider position={position}>
+				<CostTrackingPanel />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 如果是开发调试截图面板（仅开发环境可见）
 	if (feature === "debugShots" && IS_DEV_FEATURE_ENABLED && DebugCapturePanel) {
 		const Panel = DebugCapturePanel;
-		return <Panel />;
+		return (
+			<PanelPositionProvider position={position}>
+				<Panel />
+			</PanelPositionProvider>
+		);
 	}
 
 	// 其他功能显示占位符
