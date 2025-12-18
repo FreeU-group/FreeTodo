@@ -341,6 +341,12 @@ export function TodoCard({
 								✓
 							</span>
 						</div>
+					) : todo.status === "canceled" ? (
+						<div className="flex h-5 w-5 items-center justify-center rounded-md bg-[oklch(var(--muted))] border border-[oklch(var(--muted-foreground))] shadow-inner">
+							<span className="text-[14px] text-[oklch(var(--muted-foreground))] font-semibold">
+								×
+							</span>
+						</div>
 					) : (
 						<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40 hover:border-foreground transition-colors" />
 					)}
@@ -353,6 +359,8 @@ export function TodoCard({
 								className={cn(
 									"text-sm font-semibold text-foreground",
 									todo.status === "completed" &&
+										"line-through text-muted-foreground",
+									todo.status === "canceled" &&
 										"line-through text-muted-foreground",
 								)}
 							>
