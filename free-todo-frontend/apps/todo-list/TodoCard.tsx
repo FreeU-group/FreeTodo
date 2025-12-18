@@ -12,12 +12,10 @@ import {
 	Plus,
 	Sparkles,
 	Tag,
-	Trash2,
-	X,
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { TodoContextMenu } from "@/components/common/TodoContextMenu";
 import type { DragData } from "@/lib/dnd";
 import { useGlobalDndSafe } from "@/lib/dnd";
 import { useTodoMutations, useTodos } from "@/lib/query";
@@ -50,23 +48,16 @@ export function TodoCard({
 	const { data: todos = [] } = useTodos();
 
 	// 从 TanStack Query 获取 mutation 操作
-	const { createTodo, updateTodo, deleteTodo, toggleTodoStatus } =
-		useTodoMutations();
+	const { createTodo, toggleTodoStatus } = useTodoMutations();
 
 	// 从 Zustand 获取 UI 状态操作
-	const { toggleTodoExpanded, isTodoExpanded, onTodoDeleted } = useTodoStore();
+	const { toggleTodoExpanded, isTodoExpanded } = useTodoStore();
 
 	const { startPlan } = usePlanStore();
 	const { setPanelFeature, getFeatureByPosition } = useUiStore();
-	const [contextMenu, setContextMenu] = useState({
-		open: false,
-		x: 0,
-		y: 0,
-	});
 	const [isAddingChild, setIsAddingChild] = useState(false);
 	const [childName, setChildName] = useState("");
 	const childInputRef = useRef<HTMLInputElement | null>(null);
-	const menuRef = useRef<HTMLDivElement | null>(null);
 
 	// 构建类型化的拖拽数据
 	const dragData: DragData = useMemo(
@@ -224,68 +215,11 @@ export function TodoCard({
 			}
 		: undefined;
 
-	// 右键菜单：点击外部、滚动或按下 ESC 时关闭
-	useEffect(() => {
-		if (!contextMenu.open) return;
-
-		const handleClose = () => {
-			setContextMenu((state) =>
-				state.open ? { ...state, open: false } : state,
-			);
-		};
-
-		const handleClickOutside = (event: MouseEvent) => {
-			const target = event.target as Node;
-			if (menuRef.current?.contains(target)) {
-				return;
-			}
-			handleClose();
-		};
-
-		const handleEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				handleClose();
-			}
-		};
-
-		document.addEventListener("mousedown", handleClickOutside);
-		document.addEventListener("keydown", handleEscape);
-		document.addEventListener("scroll", handleClose, true);
-
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-			document.removeEventListener("keydown", handleEscape);
-			document.removeEventListener("scroll", handleClose, true);
-		};
-	}, [contextMenu.open]);
-
 	useEffect(() => {
 		if (isAddingChild) {
 			childInputRef.current?.focus();
 		}
 	}, [isAddingChild]);
-
-	const openContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
-		event.preventDefault();
-		event.stopPropagation();
-		onSelectSingle();
-
-		const menuWidth = 180;
-		const menuHeight = 90;
-		const viewportWidth =
-			typeof window !== "undefined" ? window.innerWidth : menuWidth;
-		const viewportHeight =
-			typeof window !== "undefined" ? window.innerHeight : menuHeight;
-
-		const x = Math.min(Math.max(event.clientX, 8), viewportWidth - menuWidth);
-		const y = Math.min(Math.max(event.clientY, 8), viewportHeight - menuHeight);
-
-		setContextMenu({
-			open: true,
-			x,
-			y,
-		});
-	};
 
 	const handleCreateChild = async (e?: React.FormEvent) => {
 		if (e) e.preventDefault();
@@ -351,350 +285,258 @@ export function TodoCard({
 		}
 	};
 
-	const handleDelete = async () => {
-		try {
-			// 递归查找所有子任务 ID
-			const findAllChildIds = (
-				parentId: number,
-				allTodos: Todo[],
-			): number[] => {
-				const childIds: number[] = [];
-				const children = allTodos.filter((t) => t.parentTodoId === parentId);
-				for (const child of children) {
-					childIds.push(child.id);
-					childIds.push(...findAllChildIds(child.id, allTodos));
+	const handleAddChildFromMenu = () => {
+		setIsAddingChild(true);
+	};
+
+	const cardContent = (
+		<div
+			{...(!isOverlay ? { ...attributes, ...listeners } : {})}
+			ref={setNodeRef}
+			style={style}
+			role="button"
+			tabIndex={0}
+			onClick={onSelect}
+			data-state={selected ? "selected" : "default"}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onSelectSingle();
 				}
-				return childIds;
-			};
-
-			const allIdsToDelete = [todo.id, ...findAllChildIds(todo.id, todos)];
-
-			await deleteTodo(todo.id);
-			// 清理 UI 状态
-			onTodoDeleted(allIdsToDelete);
-		} catch (err) {
-			console.error("Failed to delete todo:", err);
-		}
-	};
-
-	const handleCancel = async () => {
-		try {
-			await updateTodo(todo.id, { status: "canceled" });
-		} catch (err) {
-			console.error("Failed to cancel todo:", err);
-		}
-	};
-
-	return (
-		<>
-			<div
-				{...(!isOverlay ? { ...attributes, ...listeners } : {})}
-				ref={setNodeRef}
-				style={style}
-				role="button"
-				tabIndex={0}
-				onClick={onSelect}
-				data-state={selected ? "selected" : "default"}
-				onContextMenu={openContextMenu}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						onSelectSingle();
-					}
-				}}
-				className={cn(
-					"todo-card group relative flex h-full flex-col gap-3 rounded-xl p-3 cursor-pointer",
-					"border border-transparent transition-all duration-200",
-					"bg-card hover:bg-muted/40",
-					selected &&
-						"bg-[oklch(var(--primary-weak))] border-[oklch(var(--primary-border)/0.3)]",
-					selected && "hover:bg-[oklch(var(--primary-weak-hover))]",
-					isDragging && "ring-2 ring-primary/30",
+			}}
+			className={cn(
+				"todo-card group relative flex h-full flex-col gap-3 rounded-xl p-3 cursor-pointer",
+				"border border-transparent transition-all duration-200",
+				"bg-card hover:bg-muted/40",
+				selected &&
+					"bg-[oklch(var(--primary-weak))] border-[oklch(var(--primary-border)/0.3)]",
+				selected && "hover:bg-[oklch(var(--primary-weak-hover))]",
+				isDragging && "ring-2 ring-primary/30",
+			)}
+		>
+			<div className="flex items-start gap-2">
+				{hasChildren && (
+					<button
+						type="button"
+						onClick={(e) => {
+							e.stopPropagation();
+							toggleTodoExpanded(todo.id);
+						}}
+						className="mt-1 shrink-0 flex h-5 w-5 items-center justify-center rounded-md hover:bg-muted/50 transition-colors"
+						aria-label={isExpanded ? "折叠子任务" : "展开子任务"}
+					>
+						<ChevronRight
+							className={cn(
+								"h-4 w-4 text-muted-foreground transition-transform duration-200",
+								isExpanded && "rotate-90",
+							)}
+						/>
+					</button>
 				)}
-			>
-				<div className="flex items-start gap-2">
-					{hasChildren && (
+				{!hasChildren && <div className="w-5 shrink-0" />}
+				<button type="button" onClick={handleToggleStatus} className="shrink-0">
+					{todo.status === "completed" ? (
+						<div className="flex h-5 w-5 items-center justify-center rounded-md bg-[oklch(var(--primary))] border border-[oklch(var(--primary))] shadow-inner">
+							<span className="text-[10px] text-[oklch(var(--primary-foreground))] font-semibold">
+								✓
+							</span>
+						</div>
+					) : (
+						<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40 hover:border-foreground transition-colors" />
+					)}
+				</button>
+
+				<div className="flex-1 min-w-0 space-y-1">
+					<div className="flex items-start justify-between gap-2">
+						<div className="min-w-0 flex-1 space-y-1">
+							<h3
+								className={cn(
+									"text-sm font-semibold text-foreground",
+									todo.status === "completed" &&
+										"line-through text-muted-foreground",
+								)}
+							>
+								{todo.name}
+							</h3>
+							{todo.description && (
+								<p className="text-xs text-muted-foreground line-clamp-2">
+									{todo.description}
+								</p>
+							)}
+						</div>
+						{/* AI规划按钮 - hover时显示 */}
 						<button
 							type="button"
 							onClick={(e) => {
 								e.stopPropagation();
-								toggleTodoExpanded(todo.id);
+								handleStartPlan();
 							}}
-							className="mt-1 shrink-0 flex h-5 w-5 items-center justify-center rounded-md hover:bg-muted/50 transition-colors"
-							aria-label={isExpanded ? "折叠子任务" : "展开子任务"}
+							className="opacity-0 group-hover:opacity-100 shrink-0 flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted/50 transition-all"
+							aria-label="使用AI规划"
+							title="使用AI规划"
 						>
-							<ChevronRight
-								className={cn(
-									"h-4 w-4 text-muted-foreground transition-transform duration-200",
-									isExpanded && "rotate-90",
-								)}
-							/>
+							<Sparkles className="h-4 w-4 text-primary" />
 						</button>
-					)}
-					{!hasChildren && <div className="w-5 shrink-0" />}
-					<button
-						type="button"
-						onClick={handleToggleStatus}
-						className="shrink-0"
-					>
-						{todo.status === "completed" ? (
-							<div className="flex h-5 w-5 items-center justify-center rounded-md bg-[oklch(var(--primary))] border border-[oklch(var(--primary))] shadow-inner">
-								<span className="text-[10px] text-[oklch(var(--primary-foreground))] font-semibold">
-									✓
-								</span>
-							</div>
-						) : (
-							<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40 hover:border-foreground transition-colors" />
-						)}
-					</button>
 
-					<div className="flex-1 min-w-0 space-y-1">
-						<div className="flex items-start justify-between gap-2">
-							<div className="min-w-0 flex-1 space-y-1">
-								<h3
+						<div className="flex items-center gap-2 shrink-0">
+							{todo.priority && todo.priority !== "none" && (
+								<div
+									className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
+									title={`优先级：${getPriorityLabel(todo.priority)}`}
+								>
+									<Flag
+										className={cn(
+											"h-3.5 w-3.5",
+											getPriorityColor(todo.priority),
+										)}
+										fill="currentColor"
+									/>
+									<span>{getPriorityLabel(todo.priority)}</span>
+								</div>
+							)}
+							{todo.status && (
+								<span
 									className={cn(
-										"text-sm font-semibold text-foreground",
-										todo.status === "completed" &&
-											"line-through text-muted-foreground",
+										"px-2 py-0.5 rounded-full text-xs font-medium border shadow-sm",
+										getStatusColor(todo.status),
 									)}
 								>
-									{todo.name}
-								</h3>
-								{todo.description && (
-									<p className="text-xs text-muted-foreground line-clamp-2">
-										{todo.description}
-									</p>
-								)}
-							</div>
-							{/* AI规划按钮 - hover时显示 */}
-							<button
-								type="button"
-								onClick={(e) => {
-									e.stopPropagation();
-									handleStartPlan();
-								}}
-								className="opacity-0 group-hover:opacity-100 shrink-0 flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted/50 transition-all"
-								aria-label="使用AI规划"
-								title="使用AI规划"
-							>
-								<Sparkles className="h-4 w-4 text-primary" />
-							</button>
-
-							<div className="flex items-center gap-2 shrink-0">
-								{todo.priority && todo.priority !== "none" && (
-									<div
-										className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium text-muted-foreground"
-										title={`优先级：${getPriorityLabel(todo.priority)}`}
-									>
-										<Flag
-											className={cn(
-												"h-3.5 w-3.5",
-												getPriorityColor(todo.priority),
-											)}
-											fill="currentColor"
-										/>
-										<span>{getPriorityLabel(todo.priority)}</span>
-									</div>
-								)}
-								{todo.status && (
-									<span
-										className={cn(
-											"px-2 py-0.5 rounded-full text-xs font-medium border shadow-sm",
-											getStatusColor(todo.status),
-										)}
-									>
-										{getStatusLabel(todo.status)}
-									</span>
-								)}
-								{todo.attachments && todo.attachments.length > 0 && (
-									<span className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground bg-muted/50">
-										<Paperclip className="h-3 w-3" />
-										{todo.attachments.length}
-									</span>
-								)}
-							</div>
-						</div>
-
-						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-							{todo.deadline && (
-								<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
-									<Calendar className="h-3 w-3" />
-									<span>{formatDate(todo.deadline)}</span>
-								</div>
+									{getStatusLabel(todo.status)}
+								</span>
 							)}
-
 							{todo.attachments && todo.attachments.length > 0 && (
-								<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
+								<span className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground bg-muted/50">
 									<Paperclip className="h-3 w-3" />
-									<span>{todo.attachments.length}</span>
-								</div>
-							)}
-
-							{todo.tags && todo.tags.length > 0 && (
-								<div className="flex flex-wrap items-center gap-1">
-									<Tag className="h-3 w-3" />
-									{todo.tags.slice(0, 3).map((tag) => (
-										<span
-											key={tag}
-											className="px-2 py-0.5 rounded-full bg-muted text-[11px] font-medium text-foreground"
-										>
-											{tag}
-										</span>
-									))}
-									{todo.tags.length > 3 && (
-										<span className="text-[11px] text-muted-foreground">
-											+{todo.tags.length - 3}
-										</span>
-									)}
-								</div>
+									{todo.attachments.length}
+								</span>
 							)}
 						</div>
+					</div>
+
+					<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+						{todo.deadline && (
+							<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
+								<Calendar className="h-3 w-3" />
+								<span>{formatDate(todo.deadline)}</span>
+							</div>
+						)}
+
+						{todo.attachments && todo.attachments.length > 0 && (
+							<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
+								<Paperclip className="h-3 w-3" />
+								<span>{todo.attachments.length}</span>
+							</div>
+						)}
+
+						{todo.tags && todo.tags.length > 0 && (
+							<div className="flex flex-wrap items-center gap-1">
+								<Tag className="h-3 w-3" />
+								{todo.tags.slice(0, 3).map((tag) => (
+									<span
+										key={tag}
+										className="px-2 py-0.5 rounded-full bg-muted text-[11px] font-medium text-foreground"
+									>
+										{tag}
+									</span>
+								))}
+								{todo.tags.length > 3 && (
+									<span className="text-[11px] text-muted-foreground">
+										+{todo.tags.length - 3}
+									</span>
+								)}
+							</div>
+						)}
 					</div>
 				</div>
-
-				{isAddingChild && (
-					<form
-						onSubmit={handleCreateChild}
-						onMouseDown={(e) => e.stopPropagation()}
-						className="mt-3 space-y-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-3"
-					>
-						<input
-							ref={childInputRef}
-							type="text"
-							value={childName}
-							onChange={(e) => setChildName(e.target.value)}
-							onKeyDown={(e) => {
-								// 阻止所有键盘事件冒泡到父元素，避免空格等键被父元素拦截
-								e.stopPropagation();
-								if (e.key === "Enter") {
-									handleCreateChild();
-									return;
-								}
-								if (e.key === "Escape") {
-									setIsAddingChild(false);
-									setChildName("");
-								}
-							}}
-							placeholder="输入子待办名称..."
-							className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-						/>
-						<div className="flex items-center justify-end gap-2">
-							<button
-								type="button"
-								onClick={() => {
-									setIsAddingChild(false);
-									setChildName("");
-								}}
-								className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
-							>
-								取消
-							</button>
-							<button
-								type="submit"
-								className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-							>
-								<Plus className="h-4 w-4" />
-								添加
-							</button>
-						</div>
-					</form>
-				)}
-
-				{/* 放置区域：设为子任务 */}
-				{showNestDropZone && (
-					<div
-						ref={nestDroppable.setNodeRef}
-						className={cn(
-							"absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed transition-all duration-200",
-							nestDroppable.isOver
-								? "border-primary bg-primary/10"
-								: "border-muted-foreground/30 bg-muted/20",
-						)}
-					>
-						<div
-							className={cn(
-								"flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-								nestDroppable.isOver
-									? "bg-primary text-primary-foreground"
-									: "bg-muted text-muted-foreground",
-							)}
-						>
-							<CornerDownRight className="h-4 w-4" />
-							<span>设为子任务</span>
-						</div>
-					</div>
-				)}
 			</div>
 
-			{contextMenu.open &&
-				typeof document !== "undefined" &&
-				createPortal(
-					<div className="fixed inset-0 z-120 pointer-events-none">
-						<div
-							ref={menuRef}
-							className="pointer-events-auto min-w-[170px] rounded-md border border-border bg-background shadow-lg"
-							style={{
-								top: contextMenu.y,
-								left: contextMenu.x,
-								position: "absolute",
+			{isAddingChild && (
+				<form
+					onSubmit={handleCreateChild}
+					onMouseDown={(e) => e.stopPropagation()}
+					className="mt-3 space-y-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-3"
+				>
+					<input
+						ref={childInputRef}
+						type="text"
+						value={childName}
+						onChange={(e) => setChildName(e.target.value)}
+						onKeyDown={(e) => {
+							// 阻止所有键盘事件冒泡到父元素，避免空格等键被父元素拦截
+							e.stopPropagation();
+							if (e.key === "Enter") {
+								handleCreateChild();
+								return;
+							}
+							if (e.key === "Escape") {
+								setIsAddingChild(false);
+								setChildName("");
+							}
+						}}
+						placeholder="输入子待办名称..."
+						className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+					/>
+					<div className="flex items-center justify-end gap-2">
+						<button
+							type="button"
+							onClick={() => {
+								setIsAddingChild(false);
+								setChildName("");
 							}}
+							className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
 						>
-							<button
-								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors first:rounded-t-md"
-								onClick={() => {
-									setContextMenu((state) =>
-										state.open ? { ...state, open: false } : state,
-									);
-									setIsAddingChild(true);
-								}}
-							>
-								<Plus className="h-4 w-4" />
-								<span>添加子待办</span>
-							</button>
-							<button
-								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors"
-								onClick={() => {
-									setContextMenu((state) =>
-										state.open ? { ...state, open: false } : state,
-									);
-									handleStartPlan();
-								}}
-							>
-								<Sparkles className="h-4 w-4" />
-								<span>使用AI规划</span>
-							</button>
-							<button
-								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors"
-								onClick={() => {
-									handleCancel();
-									setContextMenu((state) =>
-										state.open ? { ...state, open: false } : state,
-									);
-								}}
-							>
-								<X className="h-4 w-4" />
-								<span>放弃</span>
-							</button>
-							<button
-								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors last:rounded-b-md"
-								onClick={() => {
-									handleDelete();
-									setContextMenu((state) =>
-										state.open ? { ...state, open: false } : state,
-									);
-								}}
-							>
-								<Trash2 className="h-4 w-4" />
-								<span>删除</span>
-							</button>
-						</div>
-					</div>,
-					document.body,
-				)}
-		</>
+							取消
+						</button>
+						<button
+							type="submit"
+							className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+						>
+							<Plus className="h-4 w-4" />
+							添加
+						</button>
+					</div>
+				</form>
+			)}
+
+			{/* 放置区域：设为子任务 */}
+			{showNestDropZone && (
+				<div
+					ref={nestDroppable.setNodeRef}
+					className={cn(
+						"absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed transition-all duration-200",
+						nestDroppable.isOver
+							? "border-primary bg-primary/10"
+							: "border-muted-foreground/30 bg-muted/20",
+					)}
+				>
+					<div
+						className={cn(
+							"flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+							nestDroppable.isOver
+								? "bg-primary text-primary-foreground"
+								: "bg-muted text-muted-foreground",
+						)}
+					>
+						<CornerDownRight className="h-4 w-4" />
+						<span>设为子任务</span>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+
+	// 如果是拖拽覆盖层，不需要右键菜单
+	if (isOverlay) {
+		return cardContent;
+	}
+
+	return (
+		<TodoContextMenu
+			todoId={todo.id}
+			onAddChild={handleAddChildFromMenu}
+			onContextMenuOpen={onSelectSingle}
+		>
+			{cardContent}
+		</TodoContextMenu>
 	);
 }
