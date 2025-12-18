@@ -155,10 +155,15 @@
 
 位于 `lib/generated/fetcher.ts`，负责：
 - 环境适配（客户端/服务端 URL）
+- **命名风格自动转换**：
+  - 请求时：camelCase → snake_case（前端风格 → 后端风格）
+  - 响应时：snake_case → camelCase（后端风格 → 前端风格）
 - 时间字符串标准化（处理无时区后缀）
-- Zod schema 运行时验证
 - 统一错误处理
+- Zod schema 运行时验证
 - 可扩展（认证 token、日志、重试等）
+
+转换工具位于 `lib/generated/case-transform.ts`，前端统一使用 camelCase 类型定义（`lib/types/index.ts`）。
 
 ### 流式 API 处理
 
@@ -169,9 +174,9 @@ Orval 不支持 Server-Sent Events，需在 `lib/api.ts` 手动实现：
 
 ### 类型安全最佳实践
 
-1. 优先使用 Orval 生成的类型，避免重复定义
-2. 在查询层做类型转换（如后端 number id → 前端 string id）
-3. 统一类型导出点（`lib/api.ts`），便于重用
+1. 优先使用 `lib/types/index.ts` 中的 camelCase 类型（fetcher 已自动转换）
+2. ID 统一使用 `number` 类型（与后端数据库一致）
+3. Orval 生成的类型仅用于 API 层，业务层使用统一类型定义
 
 ### 开发工作流
 
