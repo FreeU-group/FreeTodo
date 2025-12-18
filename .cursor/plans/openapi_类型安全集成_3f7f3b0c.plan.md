@@ -4,32 +4,32 @@ overview: 使用 orval 从后端 FastAPI OpenAPI schema 自动生成前端的 Ty
 todos:
   - id: install-deps
     content: 安装 zod 和 orval 依赖
-    status: pending
+    status: completed
   - id: create-orval-config
     content: 创建 orval.config.ts 配置文件
-    status: pending
+    status: completed
     dependencies:
       - install-deps
   - id: create-fetcher
     content: 创建自定义 fetcher 处理时区和验证
-    status: pending
+    status: completed
     dependencies:
       - install-deps
   - id: add-scripts
     content: 在 package.json 添加生成脚本
-    status: pending
+    status: completed
     dependencies:
       - create-orval-config
   - id: generate-types
     content: 运行 orval 生成类型和 schemas
-    status: pending
+    status: completed
     dependencies:
       - create-orval-config
       - create-fetcher
       - add-scripts
   - id: migrate-todo-types
     content: 迁移 Todo 相关类型到生成的 schemas
-    status: pending
+    status: completed
     dependencies:
       - generate-types
 ---

@@ -1,7 +1,10 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getConfig, saveConfig } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+	useGetConfigDetailedApiGetConfigGet,
+	useSaveConfigApiSaveConfigPost,
+} from "@/lib/generated/config/config";
 import { queryKeys } from "./keys";
 
 // ============================================================================
@@ -20,18 +23,26 @@ export interface AppConfig {
 
 /**
  * 获取应用配置的 Query Hook
+ * 使用 Orval 生成的 hook，保持相同的 API
  */
 export function useConfig() {
-	return useQuery({
-		queryKey: queryKeys.config,
-		queryFn: async () => {
-			const response = await getConfig();
-			if (!response.success || !response.config) {
-				throw new Error(response.error || "Failed to load config");
-			}
-			return response.config as AppConfig;
+	return useGetConfigDetailedApiGetConfigGet({
+		query: {
+			queryKey: queryKeys.config,
+			staleTime: 60 * 1000, // 1 分钟
+			select: (data: unknown) => {
+				// 处理响应格式：{ success: boolean, config?: Record<string, unknown> }
+				const response = data as {
+					success?: boolean;
+					config?: AppConfig;
+					error?: string;
+				};
+				if (response?.success && response?.config) {
+					return response.config;
+				}
+				throw new Error(response?.error || "Failed to load config");
+			},
 		},
-		staleTime: 60 * 1000, // 1 分钟
 	});
 }
 
@@ -41,44 +52,42 @@ export function useConfig() {
 
 /**
  * 保存应用配置的 Mutation Hook
+ * 使用 Orval 生成的 hook，添加乐观更新逻辑
  */
 export function useSaveConfig() {
 	const queryClient = useQueryClient();
 
-	return useMutation({
-		mutationFn: async (config: Partial<AppConfig>) => {
-			const response = await saveConfig(config);
-			if (!response.success) {
-				throw new Error(response.error || "Failed to save config");
-			}
-			return response;
-		},
-		onMutate: async (newConfig) => {
-			// 取消正在进行的查询
-			await queryClient.cancelQueries({ queryKey: queryKeys.config });
+	return useSaveConfigApiSaveConfigPost({
+		mutation: {
+			onMutate: async (variables) => {
+				const newConfig = variables.data;
 
-			// 保存之前的数据
-			const previousConfig = queryClient.getQueryData<AppConfig>(
-				queryKeys.config,
-			);
+				// 取消正在进行的查询
+				await queryClient.cancelQueries({ queryKey: queryKeys.config });
 
-			// 乐观更新
-			queryClient.setQueryData<AppConfig>(queryKeys.config, (old) => ({
-				...old,
-				...newConfig,
-			}));
+				// 保存之前的数据
+				const previousConfig = queryClient.getQueryData<AppConfig>(
+					queryKeys.config,
+				);
 
-			return { previousConfig };
-		},
-		onError: (_err, _variables, context) => {
-			// 发生错误时回滚
-			if (context?.previousConfig) {
-				queryClient.setQueryData(queryKeys.config, context.previousConfig);
-			}
-		},
-		onSettled: () => {
-			// 重新获取最新数据
-			queryClient.invalidateQueries({ queryKey: queryKeys.config });
+				// 乐观更新
+				queryClient.setQueryData<AppConfig>(queryKeys.config, (old) => ({
+					...old,
+					...newConfig,
+				}));
+
+				return { previousConfig };
+			},
+			onError: (_err, _variables, context) => {
+				// 发生错误时回滚
+				if (context?.previousConfig) {
+					queryClient.setQueryData(queryKeys.config, context.previousConfig);
+				}
+			},
+			onSettled: () => {
+				// 重新获取最新数据
+				queryClient.invalidateQueries({ queryKey: queryKeys.config });
+			},
 		},
 	});
 }
@@ -94,7 +103,8 @@ export function useConfigMutations() {
 	const saveConfigMutation = useSaveConfig();
 
 	return {
-		saveConfig: saveConfigMutation.mutateAsync,
+		saveConfig: (config: Partial<AppConfig>) =>
+			saveConfigMutation.mutateAsync({ data: config }),
 		isSaving: saveConfigMutation.isPending,
 		saveError: saveConfigMutation.error,
 	};

@@ -125,10 +125,10 @@ export function TodoCard({
 			potentialParentId: string,
 			potentialChildId: string,
 		): boolean => {
-			let current = todos.find((t) => t.id === potentialChildId);
+			let current = todos.find((t: Todo) => t.id === potentialChildId);
 			while (current?.parentTodoId) {
 				if (current.parentTodoId === potentialParentId) return true;
-				current = todos.find((t) => t.id === current?.parentTodoId);
+				current = todos.find((t: Todo) => t.id === current?.parentTodoId);
 			}
 			return false;
 		};
@@ -142,7 +142,7 @@ export function TodoCard({
 
 	// 检查是否有子任务
 	const hasChildren = useMemo(() => {
-		return todos.some((t) => t.parentTodoId === todo.id);
+		return todos.some((t: Todo) => t.parentTodoId === todo.id);
 	}, [todos, todo.id]);
 
 	const isExpanded = isTodoExpanded(todo.id);

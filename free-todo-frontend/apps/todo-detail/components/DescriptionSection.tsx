@@ -19,8 +19,25 @@ export function DescriptionSection({
 }: DescriptionSectionProps) {
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState(description || "");
+	// 本地显示值，用于乐观更新
+	const [displayValue, setDisplayValue] = useState(description || "");
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const hasAttachments = attachments && attachments.length > 0;
+	const justSavedRef = useRef<boolean>(false);
+
+	// 当外部 description 变化时，同步 displayValue（但不影响正在编辑的状态）
+	useEffect(() => {
+		if (!isEditing && !justSavedRef.current) {
+			// 只有当 description 真正变化且与 displayValue 不同时才同步
+			if (description !== displayValue) {
+				setDisplayValue(description || "");
+			}
+		}
+		// 清除 justSaved 标记
+		if (justSavedRef.current) {
+			justSavedRef.current = false;
+		}
+	}, [description, isEditing, displayValue]);
 
 	// 自动调整 textarea 高度
 	const adjustTextareaHeight = useCallback(() => {
@@ -41,21 +58,35 @@ export function DescriptionSection({
 
 	// 开始编辑
 	const handleStartEdit = () => {
-		setEditValue(description || "");
+		setEditValue(displayValue || "");
 		setIsEditing(true);
 	};
 
 	// 保存编辑
-	const handleSave = () => {
-		if (onDescriptionChange) {
-			onDescriptionChange(editValue.trim());
-		}
+	const handleSave = async () => {
+		const trimmedValue = editValue.trim();
+		// 标记刚刚保存，避免 useEffect 立即覆盖
+		justSavedRef.current = true;
+		// 立即更新显示值（乐观更新）
+		setDisplayValue(trimmedValue);
 		setIsEditing(false);
+
+		// 异步更新服务器
+		if (onDescriptionChange) {
+			try {
+				await onDescriptionChange(trimmedValue);
+			} catch (err) {
+				// 如果更新失败，恢复显示值
+				setDisplayValue(description || "");
+				justSavedRef.current = false;
+				console.error("Failed to update description:", err);
+			}
+		}
 	};
 
 	// 取消编辑
 	const handleCancel = () => {
-		setEditValue(description || "");
+		setEditValue(displayValue || "");
 		setIsEditing(false);
 	};
 
@@ -120,7 +151,7 @@ export function DescriptionSection({
 					}}
 					className="w-full text-left group cursor-pointer rounded-md border border-border bg-muted/20 px-4 py-3 hover:border-primary/50 hover:bg-muted/40 transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
 				>
-					{description ? (
+					{displayValue ? (
 						<div className="markdown-content">
 							<ReactMarkdown
 								remarkPlugins={[remarkGfm]}
@@ -192,7 +223,7 @@ export function DescriptionSection({
 									),
 								}}
 							>
-								{description}
+								{displayValue}
 							</ReactMarkdown>
 						</div>
 					) : (

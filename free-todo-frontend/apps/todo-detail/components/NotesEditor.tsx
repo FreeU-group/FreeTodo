@@ -5,6 +5,7 @@ import type { ChangeEvent } from "react";
 interface NotesEditorProps {
 	value: string;
 	onChange: (value: string) => void;
+	onBlur?: () => void;
 	notesRef: React.RefObject<HTMLTextAreaElement | null>;
 	adjustHeight: () => void;
 }
@@ -12,12 +13,17 @@ interface NotesEditorProps {
 export function NotesEditor({
 	value,
 	onChange,
+	onBlur,
 	notesRef,
 	adjustHeight,
 }: NotesEditorProps) {
 	const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
 		onChange(event.target.value);
 		requestAnimationFrame(adjustHeight);
+	};
+
+	const handleBlur = () => {
+		onBlur?.();
 	};
 
 	return (
@@ -29,6 +35,7 @@ export function NotesEditor({
 				ref={notesRef}
 				value={value}
 				onChange={handleChange}
+				onBlur={handleBlur}
 				placeholder="Insert your notes here"
 				className="mb-8 w-full min-h-[120px] resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 			/>

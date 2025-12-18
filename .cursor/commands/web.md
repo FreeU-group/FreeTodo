@@ -6,6 +6,9 @@
 - **语言**: Node.js 22.x + TypeScript 5.x
 - **样式**: Tailwind CSS 4 + shadcn/ui
 - **状态管理**: Zustand + React Hooks
+- **数据获取**: TanStack Query (React Query) v5
+- **API 生成**: Orval（根据 OpenAPI 自动生成）
+- **数据验证**: Zod（运行时类型验证）
 - **主题**: next-themes（浅/深色切换）
 - **动画/交互**: framer-motion、@dnd-kit
 - **Markdown**: react-markdown + remark-gfm
@@ -107,6 +110,74 @@
 - 实现状态更新逻辑
 - 添加性能优化（useMemo、useCallback）
 - 提供类型安全的 hook
+
+---
+
+## 📡 API 与数据获取
+
+项目使用 **Orval + TanStack Query + Zod** 实现类型安全的 API 调用和数据验证。
+
+### Orval 代码生成
+
+- **配置文件**：`orval.config.ts`
+- **生成命令**：`pnpm orval`（需后端服务运行）
+- **生成内容**：TypeScript 类型、Zod schemas、React Query hooks
+- **输出目录**：`lib/generated/`（按 API tag 分割，如 `todos/`, `chat/`）
+
+**主要配置**：
+- `input.target`：后端 OpenAPI schema 地址（http://localhost:8000/openapi.json）
+- `output.client`：使用 react-query 生成 hooks
+- `output.mode`：tags-split 按功能模块分文件
+- `override.mutator`：使用自定义 fetcher（`lib/generated/fetcher.ts`）
+- `override.zod.strict`：启用严格的运行时验证
+
+### 使用 Orval 生成的 API Hooks
+
+1. **直接使用生成的 hooks**：从 `lib/generated/[module]/` 导入，已包含完整类型定义
+2. **包装 hooks 添加业务逻辑**：在 `lib/query/` 中封装，添加自定义 query key、数据转换、缓存策略等
+3. **参考示例**：`lib/query/todos.ts`、`lib/query/chat.ts`
+
+### TanStack Query 使用规范
+
+- **Query Keys**：统一在 `lib/query/keys.ts` 管理，使用层级结构（如 `todos.list()`, `todos.detail(id)`）
+- **乐观更新**：在 `onMutate` 中更新缓存，`onError` 回滚，`onSettled` 重新获取
+- **防抖更新**：针对频繁变化字段（如描述、备注）使用 500ms 防抖
+- **缓存策略**：设置合理的 `staleTime`（如 30 秒），避免过度请求
+
+### Zod 数据验证
+
+- **生成的 schemas**：位于 `lib/generated/schemas/`，由 Orval 自动生成
+- **运行时验证**：在 fetcher 中自动验证 API 响应格式
+- **表单验证**：配合 React Hook Form 的 `zodResolver` 使用
+- **自定义规则**：可基于生成的 schema 扩展自定义验证逻辑
+
+### 自定义 Fetcher
+
+位于 `lib/generated/fetcher.ts`，负责：
+- 环境适配（客户端/服务端 URL）
+- 时间字符串标准化（处理无时区后缀）
+- Zod schema 运行时验证
+- 统一错误处理
+- 可扩展（认证 token、日志、重试等）
+
+### 流式 API 处理
+
+Orval 不支持 Server-Sent Events，需在 `lib/api.ts` 手动实现：
+- 使用原生 `fetch` + `ReadableStream`
+- 逐块解码并回调处理
+- 示例：`sendChatMessageStream()`, `planQuestionnaireStream()`
+
+### 类型安全最佳实践
+
+1. 优先使用 Orval 生成的类型，避免重复定义
+2. 在查询层做类型转换（如后端 number id → 前端 string id）
+3. 统一类型导出点（`lib/api.ts`），便于重用
+
+### 开发工作流
+
+1. **后端 API 变更**：运行 `pnpm orval` 重新生成代码，检查 `git diff lib/generated/`
+2. **新增 API**：后端更新 OpenAPI → 生成代码 → 在 `lib/query/` 封装 → 组件使用
+3. **调试**：在 fetcher 中添加日志，查看请求/响应和验证错误
 
 ---
 

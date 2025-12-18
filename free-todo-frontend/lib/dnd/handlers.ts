@@ -4,7 +4,7 @@
  */
 
 import { flushSync } from "react-dom";
-import { updateTodoApi } from "@/lib/api";
+import { updateTodoApiTodosTodoIdPut } from "@/lib/generated/todos/todos";
 import { getQueryClient, queryKeys } from "@/lib/query";
 import type {
 	DragData,
@@ -99,7 +99,7 @@ const handleTodoToCalendarDate: DragDropHandler = (
 
 	// 异步调用 API
 	const todoId = Number.parseInt(todo.id, 10);
-	void updateTodoApi(todoId, { deadline: newDeadlineStr })
+	void updateTodoApiTodosTodoIdPut(todoId, { deadline: newDeadlineStr })
 		.then(() => {
 			// API 成功后刷新缓存以确保数据一致性
 			void queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
@@ -158,7 +158,7 @@ const handleTodoToTodoList: DragDropHandler = (
 
 		const todoId = Number.parseInt(todo.id, 10);
 		const parentId = parentTodoId ? Number.parseInt(parentTodoId, 10) : null;
-		void updateTodoApi(todoId, { parent_todo_id: parentId })
+		void updateTodoApiTodosTodoIdPut(todoId, { parent_todo_id: parentId })
 			.then(() => {
 				void queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 			})

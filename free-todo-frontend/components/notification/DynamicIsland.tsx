@@ -1,12 +1,10 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Check, Clock, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { updateTodoApi } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
-import { queryKeys } from "@/lib/query";
+import { useUpdateTodo } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -59,14 +57,14 @@ export function DynamicIsland() {
 		setNotification,
 		setExpanded,
 	} = useNotificationStore();
-	const queryClient = useQueryClient();
 	const { locale } = useLocaleStore();
 	const t = useTranslations(locale);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [currentTime, setCurrentTime] = useState(() =>
 		formatCurrentTime(locale),
 	);
-	const [isProcessing, setIsProcessing] = useState(false);
+	const updateTodoMutation = useUpdateTodo();
+	const isProcessing = updateTodoMutation.isPending;
 
 	// 检查是否是 draft todo 通知
 	const isDraftTodo =
@@ -118,21 +116,17 @@ export function DynamicIsland() {
 		e.stopPropagation();
 		if (!isDraftTodo || !currentNotification?.todoId || isProcessing) return;
 
-		setIsProcessing(true);
 		try {
-			await updateTodoApi(currentNotification.todoId, {
-				status: "active",
+			await updateTodoMutation.mutateAsync({
+				id: String(currentNotification.todoId),
+				input: { status: "active" },
 			});
-			// 接受草稿待办后使 todos 缓存失效，触发重新获取
-			await queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 			toastSuccess(t.todoExtraction.acceptSuccess);
 			setNotification(null);
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			toastError(t.todoExtraction.acceptFailed.replace("{error}", errorMsg));
-		} finally {
-			setIsProcessing(false);
 		}
 	};
 
@@ -141,21 +135,17 @@ export function DynamicIsland() {
 		e.stopPropagation();
 		if (!isDraftTodo || !currentNotification?.todoId || isProcessing) return;
 
-		setIsProcessing(true);
 		try {
-			await updateTodoApi(currentNotification.todoId, {
-				status: "canceled",
+			await updateTodoMutation.mutateAsync({
+				id: String(currentNotification.todoId),
+				input: { status: "canceled" },
 			});
-			// 拒绝草稿待办后使 todos 缓存失效，触发重新获取
-			await queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 			toastSuccess(t.todoExtraction.rejectSuccess);
 			setNotification(null);
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			toastError(t.todoExtraction.rejectFailed.replace("{error}", errorMsg));
-		} finally {
-			setIsProcessing(false);
 		}
 	};
 

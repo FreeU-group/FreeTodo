@@ -80,7 +80,7 @@ export const useChatController = ({
 		: null;
 
 	const selectedTodos = useMemo(
-		() => todos.filter((todo) => selectedTodoIds.includes(todo.id)),
+		() => todos.filter((todo: Todo) => selectedTodoIds.includes(todo.id)),
 		[selectedTodoIds, todos],
 	);
 	const effectiveTodos = useMemo(

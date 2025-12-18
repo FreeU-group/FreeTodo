@@ -447,7 +447,7 @@ export function CalendarPanel() {
 
 	const todosWithDeadline: CalendarTodo[] = useMemo(() => {
 		return todos
-			.map((todo) => {
+			.map((todo: Todo) => {
 				const parsed = parseDeadline(todo.deadline);
 				if (!parsed) return null;
 				return {
@@ -457,7 +457,10 @@ export function CalendarPanel() {
 				};
 			})
 			.filter((item): item is CalendarTodo => item !== null)
-			.sort((a, b) => a.deadline.getTime() - b.deadline.getTime());
+			.sort(
+				(a: CalendarTodo, b: CalendarTodo) =>
+					a.deadline.getTime() - b.deadline.getTime(),
+			);
 	}, [todos]);
 
 	const todosInRange = useMemo(

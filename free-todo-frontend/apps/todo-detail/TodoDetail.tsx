@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
+import type { Todo } from "@/lib/types/todo";
 import { ChildTodoSection } from "./components/ChildTodoSection";
 import { DescriptionSection } from "./components/DescriptionSection";
 import { DetailHeader } from "./components/DetailHeader";
@@ -24,25 +25,57 @@ export function TodoDetail() {
 
 	const [showDescription, setShowDescription] = useState(true);
 
+	// 本地状态管理 userNotes，用于即时输入响应
+	const [localUserNotes, setLocalUserNotes] = useState<string>("");
+	const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const isUpdatingRef = useRef<boolean>(false);
+	const lastSyncedTodoIdRef = useRef<string | null>(null);
+
 	const todo = useMemo(
-		() => (selectedTodoId ? todos.find((t) => t.id === selectedTodoId) : null),
+		() =>
+			selectedTodoId ? todos.find((t: Todo) => t.id === selectedTodoId) : null,
 		[selectedTodoId, todos],
 	);
 
+	// 只在 todo.id 变化时同步本地状态（切换 todo 时）
+	useEffect(() => {
+		if (todo && todo.id !== lastSyncedTodoIdRef.current) {
+			// 清理之前的防抖定时器
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current);
+				debounceTimerRef.current = null;
+			}
+			setLocalUserNotes(todo.userNotes || "");
+			lastSyncedTodoIdRef.current = todo.id;
+			isUpdatingRef.current = false;
+		}
+	}, [todo, todo?.id, todo?.userNotes]);
+
 	const childTodos = useMemo(
 		() =>
-			todo?.id ? todos.filter((item) => item.parentTodoId === todo.id) : [],
+			todo?.id
+				? todos.filter((item: Todo) => item.parentTodoId === todo.id)
+				: [],
 		[todo?.id, todos],
 	);
 
 	const { notesRef, adjustNotesHeight } = useNotesAutosize([
 		todo?.id,
-		todo?.userNotes,
+		localUserNotes,
 	]);
 
 	useEffect(() => {
 		adjustNotesHeight();
 	}, [adjustNotesHeight]);
+
+	// 清理防抖定时器
+	useEffect(() => {
+		return () => {
+			if (debounceTimerRef.current) {
+				clearTimeout(debounceTimerRef.current);
+			}
+		};
+	}, []);
 
 	if (!todo) {
 		return (
@@ -52,12 +85,54 @@ export function TodoDetail() {
 		);
 	}
 
-	const handleNotesChange = async (userNotes: string) => {
-		try {
-			await updateTodo(todo.id, { userNotes });
-			requestAnimationFrame(adjustNotesHeight);
-		} catch (err) {
-			console.error("Failed to update notes:", err);
+	const handleNotesChange = (userNotes: string) => {
+		// 立即更新本地状态，保证输入流畅
+		setLocalUserNotes(userNotes);
+		requestAnimationFrame(adjustNotesHeight);
+
+		// 标记正在更新
+		isUpdatingRef.current = true;
+
+		// 清除之前的防抖定时器
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current);
+		}
+
+		// 设置新的防抖定时器，延迟更新服务器
+		debounceTimerRef.current = setTimeout(async () => {
+			try {
+				await updateTodo(todo.id, { userNotes });
+				// 更新成功后，标记更新完成
+				isUpdatingRef.current = false;
+			} catch (err) {
+				console.error("Failed to update notes:", err);
+				// 如果更新失败，恢复本地状态到服务器值
+				setLocalUserNotes(todo.userNotes || "");
+				isUpdatingRef.current = false;
+			}
+		}, 500);
+	};
+
+	const handleNotesBlur = async () => {
+		// 失去焦点时，立即同步状态到服务器
+		// 如果有待处理的防抖更新，先取消它并立即执行
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+
+		// 如果本地状态与服务器状态不同，立即更新
+		if (localUserNotes !== (todo.userNotes || "")) {
+			try {
+				isUpdatingRef.current = true;
+				await updateTodo(todo.id, { userNotes: localUserNotes });
+				isUpdatingRef.current = false;
+			} catch (err) {
+				console.error("Failed to update notes on blur:", err);
+				// 如果更新失败，恢复本地状态到服务器值
+				setLocalUserNotes(todo.userNotes || "");
+				isUpdatingRef.current = false;
+			}
 		}
 	};
 
@@ -90,10 +165,12 @@ export function TodoDetail() {
 			// 递归查找所有子任务 ID
 			const findAllChildIds = (
 				parentId: string,
-				allTodos: typeof todos,
+				allTodos: Todo[],
 			): string[] => {
 				const childIds: string[] = [];
-				const children = allTodos.filter((t) => t.parentTodoId === parentId);
+				const children = allTodos.filter(
+					(t: Todo) => t.parentTodoId === parentId,
+				);
 				for (const child of children) {
 					childIds.push(child.id);
 					childIds.push(...findAllChildIds(child.id, allTodos));
@@ -156,8 +233,9 @@ export function TodoDetail() {
 				)}
 
 				<NotesEditor
-					value={todo.userNotes || ""}
+					value={localUserNotes}
 					onChange={handleNotesChange}
+					onBlur={handleNotesBlur}
 					notesRef={notesRef}
 					adjustHeight={adjustNotesHeight}
 				/>

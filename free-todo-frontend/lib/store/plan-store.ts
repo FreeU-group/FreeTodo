@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { ParsedTodoTree } from "@/apps/chat/types";
-import { createTodo, updateTodoApi } from "@/lib/api";
+import {
+	createTodoApiTodosPost,
+	updateTodoApiTodosTodoIdPut,
+} from "@/lib/generated/todos/todos";
 import { fromApiTodo, getQueryClient, queryKeys } from "@/lib/query";
 
 export interface Question {
@@ -145,9 +148,12 @@ export const usePlanStore = create<PlanStoreState>()((set, get) => ({
 
 		try {
 			// 更新任务描述
-			await updateTodoApi(Number.parseInt(state.activePlanTodoId, 10), {
-				description: state.summary,
-			});
+			await updateTodoApiTodosTodoIdPut(
+				Number.parseInt(state.activePlanTodoId, 10),
+				{
+					description: state.summary,
+				},
+			);
 
 			// 添加子任务 - 递归创建，处理层级关系
 			const createSubtasks = async (
@@ -156,7 +162,7 @@ export const usePlanStore = create<PlanStoreState>()((set, get) => ({
 			): Promise<void> => {
 				for (const node of trees) {
 					// 创建当前子任务
-					const apiTodo = await createTodo({
+					const apiTodo = await createTodoApiTodosPost({
 						name: node.name,
 						description: node.description,
 						order: node.order,

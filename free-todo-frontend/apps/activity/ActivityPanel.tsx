@@ -7,6 +7,7 @@ import { ActivitySidebar } from "@/apps/activity/ActivitySidebar";
 import { groupActivitiesByTime } from "@/apps/activity/utils/timeUtils";
 import { useActivities, useActivityWithEvents } from "@/lib/query";
 import { useActivityStore } from "@/lib/store/activity-store";
+import type { Activity } from "@/lib/types/activity";
 
 export function ActivityPanel() {
 	const { selectedActivityId, search, setSelectedActivityId, setSearch } =
@@ -26,7 +27,7 @@ export function ActivityPanel() {
 		}
 		const keyword = search.toLowerCase();
 		return activities.filter(
-			(item) =>
+			(item: Activity) =>
 				item.ai_title?.toLowerCase().includes(keyword) ||
 				item.ai_summary?.toLowerCase().includes(keyword),
 		);
@@ -61,9 +62,13 @@ export function ActivityPanel() {
 	);
 
 	if (listError) {
+		const errorMessage =
+			listError instanceof Error
+				? listError.message
+				: String(listError) || "Unknown error";
 		return (
 			<div className="flex h-full items-center justify-center text-destructive">
-				加载失败: {listError.message}
+				加载失败: {errorMessage}
 			</div>
 		);
 	}

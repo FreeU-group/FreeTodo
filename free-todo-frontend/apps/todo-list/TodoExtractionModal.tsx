@@ -2,7 +2,7 @@
 
 import { Check, Clock, X } from "lucide-react";
 import { useState } from "react";
-import type { ExtractedTodo } from "@/lib/api";
+import type { ExtractedTodo } from "@/lib/generated/schemas";
 import { useTranslations } from "@/lib/i18n";
 import { useCreateTodo } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
@@ -193,7 +193,7 @@ export function TodoExtractionModal({
 					) : (
 						todos.map((todo, index) => {
 							const isSelected = selectedTodos.has(index);
-							const todoKey = `todo-${todo.title}-${index}-${todo.screenshot_ids.join("-")}`;
+							const todoKey = `todo-${todo.title}-${index}-${(todo.screenshot_ids || []).join("-")}`;
 							return (
 								<div
 									key={todoKey}

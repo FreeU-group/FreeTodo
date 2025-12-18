@@ -16,15 +16,15 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TodoExtractionModal } from "@/apps/todo-list/TodoExtractionModal";
 import { PanelHeader } from "@/components/common/PanelHeader";
+import type { ExtractedTodo, TodoExtractionResponse } from "@/lib/api";
+import { getScreenshotImage } from "@/lib/api";
+import { useCreateActivityManualApiActivitiesManualPost } from "@/lib/generated/activity/activity";
 import {
-	createActivityFromEvents,
-	type ExtractedTodo,
-	extractTodosFromEvent,
-	getEvent,
-	getEvents,
-	getScreenshotImage,
-	type TodoExtractionResponse,
-} from "@/lib/api";
+	getEventDetailApiEventsEventIdGet,
+	listEventsApiEventsGet,
+} from "@/lib/generated/event/event";
+import { getScreenshotApiScreenshotsScreenshotIdGet } from "@/lib/generated/screenshot/screenshot";
+import { useExtractTodosFromEventApiTodoExtractionExtractPost } from "@/lib/generated/todo-extraction/todo-extraction";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
 import { toastError, toastInfo, toastSuccess } from "@/lib/toast";
@@ -370,6 +370,14 @@ export function DebugCapturePanel() {
 	const [extractingTodos, setExtractingTodos] = useState<Set<number>>(
 		new Set(),
 	);
+
+	// Mutation hooks
+	const createActivityMutation =
+		useCreateActivityManualApiActivitiesManualPost();
+	const extractTodosMutation =
+		useExtractTodosFromEventApiTodoExtractionExtractPost();
+
+	const isAggregating = aggregating || createActivityMutation.isPending;
 	const [extractionResult, setExtractionResult] = useState<{
 		todos: ExtractedTodo[];
 		eventId: number;
@@ -392,15 +400,15 @@ export function DebugCapturePanel() {
 	// 加载事件详情（包含截图）
 	const loadEventDetail = useCallback(async (eventId: number) => {
 		try {
-			const response = await getEvent(eventId);
-			const eventData = (response.data || {}) as Partial<Event> & {
+			const eventData = await getEventDetailApiEventsEventIdGet(eventId);
+			const eventDataTyped = (eventData || {}) as Partial<Event> & {
 				screenshots?: Screenshot[];
 			};
 
 			// 为每个截图加载 OCR 结果（如果需要）
-			if (eventData.screenshots && eventData.screenshots.length > 0) {
+			if (eventDataTyped.screenshots && eventDataTyped.screenshots.length > 0) {
 				const screenshotsWithOcr = await Promise.all(
-					eventData.screenshots.map(async (screenshot: Screenshot) => {
+					eventDataTyped.screenshots.map(async (screenshot: Screenshot) => {
 						// 如果已经有 OCR 结果，直接返回
 						if (screenshot.ocr_result) {
 							return screenshot;
@@ -408,24 +416,16 @@ export function DebugCapturePanel() {
 
 						try {
 							// 获取单个截图的详情（包含 OCR 结果）
-							const baseUrl =
-								typeof window !== "undefined"
-									? ""
-									: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-							const screenshotResponse = await fetch(
-								`${baseUrl}/api/screenshots/${screenshot.id}`,
-								{
-									headers: {
-										"Content-Type": "application/json",
-									},
-								},
-							);
-
-							if (screenshotResponse.ok) {
-								const screenshotData = await screenshotResponse.json();
+							const screenshotData =
+								await getScreenshotApiScreenshotsScreenshotIdGet(screenshot.id);
+							if (screenshotData) {
+								const data = screenshotData as {
+									ocr_result?: { text_content: string };
+									[id: string]: unknown;
+								};
 								return {
 									...screenshot,
-									ocr_result: screenshotData.ocr_result,
+									ocr_result: data.ocr_result,
 								};
 							}
 						} catch (_error) {
@@ -435,14 +435,14 @@ export function DebugCapturePanel() {
 					}),
 				);
 
-				eventData.screenshots = screenshotsWithOcr;
+				eventDataTyped.screenshots = screenshotsWithOcr;
 			}
 
 			setEventDetails((prev) => {
 				if (prev[eventId]) return prev;
 				return {
 					...prev,
-					[eventId]: eventData,
+					[eventId]: eventDataTyped,
 				};
 			});
 		} catch (_error) {
@@ -478,9 +478,9 @@ export function DebugCapturePanel() {
 				if (endDate) params.end_date = `${endDate}T23:59:59`;
 				if (appName) params.app_name = appName;
 
-				const response = await getEvents(params);
+				const response = await listEventsApiEventsGet(params);
 
-				const responseData = response.data || response;
+				const responseData = response || {};
 
 				let newEvents: Event[] = [];
 				let totalCount = 0;
@@ -604,8 +604,10 @@ export function DebugCapturePanel() {
 		setAggregating(true);
 		try {
 			const eventIds = Array.from(selectedEvents);
-			const response = await createActivityFromEvents(eventIds);
-			const activity = response.data;
+			const response = await createActivityMutation.mutateAsync({
+				data: { event_ids: eventIds },
+			});
+			const activity = response;
 
 			alert(
 				`成功创建活动: ${activity?.ai_title || "活动"}\n包含 ${eventIds.length} 个事件`,
@@ -635,7 +637,9 @@ export function DebugCapturePanel() {
 
 		try {
 			const response: TodoExtractionResponse =
-				await extractTodosFromEvent(eventId);
+				await extractTodosMutation.mutateAsync({
+					data: { event_id: eventId },
+				});
 
 			if (response.error_message) {
 				toastError(
@@ -647,7 +651,8 @@ export function DebugCapturePanel() {
 				return;
 			}
 
-			if (response.todos.length === 0) {
+			const todos = response.todos || [];
+			if (todos.length === 0) {
 				toastInfo(t.todoExtraction.noTodosFound);
 				return;
 			}
@@ -655,13 +660,13 @@ export function DebugCapturePanel() {
 			toastSuccess(
 				t.todoExtraction.extractSuccess.replace(
 					"{count}",
-					String(response.todos.length),
+					String(todos.length),
 				),
 			);
 
 			// 打开确认弹窗
 			setExtractionResult({
-				todos: response.todos,
+				todos,
 				eventId: response.event_id,
 				appName: response.app_name || null,
 			});
@@ -776,9 +781,9 @@ export function DebugCapturePanel() {
 					end_date: `${todayStr}T23:59:59`,
 				};
 
-				const response = await getEvents(params);
+				const response = await listEventsApiEventsGet(params);
 
-				const responseData = (response.data || response) as {
+				const responseData = (response || {}) as {
 					events?: Event[];
 					total_count?: number;
 				};
@@ -823,10 +828,10 @@ export function DebugCapturePanel() {
 						<button
 							type="button"
 							onClick={handleAggregateEvents}
-							disabled={aggregating || selectedEvents.size === 0}
+							disabled={isAggregating || selectedEvents.size === 0}
 							className="flex items-center gap-2 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
 						>
-							{aggregating ? (
+							{isAggregating ? (
 								<>
 									<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
 									<span>聚合中...</span>
@@ -841,7 +846,7 @@ export function DebugCapturePanel() {
 						<button
 							type="button"
 							onClick={() => setSelectedEvents(new Set())}
-							disabled={aggregating}
+							disabled={isAggregating}
 							className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
 						>
 							清空选择

@@ -48,12 +48,12 @@ export function CostTrackingPanel() {
 		featureId;
 
 	const recentData = useMemo(() => {
-		if (!stats) return [];
+		if (!stats || !stats.daily_costs) return [];
 		const dates = Object.keys(stats.daily_costs).sort().slice(-7);
 		return dates.map((date) => ({
 			date,
-			cost: stats.daily_costs[date]?.cost ?? 0,
-			tokens: stats.daily_costs[date]?.total_tokens ?? 0,
+			cost: stats.daily_costs?.[date]?.cost ?? 0,
+			tokens: stats.daily_costs?.[date]?.total_tokens ?? 0,
 		}));
 	}, [stats]);
 
@@ -101,7 +101,11 @@ export function CostTrackingPanel() {
 				{error && (
 					<div className="flex items-start gap-2 rounded-lg border border-[oklch(var(--destructive))]/40 bg-[oklch(var(--destructive))]/10 px-3 py-2 text-sm text-[oklch(var(--destructive))]">
 						<AlertCircle className="mt-0.5 h-4 w-4" />
-						<span>{error.message || t.page.costTracking.loadFailed}</span>
+						<span>
+							{error instanceof Error
+								? error.message
+								: String(error) || t.page.costTracking.loadFailed}
+						</span>
 					</div>
 				)}
 
@@ -174,33 +178,54 @@ export function CostTrackingPanel() {
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-[oklch(var(--border))]">
-										{Object.entries(stats.feature_costs)
-											.sort(([, a], [, b]) => (b.cost ?? 0) - (a.cost ?? 0))
-											.map(([featureId, data]) => (
-												<tr
-													key={featureId}
-													className="hover:bg-[oklch(var(--muted))]/50"
-												>
-													<td className="px-4 py-3 font-medium">
-														{featureName(featureId)}
-													</td>
-													<td className="px-4 py-3 font-mono text-[oklch(var(--muted-foreground))]">
-														{featureId}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatNumber(data.input_tokens)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatNumber(data.output_tokens)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatNumber(data.requests)}
-													</td>
-													<td className="px-4 py-3 text-right font-semibold text-[oklch(var(--primary))]">
-														{formatCurrency(data.cost)}
-													</td>
-												</tr>
-											))}
+										{Object.entries(stats.feature_costs || {})
+											.sort(([, a], [, b]) => {
+												const aCost =
+													typeof a === "object" && a && "cost" in a
+														? ((a.cost as number) ?? 0)
+														: 0;
+												const bCost =
+													typeof b === "object" && b && "cost" in b
+														? ((b.cost as number) ?? 0)
+														: 0;
+												return bCost - aCost;
+											})
+											.map(([featureId, data]) => {
+												const featureData =
+													typeof data === "object" && data
+														? (data as {
+																input_tokens?: number;
+																output_tokens?: number;
+																requests?: number;
+																cost?: number;
+															})
+														: {};
+												return (
+													<tr
+														key={featureId}
+														className="hover:bg-[oklch(var(--muted))]/50"
+													>
+														<td className="px-4 py-3 font-medium">
+															{featureName(featureId)}
+														</td>
+														<td className="px-4 py-3 font-mono text-[oklch(var(--muted-foreground))]">
+															{featureId}
+														</td>
+														<td className="px-4 py-3 text-right">
+															{formatNumber(featureData.input_tokens)}
+														</td>
+														<td className="px-4 py-3 text-right">
+															{formatNumber(featureData.output_tokens)}
+														</td>
+														<td className="px-4 py-3 text-right">
+															{formatNumber(featureData.requests)}
+														</td>
+														<td className="px-4 py-3 text-right font-semibold text-[oklch(var(--primary))]">
+															{formatCurrency(featureData.cost)}
+														</td>
+													</tr>
+												);
+											})}
 									</tbody>
 								</table>
 							</div>
@@ -237,34 +262,53 @@ export function CostTrackingPanel() {
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-[oklch(var(--border))]">
-										{Object.entries(stats.model_costs)
-											.sort(
-												([, a], [, b]) =>
-													(b.total_cost ?? 0) - (a.total_cost ?? 0),
-											)
-											.map(([model, data]) => (
-												<tr
-													key={model}
-													className="hover:bg-[oklch(var(--muted))]/50"
-												>
-													<td className="px-4 py-3 font-medium">{model}</td>
-													<td className="px-4 py-3 text-right">
-														{formatNumber(data.input_tokens)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatNumber(data.output_tokens)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatCurrency(data.input_cost)}
-													</td>
-													<td className="px-4 py-3 text-right">
-														{formatCurrency(data.output_cost)}
-													</td>
-													<td className="px-4 py-3 text-right font-semibold text-[oklch(var(--primary))]">
-														{formatCurrency(data.total_cost)}
-													</td>
-												</tr>
-											))}
+										{Object.entries(stats.model_costs || {})
+											.sort(([, a], [, b]) => {
+												const aCost =
+													typeof a === "object" && a && "total_cost" in a
+														? ((a.total_cost as number) ?? 0)
+														: 0;
+												const bCost =
+													typeof b === "object" && b && "total_cost" in b
+														? ((b.total_cost as number) ?? 0)
+														: 0;
+												return bCost - aCost;
+											})
+											.map(([model, data]) => {
+												const modelData =
+													typeof data === "object" && data
+														? (data as {
+																input_tokens?: number;
+																output_tokens?: number;
+																input_cost?: number;
+																output_cost?: number;
+																total_cost?: number;
+															})
+														: {};
+												return (
+													<tr
+														key={model}
+														className="hover:bg-[oklch(var(--muted))]/50"
+													>
+														<td className="px-4 py-3 font-medium">{model}</td>
+														<td className="px-4 py-3 text-right">
+															{formatNumber(modelData.input_tokens)}
+														</td>
+														<td className="px-4 py-3 text-right">
+															{formatNumber(modelData.output_tokens)}
+														</td>
+														<td className="px-4 py-3 text-right">
+															{formatCurrency(modelData.input_cost)}
+														</td>
+														<td className="px-4 py-3 text-right">
+															{formatCurrency(modelData.output_cost)}
+														</td>
+														<td className="px-4 py-3 text-right font-semibold text-[oklch(var(--primary))]">
+															{formatCurrency(modelData.total_cost)}
+														</td>
+													</tr>
+												);
+											})}
 									</tbody>
 								</table>
 							</div>

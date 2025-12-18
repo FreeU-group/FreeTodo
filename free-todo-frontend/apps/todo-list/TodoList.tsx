@@ -58,7 +58,7 @@ export function TodoList() {
 			const overIdStr = String(over.id);
 
 			// 获取拖拽的 todo
-			const activeTodo = todos.find((t) => t.id === activeIdStr);
+			const activeTodo = todos.find((t: Todo) => t.id === activeIdStr);
 
 			if (!activeTodo) return;
 
@@ -100,12 +100,12 @@ export function TodoList() {
 						try {
 							// 获取目标父任务下的子任务
 							const siblings = todos.filter(
-								(t) => t.parentTodoId === targetTodoId,
+								(t: Todo) => t.parentTodoId === targetTodoId,
 							);
 							// 计算新的 order
 							const maxOrder = Math.max(
 								0,
-								...siblings.map((t) => t.order ?? 0),
+								...siblings.map((t: Todo) => t.order ?? 0),
 							);
 							const newOrder = maxOrder + 1;
 
@@ -125,7 +125,7 @@ export function TodoList() {
 			}
 
 			// 情况2: 常规列表内排序
-			const overTodo = todos.find((t) => t.id === overIdStr);
+			const overTodo = todos.find((t: Todo) => t.id === overIdStr);
 			if (!overTodo) return;
 
 			const isInternalDrop = orderedTodos.some(
@@ -147,10 +147,12 @@ export function TodoList() {
 					if (isSameLevel) {
 						// 同级排序：更新同级 todos 的 order
 						const parentId = activeTodo.parentTodoId;
-						const siblings = todos.filter((t) => t.parentTodoId === parentId);
+						const siblings = todos.filter(
+							(t: Todo) => t.parentTodoId === parentId,
+						);
 
 						// 找到在 orderedTodos 中的索引
-						const siblingIds = siblings.map((t) => t.id);
+						const siblingIds = siblings.map((t: Todo) => t.id);
 						const oldSiblingIndex = siblingIds.indexOf(activeIdStr);
 						const newSiblingIndex = siblingIds.indexOf(overIdStr);
 
@@ -164,7 +166,7 @@ export function TodoList() {
 
 							// 构建更新请求
 							const reorderItems: ReorderTodoItem[] = reorderedSiblings.map(
-								(todo, index) => ({
+								(todo: Todo, index: number) => ({
 									id: todo.id,
 									order: index,
 								}),
@@ -180,12 +182,13 @@ export function TodoList() {
 						// 跨级移动：将任务移动到目标位置附近，并更新父级关系
 						const newParentId = overTodo.parentTodoId;
 						const newSiblings = todos.filter(
-							(t) => t.parentTodoId === newParentId && t.id !== activeIdStr,
+							(t: Todo) =>
+								t.parentTodoId === newParentId && t.id !== activeIdStr,
 						);
 
 						// 找到插入位置
 						const overSiblingIndex = newSiblings.findIndex(
-							(t) => t.id === overIdStr,
+							(t: Todo) => t.id === overIdStr,
 						);
 						const insertIndex =
 							overSiblingIndex !== -1 ? overSiblingIndex : newSiblings.length;
@@ -196,7 +199,7 @@ export function TodoList() {
 
 						// 构建更新请求
 						const reorderItems: ReorderTodoItem[] = reorderedSiblings.map(
-							(todo, index) => ({
+							(todo: Todo, index: number) => ({
 								id: todo.id,
 								order: index,
 								...(todo.id === activeIdStr
@@ -261,9 +264,11 @@ export function TodoList() {
 
 	// 错误状态
 	if (error) {
+		const errorMessage =
+			error instanceof Error ? error.message : String(error) || "Unknown error";
 		return (
 			<div className="flex h-full items-center justify-center text-destructive">
-				加载失败: {error.message}
+				加载失败: {errorMessage}
 			</div>
 		);
 	}

@@ -1,15 +1,20 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+	TodoCreate,
+	TodoListResponse,
+	TodoReorderRequest,
+	TodoResponse,
+	TodoUpdate,
+} from "@/lib/generated/schemas";
 import {
-	type ApiTodo,
-	createTodo,
-	deleteTodoApi,
-	getTodos,
-	reorderTodosApi,
-	type TodoReorderItem,
-	updateTodoApi,
-} from "@/lib/api";
+	createTodoApiTodosPost,
+	deleteTodoApiTodosTodoIdDelete,
+	reorderTodosApiTodosReorderPost,
+	updateTodoApiTodosTodoIdPut,
+	useListTodosApiTodosGet,
+} from "@/lib/generated/todos/todos";
 import type {
 	CreateTodoInput,
 	Todo,
@@ -19,6 +24,9 @@ import type {
 	UpdateTodoInput,
 } from "@/lib/types/todo";
 import { queryKeys } from "./keys";
+
+// 使用生成的类型作为 API 类型
+type ApiTodo = TodoResponse;
 
 // ============================================================================
 // 类型转换工具函数
@@ -158,20 +166,27 @@ interface UseTodosParams {
 
 /**
  * 获取 Todo 列表的 Query Hook
+ * 使用 Orval 生成的 hook
  */
 export function useTodos(params?: UseTodosParams) {
-	return useQuery({
-		queryKey: queryKeys.todos.list(params),
-		queryFn: async () => {
-			const res = await getTodos({
-				limit: params?.limit ?? 2000,
-				offset: params?.offset ?? 0,
-				status: params?.status,
-			});
-			return res.todos.map(fromApiTodo);
+	return useListTodosApiTodosGet(
+		{
+			limit: params?.limit ?? 2000,
+			offset: params?.offset ?? 0,
+			status: params?.status,
 		},
-		staleTime: 30 * 1000, // 30 秒内数据被认为是新鲜的
-	});
+		{
+			query: {
+				queryKey: queryKeys.todos.list(params),
+				staleTime: 30 * 1000, // 30 秒内数据被认为是新鲜的
+				select: (data: TodoListResponse) => {
+					// 转换 API 数据为前端格式
+					const todos = data?.todos ?? [];
+					return todos.map(fromApiTodo);
+				},
+			},
+		},
+	);
 }
 
 // ============================================================================
@@ -184,6 +199,7 @@ const pendingUpdatePayloads = new Map<string, Record<string, unknown>>();
 
 /**
  * 创建 Todo 的 Mutation Hook
+ * 包装 Orval 生成的 hook，接受 CreateTodoInput 参数
  */
 export function useCreateTodo() {
 	const queryClient = useQueryClient();
@@ -191,7 +207,7 @@ export function useCreateTodo() {
 	return useMutation({
 		mutationFn: async (input: CreateTodoInput) => {
 			const payload = toCreateTodoPayload(input);
-			const created = await createTodo(payload);
+			const created = await createTodoApiTodosPost(payload as TodoCreate);
 			return fromApiTodo(created);
 		},
 		onSuccess: () => {
@@ -209,6 +225,7 @@ interface UpdateTodoParams {
 /**
  * 更新 Todo 的 Mutation Hook
  * 支持乐观更新和防抖（针对描述和备注字段）
+ * 使用 Orval 生成的 API 函数，但保留业务逻辑
  */
 export function useUpdateTodo() {
 	const queryClient = useQueryClient();
@@ -253,7 +270,11 @@ export function useUpdateTodo() {
 						}
 
 						try {
-							const updated = await updateTodoApi(toApiId(id), body);
+							// 使用 Orval 生成的 API 函数
+							const updated = await updateTodoApiTodosTodoIdPut(
+								toApiId(id),
+								body as TodoUpdate,
+							);
 							resolve(fromApiTodo(updated));
 						} catch (err) {
 							reject(err);
@@ -270,7 +291,11 @@ export function useUpdateTodo() {
 				throw new Error("No fields to update");
 			}
 
-			const updated = await updateTodoApi(toApiId(id), body);
+			// 使用 Orval 生成的 API 函数
+			const updated = await updateTodoApiTodosTodoIdPut(
+				toApiId(id),
+				body as TodoUpdate,
+			);
 			return fromApiTodo(updated);
 		},
 		onMutate: async ({ id, input }) => {
@@ -278,25 +303,78 @@ export function useUpdateTodo() {
 			await queryClient.cancelQueries({ queryKey: queryKeys.todos.all });
 
 			// 保存之前的数据用于回滚
-			const previousTodos = queryClient.getQueryData<Todo[]>(
+			// 注意：query cache 中存储的是原始 API 响应 { total, todos: TodoResponse[] }
+			// 但 useTodos 使用了 select 转换，所以我们需要获取转换后的数据
+			const previousData = queryClient.getQueryData<TodoListResponse>(
 				queryKeys.todos.list(),
 			);
 
-			// 乐观更新
-			queryClient.setQueryData<Todo[]>(queryKeys.todos.list(), (old) => {
-				if (!old) return old;
-				return old.map((todo) =>
-					todo.id === id
-						? {
-								...todo,
-								...input,
-								priority: normalizePriority(input.priority ?? todo.priority),
-								status: input.status ?? todo.status,
-								updatedAt: new Date().toISOString(),
+			// 获取转换后的 todos 数组（通过 select 函数）
+			let previousTodos: Todo[] | undefined;
+			if (previousData && Array.isArray(previousData.todos)) {
+				previousTodos = previousData.todos.map(fromApiTodo);
+			}
+
+			// 乐观更新 - 更新原始 API 响应结构
+			queryClient.setQueryData(
+				queryKeys.todos.list(),
+				(old: TodoListResponse | undefined) => {
+					if (!old) return old;
+
+					// 处理原始 API 响应结构 { total, todos: TodoResponse[] }
+					if (old && "todos" in old && Array.isArray(old.todos)) {
+						const updatedTodos = old.todos.map((todo: TodoResponse) => {
+							// 如果是 TodoResponse，需要先转换
+							const todoId = String(todo.id ?? todo.id);
+							if (todoId === id) {
+								// 转换 API todo 为前端 todo，然后应用更新
+								const frontendTodo = fromApiTodo(todo);
+								return {
+									...todo, // 保持原始 API 结构
+									description:
+										input.description ??
+										frontendTodo.description ??
+										todo.description,
+									user_notes:
+										input.userNotes ??
+										frontendTodo.userNotes ??
+										todo.user_notes,
+									name: input.name ?? frontendTodo.name ?? todo.name,
+									status: input.status ?? frontendTodo.status ?? todo.status,
+									priority:
+										input.priority ?? frontendTodo.priority ?? todo.priority,
+									updated_at: new Date().toISOString(),
+								};
 							}
-						: todo,
-				);
-			});
+							return todo;
+						});
+						return {
+							...old,
+							todos: updatedTodos,
+						};
+					}
+
+					// 向后兼容：如果是数组格式（不应该发生，但为了安全）
+					if (Array.isArray(old)) {
+						const updated = old.map((todo: Todo) =>
+							todo.id === id
+								? {
+										...todo,
+										...input,
+										priority: normalizePriority(
+											input.priority ?? todo.priority,
+										),
+										status: input.status ?? todo.status,
+										updatedAt: new Date().toISOString(),
+									}
+								: todo,
+						);
+						return updated;
+					}
+
+					return old;
+				},
+			);
 
 			return { previousTodos };
 		},
@@ -315,13 +393,15 @@ export function useUpdateTodo() {
 
 /**
  * 删除 Todo 的 Mutation Hook
+ * 使用 Orval 生成的 API 函数，保留乐观更新逻辑
  */
 export function useDeleteTodo() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		mutationFn: async (id: string) => {
-			await deleteTodoApi(toApiId(id));
+			// 使用 Orval 生成的 API 函数
+			await deleteTodoApiTodosTodoIdDelete(toApiId(id));
 			return id;
 		},
 		onMutate: async (id) => {
@@ -345,14 +425,15 @@ export function useDeleteTodo() {
 				return childIds;
 			};
 
-			const allIdsToDelete = previousTodos
-				? [id, ...findAllChildIds(id, previousTodos)]
-				: [id];
+			const allIdsToDelete =
+				previousTodos && Array.isArray(previousTodos)
+					? [id, ...findAllChildIds(id, previousTodos)]
+					: [id];
 			const idsToDeleteSet = new Set(allIdsToDelete);
 
 			// 乐观更新：移除 todo 及其所有子任务
 			queryClient.setQueryData<Todo[]>(queryKeys.todos.list(), (old) => {
-				if (!old) return old;
+				if (!old || !Array.isArray(old)) return old;
 				return old.filter((t) => !idsToDeleteSet.has(t.id));
 			});
 
@@ -408,6 +489,7 @@ export interface ReorderTodoItem {
 /**
  * 批量重排序 Todo 的 Mutation Hook
  * 支持更新 order 和 parentTodoId
+ * 使用 Orval 生成的 API 函数，保留乐观更新逻辑
  */
 export function useReorderTodos() {
 	const queryClient = useQueryClient();
@@ -415,7 +497,7 @@ export function useReorderTodos() {
 	return useMutation({
 		mutationFn: async (items: ReorderTodoItem[]) => {
 			// 转换为 API 格式
-			const apiItems: TodoReorderItem[] = items.map((item) => ({
+			const apiItems = items.map((item) => ({
 				id: toApiId(item.id),
 				order: item.order,
 				...(item.parentTodoId !== undefined
@@ -426,7 +508,10 @@ export function useReorderTodos() {
 						}
 					: {}),
 			}));
-			return reorderTodosApi(apiItems);
+			// 使用 Orval 生成的 API 函数
+			return reorderTodosApiTodosReorderPost({
+				items: apiItems,
+			} as TodoReorderRequest);
 		},
 		onMutate: async (items) => {
 			// 取消正在进行的 todos 查询
@@ -439,7 +524,7 @@ export function useReorderTodos() {
 
 			// 乐观更新
 			queryClient.setQueryData<Todo[]>(queryKeys.todos.list(), (old) => {
-				if (!old) return old;
+				if (!old || !Array.isArray(old)) return old;
 				return old.map((todo) => {
 					const item = items.find((i) => i.id === todo.id);
 					if (item) {

@@ -47,7 +47,9 @@ export function SettingsPanel() {
 	const handleToggleAutoTodoDetection = async (enabled: boolean) => {
 		try {
 			await saveConfigMutation.mutateAsync({
-				jobsAutoTodoDetectionEnabled: enabled,
+				data: {
+					jobsAutoTodoDetectionEnabled: enabled,
+				},
 			});
 			setAutoTodoDetectionEnabled(enabled);
 
@@ -78,7 +80,9 @@ export function SettingsPanel() {
 	const handleToggleCostPanel = async (enabled: boolean) => {
 		try {
 			await saveConfigMutation.mutateAsync({
-				uiCostTrackingEnabled: enabled,
+				data: {
+					uiCostTrackingEnabled: enabled,
+				},
 			});
 			setCostPanelEnabled(enabled);
 			setFeatureEnabled("costTracking", enabled);

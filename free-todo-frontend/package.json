@@ -11,6 +11,8 @@
 		"format": "biome format --write ./app ./apps ./components ./lib",
 		"check": "biome check ./app ./apps ./components ./lib",
 		"type-check": "tsc --noEmit",
+		"api:generate": "orval",
+		"api:generate:watch": "orval --watch",
 		"electron:build-main": "node scripts/build-electron.js",
 		"electron:resolve-symlinks": "node scripts/resolve-symlinks.js",
 		"electron:copy-missing-deps": "node scripts/copy-missing-deps.js",
@@ -36,6 +38,7 @@
 		"react-markdown": "^10.1.0",
 		"remark-gfm": "^4.0.1",
 		"tailwind-merge": "^3.4.0",
+		"zod": "^4.2.1",
 		"zustand": "^5.0.9"
 	},
 	"devDependencies": {
@@ -50,6 +53,7 @@
 		"electron": "^39.2.7",
 		"electron-builder": "^26.0.12",
 		"esbuild": "^0.27.1",
+		"orval": "^7.17.0",
 		"tailwindcss": "^4.1.18",
 		"typescript": "^5.9.3"
 	}
