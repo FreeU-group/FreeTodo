@@ -1,7 +1,7 @@
 "use client";
 
 import { Calendar, Flag, Plus, Tag as TagIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Todo } from "@/lib/types";
 import {
 	formatDateTime,
@@ -25,6 +25,13 @@ export function ChildTodoSection({
 }: ChildTodoSectionProps) {
 	const [isAddingChild, setIsAddingChild] = useState(false);
 	const [childName, setChildName] = useState("");
+	const inputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		if (isAddingChild) {
+			inputRef.current?.focus();
+		}
+	}, [isAddingChild]);
 
 	const handleSubmit = (event?: React.FormEvent) => {
 		if (event) event.preventDefault();
@@ -110,6 +117,7 @@ export function ChildTodoSection({
 					className="mt-2 flex flex-wrap items-center gap-2"
 				>
 					<input
+						ref={inputRef}
 						type="text"
 						value={childName}
 						onChange={(e) => setChildName(e.target.value)}
