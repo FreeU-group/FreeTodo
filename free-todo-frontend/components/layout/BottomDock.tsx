@@ -225,21 +225,8 @@ export function BottomDock({ className }: BottomDockProps) {
 		const feature = mounted
 			? getFeatureByPosition(position)
 			: defaultFeatureMap[position];
-		if (!feature) {
-			// 如果位置没有分配功能，返回一个占位 item
-			return {
-				id: position,
-				icon: FEATURE_ICON_MAP.todos,
-				label: "未分配",
-				isActive: false,
-				onClick: () => {},
-				group: "views",
-			};
-		}
-		const Icon = FEATURE_ICON_MAP[feature];
-		const labelKey = getFeatureLabelKey(feature);
 
-		// 获取位置对应的状态和 toggle 方法
+		// 获取位置对应的状态和 toggle 方法（无论是否分配功能都需要）
 		let isActive: boolean;
 		let onClick: () => void;
 		switch (position) {
@@ -256,6 +243,21 @@ export function BottomDock({ className }: BottomDockProps) {
 				onClick = togglePanelC;
 				break;
 		}
+
+		if (!feature) {
+			// 如果位置没有分配功能，返回一个占位 item
+			// 但仍然需要显示激活状态，并允许点击关闭
+			return {
+				id: position,
+				icon: FEATURE_ICON_MAP.todos,
+				label: "未分配",
+				isActive,
+				onClick,
+				group: "views",
+			};
+		}
+		const Icon = FEATURE_ICON_MAP[feature];
+		const labelKey = getFeatureLabelKey(feature);
 
 		return {
 			id: position,
