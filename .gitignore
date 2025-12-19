@@ -55,3 +55,6 @@ frontend/.vercel
 
 # Chatgpt
 AGENTS.md
+
+# Build
+dist-backend/

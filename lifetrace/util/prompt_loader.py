@@ -3,8 +3,6 @@
 从配置文件中加载 LLM 提示词
 """
 
-from pathlib import Path
-
 import yaml
 
 from lifetrace.util.logging_config import get_logger
@@ -33,7 +31,9 @@ class PromptLoader:
         """从 YAML 文件加载提示词"""
         try:
             # 获取配置文件路径
-            config_dir = Path(__file__).parent.parent / "config"
+            from lifetrace.util.path_utils import get_config_dir
+
+            config_dir = get_config_dir()
             prompt_file = config_dir / "prompt.yaml"
 
             if not prompt_file.exists():

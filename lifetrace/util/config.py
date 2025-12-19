@@ -3,7 +3,6 @@ import re
 import shutil
 import sys
 import threading
-from pathlib import Path
 
 import yaml
 
@@ -179,16 +178,30 @@ class LifeTraceConfig:
 
     def _get_application_path(self) -> str:
         """获取应用程序路径，兼容PyInstaller打包"""
-        if getattr(sys, "frozen", False):
-            # 如果是PyInstaller打包的应用，使用可执行文件所在目录
-            return os.path.dirname(sys.executable)
-        else:
-            # 开发环境，使用项目根目录
-            return Path(__file__).parent.parent
+        from lifetrace.util.path_utils import get_app_root
+
+        return str(get_app_root())
+
+    def _get_data_directory(self) -> str | None:
+        """获取数据目录路径（从环境变量或命令行参数）"""
+        # 优先使用环境变量
+        data_dir = os.environ.get("LIFETRACE_DATA_DIR")
+        if data_dir:
+            return os.path.abspath(data_dir)
+        return None
 
     def _get_default_config_path(self) -> str:
         """获取默认配置文件路径"""
-        # 确保config目录存在
+        # 如果指定了数据目录，使用数据目录下的config
+        data_dir = self._get_data_directory()
+        if data_dir:
+            config_dir = os.path.join(data_dir, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            config_path = os.path.join(config_dir, "config.yaml")
+            logger.info(f"Using data directory config: {config_path}")
+            return config_path
+
+        # 否则使用应用目录下的config
         app_path = self._get_application_path()
         config_dir = os.path.join(app_path, "config")
         os.makedirs(config_dir, exist_ok=True)
@@ -301,17 +314,46 @@ class LifeTraceConfig:
     def _init_config_file(self):
         """初始化配置文件
         检查config.yaml是否存在，如果不存在则从default_config.yaml复制
+        在打包环境下，如果数据目录中缺少 default_config.yaml，会尝试从内置配置复制。
         """
-        # 获取default_config.yaml路径
+        # 获取 default_config.yaml 路径（优先使用数据目录）
         config_dir = os.path.dirname(self.config_path)
         default_config_path = os.path.join(config_dir, "default_config.yaml")
 
-        # 检查default_config.yaml是否存在
+        # 如果数据目录中的 default_config.yaml 不存在，尝试从应用内置配置复制一份
         if not os.path.exists(default_config_path):
-            raise FileNotFoundError(
-                f"默认配置文件不存在: {default_config_path}\n"
-                "请确保 default_config.yaml 文件存在于 config 目录中"
-            )
+            # 在打包环境下，默认配置位于应用目录的 `config` 中（与 _internal 同级别）
+            from lifetrace.util.path_utils import get_config_dir
+
+            app_config_dir = get_config_dir()
+            candidate_paths = [
+                str(app_config_dir / "default_config.yaml"),
+            ]
+
+            source_default = None
+            for candidate in candidate_paths:
+                if os.path.exists(candidate):
+                    source_default = candidate
+                    logger.info(
+                        "Missing data directory default_config.yaml, "
+                        f"using bundled default from: {candidate}"
+                    )
+                    break
+
+            if source_default is not None:
+                # 确保配置目录存在，然后复制一份到数据目录
+                os.makedirs(config_dir, exist_ok=True)
+                shutil.copy2(source_default, default_config_path)
+                logger.info(
+                    f"Copied bundled default_config.yaml to data directory: {default_config_path}"
+                )
+            else:
+                # 如果连内置默认配置也不存在，再报错
+                raise FileNotFoundError(
+                    f"默认配置文件不存在: {default_config_path}\n"
+                    "请确保 default_config.yaml 文件存在于数据目录的 config 目录中，"
+                    "或在应用目录下的 _internal/config 或 config 目录中。"
+                )
 
         # 如果config.yaml已存在，检查完整性
         if os.path.exists(self.config_path):
@@ -356,9 +398,9 @@ class LifeTraceConfig:
         配置文件保存在config目录下，而不是~目录
         """
         # 获取默认配置文件路径
-        default_config_path = os.path.join(
-            self._get_application_path(), "config", "default_config.yaml"
-        )
+        from lifetrace.util.path_utils import get_config_dir
+
+        default_config_path = str(get_config_dir() / "default_config.yaml")
 
         # 检查默认配置文件是否存在
         if not os.path.exists(default_config_path):
@@ -455,6 +497,14 @@ class LifeTraceConfig:
 
     @property
     def base_dir(self) -> str:
+        # 如果指定了数据目录，使用数据目录下的data子目录
+        data_dir = self._get_data_directory()
+        if data_dir:
+            base_dir = os.path.join(data_dir, "data")
+            os.makedirs(base_dir, exist_ok=True)
+            return base_dir.rstrip(os.sep)
+
+        # 否则使用配置中的base_dir
         base_dir = self.get("base_dir")
         # 如果是相对路径，转换为绝对路径
         if not os.path.isabs(base_dir):
@@ -483,11 +533,21 @@ class LifeTraceConfig:
     @property
     def log_path(self) -> str:
         """日志目录路径"""
+        # 如果指定了数据目录，使用数据目录下的logs子目录
+        data_dir = self._get_data_directory()
+        if data_dir:
+            log_path = os.path.join(data_dir, "logs")
+            os.makedirs(log_path, exist_ok=True)
+            # 确保路径以 / 结尾，以便 logging_config 识别为目录
+            return log_path + os.sep if not log_path.endswith(os.sep) else log_path
+
+        # 否则使用配置中的log_path
         log_path = self.get("logging.log_path")
         if not os.path.isabs(log_path):
             # 如果是相对路径，基于base_dir拼接
             log_path = os.path.join(self.base_dir, log_path)
-        return log_path
+        # 确保路径以 / 结尾，以便 logging_config 识别为目录
+        return log_path + os.sep if not log_path.endswith(os.sep) else log_path
 
     @property
     def vector_db_persist_directory(self) -> str:

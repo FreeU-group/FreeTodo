@@ -35,6 +35,11 @@ extraResources:
     to: 'standalone/public'
     filter:
       - '**/*'
+  # 复制后端可执行文件（PyInstaller 打包结果）
+  - from: '../dist-backend'
+    to: 'backend'
+    filter:
+      - '**/*'
 
 # Windows 配置
 win:

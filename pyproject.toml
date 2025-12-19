@@ -132,4 +132,5 @@ index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 dev = [
     "pre-commit>=4.4.0",
     "ruff>=0.14.4",
+    "pyinstaller>=6.0.0",
 ]

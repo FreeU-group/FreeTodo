@@ -1,4 +1,4 @@
-import { type ChildProcess, fork } from "node:child_process";
+import { type ChildProcess, fork, spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -8,11 +8,15 @@ import { app, BrowserWindow, dialog } from "electron";
 // 即使 NODE_ENV 被设置为 development，打包的应用也应该运行生产服务器
 const isDev = !app.isPackaged && process.env.NODE_ENV !== "production";
 let nextProcess: ChildProcess | null = null;
+let backendProcess: ChildProcess | null = null;
 let mainWindow: BrowserWindow | null = null;
 let healthCheckInterval: NodeJS.Timeout | null = null;
+let backendHealthCheckInterval: NodeJS.Timeout | null = null;
 
 const PORT = process.env.PORT || "3000";
 const SERVER_URL = `http://localhost:${PORT}`;
+const BACKEND_PORT = process.env.BACKEND_PORT || "8000";
+const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 // 日志文件路径
 const logFile = path.join(app.getPath("logs"), "freetodo.log");
@@ -76,6 +80,51 @@ function waitForServer(url: string, timeout: number): Promise<void> {
 		const retry = () => {
 			if (Date.now() - startTime >= timeout) {
 				reject(new Error(`Server did not start within ${timeout}ms`));
+			} else {
+				setTimeout(check, 500);
+			}
+		};
+
+		check();
+	});
+}
+
+/**
+ * 等待后端服务器启动就绪
+ */
+function waitForBackend(url: string, timeout: number): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const startTime = Date.now();
+
+		const check = () => {
+			http
+				.get(`${url}/health`, (res) => {
+					// 接受 2xx 或 3xx 状态码作为成功
+					if (res.statusCode && res.statusCode >= 200 && res.statusCode < 400) {
+						logToFile(`Backend health check passed: ${res.statusCode}`);
+						resolve();
+					} else {
+						retry();
+					}
+				})
+				.on("error", (err) => {
+					const elapsed = Date.now() - startTime;
+					if (elapsed % 10000 < 500) {
+						// 每 10 秒记录一次
+						logToFile(
+							`Backend health check failed (${elapsed}ms elapsed): ${err.message}`,
+						);
+					}
+					retry();
+				})
+				.setTimeout(5000, () => {
+					retry();
+				});
+		};
+
+		const retry = () => {
+			if (Date.now() - startTime >= timeout) {
+				reject(new Error(`Backend did not start within ${timeout}ms`));
 			} else {
 				setTimeout(check, 500);
 			}
@@ -398,6 +447,159 @@ function startHealthCheck(): void {
 }
 
 /**
+ * 启动后端服务器
+ */
+function startBackendServer(): void {
+	if (backendProcess) {
+		logToFile("Backend server is already running");
+		return;
+	}
+
+	// 获取后端可执行文件路径
+	let backendPath: string;
+	let backendDir: string;
+
+	if (app.isPackaged) {
+		// 打包环境：后端在 Resources/backend/lifetrace
+		backendDir = path.join(process.resourcesPath, "backend");
+		backendPath = path.join(backendDir, "lifetrace");
+	} else {
+		// 开发环境：使用 dist-backend
+		const projectRoot = path.resolve(__dirname, "../..");
+		backendDir = path.join(projectRoot, "..", "dist-backend");
+		backendPath = path.join(backendDir, "lifetrace");
+	}
+
+	// 检查后端可执行文件是否存在
+	if (!fs.existsSync(backendPath)) {
+		const errorMsg = `The backend executable was not found at: ${backendPath}\n\nPlease rebuild the application.`;
+		logToFile(`ERROR: ${errorMsg}`);
+		if (mainWindow) {
+			dialog.showErrorBox("Backend Not Found", errorMsg);
+		}
+		return;
+	}
+
+	// 获取数据目录
+	const userDataDir = app.getPath("userData");
+	const dataDir = path.join(userDataDir, "lifetrace-data");
+
+	logToFile(`Starting backend server...`);
+	logToFile(`Backend path: ${backendPath}`);
+	logToFile(`Backend directory: ${backendDir}`);
+	logToFile(`Data directory: ${dataDir}`);
+
+	// 启动后端进程
+	backendProcess = spawn(
+		backendPath,
+		["--port", BACKEND_PORT, "--data-dir", dataDir],
+		{
+			cwd: backendDir,
+			env: {
+				...process.env,
+				PYTHONUNBUFFERED: "1",
+			},
+			stdio: ["ignore", "pipe", "pipe"],
+		},
+	);
+
+	// 记录后端输出
+	if (backendProcess.stdout) {
+		backendProcess.stdout.setEncoding("utf8");
+		backendProcess.stdout.on("data", (data) => {
+			const output = String(data);
+			logToFile(`[Backend STDOUT] ${output.trim()}`);
+		});
+	}
+
+	if (backendProcess.stderr) {
+		backendProcess.stderr.setEncoding("utf8");
+		backendProcess.stderr.on("data", (data) => {
+			const output = String(data);
+			logToFile(`[Backend STDERR] ${output.trim()}`);
+		});
+	}
+
+	backendProcess.on("error", (error) => {
+		const errorMsg = `Failed to start backend server: ${error.message}`;
+		logToFile(`ERROR: ${errorMsg}`);
+		if (mainWindow) {
+			dialog.showErrorBox(
+				"Backend Start Error",
+				`${errorMsg}\n\nCheck logs at: ${logFile}`,
+			);
+		}
+		backendProcess = null;
+	});
+
+	backendProcess.on("exit", (code, signal) => {
+		const exitMsg = `Backend server exited with code ${code}${signal ? `, signal ${signal}` : ""}`;
+		logToFile(`ERROR: ${exitMsg}`);
+		backendProcess = null;
+
+		if (mainWindow && code !== 0) {
+			dialog.showErrorBox(
+				"Backend Server Exited",
+				`The backend server exited unexpectedly.\n\n${exitMsg}\n\nCheck logs at: ${logFile}\n\nBackend path: ${backendPath}\nData directory: ${dataDir}`,
+			);
+		}
+	});
+}
+
+/**
+ * 停止后端服务器
+ */
+function stopBackendServer(): void {
+	if (backendProcess) {
+		logToFile("Stopping backend server...");
+		backendProcess.kill("SIGTERM");
+		backendProcess = null;
+	}
+	stopBackendHealthCheck();
+}
+
+/**
+ * 启动后端健康检查
+ */
+function startBackendHealthCheck(): void {
+	if (backendHealthCheckInterval) {
+		clearInterval(backendHealthCheckInterval);
+	}
+
+	backendHealthCheckInterval = setInterval(() => {
+		if (!backendProcess || backendProcess.killed) {
+			logToFile("WARNING: Backend process is not running");
+			return;
+		}
+
+		http
+			.get(`${BACKEND_URL}/health`, (res) => {
+				if (res.statusCode && res.statusCode >= 200 && res.statusCode < 400) {
+					// 健康检查成功，不记录日志（避免日志过多）
+				} else {
+					logToFile(`WARNING: Backend returned status ${res.statusCode}`);
+				}
+			})
+			.on("error", (error) => {
+				logToFile(`WARNING: Backend health check failed: ${error.message}`);
+			})
+			.setTimeout(5000, () => {
+				logToFile("WARNING: Backend health check timeout");
+			});
+	}, 30000); // 每 30 秒检查一次
+}
+
+/**
+ * 停止后端健康检查
+ */
+function stopBackendHealthCheck(): void {
+	if (backendHealthCheckInterval) {
+		clearInterval(backendHealthCheckInterval);
+		backendHealthCheckInterval = null;
+	}
+}
+
+/**
  * 停止健康检查
  */
 function stopHealthCheck(): void {
@@ -437,11 +639,13 @@ if (gotTheLock) {
 
 	// 应用退出前清理
 	app.on("before-quit", () => {
+		stopBackendServer();
 		stopNextServer();
 	});
 
 	// 应用退出时确保清理
 	app.on("quit", () => {
+		stopBackendServer();
 		stopNextServer();
 	});
 
@@ -452,22 +656,39 @@ if (gotTheLock) {
 			logToFile(`NODE_ENV: ${process.env.NODE_ENV || "not set"}`);
 			logToFile(`isDev: ${isDev}`);
 			logToFile(`Will start built-in server: ${!isDev || app.isPackaged}`);
+
+			// 1. 启动后端服务器
+			startBackendServer();
+
+			// 2. 等待后端就绪（最多等待 180 秒）
+			const waitBackendMsg = "Waiting for backend server to be ready...";
+			console.log(waitBackendMsg);
+			logToFile(waitBackendMsg);
+			await waitForBackend(BACKEND_URL, 180000); // 3 分钟超时
+			const backendReadyMsg = "Backend server is ready!";
+			console.log(backendReadyMsg);
+			logToFile(backendReadyMsg);
+
+			// 3. 启动后端健康检查
+			startBackendHealthCheck();
+
+			// 4. 启动 Next.js 服务器
 			await startNextServer();
 
-			// 等待服务器就绪（最多等待 30 秒）
-			const waitMsg = "Waiting for server to be ready...";
+			// 5. 等待 Next.js 服务器就绪（最多等待 30 秒）
+			const waitMsg = "Waiting for Next.js server to be ready...";
 			console.log(waitMsg);
 			logToFile(waitMsg);
-
 			await waitForServer(SERVER_URL, 30000);
 
-			const readyMsg = "Server is ready!";
+			const readyMsg = "Next.js server is ready!";
 			console.log(readyMsg);
 			logToFile(readyMsg);
 
-			// 启动健康检查
+			// 6. 启动 Next.js 健康检查
 			startHealthCheck();
 
+			// 7. 创建窗口
 			createWindow();
 			logToFile("Window created successfully");
 		} catch (error) {
