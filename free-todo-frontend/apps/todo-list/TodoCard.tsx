@@ -458,6 +458,7 @@ export function TodoCard({
 							// 阻止所有键盘事件冒泡到父元素，避免空格等键被父元素拦截
 							e.stopPropagation();
 							if (e.key === "Enter") {
+								e.preventDefault(); // 阻止表单提交，避免重复创建
 								handleCreateChild();
 								return;
 							}

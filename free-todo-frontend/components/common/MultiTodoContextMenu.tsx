@@ -127,19 +127,32 @@ export function MultiTodoContextMenu({
 				return childIds;
 			};
 
-			// 收集所有要删除的 ID（包括子任务）
-			const allIdsToDelete = new Set<number>();
+			const selectedSet = new Set(selectedTodoIds);
+
+			// 找出"根"选中项：父任务不在选中列表中的 todo
+			// 只需要删除这些根项，后端会级联删除子任务
+			const rootIdsToDelete: number[] = [];
 			for (const id of selectedTodoIds) {
-				allIdsToDelete.add(id);
-				const childIds = findAllChildIds(id, todos);
-				for (const childId of childIds) {
-					allIdsToDelete.add(childId);
+				const todo = todos.find((t) => t.id === id);
+				// 如果没有父任务，或者父任务不在选中列表中，则为根项
+				if (!todo?.parentTodoId || !selectedSet.has(todo.parentTodoId)) {
+					rootIdsToDelete.push(id);
 				}
 			}
 
-			// 批量删除所有选中的 todo（包括子任务）
+			// 收集所有要从 UI 中移除的 ID（包括子任务，用于清理状态）
+			const allIdsToRemove = new Set<number>();
+			for (const id of selectedTodoIds) {
+				allIdsToRemove.add(id);
+				const childIds = findAllChildIds(id, todos);
+				for (const childId of childIds) {
+					allIdsToRemove.add(childId);
+				}
+			}
+
+			// 只删除根项，后端会级联删除子任务
 			await Promise.all(
-				Array.from(allIdsToDelete).map((id) =>
+				rootIdsToDelete.map((id) =>
 					deleteTodo(id).catch((err) => {
 						console.error(`Failed to delete todo ${id}:`, err);
 					}),
@@ -147,7 +160,7 @@ export function MultiTodoContextMenu({
 			);
 
 			// 清理 UI 状态
-			onTodoDeleted(Array.from(allIdsToDelete));
+			onTodoDeleted(Array.from(allIdsToRemove));
 		} catch (err) {
 			console.error("Failed to delete todos:", err);
 		}
