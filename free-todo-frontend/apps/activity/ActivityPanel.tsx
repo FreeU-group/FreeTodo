@@ -74,9 +74,9 @@ export function ActivityPanel() {
 	}
 
 	return (
-		<div className="flex h-full flex-col gap-4 bg-background p-4">
+		<div className="flex h-full flex-col overflow-hidden bg-background">
 			<ActivityHeader searchValue={search} onSearchChange={setSearch} />
-			<div className="flex min-h-0 flex-1 gap-4 overflow-hidden">
+			<div className="flex min-h-0 flex-1 gap-4 overflow-hidden p-4">
 				<ActivitySidebar
 					groups={groups}
 					selectedId={selectedActivityId}

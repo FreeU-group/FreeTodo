@@ -9,7 +9,10 @@ import { CostTrackingPanel } from "@/apps/cost-tracking";
 import { SettingsPanel } from "@/apps/settings";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
-import { PanelPositionProvider } from "@/components/common/PanelHeader";
+import {
+	PanelHeader,
+	PanelPositionProvider,
+} from "@/components/common/PanelHeader";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import {
 	FEATURE_ICON_MAP,
@@ -87,17 +90,16 @@ export function PanelContent({ position }: PanelContentProps) {
 	// 特别是 debugShots 功能，因为它依赖于开发环境配置
 	if (!mounted && feature === "debugShots") {
 		return (
-			<div className="flex h-full flex-col rounded-(--radius) overflow-hidden">
-				<div className="flex h-10 shrink-0 items-center gap-2 bg-muted/30 px-4">
-					{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-					<h2 className="text-sm font-medium text-foreground">
-						{getFeatureLabel(position)}
-					</h2>
+			<PanelPositionProvider position={position}>
+				<div className="flex h-full flex-col rounded-(--radius) overflow-hidden">
+					{Icon && (
+						<PanelHeader icon={Icon} title={getFeatureLabel(position)} />
+					)}
+					<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+						{getFeaturePlaceholder(position)}
+					</div>
 				</div>
-				<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-					{getFeaturePlaceholder(position)}
-				</div>
-			</div>
+			</PanelPositionProvider>
 		);
 	}
 
@@ -185,16 +187,13 @@ export function PanelContent({ position }: PanelContentProps) {
 
 	// 其他功能显示占位符
 	return (
-		<div className="flex h-full flex-col rounded-(--radius) overflow-hidden">
-			<div className="flex h-10 shrink-0 items-center gap-2 bg-muted/30 px-4">
-				{Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-				<h2 className="text-sm font-medium text-foreground">
-					{getFeatureLabel(position)}
-				</h2>
+		<PanelPositionProvider position={position}>
+			<div className="flex h-full flex-col rounded-(--radius) overflow-hidden">
+				{Icon && <PanelHeader icon={Icon} title={getFeatureLabel(position)} />}
+				<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+					{getFeaturePlaceholder(position)}
+				</div>
 			</div>
-			<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-				{getFeaturePlaceholder(position)}
-			</div>
-		</div>
+		</PanelPositionProvider>
 	);
 }
