@@ -11,9 +11,6 @@ logger = get_logger()
 
 # 全局依赖对象 - 在 server.py 中初始化
 ocr_processor = None
-vector_service = None
-rag_service = None
-behavior_tracker = None
 config = None
 
 # 会话管理
@@ -21,6 +18,33 @@ chat_sessions = defaultdict(dict)
 
 # 配置状态标志
 is_llm_configured = False
+
+
+def get_vector_service():
+    """获取向量服务（延迟加载）"""
+    from lifetrace.core.lazy_services import get_vector_service as lazy_get_vector_service
+
+    return lazy_get_vector_service()
+
+
+def get_rag_service():
+    """获取 RAG 服务（延迟加载）"""
+    from lifetrace.core.lazy_services import get_rag_service as lazy_get_rag_service
+
+    return lazy_get_rag_service()
+
+
+# 向后兼容的属性访问
+@property
+def vector_service():
+    """向后兼容：返回延迟加载的向量服务"""
+    return get_vector_service()
+
+
+@property
+def rag_service():
+    """向后兼容：返回延迟加载的 RAG 服务"""
+    return get_rag_service()
 
 
 def generate_session_id() -> str:
@@ -81,17 +105,20 @@ def add_to_session_context(session_id: str, role: str, content: str):
 
 def init_dependencies(
     ocr_proc,
-    vec_service,
-    rag_svc,
+    vec_service,  # 已弃用，传入 None
+    rag_svc,  # 已弃用，传入 None
     cfg,
     is_llm_config,
 ):
-    """初始化全局依赖"""
-    global ocr_processor, vector_service
-    global rag_service, config, is_llm_configured
+    """初始化全局依赖
+
+    注意：vec_service 和 rag_svc 参数已弃用，这些服务现在通过延迟加载获取。
+    保留参数是为了向后兼容。
+    """
+    global ocr_processor, config, is_llm_configured
 
     ocr_processor = ocr_proc
-    vector_service = vec_service
-    rag_service = rag_svc
     config = cfg
     is_llm_configured = is_llm_config
+
+    # vec_service 和 rag_svc 参数被忽略，改用延迟加载

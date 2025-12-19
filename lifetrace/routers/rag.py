@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api", tags=["rag"])
 async def rag_health_check():
     """RAG服务健康检查"""
     try:
-        return deps.rag_service.health_check()
+        return deps.get_rag_service().health_check()
     except Exception as e:
         logger.error(f"RAG健康检查失败: {e}")
         return {

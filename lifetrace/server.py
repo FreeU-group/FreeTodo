@@ -6,8 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from lifetrace.jobs.job_manager import get_job_manager
 from lifetrace.jobs.ocr import SimpleOCRProcessor
-from lifetrace.llm.rag_service import RAGService
-from lifetrace.llm.vector_service import create_vector_service
 from lifetrace.routers import (
     activity,
     chat,
@@ -94,25 +92,19 @@ app.add_middleware(
 # 初始化OCR处理器
 ocr_processor = SimpleOCRProcessor()
 
-# 初始化向量数据库服务
-vector_service = create_vector_service(config)
-
-# 初始化RAG服务 - 从配置文件读取API配置
-rag_service = RAGService()
-logger.info(
-    f"RAG服务初始化完成 - 模型: {config.get('llm.model')}, Base URL: {config.get('llm.base_url')}"
-)
+# 向量服务和RAG服务改为延迟加载，不再在启动时同步初始化
+# 通过 lifetrace.core.lazy_services 模块按需获取
 
 # 全局配置状态标志
 is_llm_configured = config.is_configured()
 config_status = "已配置" if is_llm_configured else "未配置，需要引导配置"
 logger.info(f"LLM配置状态: {config_status}")
 
-# 初始化路由依赖
+# 初始化路由依赖（使用延迟加载的服务）
 deps.init_dependencies(
     ocr_processor,
-    vector_service,
-    rag_service,
+    None,  # vector_service - 延迟加载
+    None,  # rag_service - 延迟加载
     config,
     is_llm_configured,
 )

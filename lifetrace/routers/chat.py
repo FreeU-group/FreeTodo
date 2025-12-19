@@ -42,7 +42,8 @@ async def chat_with_llm(message: ChatMessage, request: Request):
         client_ip = request.client.host if request.client else "unknown"
 
         # 使用RAG服务处理查询
-        rag_result = await deps.rag_service.process_query(message.message)
+        rag_service = deps.get_rag_service()
+        rag_result = await rag_service.process_query(message.message)
 
         # 计算响应时间
         response_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -160,7 +161,8 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
 
         if message.use_rag:
             # 使用RAG服务的流式处理方法，避免重复的意图识别
-            rag_result = await deps.rag_service.process_query_stream(
+            rag_service = deps.get_rag_service()
+            rag_result = await rag_service.process_query_stream(
                 message.message, message.project_id, message.task_ids, session_id
             )
 
@@ -215,16 +217,19 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
             content=user_message_to_save,
         )
 
+        # 获取RAG服务（在生成器外部获取，避免重复初始化）
+        rag_svc = deps.get_rag_service()
+
         # 调用LLM流式API并逐块返回
         def token_generator():
             try:
-                if not deps.rag_service.llm_client.is_available():
+                if not rag_svc.llm_client.is_available():
                     yield "抱歉，LLM服务当前不可用，请稍后重试。"
                     return
 
                 # 使用LLM客户端进行流式生成
-                response = deps.rag_service.llm_client.client.chat.completions.create(
-                    model=deps.rag_service.llm_client.model,
+                response = rag_svc.llm_client.client.chat.completions.create(
+                    model=rag_svc.llm_client.model,
                     messages=messages,
                     temperature=temperature,
                     stream=True,
@@ -252,7 +257,7 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
                         role="assistant",
                         content=total_content,
                         token_count=usage_info.total_tokens if usage_info else None,
-                        model=deps.rag_service.llm_client.model,
+                        model=rag_svc.llm_client.model,
                     )
                     logger.info("[stream] 消息已保存到数据库")
 
@@ -267,7 +272,7 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
                         )
 
                         log_token_usage(
-                            model=deps.rag_service.llm_client.model,
+                            model=rag_svc.llm_client.model,
                             input_tokens=usage_info.prompt_tokens,
                             output_tokens=usage_info.completion_tokens,
                             endpoint="stream_chat",
@@ -358,9 +363,8 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
             enhanced_message = message.message
 
         # 使用RAG服务的流式处理方法
-        rag_result = await deps.rag_service.process_query_stream(
-            enhanced_message, session_id=session_id
-        )
+        rag_service = deps.get_rag_service()
+        rag_result = await rag_service.process_query_stream(enhanced_message, session_id=session_id)
 
         if not rag_result.get("success", False):
             # 如果RAG处理失败，返回错误信息
@@ -382,16 +386,19 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
             content=message.message,
         )
 
+        # 获取RAG服务（在生成器外部获取，避免重复初始化）
+        rag_svc = deps.get_rag_service()
+
         # 调用LLM流式API并逐块返回
         def token_generator():
             try:
-                if not deps.rag_service.llm_client.is_available():
+                if not rag_svc.llm_client.is_available():
                     yield "抱歉，LLM服务当前不可用，请稍后重试。"
                     return
 
                 # 使用LLM客户端进行流式生成
-                response = deps.rag_service.llm_client.client.chat.completions.create(
-                    model=deps.rag_service.llm_client.model,
+                response = rag_svc.llm_client.client.chat.completions.create(
+                    model=rag_svc.llm_client.model,
                     messages=messages,
                     temperature=temperature,
                     stream=True,
@@ -419,7 +426,7 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
                         role="assistant",
                         content=total_content,
                         token_count=usage_info.total_tokens if usage_info else None,
-                        model=deps.rag_service.llm_client.model,
+                        model=rag_svc.llm_client.model,
                     )
                     logger.info("[stream-with-context] 消息已保存到数据库")
 
@@ -429,7 +436,7 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
                         from lifetrace.util.token_usage_logger import log_token_usage
 
                         log_token_usage(
-                            model=deps.rag_service.llm_client.model,
+                            model=rag_svc.llm_client.model,
                             input_tokens=usage_info.prompt_tokens,
                             output_tokens=usage_info.completion_tokens,
                             endpoint="stream_chat_with_context",
@@ -562,7 +569,7 @@ async def get_query_suggestions(
 ):
     """获取查询建议"""
     try:
-        suggestions = deps.rag_service.get_query_suggestions(partial_query)
+        suggestions = deps.get_rag_service().get_query_suggestions(partial_query)
         return {"suggestions": suggestions, "partial_query": partial_query}
     except Exception as e:
         logger.error(f"获取查询建议失败: {e}")
@@ -573,7 +580,7 @@ async def get_query_suggestions(
 async def get_supported_query_types():
     """获取支持的查询类型"""
     try:
-        return deps.rag_service.get_supported_query_types()
+        return deps.get_rag_service().get_supported_query_types()
     except Exception as e:
         logger.error(f"获取查询类型失败: {e}")
         raise HTTPException(status_code=500, detail="获取查询类型失败") from e
@@ -706,16 +713,19 @@ async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa:
             content=user_message_content,
         )
 
+        # 获取RAG服务（在生成器外部获取，避免重复初始化）
+        rag_svc = deps.get_rag_service()
+
         # 调用LLM流式API并逐块返回
         def token_generator():
             try:
-                if not deps.rag_service.llm_client.is_available():
+                if not rag_svc.llm_client.is_available():
                     yield "抱歉，LLM服务当前不可用，请稍后重试。"
                     return
 
                 # 使用LLM客户端进行流式生成
-                response = deps.rag_service.llm_client.client.chat.completions.create(
-                    model=deps.rag_service.llm_client.model,
+                response = rag_svc.llm_client.client.chat.completions.create(
+                    model=rag_svc.llm_client.model,
                     messages=messages,
                     temperature=0.7,
                     stream=True,
@@ -742,7 +752,7 @@ async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa:
                         role="assistant",
                         content=total_content,
                         token_count=usage_info.total_tokens if usage_info else None,
-                        model=deps.rag_service.llm_client.model,
+                        model=rag_svc.llm_client.model,
                     )
                     logger.info("[plan/questionnaire] 消息已保存到数据库")
 
@@ -825,16 +835,19 @@ async def plan_summary_stream(request: PlanSummaryRequest):  # noqa: C901
             content=user_message_content,
         )
 
+        # 获取RAG服务（在生成器外部获取，避免重复初始化）
+        rag_svc = deps.get_rag_service()
+
         # 调用LLM流式API并逐块返回
         def token_generator():
             try:
-                if not deps.rag_service.llm_client.is_available():
+                if not rag_svc.llm_client.is_available():
                     yield "抱歉，LLM服务当前不可用，请稍后重试。"
                     return
 
                 # 使用LLM客户端进行流式生成
-                response = deps.rag_service.llm_client.client.chat.completions.create(
-                    model=deps.rag_service.llm_client.model,
+                response = rag_svc.llm_client.client.chat.completions.create(
+                    model=rag_svc.llm_client.model,
                     messages=messages,
                     temperature=0.7,
                     stream=True,
@@ -861,7 +874,7 @@ async def plan_summary_stream(request: PlanSummaryRequest):  # noqa: C901
                         role="assistant",
                         content=total_content,
                         token_count=usage_info.total_tokens if usage_info else None,
-                        model=deps.rag_service.llm_client.model,
+                        model=rag_svc.llm_client.model,
                     )
                     logger.info("[plan/summary] 消息已保存到数据库")
 

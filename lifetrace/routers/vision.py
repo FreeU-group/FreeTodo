@@ -50,14 +50,15 @@ async def vision_chat(request: VisionChatRequest):
         )
 
         # 检查LLM客户端是否可用
-        if not deps.rag_service.llm_client.is_available():
+        rag_service = deps.get_rag_service()
+        if not rag_service.llm_client.is_available():
             raise HTTPException(
                 status_code=503,
                 detail="LLM服务当前不可用，请检查配置或稍后重试",
             )
 
         # 调用视觉模型
-        result = deps.rag_service.llm_client.vision_chat(
+        result = rag_service.llm_client.vision_chat(
             screenshot_ids=request.screenshot_ids,
             prompt=request.prompt,
             model=request.model,

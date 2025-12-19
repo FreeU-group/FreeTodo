@@ -29,11 +29,13 @@ async def health_check():
 async def llm_health_check():
     """LLM服务健康检查"""
     try:
-        # 检查RAG服务是否已初始化
-        if deps.rag_service is None:
+        # 获取RAG服务（延迟加载）- 验证服务能正常初始化
+        try:
+            deps.get_rag_service()
+        except Exception as init_error:
             return {
                 "status": "unavailable",
-                "message": "RAG服务未初始化",
+                "message": f"RAG服务初始化失败: {str(init_error)}",
                 "timestamp": datetime.now().isoformat(),
             }
 

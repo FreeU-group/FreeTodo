@@ -21,10 +21,11 @@ router = APIRouter(prefix="/api", tags=["vector"])
 async def semantic_search(request: SemanticSearchRequest):
     """语义搜索 OCR 结果"""
     try:
-        if not deps.vector_service.is_enabled():
+        vector_service = deps.get_vector_service()
+        if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
 
-        results = deps.vector_service.semantic_search(
+        results = vector_service.semantic_search(
             query=request.query,
             top_k=request.top_k,
             use_rerank=request.use_rerank,
@@ -55,9 +56,10 @@ async def semantic_search(request: SemanticSearchRequest):
 async def event_semantic_search(request: SemanticSearchRequest):
     """事件级语义搜索（基于事件聚合文本）"""
     try:
-        if not deps.vector_service.is_enabled():
+        vector_service = deps.get_vector_service()
+        if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
-        raw_results = deps.vector_service.semantic_search_events(
+        raw_results = vector_service.semantic_search_events(
             query=request.query, top_k=request.top_k
         )
 
@@ -90,7 +92,7 @@ async def event_semantic_search(request: SemanticSearchRequest):
 async def get_vector_stats():
     """获取向量数据库统计信息"""
     try:
-        stats = deps.vector_service.get_stats()
+        stats = deps.get_vector_service().get_stats()
         return VectorStatsResponse(**stats)
 
     except Exception as e:
@@ -105,10 +107,11 @@ async def sync_vector_database(
 ):
     """同步 SQLite 数据库到向量数据库"""
     try:
-        if not deps.vector_service.is_enabled():
+        vector_service = deps.get_vector_service()
+        if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
 
-        synced_count = deps.vector_service.sync_from_database(limit=limit, force_reset=force_reset)
+        synced_count = vector_service.sync_from_database(limit=limit, force_reset=force_reset)
 
         return {"message": "同步完成", "synced_count": synced_count}
 
@@ -121,10 +124,11 @@ async def sync_vector_database(
 async def reset_vector_database():
     """重置向量数据库"""
     try:
-        if not deps.vector_service.is_enabled():
+        vector_service = deps.get_vector_service()
+        if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
 
-        success = deps.vector_service.reset()
+        success = vector_service.reset()
 
         if success:
             return {"message": "向量数据库重置成功"}
