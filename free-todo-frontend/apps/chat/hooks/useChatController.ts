@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { usePlanParser } from "@/apps/chat/hooks/usePlanParser";
 import type { ChatMessage } from "@/apps/chat/types";
@@ -72,6 +72,10 @@ export const useChatController = ({
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [isComposing, setIsComposing] = useState(false);
+	// 使用ref跟踪上一次的conversationId，只在conversationId改变时加载history
+	const prevConversationIdRef = useRef<string | null>(null);
+	// 跟踪是否是主动加载历史记录（点击历史记录）vs 发送消息后的被动更新
+	const isLoadingSessionRef = useRef<boolean>(false);
 
 	const historyError = sessionsError
 		? locale === "zh"
@@ -104,6 +108,8 @@ export const useChatController = ({
 
 	const handleLoadSession = useCallback(
 		async (sessionId: string) => {
+			// 标记为主动加载历史记录
+			isLoadingSessionRef.current = true;
 			// 使用 TanStack Query 的数据
 			// 当 conversationId 改变时，useChatHistory 会自动获取新的历史记录
 			setConversationId(sessionId);
@@ -112,8 +118,26 @@ export const useChatController = ({
 		[setConversationId, setHistoryOpen],
 	);
 
-	// 当会话历史加载完成后，更新 messages
+	// 当会话历史加载完成后，更新 messages（仅在主动加载历史记录时）
 	useEffect(() => {
+		// 如果正在流式传输，不要覆盖消息
+		if (isStreaming) {
+			return;
+		}
+
+		// 更新prevConversationIdRef
+		const conversationIdChanged =
+			prevConversationIdRef.current !== conversationId;
+		if (conversationIdChanged) {
+			prevConversationIdRef.current = conversationId;
+		}
+
+		// 只有在主动加载历史记录时才用history覆盖messages
+		// 发送消息后的history更新不应该覆盖当前正在显示的消息
+		if (!isLoadingSessionRef.current) {
+			return;
+		}
+
 		if (sessionHistory.length > 0 && conversationId) {
 			const mapped = sessionHistory.map((item: ChatHistoryItem) => ({
 				id: createId(),
@@ -121,8 +145,16 @@ export const useChatController = ({
 				content: item.content,
 			}));
 			setMessages(mapped.length ? mapped : [buildInitialAssistantMessage()]);
+			// 加载完成，重置标志
+			isLoadingSessionRef.current = false;
 		}
-	}, [sessionHistory, conversationId, buildInitialAssistantMessage]);
+		// 如果conversationId存在但历史记录为空，可能是正在加载，保持标志为true等待数据
+	}, [
+		sessionHistory,
+		conversationId,
+		buildInitialAssistantMessage,
+		isStreaming,
+	]);
 
 	const handleSend = useCallback(async () => {
 		const text = inputValue.trim();
@@ -167,6 +199,9 @@ export const useChatController = ({
 				{
 					message: payloadMessage,
 					conversation_id: conversationId || undefined,
+					// 当发送格式化消息（包含todo上下文）时，设置use_rag=false
+					// 因为前端已经构建了完整的prompt，后端只需要解析并保存用户输入部分
+					use_rag: false,
 				},
 				(chunk) => {
 					assistantContent += chunk;

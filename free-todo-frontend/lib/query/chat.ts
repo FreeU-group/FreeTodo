@@ -16,22 +16,42 @@ interface ChatHistoryResponse {
 
 /**
  * 将会话数据转换为 ChatSessionSummary 类型
+ * 注意：fetcher会自动将snake_case转换为camelCase
  */
 function mapSessionToSummary(session: {
-	id: string;
 	[key: string]: unknown;
 }): ChatSessionSummary {
-	return {
-		session_id: session.id,
-		title: typeof session.title === "string" ? session.title : undefined,
-		last_active:
-			typeof session.last_active === "string" ? session.last_active : undefined,
-		message_count:
-			typeof session.message_count === "number"
+	// fetcher自动转换：session_id -> sessionId, message_count -> messageCount, etc.
+	const sessionId =
+		typeof session.sessionId === "string"
+			? session.sessionId
+			: typeof session.session_id === "string"
+				? session.session_id
+				: "";
+	const messageCount =
+		typeof session.messageCount === "number"
+			? session.messageCount
+			: typeof session.message_count === "number"
 				? session.message_count
-				: undefined,
-		chat_type:
-			typeof session.chat_type === "string" ? session.chat_type : undefined,
+				: undefined;
+	const lastActive =
+		typeof session.lastActive === "string"
+			? session.lastActive
+			: typeof session.last_active === "string"
+				? session.last_active
+				: undefined;
+	const chatType =
+		typeof session.chatType === "string"
+			? session.chatType
+			: typeof session.chat_type === "string"
+				? session.chat_type
+				: undefined;
+	return {
+		session_id: sessionId,
+		title: typeof session.title === "string" ? session.title : undefined,
+		last_active: lastActive,
+		message_count: messageCount,
+		chat_type: chatType,
 	};
 }
 
