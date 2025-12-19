@@ -47,9 +47,13 @@ export function HistoryDrawer({
 					{!historyLoading && sessions.length === 0 ? (
 						<p className="text-xs text-muted-foreground">{labels.noHistory}</p>
 					) : (
-						sessions.map((session) => (
+						sessions.map((session, index) => (
 							<button
-								key={session.session_id}
+								key={
+									session.session_id
+										? `${session.session_id}-${index}`
+										: `session-${index}`
+								}
 								type="button"
 								onClick={() => onSelectSession(session.session_id)}
 								disabled={historyLoading}
