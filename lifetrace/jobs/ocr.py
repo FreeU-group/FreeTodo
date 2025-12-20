@@ -62,7 +62,7 @@ except ImportError:
     sys.exit(1)
 
 
-def _create_rapidocr_instance() -> RapidOCR:
+def _create_rapidocr_instance() -> RapidOCR:  # noqa: C901, PLR0912
     """创建并初始化RapidOCR实例
 
     Returns:
@@ -70,11 +70,17 @@ def _create_rapidocr_instance() -> RapidOCR:
     """
     config_path = _get_rapidocr_config_path()
 
+    # 在 PyInstaller 打包环境中，RapidOCR 可能会尝试查找自己的 config.yaml
+    # 我们需要清除环境变量，防止它查找错误的路径
+    if getattr(sys, "frozen", False):
+        # 清除可能干扰的环境变量
+        if "RAPIDOCR_CONFIG_PATH" in os.environ:
+            del os.environ["RAPIDOCR_CONFIG_PATH"]
+
     # 检查配置文件是否存在
     if not os.path.exists(config_path):
         logger.warning(f"配置文件不存在: {config_path}，使用默认配置")
-        # 在 PyInstaller 打包环境中，RapidOCR 可能会尝试查找自己的 config.yaml
-        # 我们需要确保它使用默认配置，不传递 config_path
+        # 使用默认配置，不传递 config_path
         try:
             return RapidOCR(
                 config_path=None,
@@ -85,9 +91,8 @@ def _create_rapidocr_instance() -> RapidOCR:
             )
         except Exception as e:
             # 如果初始化失败，可能是 RapidOCR 内部查找配置文件失败
-            # 尝试设置环境变量来禁用配置文件查找
+            # 再次清除环境变量并重试
             logger.warning(f"RapidOCR 初始化时遇到问题: {e}，尝试使用环境变量修复")
-            # 清除可能干扰的环境变量
             if "RAPIDOCR_CONFIG_PATH" in os.environ:
                 del os.environ["RAPIDOCR_CONFIG_PATH"]
             # 再次尝试初始化
@@ -108,6 +113,9 @@ def _create_rapidocr_instance() -> RapidOCR:
         # 检查是否有外部模型路径配置
         if "Models" not in config_data:
             logger.info("未找到外部模型配置，使用默认方式")
+            # 在 PyInstaller 环境中，确保清除环境变量
+            if getattr(sys, "frozen", False) and "RAPIDOCR_CONFIG_PATH" in os.environ:
+                del os.environ["RAPIDOCR_CONFIG_PATH"]
             return RapidOCR(
                 config_path=None,
                 det_use_cuda=False,
@@ -118,9 +126,11 @@ def _create_rapidocr_instance() -> RapidOCR:
 
         models_config = config_data["Models"]
         models_dir = get_models_dir()
-        det_model_path = str(models_dir / models_config.get("det_model_path", ""))
-        rec_model_path = str(models_dir / models_config.get("rec_model_path", ""))
-        cls_model_path = str(models_dir / models_config.get("cls_model_path", ""))
+        # 模型路径配置应该是相对于 models 目录的文件名
+        # 例如：'ch_PP-OCRv4_det_infer.onnx' 而不是 'lifetrace/models/ch_PP-OCRv4_det_infer.onnx'
+        det_model_path = str(models_dir / models_config.get("det_model_path", "").lstrip("/"))
+        rec_model_path = str(models_dir / models_config.get("rec_model_path", "").lstrip("/"))
+        cls_model_path = str(models_dir / models_config.get("cls_model_path", "").lstrip("/"))
 
         # 验证外部模型文件是否存在
         if (
@@ -133,6 +143,10 @@ def _create_rapidocr_instance() -> RapidOCR:
             logger.info(f"  识别模型: {rec_model_path}")
             logger.info(f"  分类模型: {cls_model_path}")
 
+            # 在 PyInstaller 环境中，确保清除环境变量，防止 RapidOCR 查找内部配置文件
+            if getattr(sys, "frozen", False) and "RAPIDOCR_CONFIG_PATH" in os.environ:
+                del os.environ["RAPIDOCR_CONFIG_PATH"]
+
             return RapidOCR(
                 det_model_path=det_model_path,
                 rec_model_path=rec_model_path,
@@ -144,6 +158,9 @@ def _create_rapidocr_instance() -> RapidOCR:
             )
         else:
             logger.warning("外部模型文件不存在，使用默认配置")
+            # 在 PyInstaller 环境中，确保清除环境变量
+            if getattr(sys, "frozen", False) and "RAPIDOCR_CONFIG_PATH" in os.environ:
+                del os.environ["RAPIDOCR_CONFIG_PATH"]
             return RapidOCR(
                 config_path=None,
                 det_use_cuda=False,
@@ -154,6 +171,9 @@ def _create_rapidocr_instance() -> RapidOCR:
 
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}，使用默认配置")
+        # 在 PyInstaller 环境中，确保清除环境变量
+        if getattr(sys, "frozen", False) and "RAPIDOCR_CONFIG_PATH" in os.environ:
+            del os.environ["RAPIDOCR_CONFIG_PATH"]
         return RapidOCR(
             config_path=None,
             det_use_cuda=False,
@@ -517,7 +537,7 @@ _ocr_engine = None
 _vector_service = None
 
 
-def _ensure_ocr_initialized():
+def _ensure_ocr_initialized():  # noqa: C901
     """确保OCR引擎已初始化（用于调度器模式）"""
     global _ocr_engine, _vector_service
 
@@ -537,8 +557,11 @@ def _ensure_ocr_initialized():
             # 如果初始化失败，尝试使用更简单的配置
             try:
                 logger.info("尝试使用最小配置重新初始化 RapidOCR...")
+                # 确保清除环境变量，防止 RapidOCR 查找内部配置文件
                 if "RAPIDOCR_CONFIG_PATH" in os.environ:
                     del os.environ["RAPIDOCR_CONFIG_PATH"]
+                # 尝试设置一个不存在的路径，强制 RapidOCR 使用默认配置
+                # 但这样可能会失败，所以我们直接使用 None
                 _ocr_engine = RapidOCR(
                     config_path=None,
                     det_use_cuda=False,
@@ -549,6 +572,11 @@ def _ensure_ocr_initialized():
                 logger.info("RapidOCR引擎使用最小配置初始化成功")
             except Exception as e2:
                 logger.error(f"RapidOCR使用最小配置也初始化失败: {e2}")
+                # 最后一次尝试：完全清除所有可能的环境变量
+                for key in list(os.environ.keys()):
+                    if "RAPIDOCR" in key.upper() or "ONNX" in key.upper():
+                        del os.environ[key]
+                        logger.info(f"已清除环境变量: {key}")
                 raise
 
     if _vector_service is None:
