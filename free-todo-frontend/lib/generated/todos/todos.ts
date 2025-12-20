@@ -33,6 +33,7 @@ import type {
 } from ".././schemas";
 
 /**
+ * 获取待办列表
  * @summary List Todos
  */
 export const listTodosApiTodosGet = (
@@ -194,6 +195,7 @@ export function useListTodosApiTodosGet<
 }
 
 /**
+ * 创建待办
  * @summary Create Todo
  */
 export const createTodoApiTodosPost = (
@@ -279,93 +281,7 @@ export const useCreateTodoApiTodosPost = <
 	return useMutation(mutationOptions, queryClient);
 };
 /**
- * 批量更新待办的排序和父子关系
- * @summary Reorder Todos
- */
-export const reorderTodosApiTodosReorderPost = (
-	todoReorderRequest: TodoReorderRequest,
-	signal?: AbortSignal,
-) => {
-	return customFetcher<unknown>({
-		url: `/api/todos/reorder`,
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		data: todoReorderRequest,
-		signal,
-	});
-};
-
-export const getReorderTodosApiTodosReorderPostMutationOptions = <
-	TError = HTTPValidationError,
-	TContext = unknown,
->(options?: {
-	mutation?: UseMutationOptions<
-		Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
-		TError,
-		{ data: TodoReorderRequest },
-		TContext
-	>;
-}): UseMutationOptions<
-	Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
-	TError,
-	{ data: TodoReorderRequest },
-	TContext
-> => {
-	const mutationKey = ["reorderTodosApiTodosReorderPost"];
-	const { mutation: mutationOptions } = options
-		? options.mutation &&
-			"mutationKey" in options.mutation &&
-			options.mutation.mutationKey
-			? options
-			: { ...options, mutation: { ...options.mutation, mutationKey } }
-		: { mutation: { mutationKey } };
-
-	const mutationFn: MutationFunction<
-		Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
-		{ data: TodoReorderRequest }
-	> = (props) => {
-		const { data } = props ?? {};
-
-		return reorderTodosApiTodosReorderPost(data);
-	};
-
-	return { mutationFn, ...mutationOptions };
-};
-
-export type ReorderTodosApiTodosReorderPostMutationResult = NonNullable<
-	Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>
->;
-export type ReorderTodosApiTodosReorderPostMutationBody = TodoReorderRequest;
-export type ReorderTodosApiTodosReorderPostMutationError = HTTPValidationError;
-
-/**
- * @summary Reorder Todos
- */
-export const useReorderTodosApiTodosReorderPost = <
-	TError = HTTPValidationError,
-	TContext = unknown,
->(
-	options?: {
-		mutation?: UseMutationOptions<
-			Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
-			TError,
-			{ data: TodoReorderRequest },
-			TContext
-		>;
-	},
-	queryClient?: QueryClient,
-): UseMutationResult<
-	Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
-	TError,
-	{ data: TodoReorderRequest },
-	TContext
-> => {
-	const mutationOptions =
-		getReorderTodosApiTodosReorderPostMutationOptions(options);
-
-	return useMutation(mutationOptions, queryClient);
-};
-/**
+ * 获取单个待办
  * @summary Get Todo
  */
 export const getTodoApiTodosTodoIdGet = (
@@ -529,6 +445,7 @@ export function useGetTodoApiTodosTodoIdGet<
 }
 
 /**
+ * 更新待办
  * @summary Update Todo
  */
 export const updateTodoApiTodosTodoIdPut = (
@@ -614,6 +531,7 @@ export const useUpdateTodoApiTodosTodoIdPut = <
 	return useMutation(mutationOptions, queryClient);
 };
 /**
+ * 删除待办
  * @summary Delete Todo
  */
 export const deleteTodoApiTodosTodoIdDelete = (todoId: number) => {
@@ -687,6 +605,93 @@ export const useDeleteTodoApiTodosTodoIdDelete = <
 > => {
 	const mutationOptions =
 		getDeleteTodoApiTodosTodoIdDeleteMutationOptions(options);
+
+	return useMutation(mutationOptions, queryClient);
+};
+/**
+ * 批量更新待办的排序和父子关系
+ * @summary Reorder Todos
+ */
+export const reorderTodosApiTodosReorderPost = (
+	todoReorderRequest: TodoReorderRequest,
+	signal?: AbortSignal,
+) => {
+	return customFetcher<unknown>({
+		url: `/api/todos/reorder`,
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		data: todoReorderRequest,
+		signal,
+	});
+};
+
+export const getReorderTodosApiTodosReorderPostMutationOptions = <
+	TError = HTTPValidationError,
+	TContext = unknown,
+>(options?: {
+	mutation?: UseMutationOptions<
+		Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
+		TError,
+		{ data: TodoReorderRequest },
+		TContext
+	>;
+}): UseMutationOptions<
+	Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
+	TError,
+	{ data: TodoReorderRequest },
+	TContext
+> => {
+	const mutationKey = ["reorderTodosApiTodosReorderPost"];
+	const { mutation: mutationOptions } = options
+		? options.mutation &&
+			"mutationKey" in options.mutation &&
+			options.mutation.mutationKey
+			? options
+			: { ...options, mutation: { ...options.mutation, mutationKey } }
+		: { mutation: { mutationKey } };
+
+	const mutationFn: MutationFunction<
+		Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
+		{ data: TodoReorderRequest }
+	> = (props) => {
+		const { data } = props ?? {};
+
+		return reorderTodosApiTodosReorderPost(data);
+	};
+
+	return { mutationFn, ...mutationOptions };
+};
+
+export type ReorderTodosApiTodosReorderPostMutationResult = NonNullable<
+	Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>
+>;
+export type ReorderTodosApiTodosReorderPostMutationBody = TodoReorderRequest;
+export type ReorderTodosApiTodosReorderPostMutationError = HTTPValidationError;
+
+/**
+ * @summary Reorder Todos
+ */
+export const useReorderTodosApiTodosReorderPost = <
+	TError = HTTPValidationError,
+	TContext = unknown,
+>(
+	options?: {
+		mutation?: UseMutationOptions<
+			Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
+			TError,
+			{ data: TodoReorderRequest },
+			TContext
+		>;
+	},
+	queryClient?: QueryClient,
+): UseMutationResult<
+	Awaited<ReturnType<typeof reorderTodosApiTodosReorderPost>>,
+	TError,
+	{ data: TodoReorderRequest },
+	TContext
+> => {
+	const mutationOptions =
+		getReorderTodosApiTodosReorderPostMutationOptions(options);
 
 	return useMutation(mutationOptions, queryClient);
 };
