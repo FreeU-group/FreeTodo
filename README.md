@@ -1,4 +1,4 @@
-![LifeTrace Logo](.github/assets/lifetrace_logo.png)
+![FreeU Logo](.github/assets/lifetrace_logo.png)
 
 ![GitHub stars](https://img.shields.io/github/stars/FreeU-group/LifeTrace?style=social) ![GitHub forks](https://img.shields.io/github/forks/FreeU-group/LifeTrace?style=social) ![GitHub issues](https://img.shields.io/github/issues/FreeU-group/LifeTrace) ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
@@ -6,21 +6,42 @@
 
 [📖 Documentation](https://freeyou.club/lifetrace/introduction.html) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 Development](#development-guide) • [🤝 Contributing](#contributing)
 
-# LifeTrace - Intelligent Life Recording System
+# FreeU - Your Personal AI Assistant
 
 ## Project Overview
 
-`LifeTrace` is an AI-based intelligent life recording system that can automatically manage your personal task context. Through technologies such as automatic screenshots, OCR text recognition, vector retrieval, and multimodal search, LifeTrace helps you record, organize, and retrieve daily activity traces.
+`FreeU` is an AI-powered personal productivity assistant designed to help users better manage their daily life and work. Currently, two core modules have been completed:
+
+- **FreeTodo (AI Todo)**: An intelligent task management system with AI-assisted todo creation, decomposition, and tracking
+- **LifeTrace (Activity Recording)**: An intelligent life recording system that captures and retrieves daily activities through automatic screenshots, OCR recognition, and more
 
 ## Core Features
 
+### FreeTodo - AI Todo
+- **Smart Task Creation**: AI-assisted task creation and decomposition
+- **Task Tracking**: Real-time tracking of task progress and status
+- **Context Association**: Automatic association with related screenshots and activity context (Under Construction)
+
+### LifeTrace - Activity Recording
 - **Automatic Screenshot Recording**: Timed automatic screen capture to record user activities
 - **Intelligent OCR Recognition**: Uses RapidOCR to extract text content from screenshots
 - **Smart Event Management**: Automatically aggregate screenshots into intelligent events based on context
 - **Time Allocation Analysis**: Visualize app usage time distribution with 24-hour charts and app categorization
 - **Information Retrieval**: Help users trace back and retrieve important information fragments from the past
+
+### Common Features
 - **Web API Service**: Provides complete RESTful API interfaces
-- **Frontend Integration**: Supports integration with various frontend frameworks
+- **Modern Frontend**: Web interface with multiple themes and layouts
+
+## System Architecture
+
+FreeU adopts a **frontend-backend separation** architecture:
+
+- **Backend**: FastAPI (Python) - Provides RESTful API (located in `lifetrace/` directory)
+- **Frontend**: Next.js (React + TypeScript) - Modern web interface (located in `free-todo-frontend/` directory)
+- **Data Layer**: SQLite + ChromaDB
+
+> ⚠️ **Note**: The `frontend/` directory is the legacy frontend and has been deprecated. Please use `free-todo-frontend/` as the new frontend.
 
 ## Quick Start
 
@@ -79,12 +100,14 @@ python -m lifetrace.server
 
 The backend service will start at `http://localhost:8000`.
 
+- **API Documentation**: `http://localhost:8000/docs`
+
 ### Start the Frontend Service
 
-The frontend is required to use LifeTrace. Start the frontend development server:
+The frontend is required to use FreeU. Start the frontend development server:
 
 ```bash
-cd frontend
+cd free-todo-frontend
 
 pnpm install
 pnpm dev
@@ -92,9 +115,9 @@ pnpm dev
 
 The frontend development server will start at `http://localhost:3000`, with API requests automatically proxied to backend `:8000`.
 
-Once both services are running, open your browser and navigate to `http://localhost:3000` to enjoy LifeTrace! 🎉
+Once both services are running, open your browser and navigate to `http://localhost:3000` to enjoy FreeU! 🎉
 
-For more details, see: [frontend/README.md](frontend/README.md)
+For more details, see: [free-todo-frontend/README.md](free-todo-frontend/README.md)
 
 ## 📋 TODO & Roadmap
 
@@ -113,7 +136,8 @@ For more details, see: [frontend/README.md](frontend/README.md)
 
 ### ✅ Recently Completed
 
-- ☑ **Core Infrastructure** - Basic screenshot recording and OCR functionality
+- ☑ **FreeTodo Module** - AI-powered smart todo management system
+- ☑ **LifeTrace Module** - Basic screenshot recording and OCR functionality
 
 ---
 
@@ -130,151 +154,49 @@ For more details, see: [frontend/README.md](frontend/README.md)
 │   ├── FRONTEND_GUIDELINES.md  # Frontend development guidelines
 │   ├── CONTRIBUTING.md         # Contributing guidelines
 │   └── ...                     # Other GitHub repository files
-├── lifetrace/                  # Core backend modules
-│   ├── server.py               # Web API service
+├── lifetrace/                  # Backend modules (FastAPI)
+│   ├── server.py               # Web API service entry point
 │   ├── config/                 # Configuration files
 │   │   ├── config.yaml         # Main configuration (auto-generated)
 │   │   ├── default_config.yaml # Default configuration template
 │   │   ├── prompt.yaml         # AI prompt templates
 │   │   └── rapidocr_config.yaml# OCR configuration
 │   ├── routers/                # API route handlers
-│   │   ├── behavior.py         # User behavior endpoints
+│   │   ├── activity.py         # Activity management endpoints
 │   │   ├── chat.py             # Chat interface endpoints
-│   │   ├── config.py           # Configuration endpoints
-│   │   ├── context.py          # Context management endpoints
-│   │   ├── cost_tracking.py    # Cost tracking endpoints
-│   │   ├── dependencies.py     # Router dependencies
-│   │   ├── event.py            # Event management endpoints
-│   │   ├── health.py           # Health check endpoints
-│   │   ├── logs.py             # Log management endpoints
-│   │   ├── ocr.py              # OCR service endpoints
-│   │   ├── project.py          # Project management endpoints
-│   │   ├── rag.py              # RAG service endpoints
-│   │   ├── scheduler.py        # Scheduler endpoints
-│   │   ├── screenshot.py       # Screenshot endpoints
-│   │   ├── search.py           # Search endpoints
-│   │   ├── system.py           # System endpoints
+│   │   ├── todo.py             # Todo endpoints
 │   │   ├── task.py             # Task management endpoints
-│   │   ├── time_allocation.py  # Time allocation endpoints
-│   │   └── vector.py           # Vector service endpoints
+│   │   ├── screenshot.py       # Screenshot endpoints
+│   │   └── ...                 # Other endpoints
 │   ├── schemas/                # Pydantic data models
-│   │   ├── chat.py             # Chat models
-│   │   ├── config.py           # Config models
-│   │   ├── context.py          # Context models
-│   │   ├── event.py            # Event models
-│   │   ├── project.py          # Project models
-│   │   ├── screenshot.py       # Screenshot models
-│   │   ├── search.py           # Search models
-│   │   ├── stats.py            # Statistics models
-│   │   ├── system.py           # System models
-│   │   ├── task.py             # Task models
-│   │   └── vector.py           # Vector models
+│   ├── services/               # Business logic service layer
+│   ├── repositories/           # Data access layer
 │   ├── storage/                # Data storage layer
-│   │   ├── __init__.py         # Storage module init
-│   │   ├── database_base.py    # Base database operations
-│   │   ├── database.py         # Main database operations
-│   │   ├── models.py           # SQLAlchemy models
-│   │   ├── chat_manager.py     # Chat data management
-│   │   ├── context_manager.py  # Context data management
-│   │   ├── event_manager.py    # Event data management
-│   │   ├── ocr_manager.py      # OCR data management
-│   │   ├── project_manager.py  # Project data management
-│   │   ├── screenshot_manager.py # Screenshot data management
-│   │   ├── stats_manager.py    # Statistics data management
-│   │   └── task_manager.py     # Task data management
 │   ├── llm/                    # LLM and AI services
-│   │   ├── llm_client.py       # LLM client wrapper
-│   │   ├── event_summary_service.py # Event summarization
-│   │   ├── rag_service.py      # RAG service
-│   │   ├── retrieval_service.py# Retrieval service
-│   │   ├── context_builder.py  # Context building
-│   │   ├── vector_service.py   # Vector operations
-│   │   └── vector_db.py        # Vector database
 │   ├── jobs/                   # Background jobs
-│   │   ├── job_manager.py      # Job management
-│   │   ├── ocr.py              # OCR processing job
-│   │   ├── recorder.py         # Screen recording job
-│   │   ├── scheduler.py        # Job scheduler
-│   │   ├── task_context_mapper.py # Task context mapping
-│   │   ├── task_summary.py     # Task summarization
-│   │   └── clean_data.py       # Data cleaning job
 │   ├── util/                   # Utility functions
-│   │   ├── app_utils.py        # Application utilities
-│   │   ├── config.py           # Configuration utilities
-│   │   ├── config_watcher.py   # Configuration file watcher
-│   │   ├── llm_config_handler.py # LLM config handler
-│   │   ├── logging_config.py   # Logging configuration
-│   │   ├── prompt_loader.py    # Prompt loading utilities
-│   │   ├── query_parser.py     # Query parsing
-│   │   ├── token_usage_logger.py # Token usage tracking
-│   │   └── utils.py            # General utilities
 │   ├── models/                 # OCR model files
-│   │   ├── ch_PP-OCRv4_det_infer.onnx
-│   │   ├── ch_PP-OCRv4_rec_infer.onnx
-│   │   └── ch_ppocr_mobile_v2.0_cls_infer.onnx
-│   ├── devlog/                 # Development logs
-│   │   ├── AUTO_ASSOCIATION_*.md
-│   │   ├── CONFIG_CHANGE_*.md
-│   │   ├── CONTEXT_MANAGEMENT_API.md
-│   │   ├── PROJECT_*.md
-│   │   ├── TASK_*.md
-│   │   └── ...
 │   └── data/                   # Runtime data (generated)
 │       ├── lifetrace.db        # SQLite database
-│       ├── scheduler.db        # Scheduler database
 │       ├── screenshots/        # Screenshot storage
 │       ├── vector_db/          # Vector database storage
 │       └── logs/               # Application logs
-├── frontend/                   # Frontend application (Next.js)
+├── free-todo-frontend/         # New frontend application (Next.js) ⭐
 │   ├── app/                    # Next.js app directory
-│   │   ├── page.tsx            # Home page
-│   │   ├── layout.tsx          # Root layout
-│   │   ├── globals.css         # Global styles
-│   │   ├── app-usage/          # App usage page
-│   │   ├── cost-tracking/      # Cost tracking page
-│   │   ├── time-allocation/    # Time allocation page
-│   │   ├── project-management/ # Project & task management
-│   │   │   ├── page.tsx        # Projects list
-│   │   │   └── [id]/           # Project details
-│   │   │       ├── page.tsx    # Project overview
-│   │   │       └── tasks.tsx   # Task management
-│   │   └── scheduler/          # Scheduler page
+│   ├── apps/                   # Feature modules
+│   │   ├── todo-list/          # Todo list module
+│   │   ├── todo-detail/        # Todo detail module
+│   │   ├── chat/               # AI chat module
+│   │   ├── activity/           # Activity recording module
+│   │   ├── calendar/           # Calendar module
+│   │   ├── settings/           # Settings module
+│   │   └── ...                 # Other modules
 │   ├── components/             # React components
-│   │   ├── common/             # Common components
-│   │   │   ├── Button.tsx
-│   │   │   ├── Card.tsx
-│   │   │   ├── Input.tsx
-│   │   │   ├── Loading.tsx
-│   │   │   ├── MessageContent.tsx
-│   │   │   ├── Pagination.tsx
-│   │   │   ├── ScreenshotIdButton.tsx
-│   │   │   ├── SettingsModal.tsx
-│   │   │   └── ThemeToggle.tsx
-│   │   ├── context/            # Context components
-│   │   │   ├── ContextCard.tsx
-│   │   │   └── ContextList.tsx
-│   │   ├── layout/             # Layout components
-│   │   ├── project/            # Project components
-│   │   ├── screenshot/         # Screenshot components
-│   │   ├── search/             # Search components
-│   │   │   └── SearchBar.tsx
-│   │   ├── task/               # Task components
-│   │   └── ui/                 # UI components
 │   ├── lib/                    # Utilities and services
-│   │   ├── api.ts              # API client
-│   │   ├── types.ts            # TypeScript types
-│   │   ├── utils.ts            # Utility functions
-│   │   ├── toast.ts            # Toast notifications
-│   │   ├── context/            # React contexts
-│   │   └── store/              # State management
-│   ├── devlog/                 # Frontend development logs
-│   ├── public/                 # Static assets
-│   │   └── app-icons/          # Application icons
+│   ├── electron/               # Electron desktop app
 │   ├── package.json            # Frontend dependencies
-│   ├── pnpm-lock.yaml          # pnpm lock file
-│   ├── next.config.ts          # Next.js configuration
-│   ├── tsconfig.json           # TypeScript configuration
 │   └── README.md               # Frontend documentation
+├── frontend/                   # Legacy frontend application (Deprecated) ⚠️
 ├── pyproject.toml              # Python project configuration
 ├── uv.lock                     # uv lock file
 ├── LICENSE                     # Apache 2.0 License
@@ -284,7 +206,7 @@ For more details, see: [frontend/README.md](frontend/README.md)
 
 ## Contributing
 
-The LifeTrace community is possible thanks to thousands of kind volunteers like you. We welcome all contributions to the community and are excited to welcome you aboard.
+The FreeU community is possible thanks to thousands of kind volunteers like you. We welcome all contributions to the community and are excited to welcome you aboard.
 
 **Recent Contributions:**
 
@@ -327,7 +249,7 @@ We appreciate all contributions, no matter how small! 🙏
 
 ## Join Our Community
 
-Connect with us and other LifeTrace users! Scan the QR codes below to join our community groups:
+Connect with us and other FreeU users! Scan the QR codes below to join our community groups:
 
 <table>
   <tr>
@@ -354,9 +276,9 @@ Connect with us and other LifeTrace users! Scan the QR codes below to join our c
   </tr>
 </table>
 
-## Document
+## Documentation
 
-We use deepwiki to manage our docs, please ref to this [**website.**](https://deepwiki.com/FreeU-group/LifeTrace/6.2-deployment-and-setup)
+We use deepwiki to manage our docs, please refer to this [**website.**](https://deepwiki.com/FreeU-group/LifeTrace/6.2-deployment-and-setup)
 
 ## Star History
 
@@ -364,12 +286,12 @@ We use deepwiki to manage our docs, please ref to this [**website.**](https://de
 
 ## License
 
-Copyright © 2025 LifeTrace.org
+Copyright © 2025 FreeU.org
 
 The content of this repository is bound by the following licenses:
 
 • The computer software is licensed under the [Apache License 2.0](LICENSE).
-• The learning resources in this project are copyright © 2025 LifeTrace.org
+• The learning resources in this project are copyright © 2025 FreeU.org
 
 ### Apache License 2.0
 
