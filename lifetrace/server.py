@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from lifetrace.jobs.job_manager import get_job_manager
-from lifetrace.jobs.ocr import SimpleOCRProcessor
 from lifetrace.routers import (
     activity,
     chat,
@@ -30,7 +29,6 @@ from lifetrace.routers import (
     vision,
 )
 from lifetrace.routers import config as config_router
-from lifetrace.routers import dependencies as deps
 from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger, setup_logging
 
@@ -89,25 +87,13 @@ app.add_middleware(
     expose_headers=["X-Session-Id"],  # 允许前端读取会话ID，支持多轮对话
 )
 
-# 初始化OCR处理器
-ocr_processor = SimpleOCRProcessor()
-
-# 向量服务和RAG服务改为延迟加载，不再在启动时同步初始化
-# 通过 lifetrace.core.lazy_services 模块按需获取
+# 向量服务、RAG服务和OCR处理器均改为延迟加载
+# 通过 lifetrace.core.dependencies 模块按需获取
 
 # 全局配置状态标志
 is_llm_configured = config.is_configured()
 config_status = "已配置" if is_llm_configured else "未配置，需要引导配置"
 logger.info(f"LLM配置状态: {config_status}")
-
-# 初始化路由依赖（使用延迟加载的服务）
-deps.init_dependencies(
-    ocr_processor,
-    None,  # vector_service - 延迟加载
-    None,  # rag_service - 延迟加载
-    config,
-    is_llm_configured,
-)
 
 
 # 注册所有路由

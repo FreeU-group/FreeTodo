@@ -1,14 +1,11 @@
 """截图相关路由"""
 
 import os
-import time
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.requests import Request
 from fastapi.responses import FileResponse
 
-from lifetrace.routers import dependencies as deps
 from lifetrace.schemas.screenshot import ScreenshotResponse
 from lifetrace.storage import get_session, screenshot_mgr
 from lifetrace.util.logging_config import get_logger
@@ -88,45 +85,17 @@ async def get_screenshot(screenshot_id: int):
 
 
 @router.get("/{screenshot_id}/image")
-async def get_screenshot_image(screenshot_id: int, request: Request):
+async def get_screenshot_image(screenshot_id: int):
     """获取截图图片文件"""
-    start_time = time.time()
-
     try:
         screenshot = screenshot_mgr.get_screenshot_by_id(screenshot_id)
 
         if not screenshot:
-            # 记录失败的查看截图行为（如果behavior_tracker可用）
-            if deps.behavior_tracker is not None:
-                deps.behavior_tracker.track_action(
-                    action_type="view_screenshot",
-                    action_details={
-                        "screenshot_id": screenshot_id,
-                        "success": False,
-                        "error": "截图不存在",
-                    },
-                    user_agent=request.headers.get("user-agent", ""),
-                    ip_address=request.client.host if request.client else "",
-                    response_time=time.time() - start_time,
-                )
             raise HTTPException(status_code=404, detail="截图不存在")
 
         # 检查文件是否已被清理
         if screenshot.get("file_deleted", False):
             logger.debug(f"截图文件已被清理: screenshot_id={screenshot_id}")
-            # 记录访问已清理截图的行为
-            if deps.behavior_tracker is not None:
-                deps.behavior_tracker.track_action(
-                    action_type="view_screenshot",
-                    action_details={
-                        "screenshot_id": screenshot_id,
-                        "success": False,
-                        "error": "文件已被清理",
-                    },
-                    user_agent=request.headers.get("user-agent", ""),
-                    ip_address=request.client.host if request.client else "",
-                    response_time=time.time() - start_time,
-                )
             raise HTTPException(status_code=410, detail="文件已被清理")
 
         file_path = screenshot["file_path"]
@@ -134,19 +103,6 @@ async def get_screenshot_image(screenshot_id: int, request: Request):
         # 检查文件是否存在
         if not os.path.exists(file_path):
             logger.warning(f"截图文件不存在: screenshot_id={screenshot_id}, path={file_path}")
-            # 记录失败的查看截图行为
-            if deps.behavior_tracker is not None:
-                deps.behavior_tracker.track_action(
-                    action_type="view_screenshot",
-                    action_details={
-                        "screenshot_id": screenshot_id,
-                        "success": False,
-                        "error": "图片文件不存在",
-                    },
-                    user_agent=request.headers.get("user-agent", ""),
-                    ip_address=request.client.host if request.client else "",
-                    response_time=time.time() - start_time,
-                )
             raise HTTPException(status_code=404, detail="图片文件不存在")
 
         return FileResponse(

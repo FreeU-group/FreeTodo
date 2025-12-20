@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from lifetrace.routers import dependencies as deps
+from lifetrace.core.dependencies import get_rag_service
 from lifetrace.util.app_utils import get_icon_filename
 from lifetrace.util.logging_config import get_logger
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api", tags=["rag"])
 async def rag_health_check():
     """RAG服务健康检查"""
     try:
-        return deps.get_rag_service().health_check()
+        return get_rag_service().health_check()
     except Exception as e:
         logger.error(f"RAG健康检查失败: {e}")
         return {

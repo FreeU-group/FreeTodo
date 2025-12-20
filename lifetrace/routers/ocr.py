@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 
-from lifetrace.routers import dependencies as deps
+from lifetrace.core.dependencies import get_ocr_processor
 from lifetrace.storage import ocr_mgr, screenshot_mgr
 from lifetrace.util.logging_config import get_logger
 
@@ -14,7 +14,8 @@ router = APIRouter(prefix="/api/ocr", tags=["ocr"])
 @router.post("/process")
 async def process_ocr(screenshot_id: int):
     """手动触发OCR处理"""
-    if not deps.ocr_processor.is_available():
+    ocr_processor = get_ocr_processor()
+    if not ocr_processor.is_available():
         raise HTTPException(status_code=503, detail="OCR服务不可用")
 
     screenshot = screenshot_mgr.get_screenshot_by_id(screenshot_id)
@@ -26,7 +27,7 @@ async def process_ocr(screenshot_id: int):
 
     try:
         # 执行OCR处理
-        ocr_result = deps.ocr_processor.process_image(screenshot["file_path"])
+        ocr_result = ocr_processor.process_image(screenshot["file_path"])
 
         if ocr_result["success"]:
             # 保存OCR结果
@@ -55,4 +56,5 @@ async def process_ocr(screenshot_id: int):
 @router.get("/statistics")
 async def get_ocr_statistics():
     """获取OCR处理统计"""
-    return deps.ocr_processor.get_statistics()
+    ocr_processor = get_ocr_processor()
+    return ocr_processor.get_statistics()

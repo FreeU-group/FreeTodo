@@ -5,12 +5,16 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
-from lifetrace.routers import dependencies as deps
+from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
 
 router = APIRouter(prefix="/api/logs", tags=["logs"])
+
+# 常量定义
+BYTES_PER_KB = 1024  # 字节到KB的转换因子
+MAX_LOG_LINES = 1000  # 返回日志的最大行数
 
 
 @router.get("/files")
@@ -18,7 +22,7 @@ async def get_log_files():
     """获取日志文件列表"""
     try:
         # 使用配置中的日志目录
-        logs_dir = Path(deps.config.log_path)
+        logs_dir = Path(config.log_path)
         if not logs_dir.exists():
             return []
 
@@ -29,7 +33,9 @@ async def get_log_files():
             relative_path = file_path.relative_to(logs_dir)
             # 获取文件大小
             file_size = file_path.stat().st_size
-            size_str = f"{file_size // 1024}KB" if file_size > 1024 else f"{file_size}B"
+            size_str = (
+                f"{file_size // BYTES_PER_KB}KB" if file_size > BYTES_PER_KB else f"{file_size}B"
+            )
 
             log_files.append(
                 {
@@ -53,7 +59,7 @@ async def get_log_content(file: str = Query(..., description="日志文件相对
     """获取日志文件内容"""
     try:
         # 使用配置中的日志目录
-        logs_dir = Path(deps.config.log_path)
+        logs_dir = Path(config.log_path)
 
         log_file = logs_dir / file
 
@@ -64,12 +70,12 @@ async def get_log_content(file: str = Query(..., description="日志文件相对
         if not log_file.exists():
             raise HTTPException(status_code=404, detail="日志文件不存在")
 
-        # 读取文件内容（最后1000行）
+        # 读取文件内容
         with open(log_file, encoding="utf-8") as f:
             lines = f.readlines()
-            # 只返回最后1000行，避免内存问题
-            if len(lines) > 1000:
-                lines = lines[-1000:]
+            # 只返回最后 MAX_LOG_LINES 行，避免内存问题
+            if len(lines) > MAX_LOG_LINES:
+                lines = lines[-MAX_LOG_LINES:]
             return "".join(lines)
     except HTTPException:
         raise

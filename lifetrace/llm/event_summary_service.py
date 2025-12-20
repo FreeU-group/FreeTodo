@@ -69,24 +69,24 @@ class EventSummaryService:
             return self.vector_service
 
         try:
-            from lifetrace.routers import dependencies
+            from lifetrace.core.dependencies import get_vector_service
 
-            vector_svc = dependencies.vector_service
+            vector_svc = get_vector_service()
             if vector_svc is not None:
                 logger.info(
-                    f"从dependencies获取到vector_service: "
+                    f"从core.dependencies获取到vector_service: "
                     f"enabled={vector_svc.enabled}, "
                     f"vector_db={'存在' if vector_svc.vector_db else '不存在'}"
                 )
                 return vector_svc
             else:
-                logger.warning("dependencies.vector_service为None，可能还未初始化")
+                logger.warning("get_vector_service()返回None，可能还未初始化")
                 return None
         except ImportError as e:
-            logger.warning(f"无法导入dependencies模块: {e}")
+            logger.warning(f"无法导入core.dependencies模块: {e}")
             return None
-        except AttributeError as e:
-            logger.warning(f"dependencies模块中没有vector_service属性: {e}")
+        except Exception as e:
+            logger.warning(f"获取vector_service时出错: {e}")
             return None
 
     def _process_event_with_few_screenshots(

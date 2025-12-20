@@ -2,15 +2,16 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
+from lifetrace.core.dependencies import get_journal_service
 from lifetrace.schemas.journal import (
     JournalCreate,
     JournalListResponse,
     JournalResponse,
     JournalUpdate,
 )
-from lifetrace.storage import journal_mgr
+from lifetrace.services.journal_service import JournalService
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
@@ -19,25 +20,13 @@ router = APIRouter(tags=["journals"])
 
 
 @router.post("/api/journals", response_model=JournalResponse, status_code=201)
-async def create_journal(journal: JournalCreate):
+async def create_journal(
+    journal: JournalCreate,
+    service: JournalService = Depends(get_journal_service),
+):
     """创建日记"""
     try:
-        journal_id = journal_mgr.create_journal(
-            name=journal.name,
-            user_notes=journal.user_notes,
-            date=journal.date,
-            content_format=journal.content_format,
-            tag_ids=journal.tag_ids,
-        )
-        if not journal_id:
-            raise HTTPException(status_code=500, detail="创建日记失败")
-
-        created = journal_mgr.get_journal(journal_id)
-        if not created:
-            raise HTTPException(status_code=500, detail="获取创建的日记失败")
-
-        logger.info(f"成功创建日记: {journal_id} - {journal.name}")
-        return JournalResponse(**created)
+        return service.create_journal(journal)
     except HTTPException:
         raise
     except Exception as e:
@@ -51,36 +40,24 @@ async def list_journals(
     offset: int = Query(0, ge=0, description="偏移量"),
     start_date: datetime | None = Query(None, description="开始日期筛选"),
     end_date: datetime | None = Query(None, description="结束日期筛选"),
+    service: JournalService = Depends(get_journal_service),
 ):
     """获取日记列表"""
     try:
-        journals = journal_mgr.list_journals(
-            limit=limit,
-            offset=offset,
-            start_date=start_date,
-            end_date=end_date,
-        )
-        total = journal_mgr.count_journals(
-            start_date=start_date,
-            end_date=end_date,
-        )
-        return JournalListResponse(
-            total=total,
-            journals=[JournalResponse(**j) for j in journals],
-        )
+        return service.list_journals(limit, offset, start_date, end_date)
     except Exception as e:
         logger.error(f"获取日记列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取日记列表失败: {str(e)}") from e
 
 
 @router.get("/api/journals/{journal_id}", response_model=JournalResponse)
-async def get_journal(journal_id: int = Path(..., description="日记ID")):
+async def get_journal(
+    journal_id: int = Path(..., description="日记ID"),
+    service: JournalService = Depends(get_journal_service),
+):
     """获取日记详情"""
     try:
-        journal = journal_mgr.get_journal(journal_id)
-        if not journal:
-            raise HTTPException(status_code=404, detail="日记不存在")
-        return JournalResponse(**journal)
+        return service.get_journal(journal_id)
     except HTTPException:
         raise
     except Exception as e:
@@ -92,30 +69,11 @@ async def get_journal(journal_id: int = Path(..., description="日记ID")):
 async def update_journal(
     journal_id: int = Path(..., description="日记ID"),
     journal: JournalUpdate | None = None,
+    service: JournalService = Depends(get_journal_service),
 ):
     """更新日记"""
     try:
-        existing = journal_mgr.get_journal(journal_id)
-        if not existing:
-            raise HTTPException(status_code=404, detail="日记不存在")
-
-        success = journal_mgr.update_journal(
-            journal_id=journal_id,
-            name=journal.name,
-            user_notes=journal.user_notes,
-            date=journal.date,
-            content_format=journal.content_format,
-            tag_ids=journal.tag_ids,
-        )
-        if not success:
-            raise HTTPException(status_code=500, detail="更新日记失败")
-
-        updated = journal_mgr.get_journal(journal_id)
-        if not updated:
-            raise HTTPException(status_code=500, detail="获取更新后的日记失败")
-
-        logger.info(f"成功更新日记: {journal_id}")
-        return JournalResponse(**updated)
+        return service.update_journal(journal_id, journal)
     except HTTPException:
         raise
     except Exception as e:
@@ -124,18 +82,13 @@ async def update_journal(
 
 
 @router.delete("/api/journals/{journal_id}", status_code=204)
-async def delete_journal(journal_id: int = Path(..., description="日记ID")):
+async def delete_journal(
+    journal_id: int = Path(..., description="日记ID"),
+    service: JournalService = Depends(get_journal_service),
+):
     """删除日记"""
     try:
-        existing = journal_mgr.get_journal(journal_id)
-        if not existing:
-            raise HTTPException(status_code=404, detail="日记不存在")
-
-        success = journal_mgr.delete_journal(journal_id)
-        if not success:
-            raise HTTPException(status_code=500, detail="删除日记失败")
-
-        logger.info(f"成功删除日记: {journal_id}")
+        service.delete_journal(journal_id)
         return None
     except HTTPException:
         raise

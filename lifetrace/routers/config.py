@@ -5,7 +5,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from openai import OpenAI
 
-from lifetrace.routers import dependencies as deps
 from lifetrace.services.config_service import ConfigService
 from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
@@ -177,8 +176,8 @@ async def save_and_init_llm(config_data: dict[str, str]):
             return {"success": False, "error": "保存配置失败"}
 
         # 3. 更新配置状态（配置重载和 LLM 重新初始化已在 save_config 中完成）
-        deps.is_llm_configured = config.is_configured()
-        status = "已配置" if deps.is_llm_configured else "未配置"
+        is_llm_configured = config.is_configured()
+        status = "已配置" if is_llm_configured else "未配置"
         logger.info(f"LLM配置状态已更新为：{status}")
 
         return {"success": True, "message": "配置保存成功，正在跳转..."}
@@ -193,9 +192,10 @@ async def save_and_init_llm(config_data: dict[str, str]):
 async def save_config(settings: dict[str, Any]):
     """保存配置到config.yaml文件"""
     try:
-        # 定义更新 LLM 配置状态的回调函数
+        # 定义更新 LLM 配置状态的回调函数（配置状态已通过 config.is_configured() 实时获取）
         def update_llm_configured_status():
-            deps.is_llm_configured = config.is_configured()
+            # 配置状态现在通过 config.is_configured() 实时获取
+            pass
 
         # 调用配置服务保存配置
         result = config_service.save_config(settings, update_llm_configured_status)

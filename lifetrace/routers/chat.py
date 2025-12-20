@@ -3,11 +3,10 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.requests import Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from lifetrace.routers import dependencies as deps
+from lifetrace.core.dependencies import get_chat_service, get_rag_service
 from lifetrace.schemas.chat import (
     AddMessageRequest,
     ChatMessage,
@@ -18,7 +17,8 @@ from lifetrace.schemas.chat import (
     PlanQuestionnaireRequest,
     PlanSummaryRequest,
 )
-from lifetrace.storage import chat_mgr, todo_mgr
+from lifetrace.services.chat_service import ChatService
+from lifetrace.storage import todo_mgr
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
 
@@ -28,25 +28,18 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
 @router.post("", response_model=ChatResponse)
-async def chat_with_llm(message: ChatMessage, request: Request):
+async def chat_with_llm(
+    message: ChatMessage,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """与LLM聊天接口 - 集成RAG功能"""
-    start_time = datetime.now()
-    session_id = None
-    success = False  # noqa: F841
 
     try:
         logger.info(f"收到聊天消息: {message.message}")
 
-        # 获取请求信息
-        user_agent = request.headers.get("user-agent", "")
-        client_ip = request.client.host if request.client else "unknown"
-
         # 使用RAG服务处理查询
-        rag_service = deps.get_rag_service()
+        rag_service = get_rag_service()
         rag_result = await rag_service.process_query(message.message)
-
-        # 计算响应时间
-        response_time = (datetime.now() - start_time).total_seconds() * 1000
 
         if rag_result.get("success", False):
             success = True  # noqa: F841
@@ -58,40 +51,10 @@ async def chat_with_llm(message: ChatMessage, request: Request):
                 performance=rag_result.get("performance"),
             )
 
-            # 记录用户行为（如果behavior_tracker可用）
-            if deps.behavior_tracker is not None:
-                deps.behavior_tracker.track_action(
-                    action_type="chat",
-                    action_details={
-                        "query": message.message,
-                        "response_length": len(rag_result["response"]),
-                        "success": True,
-                    },
-                    session_id=session_id,
-                    user_agent=user_agent,
-                    ip_address=client_ip,
-                    response_time=response_time,
-                )
-
             return response
         else:
             # 如果RAG处理失败，返回错误信息
             error_msg = rag_result.get("response", "处理您的查询时出现了错误，请稍后重试。")
-
-            # 记录失败的用户行为（如果behavior_tracker可用）
-            if deps.behavior_tracker is not None:
-                deps.behavior_tracker.track_action(
-                    action_type="chat",
-                    action_details={
-                        "query": message.message,
-                        "error": rag_result.get("error"),
-                        "success": False,
-                    },
-                    session_id=session_id,
-                    user_agent=user_agent,
-                    ip_address=client_ip,
-                    response_time=response_time,
-                )
 
             return ChatResponse(
                 response=error_msg,
@@ -105,22 +68,6 @@ async def chat_with_llm(message: ChatMessage, request: Request):
     except Exception as e:
         logger.error(f"聊天处理失败: {e}")
 
-        # 记录异常的用户行为（如果behavior_tracker可用）
-        response_time = (datetime.now() - start_time).total_seconds() * 1000
-        if deps.behavior_tracker is not None:
-            deps.behavior_tracker.track_action(
-                action_type="chat",
-                action_details={
-                    "query": message.message,
-                    "error": str(e),
-                    "success": False,
-                },
-                session_id=session_id,
-                user_agent=request.headers.get("user-agent", "") if request else "",
-                ip_address=request.client.host if request and request.client else "unknown",
-                response_time=response_time,
-            )
-
         return ChatResponse(
             response="抱歉，系统暂时无法处理您的请求，请稍后重试。",
             timestamp=datetime.now(),
@@ -129,7 +76,10 @@ async def chat_with_llm(message: ChatMessage, request: Request):
 
 
 @router.post("/stream")
-async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
+async def chat_with_llm_stream(  # noqa: C901, PLR0915
+    message: ChatMessage,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """与LLM聊天接口（流式输出）"""
     try:
         logger.info(
@@ -139,16 +89,16 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
         # 确保有 session_id，如果没有则创建
         session_id = message.conversation_id
         if not session_id:
-            session_id = deps.generate_session_id()
+            session_id = chat_service.generate_session_id()
             logger.info(f"[stream] 创建新会话: {session_id}")
 
         # 检查数据库中是否存在该会话，如果不存在则创建
-        chat = chat_mgr.get_chat_by_session_id(session_id)
+        chat = chat_service.get_chat_by_session_id(session_id)
         if not chat:
             # 根据是否有 project_id 判断聊天类型
             chat_type = "project" if message.project_id else "event"
             # 创建新的聊天会话
-            chat_mgr.create_chat(
+            chat_service.create_chat(
                 session_id=session_id,
                 chat_type=chat_type,
                 title=message.message[:50] if len(message.message) > 50 else message.message,  # noqa: PLR2004
@@ -161,7 +111,7 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
 
         if message.use_rag:
             # 使用RAG服务的流式处理方法，避免重复的意图识别
-            rag_service = deps.get_rag_service()
+            rag_service = get_rag_service()
             rag_result = await rag_service.process_query_stream(
                 message.message, message.project_id, message.task_ids, session_id
             )
@@ -211,14 +161,14 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
             temperature = 0.7
 
         # 保存用户消息到数据库（保存原始用户输入，不包含system prompt）
-        chat_mgr.add_message(
+        chat_service.add_message(
             session_id=session_id,
             role="user",
             content=user_message_to_save,
         )
 
         # 获取RAG服务（在生成器外部获取，避免重复初始化）
-        rag_svc = deps.get_rag_service()
+        rag_svc = get_rag_service()
 
         # 调用LLM流式API并逐块返回
         def token_generator():
@@ -252,7 +202,7 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
 
                 # 流式响应结束后，保存助手回复到数据库
                 if total_content:
-                    chat_mgr.add_message(
+                    chat_service.add_message(
                         session_id=session_id,
                         role="assistant",
                         content=total_content,
@@ -315,7 +265,10 @@ async def chat_with_llm_stream(message: ChatMessage):  # noqa: C901, PLR0915
 
 
 @router.post("/stream-with-context")
-async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C901, PLR0915
+async def chat_with_context_stream(  # noqa: C901, PLR0915
+    message: ChatMessageWithContext,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """带事件上下文的流式聊天接口"""
     try:
         logger.info(
@@ -325,14 +278,14 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
         # 确保有 session_id，如果没有则创建
         session_id = message.conversation_id
         if not session_id:
-            session_id = deps.generate_session_id()
+            session_id = chat_service.generate_session_id()
             logger.info(f"[stream-with-context] 创建新会话: {session_id}")
 
         # 检查数据库中是否存在该会话，如果不存在则创建
-        chat = chat_mgr.get_chat_by_session_id(session_id)
+        chat = chat_service.get_chat_by_session_id(session_id)
         if not chat:
             # 创建新的聊天会话（事件助手类型）
-            chat_mgr.create_chat(
+            chat_service.create_chat(
                 session_id=session_id,
                 chat_type="event",
                 title=message.message[:50] if len(message.message) > 50 else message.message,  # noqa: PLR2004
@@ -363,7 +316,7 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
             enhanced_message = message.message
 
         # 使用RAG服务的流式处理方法
-        rag_service = deps.get_rag_service()
+        rag_service = get_rag_service()
         rag_result = await rag_service.process_query_stream(enhanced_message, session_id=session_id)
 
         if not rag_result.get("success", False):
@@ -380,14 +333,14 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
         temperature = rag_result.get("temperature", 0.7)
 
         # 保存用户消息到数据库
-        chat_mgr.add_message(
+        chat_service.add_message(
             session_id=session_id,
             role="user",
             content=message.message,
         )
 
         # 获取RAG服务（在生成器外部获取，避免重复初始化）
-        rag_svc = deps.get_rag_service()
+        rag_svc = get_rag_service()
 
         # 调用LLM流式API并逐块返回
         def token_generator():
@@ -421,7 +374,7 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
 
                 # 流式响应结束后，保存助手回复到数据库
                 if total_content:
-                    chat_mgr.add_message(
+                    chat_service.add_message(
                         session_id=session_id,
                         role="assistant",
                         content=total_content,
@@ -475,20 +428,23 @@ async def chat_with_context_stream(message: ChatMessageWithContext):  # noqa: C9
 
 
 @router.post("/new", response_model=NewChatResponse)
-async def create_new_chat(request: NewChatRequest = None):
+async def create_new_chat(
+    request: NewChatRequest = None,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """创建新对话会话"""
     try:
         # 如果提供了session_id，清除其上下文；否则创建新会话
         if request and request.session_id:
-            if deps.clear_session_context(request.session_id):
+            if chat_service.clear_session_context(request.session_id):
                 session_id = request.session_id
                 message = "会话上下文已清除"
             else:
                 # 会话不存在，创建新的
-                session_id = deps.create_new_session()
+                session_id = chat_service.create_new_session()
                 message = "创建新对话会话"
         else:
-            session_id = deps.create_new_session()
+            session_id = chat_service.create_new_session()
             message = "创建新对话会话"
 
         logger.info(f"新对话会话: {session_id}")
@@ -499,12 +455,16 @@ async def create_new_chat(request: NewChatRequest = None):
 
 
 @router.post("/session/{session_id}/message")
-async def add_message_to_session(session_id: str, request: AddMessageRequest):
+async def add_message_to_session(
+    session_id: str,
+    request: AddMessageRequest,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """添加消息到会话（消息已在流式聊天中自动保存，此接口保持兼容性）"""
     try:
         # 消息在流式聊天接口中已经自动保存，这里只是为了API兼容性
         # 如果需要手动保存，可以取消注释以下代码
-        # chat_mgr.add_message(
+        # chat_service.add_message(
         #     session_id=session_id,
         #     role=request.role,
         #     content=request.content,
@@ -520,10 +480,13 @@ async def add_message_to_session(session_id: str, request: AddMessageRequest):
 
 
 @router.delete("/session/{session_id}")
-async def clear_chat_session(session_id: str):
+async def clear_chat_session(
+    session_id: str,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """清除指定会话的上下文"""
     try:
-        success = deps.clear_session_context(session_id)
+        success = chat_service.clear_session_context(session_id)
         if success:
             return {
                 "success": True,
@@ -543,21 +506,11 @@ async def clear_chat_session(session_id: str):
 async def get_chat_history(
     session_id: str | None = Query(None),
     chat_type: str | None = Query(None, description="聊天类型过滤：event, project, general"),
+    chat_service: ChatService = Depends(get_chat_service),
 ):
     """获取聊天历史记录（从数据库读取）"""
     try:
-        if session_id:
-            # 返回指定会话的历史记录
-            messages = chat_mgr.get_messages(session_id)
-            return {
-                "session_id": session_id,
-                "history": messages,
-                "message": f"会话 {session_id} 的历史记录",
-            }
-        else:
-            # 返回所有会话的摘要信息（从数据库）
-            sessions_info = chat_mgr.get_chat_summaries(chat_type=chat_type, limit=20)
-            return {"sessions": sessions_info, "message": "所有会话摘要"}
+        return chat_service.get_chat_history(session_id=session_id, chat_type=chat_type)
     except Exception as e:
         logger.error(f"获取聊天历史失败: {e}")
         raise HTTPException(status_code=500, detail="获取聊天历史失败") from e
@@ -569,7 +522,7 @@ async def get_query_suggestions(
 ):
     """获取查询建议"""
     try:
-        suggestions = deps.get_rag_service().get_query_suggestions(partial_query)
+        suggestions = get_rag_service().get_query_suggestions(partial_query)
         return {"suggestions": suggestions, "partial_query": partial_query}
     except Exception as e:
         logger.error(f"获取查询建议失败: {e}")
@@ -580,7 +533,7 @@ async def get_query_suggestions(
 async def get_supported_query_types():
     """获取支持的查询类型"""
     try:
-        return deps.get_rag_service().get_supported_query_types()
+        return get_rag_service().get_supported_query_types()
     except Exception as e:
         logger.error(f"获取查询类型失败: {e}")
         raise HTTPException(status_code=500, detail="获取查询类型失败") from e
@@ -647,7 +600,10 @@ def _format_todo_context(context: dict[str, Any]) -> str:  # noqa: C901
 
 
 @router.post("/plan/questionnaire/stream")
-async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa: C901, PLR0915
+async def plan_questionnaire_stream(  # noqa: C901, PLR0915
+    request: PlanQuestionnaireRequest,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """Plan功能：生成选择题（流式输出）"""
     try:
         logger.info(
@@ -657,14 +613,14 @@ async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa:
         # 确保有 session_id，如果没有则创建
         session_id = request.session_id
         if not session_id:
-            session_id = deps.generate_session_id()
+            session_id = chat_service.generate_session_id()
             logger.info(f"[plan/questionnaire] 创建新会话: {session_id}")
 
         # 检查数据库中是否存在该会话，如果不存在则创建
-        chat = chat_mgr.get_chat_by_session_id(session_id)
+        chat = chat_service.get_chat_by_session_id(session_id)
         if not chat:
             # 创建新的聊天会话，类型为 "plan"
-            chat_mgr.create_chat(
+            chat_service.create_chat(
                 session_id=session_id,
                 chat_type="plan",
                 title=f"规划任务: {request.todo_name}",
@@ -707,14 +663,14 @@ async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa:
         user_message_content = f"请求为任务生成选择题：{request.todo_name}"
         if context_info:
             user_message_content += f"\n\n任务上下文：\n{context_info}"
-        chat_mgr.add_message(
+        chat_service.add_message(
             session_id=session_id,
             role="user",
             content=user_message_content,
         )
 
         # 获取RAG服务（在生成器外部获取，避免重复初始化）
-        rag_svc = deps.get_rag_service()
+        rag_svc = get_rag_service()
 
         # 调用LLM流式API并逐块返回
         def token_generator():
@@ -747,7 +703,7 @@ async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa:
 
                 # 流式响应结束后，保存助手回复到数据库
                 if total_content:
-                    chat_mgr.add_message(
+                    chat_service.add_message(
                         session_id=session_id,
                         role="assistant",
                         content=total_content,
@@ -775,7 +731,10 @@ async def plan_questionnaire_stream(request: PlanQuestionnaireRequest):  # noqa:
 
 
 @router.post("/plan/summary/stream")
-async def plan_summary_stream(request: PlanSummaryRequest):  # noqa: C901
+async def plan_summary_stream(  # noqa: C901
+    request: PlanSummaryRequest,
+    chat_service: ChatService = Depends(get_chat_service),
+):
     """Plan功能：生成任务总结和子任务（流式输出）"""
     try:
         logger.info(
@@ -785,14 +744,14 @@ async def plan_summary_stream(request: PlanSummaryRequest):  # noqa: C901
         # 确保有 session_id，如果没有则创建
         session_id = request.session_id
         if not session_id:
-            session_id = deps.generate_session_id()
+            session_id = chat_service.generate_session_id()
             logger.info(f"[plan/summary] 创建新会话: {session_id}")
 
         # 检查数据库中是否存在该会话，如果不存在则创建
-        chat = chat_mgr.get_chat_by_session_id(session_id)
+        chat = chat_service.get_chat_by_session_id(session_id)
         if not chat:
             # 创建新的聊天会话，类型为 "plan"
-            chat_mgr.create_chat(
+            chat_service.create_chat(
                 session_id=session_id,
                 chat_type="plan",
                 title=f"规划任务: {request.todo_name}",
@@ -829,14 +788,14 @@ async def plan_summary_stream(request: PlanSummaryRequest):  # noqa: C901
         user_message_content = (
             f"为任务生成总结和子任务：{request.todo_name}\n\n用户回答：\n{answers_text}"
         )
-        chat_mgr.add_message(
+        chat_service.add_message(
             session_id=session_id,
             role="user",
             content=user_message_content,
         )
 
         # 获取RAG服务（在生成器外部获取，避免重复初始化）
-        rag_svc = deps.get_rag_service()
+        rag_svc = get_rag_service()
 
         # 调用LLM流式API并逐块返回
         def token_generator():
@@ -869,7 +828,7 @@ async def plan_summary_stream(request: PlanSummaryRequest):  # noqa: C901
 
                 # 流式响应结束后，保存助手回复到数据库
                 if total_content:
-                    chat_mgr.add_message(
+                    chat_service.add_message(
                         session_id=session_id,
                         role="assistant",
                         content=total_content,

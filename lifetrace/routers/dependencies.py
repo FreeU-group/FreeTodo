@@ -1,38 +1,20 @@
-"""路由依赖项 - 共享的全局对象和函数"""
+"""路由依赖项 - 会话管理相关功能
+
+此模块仅保留聊天会话管理功能。
+其他依赖（如 OCR 处理器、配置等）已迁移到 core/dependencies.py 模块。
+"""
 
 import uuid
 from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from lifetrace.core.dependencies import get_rag_service, get_vector_service
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
 
-# 全局依赖对象 - 在 server.py 中初始化
-ocr_processor = None
-config = None
-behavior_tracker = None  # 行为追踪器（可选功能）
-
 # 会话管理
 chat_sessions = defaultdict(dict)
-
-# 配置状态标志
-is_llm_configured = False
-
-
-# 向后兼容的属性访问
-@property
-def vector_service():
-    """向后兼容：返回延迟加载的向量服务"""
-    return get_vector_service()
-
-
-@property
-def rag_service():
-    """向后兼容：返回延迟加载的 RAG 服务"""
-    return get_rag_service()
 
 
 def generate_session_id() -> str:
@@ -91,22 +73,19 @@ def add_to_session_context(session_id: str, role: str, content: str):
         ]
 
 
-def init_dependencies(
-    ocr_proc,
-    vec_service,  # 已弃用，传入 None
-    rag_svc,  # 已弃用，传入 None
-    cfg,
-    is_llm_config,
-):
-    """初始化全局依赖
+# ========== 向后兼容的延迟加载服务访问 ==========
+# 这些函数提供向后兼容性，推荐直接使用 core.dependencies 模块
 
-    注意：vec_service 和 rag_svc 参数已弃用，这些服务现在通过延迟加载获取。
-    保留参数是为了向后兼容。
-    """
-    global ocr_processor, config, is_llm_configured
 
-    ocr_processor = ocr_proc
-    config = cfg
-    is_llm_configured = is_llm_config
+def get_vector_service():
+    """向后兼容：获取向量服务（延迟加载）"""
+    from lifetrace.core.dependencies import get_vector_service as core_get
 
-    # vec_service 和 rag_svc 参数被忽略，改用延迟加载
+    return core_get()
+
+
+def get_rag_service():
+    """向后兼容：获取 RAG 服务（延迟加载）"""
+    from lifetrace.core.dependencies import get_rag_service as core_get
+
+    return core_get()

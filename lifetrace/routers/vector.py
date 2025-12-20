@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Query
 
-from lifetrace.routers import dependencies as deps
+from lifetrace.core.dependencies import get_vector_service
 from lifetrace.schemas.event import EventResponse
 from lifetrace.schemas.vector import (
     SemanticSearchRequest,
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["vector"])
 async def semantic_search(request: SemanticSearchRequest):
     """语义搜索 OCR 结果"""
     try:
-        vector_service = deps.get_vector_service()
+        vector_service = get_vector_service()
         if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
 
@@ -56,7 +56,7 @@ async def semantic_search(request: SemanticSearchRequest):
 async def event_semantic_search(request: SemanticSearchRequest):
     """事件级语义搜索（基于事件聚合文本）"""
     try:
-        vector_service = deps.get_vector_service()
+        vector_service = get_vector_service()
         if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
         raw_results = vector_service.semantic_search_events(
@@ -92,7 +92,7 @@ async def event_semantic_search(request: SemanticSearchRequest):
 async def get_vector_stats():
     """获取向量数据库统计信息"""
     try:
-        stats = deps.get_vector_service().get_stats()
+        stats = get_vector_service().get_stats()
         return VectorStatsResponse(**stats)
 
     except Exception as e:
@@ -107,7 +107,7 @@ async def sync_vector_database(
 ):
     """同步 SQLite 数据库到向量数据库"""
     try:
-        vector_service = deps.get_vector_service()
+        vector_service = get_vector_service()
         if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
 
@@ -124,7 +124,7 @@ async def sync_vector_database(
 async def reset_vector_database():
     """重置向量数据库"""
     try:
-        vector_service = deps.get_vector_service()
+        vector_service = get_vector_service()
         if not vector_service.is_enabled():
             raise HTTPException(status_code=503, detail="向量数据库服务不可用")
 
