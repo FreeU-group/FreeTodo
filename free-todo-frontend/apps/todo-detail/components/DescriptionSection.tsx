@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Paperclip, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,6 +18,7 @@ export function DescriptionSection({
 	attachments,
 	onDescriptionChange,
 }: DescriptionSectionProps) {
+	const t = useTranslations("todoDetail");
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState(description || "");
 	// 本地显示值，用于乐观更新
@@ -103,7 +105,7 @@ export function DescriptionSection({
 	return (
 		<div className="mb-8">
 			<h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-				Description
+				{t("descriptionLabel")}
 			</h2>
 
 			{isEditing ? (

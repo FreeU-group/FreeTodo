@@ -510,6 +510,8 @@
 		"addChild": "添加子待办",
 		"childTodos": "子待办",
 		"useAiPlan": "使用AI规划",
-		"useAiPlanTitle": "使用AI规划"
+		"useAiPlanTitle": "使用AI规划",
+		"descriptionLabel": "描述",
+		"notesLabel": "备注"
 	}
 }

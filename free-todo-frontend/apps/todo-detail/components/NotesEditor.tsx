@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { ChangeEvent } from "react";
 
 interface NotesEditorProps {
@@ -17,6 +18,7 @@ export function NotesEditor({
 	notesRef,
 	adjustHeight,
 }: NotesEditorProps) {
+	const t = useTranslations("todoDetail");
 	const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
 		onChange(event.target.value);
 		requestAnimationFrame(adjustHeight);
@@ -29,7 +31,7 @@ export function NotesEditor({
 	return (
 		<>
 			<h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-				Notes
+				{t("notesLabel")}
 			</h2>
 			<textarea
 				ref={notesRef}

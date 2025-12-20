@@ -510,6 +510,8 @@
 		"addChild": "Add child todo",
 		"childTodos": "Child Todos",
 		"useAiPlan": "Use AI to plan",
-		"useAiPlanTitle": "Use AI to plan"
+		"useAiPlanTitle": "Use AI to plan",
+		"descriptionLabel": "Description",
+		"notesLabel": "Notes"
 	}
 }
