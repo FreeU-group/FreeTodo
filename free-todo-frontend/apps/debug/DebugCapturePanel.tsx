@@ -807,7 +807,7 @@ export function DebugCapturePanel() {
 	}, [loadEventDetail]);
 
 	return (
-		<div className="flex h-full flex-col overflow-hidden">
+		<div className="flex h-full flex-col overflow-hidden bg-background">
 			{/* 头部 */}
 			<PanelHeader icon={Camera} title={tDebug("title")} />
 

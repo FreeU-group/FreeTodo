@@ -692,7 +692,7 @@ export function CalendarPanel() {
 			</div>
 
 			{/* 视图主体 */}
-			<div className="flex-1 overflow-y-auto bg-card p-3">
+			<div className="flex-1 overflow-y-auto bg-background p-3">
 				{view !== "day" && (
 					<div className="grid grid-cols-7">
 						{WEEKDAY_LABELS.map((label) => (
