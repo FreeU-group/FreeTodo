@@ -143,10 +143,6 @@ def _create_rapidocr_instance() -> RapidOCR:  # noqa: C901, PLR0912
             logger.info(f"  识别模型: {rec_model_path}")
             logger.info(f"  分类模型: {cls_model_path}")
 
-            # 在 PyInstaller 环境中，确保清除环境变量，防止 RapidOCR 查找内部配置文件
-            if getattr(sys, "frozen", False) and "RAPIDOCR_CONFIG_PATH" in os.environ:
-                del os.environ["RAPIDOCR_CONFIG_PATH"]
-
             return RapidOCR(
                 det_model_path=det_model_path,
                 rec_model_path=rec_model_path,
@@ -544,12 +540,6 @@ def _ensure_ocr_initialized():  # noqa: C901
     if _ocr_engine is None:
         logger.info("正在初始化RapidOCR引擎...")
         try:
-            # 在 PyInstaller 环境中，RapidOCR 可能会尝试查找它自己的配置文件
-            # 我们需要确保它使用默认配置
-            if getattr(sys, "frozen", False):
-                # 清除可能干扰的环境变量
-                if "RAPIDOCR_CONFIG_PATH" in os.environ:
-                    del os.environ["RAPIDOCR_CONFIG_PATH"]
             _ocr_engine = _create_rapidocr_instance()
             logger.info("RapidOCR引擎初始化成功")
         except Exception as e:
@@ -557,11 +547,6 @@ def _ensure_ocr_initialized():  # noqa: C901
             # 如果初始化失败，尝试使用更简单的配置
             try:
                 logger.info("尝试使用最小配置重新初始化 RapidOCR...")
-                # 确保清除环境变量，防止 RapidOCR 查找内部配置文件
-                if "RAPIDOCR_CONFIG_PATH" in os.environ:
-                    del os.environ["RAPIDOCR_CONFIG_PATH"]
-                # 尝试设置一个不存在的路径，强制 RapidOCR 使用默认配置
-                # 但这样可能会失败，所以我们直接使用 None
                 _ocr_engine = RapidOCR(
                     config_path=None,
                     det_use_cuda=False,
@@ -572,11 +557,6 @@ def _ensure_ocr_initialized():  # noqa: C901
                 logger.info("RapidOCR引擎使用最小配置初始化成功")
             except Exception as e2:
                 logger.error(f"RapidOCR使用最小配置也初始化失败: {e2}")
-                # 最后一次尝试：完全清除所有可能的环境变量
-                for key in list(os.environ.keys()):
-                    if "RAPIDOCR" in key.upper() or "ONNX" in key.upper():
-                        del os.environ[key]
-                        logger.info(f"已清除环境变量: {key}")
                 raise
 
     if _vector_service is None:

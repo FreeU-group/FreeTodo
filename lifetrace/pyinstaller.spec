@@ -90,6 +90,12 @@ hiddenimports = [
     "cv2",
     "numpy",
     "rapidocr_onnxruntime",
+    "rapidocr_onnxruntime.main",
+    "rapidocr_onnxruntime.cal_rec_boxes",
+    "rapidocr_onnxruntime.ch_ppocr_cls",
+    "rapidocr_onnxruntime.ch_ppocr_det",
+    "rapidocr_onnxruntime.ch_ppocr_rec",
+    "rapidocr_onnxruntime.utils",
     "yaml",
     "apscheduler",
     "apscheduler.executors",
@@ -140,6 +146,35 @@ hiddenimports = [
 # Collect all lifetrace source files to ensure they're included
 # PyInstaller needs the parent directory in pathex to find the lifetrace module
 lifetrace_parent_dir = str(lifetrace_dir.parent)
+
+# Collect data files and binaries from rapidocr_onnxruntime package
+# This ensures config.yaml and other data files are included
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+# Collect all submodules to ensure nothing is missed
+rapidocr_submodules = collect_submodules("rapidocr_onnxruntime")
+hiddenimports.extend(rapidocr_submodules)
+
+# Collect data files (config.yaml, etc.)
+rapidocr_datas = collect_data_files("rapidocr_onnxruntime")
+datas.extend(rapidocr_datas)
+
+# Collect all chromadb submodules (including telemetry.product.posthog)
+# ChromaDB has many submodules that PyInstaller might miss
+chromadb_submodules = collect_submodules("chromadb")
+hiddenimports.extend(chromadb_submodules)
+
+# Collect chromadb data files if any
+chromadb_datas = collect_data_files("chromadb")
+datas.extend(chromadb_datas)
+
+# Collect sentence_transformers submodules (may have many submodules)
+sentence_transformers_submodules = collect_submodules("sentence_transformers")
+hiddenimports.extend(sentence_transformers_submodules)
+
+# Collect sentence_transformers data files (model configs, etc.)
+sentence_transformers_datas = collect_data_files("sentence_transformers")
+datas.extend(sentence_transformers_datas)
 
 a = Analysis(
     ["scripts/start_backend.py"],
