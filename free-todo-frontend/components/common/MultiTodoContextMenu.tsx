@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTodoMutations, useTodos } from "@/lib/query";
@@ -16,6 +17,7 @@ export function MultiTodoContextMenu({
 	selectedTodoIds,
 	children,
 }: MultiTodoContextMenuProps) {
+	const t = useTranslations("contextMenu");
 	// 从 TanStack Query 获取 mutation 操作和 todos 数据
 	const { data: todos = [] } = useTodos();
 	const { deleteTodo, updateTodo } = useTodoMutations();
@@ -192,7 +194,7 @@ export function MultiTodoContextMenu({
 							}}
 						>
 							<div className="px-3 py-2 text-xs text-muted-foreground border-b border-border">
-								已选中 {selectedTodoIds.length} 项
+								{t("selectedCount", { count: selectedTodoIds.length })}
 							</div>
 							<button
 								type="button"
@@ -200,7 +202,7 @@ export function MultiTodoContextMenu({
 								onClick={handleCancel}
 							>
 								<X className="h-4 w-4" />
-								<span>批量放弃</span>
+								<span>{t("batchCancel")}</span>
 							</button>
 							<button
 								type="button"
@@ -208,7 +210,7 @@ export function MultiTodoContextMenu({
 								onClick={handleDelete}
 							>
 								<Trash2 className="h-4 w-4" />
-								<span>批量删除</span>
+								<span>{t("batchDelete")}</span>
 							</button>
 						</div>
 					</div>,

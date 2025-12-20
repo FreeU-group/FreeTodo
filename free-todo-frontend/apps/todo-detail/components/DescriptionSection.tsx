@@ -229,7 +229,9 @@ export function DescriptionSection({
 							</ReactMarkdown>
 						</div>
 					) : (
-						<span className="text-muted-foreground">暂无描述（点击添加）</span>
+						<span className="text-muted-foreground">
+							{t("descriptionEmptyPlaceholder")}
+						</span>
 					)}
 				</div>
 			)}

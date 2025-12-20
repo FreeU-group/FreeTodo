@@ -512,6 +512,20 @@
 		"useAiPlan": "使用AI规划",
 		"useAiPlanTitle": "使用AI规划",
 		"descriptionLabel": "描述",
-		"notesLabel": "备注"
+		"notesLabel": "备注",
+		"descriptionEmptyPlaceholder": "暂无描述（点击添加）",
+		"notesPlaceholder": "在此输入备注..."
+	},
+	"contextMenu": {
+		"selectedCount": "已选中 {count} 项",
+		"batchCancel": "批量放弃",
+		"batchDelete": "批量删除",
+		"addChild": "添加子待办",
+		"useAiPlan": "使用AI规划",
+		"cancel": "放弃",
+		"delete": "删除",
+		"childNamePlaceholder": "输入子待办名称...",
+		"cancelButton": "取消",
+		"addButton": "添加"
 	}
 }

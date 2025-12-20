@@ -512,6 +512,20 @@
 		"useAiPlan": "Use AI to plan",
 		"useAiPlanTitle": "Use AI to plan",
 		"descriptionLabel": "Description",
-		"notesLabel": "Notes"
+		"notesLabel": "Notes",
+		"descriptionEmptyPlaceholder": "No description (click to add)",
+		"notesPlaceholder": "Insert your notes here"
+	},
+	"contextMenu": {
+		"selectedCount": "Selected {count} items",
+		"batchCancel": "Batch Cancel",
+		"batchDelete": "Batch Delete",
+		"addChild": "Add child todo",
+		"useAiPlan": "Use AI to plan",
+		"cancel": "Cancel",
+		"delete": "Delete",
+		"childNamePlaceholder": "Enter child todo name...",
+		"cancelButton": "Cancel",
+		"addButton": "Add"
 	}
 }
