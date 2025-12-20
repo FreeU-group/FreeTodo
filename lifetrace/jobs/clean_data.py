@@ -7,8 +7,9 @@ import os
 from datetime import datetime, timedelta
 
 from lifetrace.storage import get_session, screenshot_mgr
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.path_utils import get_user_data_dir
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -18,9 +19,9 @@ class CleanDataService:
 
     def __init__(self):
         """初始化数据清理服务"""
-        self.max_screenshots = config.get("jobs.clean_data.params.max_screenshots")
-        self.max_days = config.get("jobs.clean_data.params.max_days")
-        self.delete_file_only = config.get("jobs.clean_data.params.delete_file_only")
+        self.max_screenshots = settings.get("jobs.clean_data.params.max_screenshots")
+        self.max_days = settings.get("jobs.clean_data.params.max_days")
+        self.delete_file_only = settings.get("jobs.clean_data.params.delete_file_only")
         logger.info("数据清理服务已初始化")
 
     def execute(self) -> dict:
@@ -171,7 +172,7 @@ class CleanDataService:
 
         try:
             # 构造完整路径
-            base_dir = config.get("base_dir")
+            base_dir = str(get_user_data_dir())
             file_path = os.path.join(base_dir, screenshot.file_path)
 
             # 删除文件

@@ -218,8 +218,8 @@ def get_ocr_processor():
 # ========== 配置依赖注入 ==========
 
 
-def get_config():
+def get_settings():
     """获取配置对象"""
-    from lifetrace.util.config import config
+    from lifetrace.util.settings import settings
 
-    return config
+    return settings

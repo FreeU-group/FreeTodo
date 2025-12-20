@@ -7,10 +7,10 @@ from lifetrace.llm.context_builder import ContextBuilder
 from lifetrace.llm.llm_client import LLMClient
 from lifetrace.llm.retrieval_service import RetrievalService
 from lifetrace.storage import chat_mgr, project_mgr, task_mgr
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
 from lifetrace.util.query_parser import QueryConditions, QueryParser
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -774,8 +774,8 @@ LifeTrace是一个生活轨迹记录和分析系统，主要功能包括：
             needs_db = intent_result.get("needs_database", True)
 
             # 获取历史对话配置
-            enable_history = config.get("chat.enable_history")
-            history_limit = config.get("chat.history_limit")
+            enable_history = settings.chat.enable_history
+            history_limit = settings.chat.history_limit
 
             # 获取项目和任务信息
             project_info, tasks_info_str, selected_tasks_info_str = None, "暂无任务", None

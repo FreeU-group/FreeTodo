@@ -21,17 +21,12 @@ class VectorService:
     负责将 OCR 结果存储到向量数据库，并提供语义搜索功能。
     """
 
-    def __init__(self, config):
-        """初始化向量服务
-
-        Args:
-            config: 配置对象
-        """
-        self.config = config
+    def __init__(self):
+        """初始化向量服务"""
         self.logger = logger
 
         # 初始化向量数据库
-        self.vector_db = create_vector_db(config)
+        self.vector_db = create_vector_db()
         if self.vector_db is None:
             self.logger.warning("Vector database not available")
             self.enabled = False
@@ -195,6 +190,70 @@ class VectorService:
             )
             return False
 
+    def _compute_score(self, result: dict[str, Any]) -> float:
+        """计算统一的相似度分数"""
+        if "rerank_score" in result:
+            return result["rerank_score"]
+        if "distance" in result:
+            return max(0, 1 - result["distance"])
+        return 0.0
+
+    def _fetch_db_records(
+        self, ocr_result_id: int | None, screenshot_id: int | None
+    ) -> dict[str, Any]:
+        """获取数据库中的 OCR 和截图记录"""
+        result: dict[str, Any] = {}
+        if not ocr_result_id:
+            return result
+
+        with get_session() as session:
+            ocr_result = session.query(OCRResult).filter(OCRResult.id == ocr_result_id).first()
+            if ocr_result:
+                result["ocr_result"] = {
+                    "id": ocr_result.id,
+                    "text_content": ocr_result.text_content,
+                    "confidence": ocr_result.confidence,
+                    "language": ocr_result.language,
+                    "processing_time": ocr_result.processing_time,
+                    "created_at": (
+                        ocr_result.created_at.isoformat() if ocr_result.created_at else None
+                    ),
+                }
+
+            if screenshot_id:
+                screenshot = (
+                    session.query(Screenshot).filter(Screenshot.id == screenshot_id).first()
+                )
+                if screenshot:
+                    result["screenshot"] = {
+                        "id": screenshot.id,
+                        "file_path": screenshot.file_path,
+                        "app_name": screenshot.app_name,
+                        "window_title": screenshot.window_title,
+                        "width": screenshot.width,
+                        "height": screenshot.height,
+                        "created_at": (
+                            screenshot.created_at.isoformat() if screenshot.created_at else None
+                        ),
+                    }
+        return result
+
+    def _enhance_result(self, result: dict[str, Any]) -> dict[str, Any]:
+        """增强单个搜索结果"""
+        enhanced = result.copy()
+        enhanced["score"] = self._compute_score(result)
+
+        metadata = result.get("metadata", {})
+        try:
+            db_records = self._fetch_db_records(
+                metadata.get("ocr_result_id"), metadata.get("screenshot_id")
+            )
+            enhanced.update(db_records)
+        except Exception as db_error:
+            self.logger.warning(f"无法获取相关数据库记录: {db_error}")
+
+        return enhanced
+
     def semantic_search(
         self,
         query: str,
@@ -215,97 +274,20 @@ class VectorService:
         Returns:
             搜索结果列表
         """
-        if not self.is_enabled():
-            return []
-
-        if not query or not query.strip():
+        if not self.is_enabled() or not query or not query.strip():
             return []
 
         try:
             if use_rerank:
-                # 使用重排序搜索
                 if retrieve_k is None:
-                    retrieve_k = min(top_k * 3, 50)  # 默认检索 3 倍数量用于重排序
-
+                    retrieve_k = min(top_k * 3, 50)
                 results = self.vector_db.search_and_rerank(
                     query=query, retrieve_k=retrieve_k, rerank_k=top_k, where=filters
                 )
             else:
-                # 直接搜索
                 results = self.vector_db.search(query=query, top_k=top_k, where=filters)
 
-            # 增强结果信息
-            enhanced_results = []
-            for result in results:
-                enhanced_result = result.copy()
-
-                # 统一score字段：优先使用rerank_score，其次使用distance转换为相似度
-                if "rerank_score" in result:
-                    enhanced_result["score"] = result["rerank_score"]
-                elif "distance" in result:
-                    # 将距离转换为相似度分数（0-1之间）
-                    enhanced_result["score"] = max(0, 1 - result["distance"])
-                else:
-                    enhanced_result["score"] = 0.0
-
-                # 尝试获取相关的数据库记录
-                try:
-                    metadata = result.get("metadata", {})
-                    ocr_result_id = metadata.get("ocr_result_id")
-                    screenshot_id = metadata.get("screenshot_id")
-
-                    if ocr_result_id:
-                        # 获取OCR结果详细信息
-                        with get_session() as session:
-                            from lifetrace.storage.models import OCRResult, Screenshot
-
-                            ocr_result = (
-                                session.query(OCRResult)
-                                .filter(OCRResult.id == ocr_result_id)
-                                .first()
-                            )
-                            if ocr_result:
-                                enhanced_result["ocr_result"] = {
-                                    "id": ocr_result.id,
-                                    "text_content": ocr_result.text_content,
-                                    "confidence": ocr_result.confidence,
-                                    "language": ocr_result.language,
-                                    "processing_time": ocr_result.processing_time,
-                                    "created_at": (
-                                        ocr_result.created_at.isoformat()
-                                        if ocr_result.created_at
-                                        else None
-                                    ),
-                                }
-
-                            # 获取截图信息
-                            if screenshot_id:
-                                screenshot = (
-                                    session.query(Screenshot)
-                                    .filter(Screenshot.id == screenshot_id)
-                                    .first()
-                                )
-                                if screenshot:
-                                    enhanced_result["screenshot"] = {
-                                        "id": screenshot.id,
-                                        "file_path": screenshot.file_path,
-                                        "app_name": screenshot.app_name,
-                                        "window_title": screenshot.window_title,
-                                        "width": screenshot.width,
-                                        "height": screenshot.height,
-                                        "created_at": (
-                                            screenshot.created_at.isoformat()
-                                            if screenshot.created_at
-                                            else None
-                                        ),
-                                    }
-                except Exception as db_error:
-                    self.logger.warning(f"无法获取相关数据库记录: {db_error}")
-                    # 继续处理，不影响搜索结果
-
-                enhanced_results.append(enhanced_result)
-
-            return enhanced_results
+            return [self._enhance_result(r) for r in results]
 
         except Exception as e:
             self.logger.error(f"语义搜索失败: {e}")
@@ -331,96 +313,110 @@ class VectorService:
             self.logger.error(f"事件{event_id}写入向量库失败: {e}")
             return False
 
+    def _aggregate_event_scores(self, results: list[dict[str, Any]]) -> dict[int, dict[str, float]]:
+        """按 event_id 聚合结果，保留最高分数"""
+        event_scores: dict[int, dict[str, float]] = {}
+        for result in results:
+            event_id = result.get("metadata", {}).get("event_id")
+            if not event_id:
+                continue
+
+            semantic_score = self._compute_score(result)
+            if event_id not in event_scores or semantic_score > event_scores[event_id]["score"]:
+                event_scores[event_id] = {
+                    "score": semantic_score,
+                    "distance": result.get("distance", 1.0),
+                }
+        return event_scores
+
+    def _fetch_event_details(
+        self, event_id: int, score_info: dict[str, float]
+    ) -> dict[str, Any] | None:
+        """获取事件详细信息"""
+        from lifetrace.storage.models import Event, Screenshot
+
+        with get_session() as session:
+            event = session.query(Event).filter(Event.id == event_id).first()
+            if not event:
+                return None
+
+            screenshot_count = (
+                session.query(Screenshot).filter(Screenshot.event_id == event_id).count()
+            )
+            first_screenshot = (
+                session.query(Screenshot)
+                .filter(Screenshot.event_id == event_id)
+                .order_by(Screenshot.created_at.asc())
+                .first()
+            )
+
+            return {
+                "id": event.id,
+                "app_name": event.app_name,
+                "window_title": event.window_title,
+                "start_time": event.start_time.isoformat() if event.start_time else None,
+                "end_time": event.end_time.isoformat() if event.end_time else None,
+                "screenshot_count": screenshot_count,
+                "first_screenshot_id": first_screenshot.id if first_screenshot else None,
+                "semantic_score": score_info["score"],
+                "distance": score_info["distance"],
+            }
+
     def semantic_search_events(self, query: str, top_k: int = 10) -> list[dict[str, Any]]:
         """对事件文档进行语义搜索（基于 event_{id} 文档）"""
         if not self.is_enabled():
             return []
+
         try:
-            # 由于向量数据库的where条件有问题，我们先搜索所有文档，然后手动过滤
-            # 搜索更多结果以确保能找到足够的事件文档
             search_limit = max(top_k * 3, 50)
             all_results = self.vector_db.search(query=query, top_k=search_limit)
-
             if not all_results:
                 return []
 
-            # 按event_id聚合结果，保留最高分数
-            event_scores = {}
-            for result in all_results:
-                metadata = result.get("metadata", {})
-                event_id = metadata.get("event_id")
+            event_scores = self._aggregate_event_scores(all_results)
 
-                if event_id:
-                    # 计算语义分数
-                    semantic_score = result.get("score", 0.0)
-                    if semantic_score == 0.0 and "distance" in result:
-                        # 如果没有score，从distance计算相似度分数
-                        semantic_score = max(0, 1 - result["distance"])
-
-                    # 保留每个事件的最高分数
-                    if (
-                        event_id not in event_scores
-                        or semantic_score > event_scores[event_id]["score"]
-                    ):
-                        event_scores[event_id] = {
-                            "score": semantic_score,
-                            "distance": result.get("distance", 1.0),
-                        }
-
-            # 获取事件详细信息
             event_results = []
             for event_id, score_info in event_scores.items():
                 try:
-                    with get_session() as session:
-                        from lifetrace.storage.models import Event, Screenshot
-
-                        event = session.query(Event).filter(Event.id == event_id).first()
-
-                        if event:
-                            # 获取该事件的截图数量
-                            screenshot_count = (
-                                session.query(Screenshot)
-                                .filter(Screenshot.event_id == event_id)
-                                .count()
-                            )
-                            first_screenshot = (
-                                session.query(Screenshot)
-                                .filter(Screenshot.event_id == event_id)
-                                .order_by(Screenshot.created_at.asc())
-                                .first()
-                            )
-
-                            event_data = {
-                                "id": event.id,
-                                "app_name": event.app_name,
-                                "window_title": event.window_title,
-                                "start_time": (
-                                    event.start_time.isoformat() if event.start_time else None
-                                ),
-                                "end_time": (
-                                    event.end_time.isoformat() if event.end_time else None
-                                ),
-                                "screenshot_count": screenshot_count,
-                                "first_screenshot_id": (
-                                    first_screenshot.id if first_screenshot else None
-                                ),
-                                "semantic_score": score_info["score"],
-                                "distance": score_info["distance"],
-                            }
-                            event_results.append(event_data)
-
+                    event_data = self._fetch_event_details(event_id, score_info)
+                    if event_data:
+                        event_results.append(event_data)
                 except Exception as db_error:
                     self.logger.warning(f"获取事件{event_id}详细信息失败: {db_error}")
-                    continue
 
-            # 按语义相似度排序
             event_results.sort(key=lambda x: x.get("semantic_score", 0.0), reverse=True)
-
             return event_results[:top_k]
 
         except Exception as e:
             self.logger.error(f"事件语义搜索失败: {e}")
             return []
+
+    def _should_reset_vector_db(
+        self, total_ocr_count: int, vector_doc_count: int, force_reset: bool
+    ) -> bool:
+        """判断是否需要重置向量数据库"""
+        if force_reset:
+            return True
+        # SQLite 为空但向量数据库不为空
+        return total_ocr_count == 0 and vector_doc_count > 0
+
+    def _sync_ocr_results(self, session, ocr_results: list) -> int:
+        """同步 OCR 结果到向量数据库"""
+        synced_count = 0
+        for ocr_result in ocr_results:
+            screenshot = (
+                session.query(Screenshot).filter(Screenshot.id == ocr_result.screenshot_id).first()
+            )
+            if screenshot is None:
+                self.logger.warning(f"Screenshot not found for OCR result {ocr_result.id}")
+                continue
+
+            if self.add_ocr_result(ocr_result, screenshot):
+                synced_count += 1
+                if synced_count % 100 == 0:
+                    self.logger.info(f"Synced {synced_count} OCR results to vector database")
+
+        return synced_count
 
     def sync_from_database(self, limit: int | None = None, force_reset: bool = False) -> int:
         """从 SQLite 数据库同步 OCR 结果到向量数据库
@@ -437,64 +433,38 @@ class VectorService:
 
         try:
             with get_session() as session:
-                # 检查SQLite数据库中的OCR结果数量
                 total_ocr_count = session.query(OCRResult).count()
-                self.logger.info(f"SQLite database has {total_ocr_count} OCR results")
+                vector_doc_count = self.vector_db.get_collection_stats().get("document_count", 0)
+                self.logger.info(
+                    f"SQLite: {total_ocr_count} OCR results, Vector: {vector_doc_count} documents"
+                )
 
-                # 获取向量数据库中的文档数量
-                vector_stats = self.vector_db.get_collection_stats()
-                vector_doc_count = vector_stats.get("document_count", 0)
-                self.logger.info(f"Vector database has {vector_doc_count} documents")
-
-                # 如果SQLite为空但向量数据库不为空，或者强制重置，则清空向量数据库
-                if (total_ocr_count == 0 and vector_doc_count > 0) or force_reset:
-                    self.logger.info("Resetting vector database to match empty SQLite database")
+                if self._should_reset_vector_db(total_ocr_count, vector_doc_count, force_reset):
+                    self.logger.info("Resetting vector database")
                     self.reset()
                     if total_ocr_count == 0:
-                        return 0  # SQLite为空，同步完成
+                        return 0
 
-                # 如果两个数据库都为空，无需同步
-                if total_ocr_count == 0 and vector_doc_count == 0:
+                if total_ocr_count == 0:
                     self.logger.info("Both databases are empty, no sync needed")
                     return 0
 
-                synced_count = 0
-
-                # 查询所有 OCR 结果
                 query = session.query(OCRResult).join(
                     Screenshot, OCRResult.screenshot_id == Screenshot.id
                 )
                 if limit:
                     query = query.limit(limit)
-
                 ocr_results = query.all()
 
-                # 如果需要完全同步，先重置向量数据库
                 if not limit and len(ocr_results) != vector_doc_count:
-                    self.logger.info(
-                        f"Document count mismatch (SQLite: {len(ocr_results)}, Vector: {vector_doc_count}), resetting vector database"
-                    )
+                    self.logger.info("Document count mismatch, resetting vector database")
                     self.reset()
 
-                for ocr_result in ocr_results:
-                    # 通过 screenshot_id 获取对应的 Screenshot 对象
-                    screenshot = (
-                        session.query(Screenshot)
-                        .filter(Screenshot.id == ocr_result.screenshot_id)
-                        .first()
-                    )
-                    if screenshot is None:
-                        self.logger.warning(f"Screenshot not found for OCR result {ocr_result.id}")
-                        continue
-
-                    if self.add_ocr_result(ocr_result, screenshot):
-                        synced_count += 1
-
-                    if synced_count % 100 == 0:
-                        self.logger.info(f"Synced {synced_count} OCR results to vector database")
-
-            self.logger.info(f"Completed sync: {synced_count} OCR results added to vector database")
-            return synced_count
+                synced_count = self._sync_ocr_results(session, ocr_results)
+                self.logger.info(
+                    f"Completed sync: {synced_count} OCR results added to vector database"
+                )
+                return synced_count
 
         except Exception as e:
             self.logger.error(f"Error syncing from database: {e}")
@@ -536,13 +506,10 @@ class VectorService:
             return False
 
 
-def create_vector_service(config) -> VectorService:
+def create_vector_service() -> VectorService:
     """创建向量服务实例
-
-    Args:
-        config: 配置对象
 
     Returns:
         向量服务实例
     """
-    return VectorService(config)
+    return VectorService()

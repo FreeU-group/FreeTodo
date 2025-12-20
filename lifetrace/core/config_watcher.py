@@ -98,14 +98,14 @@ def take_snapshot():
 
     在配置重载前调用，用于后续比对变更。
     """
-    from lifetrace.util.config import config
+    from lifetrace.util.settings import settings
 
     _config_snapshot.clear()
 
     # 记录所有已注册回调的配置键的当前值
     for key in _callbacks:
         try:
-            _config_snapshot[key] = config.get(key)
+            _config_snapshot[key] = settings.get(key)
         except KeyError:
             _config_snapshot[key] = None
 
@@ -115,12 +115,12 @@ def detect_and_notify_changes():
 
     在配置重载后调用，比对快照与当前值，触发变更回调。
     """
-    from lifetrace.util.config import config
+    from lifetrace.util.settings import settings
 
     for key in _callbacks:
         old_value = _config_snapshot.get(key)
         try:
-            new_value = config.get(key)
+            new_value = settings.get(key)
         except KeyError:
             new_value = None
 
@@ -138,13 +138,17 @@ def reload_with_callbacks() -> bool:
     Returns:
         bool: 重载是否成功
     """
-    from lifetrace.util.config import config
+    from lifetrace.util.settings import settings
 
     # 获取快照
     take_snapshot()
 
     # 重载配置
-    success = config.reload()
+    try:
+        settings.reload()
+        success = True
+    except Exception:
+        success = False
 
     if success:
         # 检测并通知变更

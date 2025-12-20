@@ -19,9 +19,8 @@ def get_vector_service() -> "VectorService":
     global _vector_service
     if _vector_service is None:
         from lifetrace.llm.vector_service import create_vector_service
-        from lifetrace.util.config import config
 
-        _vector_service = create_vector_service(config)
+        _vector_service = create_vector_service()
     return _vector_service
 
 

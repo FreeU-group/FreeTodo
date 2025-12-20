@@ -145,7 +145,7 @@ def main():
         import uvicorn
 
         from lifetrace.server import app
-        from lifetrace.util.config import config
+        from lifetrace.util.settings import settings
     except ImportError as e:
         # If import fails, log the error with path information
         import traceback
@@ -165,13 +165,13 @@ sys.frozen: {getattr(sys, "frozen", False)}
 
     # Override server config if provided via command line
     if args.port:
-        config.set("server.port", args.port, persist=False)
+        settings.set("server.port", args.port)
     if args.host:
-        config.set("server.host", args.host, persist=False)
+        settings.set("server.host", args.host)
 
-    server_host = config.get("server.host")
-    server_port = config.get("server.port")
-    server_debug = config.get("server.debug")
+    server_host = settings.server.host
+    server_port = settings.server.port
+    server_debug = settings.server.debug
 
     logger.info("Starting LifeTrace backend server")
     logger.info(f"Server URL: http://{server_host}:{server_port}")

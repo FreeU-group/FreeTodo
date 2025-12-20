@@ -1,7 +1,6 @@
 """系统资源相关路由"""
 
 from datetime import datetime
-from pathlib import Path
 
 import psutil
 from fastapi import APIRouter, HTTPException, Query
@@ -9,8 +8,8 @@ from fastapi import APIRouter, HTTPException, Query
 from lifetrace.schemas.stats import StatisticsResponse
 from lifetrace.schemas.system import ProcessInfo, SystemResourcesResponse
 from lifetrace.storage import stats_mgr
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.path_utils import get_database_path, get_screenshots_dir
 
 logger = get_logger()
 
@@ -97,10 +96,10 @@ def _get_disk_usage() -> dict:
 
 def _get_storage_info() -> dict:
     """获取数据库和截图存储信息"""
-    db_path = Path(config.database_path)
+    db_path = get_database_path()
     db_size_mb = db_path.stat().st_size / BYTES_PER_MB if db_path.exists() else 0
 
-    screenshots_path = Path(config.screenshots_dir)
+    screenshots_path = get_screenshots_dir()
     screenshots_size_mb = 0.0
     screenshots_count = 0
 

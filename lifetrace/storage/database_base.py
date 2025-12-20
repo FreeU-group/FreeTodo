@@ -10,8 +10,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import Session, SQLModel
 
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.path_utils import get_database_path
 from lifetrace.util.utils import ensure_dir
 
 logger = get_logger()
@@ -28,16 +28,15 @@ class DatabaseBase:
     def _init_database(self):
         """初始化数据库"""
         try:
+            db_path = str(get_database_path())
             # 检查数据库文件是否已存在
-            db_exists = os.path.exists(config.database_path)
+            db_exists = os.path.exists(db_path)
 
             # 确保数据库目录存在
-            ensure_dir(os.path.dirname(config.database_path))
+            ensure_dir(os.path.dirname(db_path))
 
             # 创建引擎
-            self.engine = create_engine(
-                "sqlite:///" + config.database_path, echo=False, pool_pre_ping=True
-            )
+            self.engine = create_engine("sqlite:///" + db_path, echo=False, pool_pre_ping=True)
 
             # 创建会话工厂（兼容旧代码）
             self.SessionLocal = sessionmaker(bind=self.engine)
@@ -49,7 +48,7 @@ class DatabaseBase:
             # 对于现有数据库，使用 Alembic 进行迁移
             if not db_exists:
                 SQLModel.metadata.create_all(bind=self.engine)
-                logger.info(f"数据库初始化完成: {config.database_path}")
+                logger.info(f"数据库初始化完成: {db_path}")
 
             # 性能优化：添加关键索引
             self._create_performance_indexes()

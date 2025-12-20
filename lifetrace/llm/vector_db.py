@@ -6,7 +6,6 @@
 
 import hashlib
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from lifetrace.util.logging_config import get_logger
@@ -34,13 +33,11 @@ class VectorDatabase:
     使用 ChromaDB 作为向量数据库后端。
     """
 
-    def __init__(self, config):
-        """初始化向量数据库
+    def __init__(self):
+        """初始化向量数据库"""
+        from lifetrace.util.path_utils import get_vector_db_dir
+        from lifetrace.util.settings import settings
 
-        Args:
-            config: 配置对象
-        """
-        self.config = config
         self.logger = logger
 
         # 检查依赖
@@ -54,10 +51,10 @@ class VectorDatabase:
         self.collection = None
 
         # 配置参数
-        self.vector_db_path = Path(config.vector_db_persist_directory)
-        self.embedding_model_name = config.get("vector_db.embedding_model")
-        self.cross_encoder_model_name = config.get("vector_db.rerank_model")
-        self.collection_name = config.get("vector_db.collection_name")
+        self.vector_db_path = get_vector_db_dir()
+        self.embedding_model_name = settings.get("vector_db.embedding_model")
+        self.cross_encoder_model_name = settings.get("vector_db.rerank_model")
+        self.collection_name = settings.vector_db.collection_name
 
         # 初始化
         self._initialize()
@@ -472,27 +469,26 @@ class VectorDatabase:
             return False
 
 
-def create_vector_db(config) -> VectorDatabase | None:
+def create_vector_db() -> VectorDatabase | None:
     """创建向量数据库实例
-
-    Args:
-        config: 配置对象
 
     Returns:
         向量数据库实例，如果依赖不可用则返回 None
     """
+    from lifetrace.util.settings import settings
+
     # 检查依赖
     if not all([SentenceTransformer, CrossEncoder, chromadb, np]):
         logger.warning("Vector database dependencies not available")
         return None
 
     # 检查是否启用向量数据库
-    if not config.get("vector_db.enabled"):
+    if not settings.vector_db.enabled:
         logger.info("Vector database is disabled in configuration")
         return None
 
     try:
-        return VectorDatabase(config)
+        return VectorDatabase()
     except ImportError:
         logger.warning("Vector database not available, skipping initialization")
         return None

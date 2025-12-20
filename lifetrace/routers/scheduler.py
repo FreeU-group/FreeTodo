@@ -7,7 +7,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from lifetrace.jobs.scheduler import get_scheduler_manager
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
@@ -291,12 +290,14 @@ async def resume_all_jobs():
 
 
 def _sync_job_enabled_to_config(job_id: str, enabled: bool):
-    """同步任务的启用状态到配置文件
+    """同步任务的启用状态到配置文件（持久化到 YAML 文件）
 
     Args:
         job_id: 任务ID
         enabled: 是否启用
     """
+    from lifetrace.services.config_service import ConfigService
+
     # 定义任务ID到配置路径的映射
     job_config_map = {
         "recorder_job": "jobs.recorder.enabled",
@@ -304,13 +305,20 @@ def _sync_job_enabled_to_config(job_id: str, enabled: bool):
         "task_context_mapper_job": "jobs.task_context_mapper.enabled",
         "task_summary_job": "jobs.task_summary.enabled",
         "clean_data_job": "jobs.clean_data.enabled",
+        "activity_aggregator_job": "jobs.activity_aggregator.enabled",
     }
 
     if job_id in job_config_map:
         config_key = job_config_map[job_id]
         try:
-            config.set(config_key, enabled)
-            logger.info(f"已同步任务 {job_id} 的启用状态到配置: {enabled}")
+            # 使用 ConfigService 持久化配置到文件
+            config_service = ConfigService()
+            config_service.update_config_file({config_key: enabled}, config_service._config_path)
+            # 重新加载配置到内存
+            from lifetrace.util.settings import reload_settings
+
+            reload_settings()
+            logger.info(f"已同步任务 {job_id} 的启用状态到配置文件: {enabled}")
         except Exception as e:
             logger.error(f"同步任务启用状态到配置失败: {e}")
 
@@ -318,7 +326,7 @@ def _sync_job_enabled_to_config(job_id: str, enabled: bool):
 def _sync_job_interval_to_config(
     job_id: str, seconds: int | None = None, minutes: int | None = None, hours: int | None = None
 ):
-    """同步任务的执行间隔到配置文件
+    """同步任务的执行间隔到配置文件（持久化到 YAML 文件）
 
     Args:
         job_id: 任务ID
@@ -326,6 +334,8 @@ def _sync_job_interval_to_config(
         minutes: 分钟数
         hours: 小时数
     """
+    from lifetrace.services.config_service import ConfigService
+
     # 定义任务ID到配置路径的映射
     job_config_map = {
         "recorder_job": "jobs.recorder.interval",
@@ -333,6 +343,7 @@ def _sync_job_interval_to_config(
         "task_context_mapper_job": "jobs.task_context_mapper.interval",
         "task_summary_job": "jobs.task_summary.interval",
         "clean_data_job": "jobs.clean_data.interval",
+        "activity_aggregator_job": "jobs.activity_aggregator.interval",
     }
 
     if job_id in job_config_map:
@@ -347,7 +358,15 @@ def _sync_job_interval_to_config(
             if hours:
                 total_seconds += hours * 3600
 
-            config.set(config_key, total_seconds)
-            logger.info(f"已同步任务 {job_id} 的执行间隔到配置: {total_seconds}秒")
+            # 使用 ConfigService 持久化配置到文件
+            config_service = ConfigService()
+            config_service.update_config_file(
+                {config_key: total_seconds}, config_service._config_path
+            )
+            # 重新加载配置到内存
+            from lifetrace.util.settings import reload_settings
+
+            reload_settings()
+            logger.info(f"已同步任务 {job_id} 的执行间隔到配置文件: {total_seconds}秒")
         except Exception as e:
             logger.error(f"同步任务执行间隔到配置失败: {e}")

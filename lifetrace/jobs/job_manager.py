@@ -13,8 +13,8 @@ from lifetrace.jobs.recorder import execute_capture_task, get_recorder_instance
 from lifetrace.jobs.scheduler import get_scheduler_manager
 from lifetrace.jobs.task_context_mapper import execute_mapper_task, get_mapper_instance
 from lifetrace.jobs.task_summary import execute_summary_task, get_summary_instance
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -86,7 +86,7 @@ class JobManager:
 
     def _start_recorder_job(self):
         """启动录制器任务"""
-        enabled = config.get("jobs.recorder.enabled")
+        enabled = settings.get("jobs.recorder.enabled")
 
         try:
             # 预先初始化全局录制器实例（避免首次调用时延迟）
@@ -94,8 +94,8 @@ class JobManager:
             logger.info("录制器实例已初始化")
 
             # 添加录制器定时任务（使用可序列化的函数，无论是否启用都添加）
-            recorder_interval = config.get("jobs.recorder.interval")
-            recorder_id = config.get("jobs.recorder.id")
+            recorder_interval = settings.get("jobs.recorder.interval")
+            recorder_id = settings.get("jobs.recorder.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_capture_task,  # 使用模块级别的函数
                 job_id="recorder_job",
@@ -114,12 +114,12 @@ class JobManager:
 
     def _start_ocr_job(self):
         """启动OCR任务"""
-        enabled = config.get("jobs.ocr.enabled")
+        enabled = settings.get("jobs.ocr.enabled")
 
         try:
             # 添加OCR定时任务（无论是否启用都添加）
-            ocr_interval = config.get("jobs.ocr.interval")
-            ocr_id = config.get("jobs.ocr.id")
+            ocr_interval = settings.get("jobs.ocr.interval")
+            ocr_id = settings.get("jobs.ocr.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_ocr_task,
                 job_id="ocr_job",
@@ -138,7 +138,7 @@ class JobManager:
 
     def _start_task_context_mapper(self):
         """启动任务上下文映射服务"""
-        enabled = config.get("jobs.task_context_mapper.enabled")
+        enabled = settings.get("jobs.task_context_mapper.enabled")
 
         try:
             # 预先初始化全局实例
@@ -146,8 +146,8 @@ class JobManager:
             logger.info("任务上下文映射服务实例已初始化")
 
             # 添加到调度器（无论是否启用都添加）
-            interval = config.get("jobs.task_context_mapper.interval")
-            mapper_id = config.get("jobs.task_context_mapper.id")
+            interval = settings.get("jobs.task_context_mapper.interval")
+            mapper_id = settings.get("jobs.task_context_mapper.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_mapper_task,
                 job_id="task_context_mapper_job",
@@ -166,7 +166,7 @@ class JobManager:
 
     def _start_task_summary_service(self):
         """启动任务摘要服务"""
-        enabled = config.get("jobs.task_summary.enabled")
+        enabled = settings.get("jobs.task_summary.enabled")
 
         try:
             # 预先初始化全局实例
@@ -174,8 +174,8 @@ class JobManager:
             logger.info("任务摘要服务实例已初始化")
 
             # 添加到调度器（无论是否启用都添加）
-            interval = config.get("jobs.task_summary.interval")
-            summary_id = config.get("jobs.task_summary.id")
+            interval = settings.get("jobs.task_summary.interval")
+            summary_id = settings.get("jobs.task_summary.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_summary_task,
                 job_id="task_summary_job",
@@ -194,7 +194,7 @@ class JobManager:
 
     def _start_activity_aggregator(self):
         """启动活动聚合任务"""
-        enabled = config.get("jobs.activity_aggregator.enabled")
+        enabled = settings.get("jobs.activity_aggregator.enabled")
 
         try:
             # 预先初始化全局实例
@@ -202,8 +202,8 @@ class JobManager:
             logger.info("活动聚合服务实例已初始化")
 
             # 添加到调度器（无论是否启用都添加）
-            interval = config.get("jobs.activity_aggregator.interval")
-            aggregator_id = config.get("jobs.activity_aggregator.id")
+            interval = settings.get("jobs.activity_aggregator.interval")
+            aggregator_id = settings.get("jobs.activity_aggregator.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_activity_aggregation_task,
                 job_id="activity_aggregator_job",
@@ -222,7 +222,7 @@ class JobManager:
 
     def _start_clean_data_job(self):
         """启动数据清理任务"""
-        enabled = config.get("jobs.clean_data.enabled")
+        enabled = settings.get("jobs.clean_data.enabled")
 
         try:
             # 预先初始化全局实例
@@ -230,8 +230,8 @@ class JobManager:
             logger.info("数据清理服务实例已初始化")
 
             # 添加到调度器（无论是否启用都添加）
-            interval = config.get("jobs.clean_data.interval")
-            clean_data_id = config.get("jobs.clean_data.id")
+            interval = settings.get("jobs.clean_data.interval")
+            clean_data_id = settings.get("jobs.clean_data.id")
             self.scheduler_manager.add_interval_job(
                 func=execute_clean_data_task,
                 job_id="clean_data_job",

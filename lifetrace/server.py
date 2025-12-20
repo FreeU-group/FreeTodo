@@ -29,12 +29,14 @@ from lifetrace.routers import (
     vision,
 )
 from lifetrace.routers import config as config_router
-from lifetrace.util.config import config
+from lifetrace.services.config_service import is_llm_configured
 from lifetrace.util.logging_config import get_logger, setup_logging
+from lifetrace.util.path_utils import get_user_logs_dir
+from lifetrace.util.settings import settings
 
 # 使用处理后的日志路径配置
-logging_config = config.get("logging").copy()
-logging_config["log_path"] = config.log_path
+logging_config = settings.get("logging").copy()
+logging_config["log_path"] = str(get_user_logs_dir()) + "/"
 setup_logging(logging_config)
 
 logger = get_logger()
@@ -91,8 +93,8 @@ app.add_middleware(
 # 通过 lifetrace.core.dependencies 模块按需获取
 
 # 全局配置状态标志
-is_llm_configured = config.is_configured()
-config_status = "已配置" if is_llm_configured else "未配置，需要引导配置"
+llm_configured = is_llm_configured()
+config_status = "已配置" if llm_configured else "未配置，需要引导配置"
 logger.info(f"LLM配置状态: {config_status}")
 
 
@@ -122,9 +124,9 @@ app.include_router(vision.router)
 
 
 if __name__ == "__main__":
-    server_host = config.get("server.host")
-    server_port = config.get("server.port")
-    server_debug = config.get("server.debug")
+    server_host = settings.server.host
+    server_port = settings.server.port
+    server_debug = settings.server.debug
 
     logger.info(f"启动服务器: http://{server_host}:{server_port}")
     logger.info(f"调试模式: {'开启' if server_debug else '关闭'}")

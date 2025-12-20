@@ -5,8 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from openai import OpenAI
 
-from lifetrace.services.config_service import ConfigService
-from lifetrace.util.config import config
+from lifetrace.services.config_service import ConfigService, is_llm_configured
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
@@ -15,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["config"])
 
 
 # 初始化配置服务
-config_service = ConfigService(config)
+config_service = ConfigService()
 
 
 def _validate_aliyun_api_key(llm_key: str) -> dict[str, Any] | None:
@@ -176,8 +175,8 @@ async def save_and_init_llm(config_data: dict[str, str]):
             return {"success": False, "error": "保存配置失败"}
 
         # 3. 更新配置状态（配置重载和 LLM 重新初始化已在 save_config 中完成）
-        is_llm_configured = config.is_configured()
-        status = "已配置" if is_llm_configured else "未配置"
+        llm_configured = is_llm_configured()
+        status = "已配置" if llm_configured else "未配置"
         logger.info(f"LLM配置状态已更新为：{status}")
 
         return {"success": True, "message": "配置保存成功，正在跳转..."}

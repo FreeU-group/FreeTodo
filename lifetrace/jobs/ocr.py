@@ -13,9 +13,14 @@ import yaml
 from lifetrace.llm.vector_service import create_vector_service
 from lifetrace.storage import get_session, ocr_mgr, screenshot_mgr
 from lifetrace.storage.models import OCRResult, Screenshot
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
-from lifetrace.util.path_utils import get_app_root, get_config_dir, get_models_dir
+from lifetrace.util.path_utils import (
+    get_app_root,
+    get_config_dir,
+    get_database_path,
+    get_models_dir,
+)
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -209,7 +214,7 @@ def _extract_text_from_ocr_result(result, confidence_threshold: float = None) ->
         提取的文本内容
     """
     if confidence_threshold is None:
-        confidence_threshold = config.get("jobs.ocr.params.confidence_threshold")
+        confidence_threshold = settings.get("jobs.ocr.params.confidence_threshold")
 
     # OCR结果通常是 [坐标, 文本, 置信度] 的三元组
     MIN_OCR_RESULT_FIELDS = 3
@@ -232,9 +237,9 @@ def _get_ocr_config() -> dict:
     Returns:
         包含OCR配置的字典
     """
-    # 直接从config获取，不使用默认值
-    languages = config.get("jobs.ocr.params.language")
-    confidence_threshold = config.get("jobs.ocr.params.confidence_threshold")
+    # 直接从settings获取，不使用默认值
+    languages = settings.get("jobs.ocr.params.language")
+    confidence_threshold = settings.get("jobs.ocr.params.confidence_threshold")
 
     # 如果language是列表，取第一个；如果是字符串，直接使用
     language = languages[0] if isinstance(languages, list) and languages else "ch"
@@ -283,7 +288,7 @@ class SimpleOCRProcessor:
                     "total_screenshots": total_screenshots,
                     "processed": ocr_results,
                     "unprocessed": unprocessed,
-                    "interval": config.get("jobs.ocr.interval"),
+                    "interval": settings.get("jobs.ocr.interval"),
                 }
         except Exception as e:
             logger.error(f"获取OCR统计信息失败: {e}")
@@ -581,7 +586,7 @@ def _ensure_ocr_initialized():  # noqa: C901
 
     if _vector_service is None:
         logger.info("正在初始化向量数据库服务...")
-        _vector_service = create_vector_service(config)
+        _vector_service = create_vector_service()
         if _vector_service.is_enabled():
             logger.info("向量数据库服务已启用")
         else:
@@ -631,11 +636,11 @@ def ocr_service():
     logger.info("LifeTrace 简化OCR处理器启动...")
 
     # 检查配置
-    if not os.path.exists(config.database_path):
+    if not get_database_path().exists():
         raise Exception("数据库未初始化，无法启动OCR服务")
 
     # 检查间隔配置
-    check_interval = config.get("jobs.ocr.interval")
+    check_interval = settings.get("jobs.ocr.interval")
 
     # 初始化RapidOCR
     logger.info("正在初始化RapidOCR引擎...")
@@ -648,7 +653,7 @@ def ocr_service():
 
     # 初始化向量数据库服务
     logger.info("正在初始化向量数据库服务...")
-    vector_service = create_vector_service(config)
+    vector_service = create_vector_service()
     if vector_service.is_enabled():
         logger.info("向量数据库服务已启用")
     else:

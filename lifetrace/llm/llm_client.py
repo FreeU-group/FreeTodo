@@ -4,9 +4,9 @@ from typing import Any
 
 from openai import OpenAI
 
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
+from lifetrace.util.settings import settings
 from lifetrace.util.token_usage_logger import log_token_usage, setup_token_logger
 
 logger = get_logger()
@@ -31,17 +31,17 @@ class LLMClient:
         # 只初始化一次
         if not LLMClient._initialized:
             self._initialize_client()
-            # 初始化token使用量记录器，传入config对象以获取价格配置
-            setup_token_logger(config)
+            # 初始化token使用量记录器
+            setup_token_logger()
             LLMClient._initialized = True
 
     def _initialize_client(self):
         """内部方法：初始化或重新初始化客户端"""
         try:
             # 从配置文件读取配置
-            self.api_key = config.get("llm.api_key")
-            self.base_url = config.get("llm.base_url")
-            self.model = config.get("llm.model")
+            self.api_key = settings.llm.api_key
+            self.base_url = settings.llm.base_url
+            self.model = settings.llm.model
 
             # 检查关键配置是否为空或默认占位符
             invalid_values = [
@@ -642,19 +642,13 @@ class LLMClient:
             messages = [{"role": "user", "content": content}]
 
             # 获取模型名称（优先使用传入的，否则使用配置中的视觉模型，最后使用默认模型）
-            from lifetrace.util.config import config
-
-            vision_model = model or config.get("llm.vision_model") or self.model
+            vision_model = self._get_vision_model(model)
 
             # 获取温度参数
-            vision_temperature = (
-                temperature if temperature is not None else config.get("llm.temperature", 0.7)
-            )
+            vision_temperature = self._get_vision_temperature(temperature)
 
             # 获取max_tokens
-            vision_max_tokens = (
-                max_tokens if max_tokens is not None else config.get("llm.max_tokens", 2048)
-            )
+            vision_max_tokens = self._get_vision_max_tokens(max_tokens)
 
             logger.info(f"调用视觉模型 {vision_model}，处理 {len(valid_screenshots)} 张截图")
 
@@ -709,3 +703,15 @@ class LLMClient:
         except Exception as e:
             logger.error(f"视觉多模态分析失败: {e}", exc_info=True)
             raise
+
+    def _get_vision_model(self, model: str | None = None) -> str:
+        """获取视觉模型名称"""
+        return model or settings.llm.vision_model or self.model
+
+    def _get_vision_temperature(self, temperature: float | None = None) -> float:
+        """获取视觉模型温度参数"""
+        return temperature if temperature is not None else settings.llm.temperature
+
+    def _get_vision_max_tokens(self, max_tokens: int | None = None) -> int:
+        """获取视觉模型最大token数"""
+        return max_tokens if max_tokens is not None else settings.llm.max_tokens

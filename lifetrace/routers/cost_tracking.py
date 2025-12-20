@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.settings import settings
 from lifetrace.util.token_usage_logger import get_token_logger
 
 router = APIRouter(prefix="/api/cost-tracking", tags=["cost-tracking"])
@@ -29,9 +29,14 @@ async def get_cost_stats(days: int = Query(30, description="统计天数")):
         stats = token_logger.get_usage_stats(days=days)
 
         # 获取当前模型配置
-        current_model = config.get("llm.model")
-        input_price = config.llm_input_token_price
-        output_price = config.llm_output_token_price
+        current_model = settings.llm.model
+
+        # 获取价格配置
+        token_logger = get_token_logger()
+        try:
+            input_price, output_price = token_logger._get_model_price(current_model)
+        except Exception:
+            input_price, output_price = 0.0, 0.0
 
         # 整理功能类型费用数据
         feature_costs = {}
@@ -96,12 +101,19 @@ async def get_cost_stats(days: int = Query(30, description="统计天数")):
 async def get_cost_config():
     """获取费用统计配置"""
     try:
+        current_model = settings.llm.model
+        token_logger = get_token_logger()
+        try:
+            input_price, output_price = token_logger._get_model_price(current_model)
+        except Exception:
+            input_price, output_price = 0.0, 0.0
+
         return {
             "success": True,
             "data": {
-                "model": config.get("llm.model"),
-                "input_token_price": config.llm_input_token_price,
-                "output_token_price": config.llm_output_token_price,
+                "model": current_model,
+                "input_token_price": input_price,
+                "output_token_price": output_price,
             },
         }
     except Exception as e:

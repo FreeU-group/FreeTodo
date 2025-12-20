@@ -15,8 +15,9 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.path_utils import get_scheduler_database_path
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -32,7 +33,7 @@ class SchedulerManager:
     def _setup_scheduler(self):
         """设置 APScheduler 调度器"""
         # 从配置获取调度器数据库路径
-        scheduler_db_path = config.scheduler_database_path
+        scheduler_db_path = str(get_scheduler_database_path())
 
         # 确保数据库目录存在
         os.makedirs(os.path.dirname(scheduler_db_path), exist_ok=True)
@@ -41,20 +42,20 @@ class SchedulerManager:
         jobstores = {"default": SQLAlchemyJobStore(url=f"sqlite:///{scheduler_db_path}")}
 
         # 配置执行器（线程池）
-        max_workers = config.get("scheduler.max_workers")
+        max_workers = settings.get("scheduler.max_workers")
         executors = {"default": ThreadPoolExecutor(max_workers=max_workers)}
 
         # 调度器配置
         job_defaults = {
-            "coalesce": config.get("scheduler.coalesce"),  # 合并错过的任务
-            "max_instances": config.get("scheduler.max_instances"),  # 同一任务同时只能有一个实例
-            "misfire_grace_time": config.get(
+            "coalesce": settings.get("scheduler.coalesce"),  # 合并错过的任务
+            "max_instances": settings.get("scheduler.max_instances"),  # 同一任务同时只能有一个实例
+            "misfire_grace_time": settings.get(
                 "scheduler.misfire_grace_time"
             ),  # 错过触发时间的容忍度（秒）
         }
 
         # 创建调度器
-        timezone = config.get("scheduler.timezone")
+        timezone = settings.get("scheduler.timezone")
         self.scheduler = BackgroundScheduler(
             jobstores=jobstores,
             executors=executors,

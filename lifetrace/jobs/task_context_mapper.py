@@ -15,8 +15,8 @@ from lifetrace.storage import (
     project_mgr,
     task_mgr,
 )
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -667,14 +667,14 @@ def get_mapper_instance() -> TaskContextMapper:
     if _global_mapper_instance is None:
         _global_mapper_instance = TaskContextMapper(
             llm_client=LLMClient(),
-            project_confidence_threshold=config.get(
+            project_confidence_threshold=settings.get(
                 "jobs.task_context_mapper.params.project_confidence_threshold"
             ),
-            task_confidence_threshold=config.get(
+            task_confidence_threshold=settings.get(
                 "jobs.task_context_mapper.params.task_confidence_threshold"
             ),
-            batch_size=config.get("jobs.task_context_mapper.params.batch_size"),
-            enabled=config.get("jobs.task_context_mapper.enabled"),
+            batch_size=settings.get("jobs.task_context_mapper.params.batch_size"),
+            enabled=settings.get("jobs.task_context_mapper.enabled"),
         )
     return _global_mapper_instance
 

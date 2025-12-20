@@ -86,10 +86,7 @@ class ProjectManager:
                     query = query.filter(Project.status == status)
 
                 projects = (
-                    query.order_by(Project.created_at.desc())
-                    .offset(offset)
-                    .limit(limit)
-                    .all()
+                    query.order_by(Project.created_at.desc()).offset(offset).limit(limit).all()
                 )
                 return [self._project_to_dict(p) for p in projects]
         except SQLAlchemyError as e:

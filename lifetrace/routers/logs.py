@@ -1,12 +1,10 @@
 """日志相关路由"""
 
-from pathlib import Path
-
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.path_utils import get_user_logs_dir
 
 logger = get_logger()
 
@@ -22,7 +20,7 @@ async def get_log_files():
     """获取日志文件列表"""
     try:
         # 使用配置中的日志目录
-        logs_dir = Path(config.log_path)
+        logs_dir = get_user_logs_dir()
         if not logs_dir.exists():
             return []
 
@@ -59,7 +57,7 @@ async def get_log_content(file: str = Query(..., description="日志文件相对
     """获取日志文件内容"""
     try:
         # 使用配置中的日志目录
-        logs_dir = Path(config.log_path)
+        logs_dir = get_user_logs_dir()
 
         log_file = logs_dir / file
 

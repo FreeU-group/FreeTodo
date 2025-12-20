@@ -18,8 +18,9 @@ from PIL import Image
 
 from lifetrace.storage import event_mgr, get_session, screenshot_mgr
 from lifetrace.util.app_utils import expand_blacklist_apps
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.path_utils import get_screenshots_dir
+from lifetrace.util.settings import settings
 from lifetrace.util.utils import (
     ensure_dir,
     get_active_window_info,
@@ -83,17 +84,16 @@ class ScreenRecorder:
     """屏幕录制器"""
 
     def __init__(self):
-        self.config = config
-        self.screenshots_dir = self.config.screenshots_dir
-        self.interval = self.config.get("jobs.recorder.interval")
+        self.screenshots_dir = str(get_screenshots_dir())
+        self.interval = settings.get("jobs.recorder.interval")
         self.screens = self._get_screen_list()
-        self.deduplicate = self.config.get("jobs.recorder.params.deduplicate")
-        self.hash_threshold = self.config.get("jobs.recorder.params.hash_threshold")
+        self.deduplicate = settings.get("jobs.recorder.params.deduplicate")
+        self.hash_threshold = settings.get("jobs.recorder.params.hash_threshold")
 
         # 超时配置
-        self.file_io_timeout = self.config.get("jobs.recorder.params.file_io_timeout")
-        self.db_timeout = self.config.get("jobs.recorder.params.db_timeout")
-        self.window_info_timeout = self.config.get("jobs.recorder.params.window_info_timeout")
+        self.file_io_timeout = settings.get("jobs.recorder.params.file_io_timeout")
+        self.db_timeout = settings.get("jobs.recorder.params.db_timeout")
+        self.window_info_timeout = settings.get("jobs.recorder.params.window_info_timeout")
 
         # 初始化截图目录
         ensure_dir(self.screenshots_dir)
@@ -117,9 +117,9 @@ class ScreenRecorder:
 
     def _log_blacklist_config(self):
         """打印当前黑名单配置"""
-        blacklist_enabled = self.config.get("jobs.recorder.params.blacklist.enabled")
-        blacklist_apps = self.config.get("jobs.recorder.params.blacklist.apps")
-        blacklist_windows = self.config.get("jobs.recorder.params.blacklist.windows")
+        blacklist_enabled = settings.get("jobs.recorder.params.blacklist.enabled")
+        blacklist_apps = settings.get("jobs.recorder.params.blacklist.apps")
+        blacklist_windows = settings.get("jobs.recorder.params.blacklist.windows")
 
         logger.info("=" * 60)
         logger.info(f"📋 黑名单配置状态: {'✅ 已启用' if blacklist_enabled else '❌ 已禁用'}")
@@ -343,12 +343,12 @@ class ScreenRecorder:
             如果在黑名单中，返回跳过原因；否则返回空字符串
         """
         # 首先检查是否启用自动排除LifeTrace自身窗口
-        auto_exclude_self = self.config.get("jobs.recorder.params.auto_exclude_self")
+        auto_exclude_self = settings.get("jobs.recorder.params.auto_exclude_self")
         if auto_exclude_self and self._is_lifetrace_window(app_name, window_title):
             return f"🏠 [自动排除] 检测到 LifeTrace 自身窗口 - 应用: '{app_name}', 窗口: '{window_title}'"
 
         # 检查黑名单功能是否启用
-        blacklist_enabled = self.config.get("jobs.recorder.params.blacklist.enabled")
+        blacklist_enabled = settings.get("jobs.recorder.params.blacklist.enabled")
         if not blacklist_enabled:
             return ""
 
@@ -377,7 +377,7 @@ class ScreenRecorder:
         if not app_name:
             return ""
 
-        blacklist_apps = self.config.get("jobs.recorder.params.blacklist.apps")
+        blacklist_apps = settings.get("jobs.recorder.params.blacklist.apps")
         expanded_blacklist_apps = expand_blacklist_apps(blacklist_apps)
 
         if not expanded_blacklist_apps:
@@ -401,7 +401,7 @@ class ScreenRecorder:
         if not window_title:
             return ""
 
-        blacklist_windows = self.config.get("jobs.recorder.params.blacklist.windows")
+        blacklist_windows = settings.get("jobs.recorder.params.blacklist.windows")
         if not blacklist_windows:
             return ""
 
@@ -427,7 +427,7 @@ class ScreenRecorder:
 
     def _get_screen_list(self) -> list[int]:
         """获取要截图的屏幕列表"""
-        screens_config = self.config.get("jobs.recorder.params.screens")
+        screens_config = settings.get("jobs.recorder.params.screens")
         logger.debug(f"屏幕配置: {screens_config}")
         with mss.mss() as sct:
             monitor_count = len(sct.monitors) - 1  # 减1因为第0个是所有屏幕的组合
@@ -614,7 +614,7 @@ class ScreenRecorder:
         """
         # 检查配置是否启用自动检测
         try:
-            enabled = self.config.get("jobs.auto_todo_detection.enabled")
+            enabled = settings.get("jobs.auto_todo_detection.enabled")
             if not enabled:
                 logger.debug(f"自动待办检测已禁用，跳过应用: {app_name}")
                 return False
@@ -909,14 +909,14 @@ if __name__ == "__main__":
 
     # 更新配置
     if args.interval:
-        config.set("jobs.recorder.interval", args.interval)
+        settings.set("jobs.recorder.interval", args.interval)
 
     if args.screens:
         if args.screens.lower() == "all":
-            config.set("jobs.recorder.params.screens", "all")
+            settings.set("jobs.recorder.params.screens", "all")
         else:
             screens = [int(s.strip()) for s in args.screens.split(",")]
-            config.set("jobs.recorder.params.screens", screens)
+            settings.set("jobs.recorder.params.screens", screens)
 
     # 创建并启动录制器
     recorder = ScreenRecorder()

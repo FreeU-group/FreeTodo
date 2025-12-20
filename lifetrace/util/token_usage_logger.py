@@ -13,11 +13,61 @@ from lifetrace.util.logging_config import get_logger
 logger = get_logger()
 
 
+def _resolve_model_price(
+    model: str,
+    price_config: dict,
+    input_tokens: int | None = None,
+) -> tuple[float, float]:
+    """根据价格配置解析模型的单价（元/千token）
+
+    支持分层定价（tiers）和旧版的 input_price/output_price 直配。
+
+    Args:
+        model: 模型名称
+        price_config: 价格配置字典
+        input_tokens: 输入token数量，用于选择分层价格（可选）
+
+    Returns:
+        (input_price, output_price) 元组
+    """
+    # 支持分层定价：tiers 为列表，按 max_input_tokens 升序匹配
+    if "tiers" in price_config:
+        tiers = price_config.get("tiers") or []
+        if not isinstance(tiers, list) or not tiers:
+            raise ValueError(f"模型 '{model}' 的 tiers 配置无效")
+
+        sorted_tiers = sorted(
+            tiers,
+            key=lambda tier: tier.get("max_input_tokens", float("inf")),
+        )
+        tokens = input_tokens if input_tokens is not None else 0
+        selected_tier = None
+        for tier in sorted_tiers:
+            max_tokens = tier.get("max_input_tokens")
+            # 如果未设置上限或在上限内，则匹配到该档
+            if max_tokens is None or tokens <= max_tokens:
+                selected_tier = tier
+                break
+        if selected_tier is None:
+            selected_tier = sorted_tiers[-1]
+
+        if "input_price" not in selected_tier or "output_price" not in selected_tier:
+            raise KeyError(f"模型 '{model}' 的 tiers 配置缺少 input_price 或 output_price。")
+        return float(selected_tier["input_price"]), float(selected_tier["output_price"])
+
+    # 兼容旧配置：直接使用 input_price/output_price
+    if "input_price" not in price_config or "output_price" not in price_config:
+        raise KeyError(
+            f"模型 '{model}' 的价格配置不完整。请确保配置了 input_price 和 output_price。"
+        )
+    return float(price_config["input_price"]), float(price_config["output_price"])
+
+
 class TokenUsageLogger:
     """Token使用量记录器"""
 
-    def __init__(self, config=None):
-        self.config = config
+    def __init__(self):
+        pass
 
     def _get_model_price(self, model: str, input_tokens: int | None = None) -> tuple[float, float]:
         """获取模型价格（元/千token）
@@ -29,35 +79,34 @@ class TokenUsageLogger:
         Returns:
             (input_price, output_price) 元组
         """
-        if not self.config:
+        from lifetrace.util.settings import settings
+
+        model_prices = settings.get("llm.model_prices")
+        if model_prices is None:
             return 0.0, 0.0
 
-        # 如果配置类提供了统一方法，优先使用
-        if hasattr(self.config, "get_model_price"):
-            return self.config.get_model_price(model, input_tokens=input_tokens)
+        # 将 Dynaconf Box 对象转换为普通字典
+        if hasattr(model_prices, "to_dict"):
+            model_prices = model_prices.to_dict()
 
-        model_prices = self.config.get("llm.model_prices")
-
-        # 兼容逻辑（无分层）
+        # 先尝试获取指定模型的价格
         if model in model_prices:
-            prices = model_prices[model]
-            if "input_price" not in prices or "output_price" not in prices:
-                raise KeyError(
-                    f"模型 '{model}' 的价格配置不完整。请确保配置了 input_price 和 output_price。"
-                )
-            return prices["input_price"], prices["output_price"]
+            price_config = model_prices[model]
+            if hasattr(price_config, "to_dict"):
+                price_config = price_config.to_dict()
+            return _resolve_model_price(model, price_config, input_tokens=input_tokens)
 
+        # 如果没有找到，使用默认价格
         if "default" not in model_prices:
             raise KeyError(
                 f"找不到模型 '{model}' 的价格配置，也没有配置默认价格。"
                 f"请在配置文件中添加该模型的价格或配置 default 价格。"
             )
 
-        prices = model_prices["default"]
-        if "input_price" not in prices or "output_price" not in prices:
-            raise KeyError("默认价格配置不完整。请确保配置了 input_price 和 output_price。")
-
-        return prices["input_price"], prices["output_price"]
+        default_config = model_prices["default"]
+        if hasattr(default_config, "to_dict"):
+            default_config = default_config.to_dict()
+        return _resolve_model_price(model, default_config, input_tokens=input_tokens)
 
     def log_token_usage(
         self,
@@ -262,14 +311,11 @@ class TokenUsageLogger:
 _token_logger: TokenUsageLogger | None = None
 
 
-def setup_token_logger(config=None) -> TokenUsageLogger:
+def setup_token_logger() -> TokenUsageLogger:
     """设置token使用量记录器"""
     global _token_logger
     if _token_logger is None:
-        _token_logger = TokenUsageLogger(config)
-    elif config is not None:
-        # 如果传入了新的config，更新现有logger的config
-        _token_logger.config = config
+        _token_logger = TokenUsageLogger()
     return _token_logger
 
 

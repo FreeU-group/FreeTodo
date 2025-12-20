@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +21,7 @@ class ProjectCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="项目名称")
     definition_of_done: str | None = Field(
         None,
-        description='项目“完成”的定义',
+        description="项目“完成”的定义",
     )
     status: ProjectStatus = Field(
         ProjectStatus.ACTIVE,
@@ -48,7 +47,7 @@ class ProjectUpdate(BaseModel):
     )
     definition_of_done: str | None = Field(
         None,
-        description='项目“完成”的定义',
+        description="项目“完成”的定义",
     )
     status: ProjectStatus | None = Field(
         None,
@@ -71,7 +70,7 @@ class ProjectResponse(BaseModel):
     name: str = Field(..., description="项目名称")
     definition_of_done: str | None = Field(
         None,
-        description='项目“完成”的定义',
+        description="项目“完成”的定义",
     )
     status: str = Field(..., description="项目状态：active, archived, completed")
 

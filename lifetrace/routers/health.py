@@ -7,8 +7,8 @@ from openai import OpenAI
 
 from lifetrace.core.dependencies import get_ocr_processor, get_rag_service
 from lifetrace.storage import db_base
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -42,8 +42,8 @@ async def llm_health_check():
             }
 
         # 检查配置是否完整
-        llm_key = config.get("llm.api_key")
-        base_url = config.get("llm.base_url")
+        llm_key = settings.llm.api_key
+        base_url = settings.llm.base_url
 
         if not llm_key or not base_url:
             return {
@@ -53,7 +53,7 @@ async def llm_health_check():
             }
 
         client = OpenAI(api_key=llm_key, base_url=base_url)
-        model = config.get("llm.model")
+        model = settings.llm.model
 
         # 发送最小化测试请求
         response = client.chat.completions.create(  # noqa: F841

@@ -8,8 +8,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from lifetrace.storage.database_base import DatabaseBase
 from lifetrace.storage.models import OCRResult, Screenshot
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -58,7 +58,7 @@ class ScreenshotManager:
 
                 # 检查是否已存在相同哈希的截图
                 existing_hash = session.query(Screenshot).filter_by(file_hash=file_hash).first()
-                if existing_hash and config.get("jobs.recorder.params.deduplicate"):
+                if existing_hash and settings.get("jobs.recorder.params.deduplicate"):
                     logger.debug(f"跳过重复哈希截图: {file_path}")
                     return existing_hash.id
 

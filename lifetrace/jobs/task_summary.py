@@ -16,8 +16,8 @@ from lifetrace.storage import (
     project_mgr,
     task_mgr,
 )
-from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.settings import settings
 
 logger = get_logger()
 
@@ -480,8 +480,8 @@ def get_summary_instance() -> TaskSummaryService:
     """
     global _global_summary_instance
     if _global_summary_instance is None:
-        min_new_contexts = config.get("jobs.task_summary.params.min_new_contexts")
-        enabled = config.get("jobs.task_summary.enabled")
+        min_new_contexts = settings.get("jobs.task_summary.params.min_new_contexts")
+        enabled = settings.get("jobs.task_summary.enabled")
 
         _global_summary_instance = TaskSummaryService(
             min_new_contexts=min_new_contexts,
