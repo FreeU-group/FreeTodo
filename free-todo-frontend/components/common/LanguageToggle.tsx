@@ -1,6 +1,7 @@
 "use client";
 
 import { Languages } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { type Locale, useLocaleStore } from "@/lib/store/locale";
@@ -8,6 +9,7 @@ import { type Locale, useLocaleStore } from "@/lib/store/locale";
 export function LanguageToggle() {
 	const { locale, setLocale } = useLocaleStore();
 	const [mounted, setMounted] = useState(false);
+	const router = useRouter();
 	const tLang = useTranslations("language");
 	const tLayout = useTranslations("layout");
 
@@ -28,8 +30,8 @@ export function LanguageToggle() {
 		const currentIndex = languages.findIndex((l) => l.value === locale);
 		const nextIndex = (currentIndex + 1) % languages.length;
 		setLocale(languages[nextIndex].value);
-		// 需要刷新页面让服务端读取新的 cookie
-		window.location.reload();
+		// 使用 router.refresh() 重新获取服务端数据，无白屏闪烁
+		router.refresh();
 	};
 
 	const currentLanguage = languages.find((l) => l.value === locale);
