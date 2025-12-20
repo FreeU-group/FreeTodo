@@ -1,4 +1,5 @@
 import { AtSign, Loader2, Send } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +22,6 @@ export function InputBox({
 	inputValue,
 	placeholder,
 	isStreaming,
-	locale,
 	onChange,
 	onSend,
 	onKeyDown,
@@ -31,6 +31,7 @@ export function InputBox({
 	onAtClick,
 	linkedTodos,
 }: InputBoxProps) {
+	const t = useTranslations("chat");
 	const isSendDisabled = !inputValue.trim() || isStreaming;
 
 	return (
@@ -70,9 +71,7 @@ export function InputBox({
 							"flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground",
 							"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 						)}
-						aria-label={
-							locale === "zh" ? "提及文件或任务" : "Mention a file or todo"
-						}
+						aria-label={t("mentionFileOrTodo")}
 					>
 						<AtSign className="h-4 w-4" />
 					</button>
@@ -88,7 +87,7 @@ export function InputBox({
 							"disabled:cursor-not-allowed disabled:opacity-50",
 							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 						)}
-						aria-label={locale === "zh" ? "发送" : "Send"}
+						aria-label={t("send")}
 					>
 						{isStreaming ? (
 							<Loader2 className="h-4 w-4 animate-spin" />

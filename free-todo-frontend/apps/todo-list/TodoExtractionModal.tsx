@@ -65,8 +65,8 @@ export function TodoExtractionModal({
 					name: todo.title,
 					description: todo.description || todo.source_text,
 					deadline: todo.scheduled_time || undefined,
-					tags: ["自动提取"],
-					userNotes: `来源：${todo.source_text}\n时间：${todo.time_info.raw_text}\n事件ID：${eventId}`,
+					tags: [t("autoExtracted")],
+					userNotes: `${t("source")}: ${todo.source_text}\n${t("time")}: ${todo.time_info.raw_text}\n${t("eventId")}: ${eventId}`,
 				};
 
 				await createTodoMutation.mutateAsync(todoInput);
@@ -90,7 +90,9 @@ export function TodoExtractionModal({
 			toastSuccess(t("addSuccess", { count: successCount }));
 		}
 		if (failCount > 0) {
-			toastError(t("addFailed", { error: `失败 ${failCount} 项` }));
+			toastError(
+				t("addFailed", { error: t("failedItems", { count: failCount }) }),
+			);
 		}
 
 		onClose();
@@ -103,7 +105,7 @@ export function TodoExtractionModal({
 			const rawTime = todo.time_info.raw_text;
 			return `${rawTime} (${scheduled})`;
 		}
-		return todo.time_info.raw_text || "未指定时间";
+		return todo.time_info.raw_text || t("noTimeSpecified");
 	};
 
 	if (!isOpen) return null;
@@ -144,7 +146,7 @@ export function TodoExtractionModal({
 						type="button"
 						onClick={onClose}
 						className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-						aria-label="关闭"
+						aria-label={t("cancel")}
 					>
 						<X className="h-5 w-5" />
 					</button>

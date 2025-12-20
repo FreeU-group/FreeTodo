@@ -12,13 +12,12 @@ import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { PanelHeader } from "@/components/common/PanelHeader";
 import { useCostStats } from "@/lib/query";
-import { useLocaleStore } from "@/lib/store/locale";
 
 const DEFAULT_DAYS = 30;
 
 export function CostTrackingPanel() {
-	const { locale } = useLocaleStore();
 	const t = useTranslations("page.costTracking");
+	const tCommon = useTranslations("common");
 	const [days, setDays] = useState<number>(DEFAULT_DAYS);
 
 	// 使用 TanStack Query 获取费用统计
@@ -40,7 +39,8 @@ export function CostTrackingPanel() {
 		if (num === undefined || num === null || Number.isNaN(num)) {
 			return "0";
 		}
-		return num.toLocaleString(locale === "zh" ? "zh-CN" : "en-US");
+		const numberLocale = tCommon("numberLocale") as string;
+		return num.toLocaleString(numberLocale);
 	};
 
 	const featureName = (featureId: string) => {

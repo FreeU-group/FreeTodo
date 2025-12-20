@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, Loader2, Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -57,10 +58,10 @@ const getDefaultBlockState = (
 export function EditModeMessage({
 	content,
 	effectiveTodos,
-	locale,
 	onUpdateTodo,
 	isUpdating = false,
 }: EditModeMessageProps) {
+	const t = useTranslations("chat.editMode");
 	const blocks = useMemo(() => parseEditBlocks(content), [content]);
 
 	// Track state for each block
@@ -208,8 +209,7 @@ export function EditModeMessage({
 		);
 	}
 
-	const noTodosMessage =
-		locale === "zh" ? "请先关联待办" : "Please link todos first";
+	const noTodosMessage = t("noLinkedTodos");
 
 	return (
 		// biome-ignore lint/a11y/useKeyWithClickEvents: Click-away behavior for dropdown
@@ -275,11 +275,7 @@ export function EditModeMessage({
 											disabled={state.status === "appending"}
 										>
 											<span className="max-w-[150px] truncate">
-												{selectedTodo
-													? selectedTodo.name
-													: locale === "zh"
-														? "选择待办"
-														: "Select todo"}
+												{selectedTodo ? selectedTodo.name : t("selectTodo")}
 											</span>
 											<ChevronDown className="h-3 w-3 flex-shrink-0" />
 										</button>
@@ -312,7 +308,7 @@ export function EditModeMessage({
 														</span>
 														{todo.id === block.recommendedTodoId && (
 															<span className="ml-auto text-[10px] text-muted-foreground">
-																{locale === "zh" ? "推荐" : "AI"}
+																{t("aiRecommended")}
 															</span>
 														)}
 													</button>
@@ -346,19 +342,19 @@ export function EditModeMessage({
 										{state.status === "appending" ? (
 											<>
 												<Loader2 className="h-3 w-3 animate-spin" />
-												<span>{locale === "zh" ? "追加中" : "Appending"}</span>
+												<span>{t("appending")}</span>
 											</>
 										) : state.status === "success" ? (
 											<>
 												<Check className="h-3 w-3" />
-												<span>{locale === "zh" ? "已追加" : "Appended"}</span>
+												<span>{t("appended")}</span>
 											</>
 										) : state.status === "error" ? (
-											<span>{locale === "zh" ? "失败" : "Failed"}</span>
+											<span>{t("failed")}</span>
 										) : (
 											<>
 												<Plus className="h-3 w-3" />
-												<span>{locale === "zh" ? "追加" : "Append"}</span>
+												<span>{t("append")}</span>
 											</>
 										)}
 									</button>

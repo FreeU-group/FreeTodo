@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -32,6 +33,7 @@ export function MessageList({
 	onUpdateTodo,
 	isUpdating = false,
 }: MessageListProps) {
+	const t = useTranslations("chat");
 	const messageListRef = useRef<HTMLDivElement>(null);
 	// 跟踪用户是否在底部（或接近底部）
 	const isAtBottomRef = useRef(true);
@@ -143,7 +145,7 @@ export function MessageList({
 							/* Edit mode: render with append-to-todo functionality */
 							<div className="w-full max-w-[90%]">
 								<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70 text-foreground">
-									{locale === "zh" ? "助理" : "Assistant"}
+									{t("assistant")}
 								</div>
 								<EditModeMessage
 									content={msg.content}
@@ -163,13 +165,7 @@ export function MessageList({
 								)}
 							>
 								<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">
-									{msg.role === "assistant"
-										? locale === "zh"
-											? "助理"
-											: "Assistant"
-										: locale === "zh"
-											? "我"
-											: "You"}
+									{msg.role === "assistant" ? t("assistant") : t("user")}
 								</div>
 								<div className="leading-relaxed">
 									<ReactMarkdown

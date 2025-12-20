@@ -289,7 +289,6 @@ export function ChatPanel() {
 						onSubmit={handleSubmitAnswers}
 						isSubmitting={isGeneratingSummary}
 						disabled={isGeneratingSummary}
-						locale={locale}
 					/>
 				) : (
 					<div className="flex-1 flex items-center justify-center">
@@ -299,9 +298,9 @@ export function ChatPanel() {
 									<div className="flex items-center gap-2 rounded-full bg-muted px-4 py-2 text-sm text-muted-foreground">
 										<Loader2 className="h-4 w-4 animate-spin" />
 										<span>
-											{locale === "zh"
-												? `正在生成第 ${questionStreamingCount} 个问题`
-												: `Generating question ${questionStreamingCount}`}
+											{tChat("generatingQuestion", {
+												count: questionStreamingCount,
+											})}
 										</span>
 									</div>
 									{questionStreamingTitle && (
@@ -324,10 +323,7 @@ export function ChatPanel() {
 
 			{/* 流式生成总结阶段 */}
 			{isGeneratingSummary && (
-				<SummaryStreaming
-					streamingText={summaryStreamingText || ""}
-					locale={locale}
-				/>
+				<SummaryStreaming streamingText={summaryStreamingText || ""} />
 			)}
 
 			{/* 总结展示阶段（生成完成后） */}

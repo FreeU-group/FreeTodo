@@ -148,7 +148,8 @@
 		"costTracking": "费用",
 		"achievements": "成就",
 		"screenshots": "截图",
-		"debugShots": "截图调试"
+		"debugShots": "截图调试",
+		"unassigned": "未分配"
 	},
 	"todoExtraction": {
 		"extractButton": "提取待办",
@@ -168,6 +169,9 @@
 		"todoTime": "时间",
 		"todoSource": "来源",
 		"todoScheduledTime": "计划时间",
+		"source": "来源",
+		"time": "时间",
+		"eventId": "事件ID",
 		"addSuccess": "成功添加 {count} 个待办事项",
 		"addFailed": "添加待办失败：{error}",
 		"selectedCount": "已选择 {count} 项",
@@ -179,7 +183,19 @@
 		"acceptSuccess": "已添加到待办列表",
 		"rejectSuccess": "已拒绝",
 		"acceptFailed": "操作失败：{error}",
-		"rejectFailed": "操作失败：{error}"
+		"rejectFailed": "操作失败：{error}",
+		"autoExtracted": "自动提取",
+		"noTimeSpecified": "未指定时间",
+		"failedItems": "失败 {count} 项",
+		"newNotification": "新通知",
+		"collapseNotification": "收起通知",
+		"expandNotification": "展开通知",
+		"closeNotification": "关闭通知",
+		"justNow": "刚刚",
+		"minutesAgo": "{count}分钟前",
+		"hoursAgo": "{count}小时前",
+		"daysAgo": "{count}天前",
+		"dateFormat": "{month}月{day}日"
 	},
 	"chat": {
 		"planModeInputPlaceholder": "例如：帮我规划周末搬家需要做的事",
@@ -188,6 +204,46 @@
 		"generateQuestionsFailed": "拆解待办失败，请重试",
 		"generateSummaryFailed": "生成总结失败，请重试",
 		"loading": "加载中",
+		"initialMessage": "你好，我是你的待办助手，可以帮你拆解任务、制定计划，也能聊聊生活。",
+		"assistant": "助理",
+		"user": "我",
+		"chatMode": "对话模式",
+		"toggleMode": "切换 Ask/Plan/Edit 模式",
+		"mentionFileOrTodo": "提及文件或任务",
+		"send": "发送",
+		"linkedTodos": "关联待办（{count}）",
+		"linkedTodosEn": "Linked todos ({count})",
+		"collapse": "收起",
+		"expand": "展开",
+		"clearSelection": "清空选择",
+		"generatingQuestion": "正在生成第 {count} 个问题",
+		"answerQuestions": "请回答以下问题以完善任务详情",
+		"answerQuestionsDesc": "您的回答将帮助AI更好地理解任务需求并生成详细的计划",
+		"multipleChoice": "（可多选）",
+		"customAnswer": "自定义回答",
+		"customAnswerPlaceholder": "请输入您的自定义回答...",
+		"submitting": "提交中...",
+		"submitAnswer": "提交回答",
+		"generatingSummary": "AI正在生成总结...",
+		"generatingSummaryDesc": "请稍候，AI正在根据您的回答生成详细的任务总结和子任务列表",
+		"generating": "生成中...",
+		"parsingContent": "正在解析完整内容...",
+		"noTodoContext": "无待办上下文",
+		"userInput": "用户输入",
+		"loadHistoryFailed": "加载历史记录失败",
+		"noTodosAvailable": "当前没有待办，聊天上下文为空。",
+		"selectedTodo": "【当前选中待办】",
+		"rootParentTodo": "【最高级父待办】",
+		"allSubTodos": "【该父待办下的所有子待办】（共 {count} 条）",
+		"allSubTodosRoot": "【所有子待办】（共 {count} 条）",
+		"todoContextHeader": "{source}（共 {count} 条）：",
+		"todoContextHeaderEn": "{source} (total {count}):",
+		"noPlanJsonFound": "未找到计划 JSON，未创建待办。",
+		"parsedNoValidTodos": "解析完成，但没有有效的待办项。",
+		"parsePlanJsonFailed": "解析计划 JSON 失败，未创建待办。",
+		"noResponseReceived": "没有收到回复，请稍后再试。",
+		"addedTodos": "已添加 {count} 条待办到列表。",
+		"errorOccurred": "出错了，请稍后再试。",
 		"planSummary": {
 			"title": "待办规划结果",
 			"description": "请查看AI生成的待办总结和子待办列表，确认后点击接收",
@@ -209,6 +265,35 @@
 			"appended": "已追加",
 			"failed": "失败",
 			"aiRecommended": "推荐"
+		},
+		"modes": {
+			"ask": {
+				"label": "Ask 模式",
+				"description": "直接聊天或提问"
+			},
+			"plan": {
+				"label": "Plan 模式",
+				"description": "拆解需求并生成待办"
+			},
+			"edit": {
+				"label": "Edit 模式",
+				"description": "生成内容追加到待办备注"
+			},
+			"active": "当前"
+		},
+		"todoContext": {
+			"id": "ID",
+			"name": "名称",
+			"description": "描述",
+			"notes": "备注",
+			"deadline": "截止日期",
+			"priority": "优先级",
+			"status": "状态",
+			"tags": "标签",
+			"parentTodoId": "父待办ID",
+			"parentName": "父待办名称",
+			"due": "截止: {deadline}",
+			"tagsLabel": "标签: {tags}"
 		}
 	},
 	"calendar": {
@@ -280,6 +365,7 @@
 		"allJobsResumed": "已恢复所有任务",
 		"intervalUpdated": "任务 {job} 间隔已更新",
 		"updateFailed": "更新失败: {error}",
+		"dateLocale": "zh-CN",
 		"jobs": {
 			"recorder_job": "屏幕录制",
 			"ocr_job": "文字识别",
@@ -296,5 +382,24 @@
 			"clean_data_job": "清理过期的截图和数据",
 			"activity_aggregator_job": "聚合用户活动事件"
 		}
+	},
+	"common": {
+		"priority": {
+			"high": "高",
+			"medium": "中",
+			"low": "低",
+			"none": "无"
+		},
+		"status": {
+			"active": "进行中",
+			"completed": "已完成",
+			"canceled": "已取消",
+			"draft": "草稿"
+		},
+		"numberLocale": "zh-CN"
+	},
+	"todoDetail": {
+		"editTitle": "点击编辑标题",
+		"viewDescription": "查看描述"
 	}
 }

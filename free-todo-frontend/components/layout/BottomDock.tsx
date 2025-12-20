@@ -245,7 +245,7 @@ export function BottomDock({ className }: BottomDockProps) {
 			return {
 				id: position,
 				icon: FEATURE_ICON_MAP.todos,
-				label: "未分配",
+				label: t("unassigned"),
 				isActive,
 				onClick,
 				group: "views",

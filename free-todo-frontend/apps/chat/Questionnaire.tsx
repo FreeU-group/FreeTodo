@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, Edit2, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import type { Question } from "@/lib/store/plan-store";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,6 @@ interface QuestionnaireProps {
 	onAnswerChange: (questionId: string, options: string[]) => void;
 	onSubmit: () => void;
 	isSubmitting: boolean;
-	locale: string;
 	disabled?: boolean; // 提交后禁用整个组件
 }
 
@@ -21,9 +21,9 @@ export function Questionnaire({
 	onAnswerChange,
 	onSubmit,
 	isSubmitting,
-	locale,
 	disabled = false,
 }: QuestionnaireProps) {
+	const t = useTranslations("chat");
 	// 管理每个问题的自定义答案和编辑状态
 	const [customAnswers, setCustomAnswers] = useState<Record<string, string>>(
 		{},
@@ -140,15 +140,9 @@ export function Questionnaire({
 		<div className="flex-1 overflow-y-auto px-4 py-4">
 			<div className="mx-auto max-w-2xl space-y-6">
 				<div className="rounded-lg bg-muted/50 p-4">
-					<h3 className="mb-2 text-lg font-semibold">
-						{locale === "zh"
-							? "请回答以下问题以完善任务详情"
-							: "Please answer the following questions to complete task details"}
-					</h3>
+					<h3 className="mb-2 text-lg font-semibold">{t("answerQuestions")}</h3>
 					<p className="text-sm text-muted-foreground">
-						{locale === "zh"
-							? "您的回答将帮助AI更好地理解任务需求并生成详细的计划"
-							: "Your answers will help AI better understand task requirements and generate a detailed plan"}
+						{t("answerQuestionsDesc")}
 					</p>
 				</div>
 
@@ -165,7 +159,7 @@ export function Questionnaire({
 								<h4 className="text-base font-medium">{question.question}</h4>
 							</div>
 							<p className="ml-8 text-xs text-muted-foreground">
-								{locale === "zh" ? "（可多选）" : "(Multiple choice)"}
+								{t("multipleChoice")}
 							</p>
 						</div>
 
@@ -262,11 +256,7 @@ export function Questionnaire({
 												}
 											}
 										}}
-										placeholder={
-											locale === "zh"
-												? "请输入您的自定义回答..."
-												: "Enter your custom answer..."
-										}
+										placeholder={t("customAnswerPlaceholder")}
 										disabled={disabled}
 										// biome-ignore lint/a11y/noAutofocus: 自定义输入框需要自动聚焦以提升用户体验
 										autoFocus
@@ -357,7 +347,7 @@ export function Questionnaire({
 											hasCustomAnswer(question.id) &&
 												"border-primary bg-primary/10",
 										)}
-										title={locale === "zh" ? "自定义回答" : "Custom answer"}
+										title={t("customAnswer")}
 									>
 										<Edit2 className="h-4 w-4 text-muted-foreground" />
 									</button>
@@ -382,12 +372,10 @@ export function Questionnaire({
 						{isSubmitting ? (
 							<>
 								<Loader2 className="h-4 w-4 animate-spin" />
-								{locale === "zh" ? "提交中..." : "Submitting..."}
+								{t("submitting")}
 							</>
-						) : locale === "zh" ? (
-							"提交回答"
 						) : (
-							"Submit Answers"
+							t("submitAnswer")
 						)}
 					</button>
 				</div>

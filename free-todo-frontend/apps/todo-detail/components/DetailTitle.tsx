@@ -1,6 +1,7 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ export function DetailTitle({
 	onToggleDescription,
 	onNameChange,
 }: DetailTitleProps) {
+	const t = useTranslations("todoDetail");
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState(name);
 	const [isComposing, setIsComposing] = useState(false);
@@ -84,7 +86,7 @@ export function DetailTitle({
 				<button
 					type="button"
 					onClick={handleStartEdit}
-					aria-label="点击编辑标题"
+					aria-label={t("editTitle")}
 					className="text-3xl font-bold text-foreground cursor-pointer hover:text-primary/80 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-sm text-left flex-1"
 				>
 					{name}
@@ -94,7 +96,7 @@ export function DetailTitle({
 				type="button"
 				onClick={onToggleDescription}
 				aria-pressed={showDescription}
-				aria-label="查看描述"
+				aria-label={t("viewDescription")}
 				className={cn(
 					"rounded-md border px-2 py-1 transition-colors",
 					showDescription

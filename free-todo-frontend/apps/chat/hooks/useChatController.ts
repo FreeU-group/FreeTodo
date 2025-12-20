@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -72,8 +73,11 @@ export const useChatController = ({
 	selectedTodoIds,
 	createTodo,
 }: UseChatControllerParams) => {
-	const { planSystemPrompt, parsePlanTodos, buildTodoPayloads } =
-		usePlanParser(locale);
+	const t = useTranslations("chat");
+	const { planSystemPrompt, parsePlanTodos, buildTodoPayloads } = usePlanParser(
+		locale,
+		t,
+	);
 
 	// Edit mode system prompt
 	const editSystemPrompt = useMemo(
@@ -110,12 +114,9 @@ export const useChatController = ({
 		(): ChatMessage => ({
 			id: createId(),
 			role: "assistant",
-			content:
-				locale === "zh"
-					? "你好，我是你的待办助手，可以帮你拆解任务、制定计划，也能聊聊生活。"
-					: "Hi! I'm your task assistant. I can break down work, plan the day, or just chat.",
+			content: t("initialMessage"),
 		}),
-		[locale],
+		[t],
 	);
 
 	const [messages, setMessages] = useState<ChatMessage[]>(() => [
@@ -130,11 +131,7 @@ export const useChatController = ({
 	// 跟踪是否是主动加载历史记录（点击历史记录）vs 发送消息后的被动更新
 	const isLoadingSessionRef = useRef<boolean>(false);
 
-	const historyError = sessionsError
-		? locale === "zh"
-			? "加载历史记录失败"
-			: "Failed to load history"
-		: null;
+	const historyError = sessionsError ? t("loadHistoryFailed") : null;
 
 	const selectedTodos = useMemo(
 		() => todos.filter((todo: Todo) => selectedTodoIds.includes(todo.id)),
@@ -219,13 +216,9 @@ export const useChatController = ({
 		// 当有选中待办时，使用完整的层级上下文（包含所有参数和父子关系）
 		// 否则使用简单的空上下文提示
 		const todoContext = hasSelection
-			? buildHierarchicalTodoContext(effectiveTodos, todos, locale)
-			: buildTodoContextBlock(
-					[],
-					locale === "zh" ? "无待办上下文" : "No todo context",
-					locale,
-				);
-		const userLabel = locale === "zh" ? "用户输入" : "User input";
+			? buildHierarchicalTodoContext(effectiveTodos, todos, t)
+			: buildTodoContextBlock([], t("noTodoContext"), t);
+		const userLabel = t("userInput");
 
 		// Build payload message based on chat mode
 		let payloadMessage: string;
@@ -282,10 +275,7 @@ export const useChatController = ({
 			);
 
 			if (!assistantContent) {
-				const fallback =
-					locale === "zh"
-						? "没有收到回复，请稍后再试。"
-						: "No response received, please try again.";
+				const fallback = t("noResponseReceived");
 				setMessages((prev) =>
 					prev.map((msg) =>
 						msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
@@ -331,10 +321,7 @@ export const useChatController = ({
 						}
 					}
 
-					const addedText =
-						locale === "zh"
-							? `已添加 ${successCount} 条待办到列表。`
-							: `Added ${successCount} todos to the list.`;
+					const addedText = t("addedTodos", { count: successCount });
 					setMessages((prev) =>
 						prev.map((msg) =>
 							msg.id === assistantMessageId
@@ -346,10 +333,7 @@ export const useChatController = ({
 			}
 		} catch (err) {
 			console.error(err);
-			const fallback =
-				locale === "zh"
-					? "出错了，请稍后再试。"
-					: "Something went wrong. Please try again.";
+			const fallback = t("errorOccurred");
 			setMessages((prev) =>
 				prev.map((msg) =>
 					msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
@@ -369,11 +353,11 @@ export const useChatController = ({
 		hasSelection,
 		inputValue,
 		isStreaming,
-		locale,
 		parsePlanTodos,
 		planSystemPrompt,
-		setConversationId,
+		t,
 		todos,
+		setConversationId,
 	]);
 
 	const handleKeyDown = useCallback(

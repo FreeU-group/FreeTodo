@@ -3,7 +3,12 @@ import type { ParsedTodoTree } from "@/apps/chat/types";
 import { createId } from "@/apps/chat/utils/id";
 import type { CreateTodoInput } from "@/lib/types";
 
-export const usePlanParser = (locale: string) => {
+type TranslationFunction = (
+	key: string,
+	values?: Record<string, string | number | Date>,
+) => string;
+
+export const usePlanParser = (locale: string, t: TranslationFunction) => {
 	const planSystemPrompt = useMemo(
 		() =>
 			locale === "zh"
@@ -47,10 +52,7 @@ export const usePlanParser = (locale: string) => {
 			if (!jsonText) {
 				return {
 					todos: [],
-					error:
-						locale === "zh"
-							? "未找到计划 JSON，未创建待办。"
-							: "No todo JSON found; no tasks created.",
+					error: t("chat.noPlanJsonFound"),
 				};
 			}
 
@@ -118,10 +120,7 @@ export const usePlanParser = (locale: string) => {
 				if (!todos.length) {
 					return {
 						todos: [],
-						error:
-							locale === "zh"
-								? "解析完成，但没有有效的待办项。"
-								: "Parsed but no valid todos found.",
+						error: t("chat.parsedNoValidTodos"),
 					};
 				}
 
@@ -130,14 +129,11 @@ export const usePlanParser = (locale: string) => {
 				console.error(err);
 				return {
 					todos: [],
-					error:
-						locale === "zh"
-							? "解析计划 JSON 失败，未创建待办。"
-							: "Failed to parse plan JSON; no tasks created.",
+					error: t("chat.parsePlanJsonFailed"),
 				};
 			}
 		},
-		[locale],
+		[t],
 	);
 
 	const buildTodoPayloads = useCallback((trees: ParsedTodoTree[]) => {
