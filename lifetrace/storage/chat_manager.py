@@ -11,6 +11,9 @@ from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
 
+# 聊天标题最大长度
+CHAT_TITLE_MAX_LENGTH = 50
+
 
 class ChatManager:
     """聊天管理类"""
@@ -214,8 +217,10 @@ class ChatManager:
 
                 # 如果会话没有标题且这是第一条用户消息，可以设置标题
                 if not chat.title and role == "user":
-                    # 使用消息内容的前50个字符作为标题
-                    chat.title = content[:50] + ("..." if len(content) > 50 else "")
+                    # 使用消息内容的前N个字符作为标题
+                    chat.title = content[:CHAT_TITLE_MAX_LENGTH] + (
+                        "..." if len(content) > CHAT_TITLE_MAX_LENGTH else ""
+                    )
 
                 session.flush()
 
@@ -339,3 +344,57 @@ class ChatManager:
         except SQLAlchemyError as e:
             logger.error(f"获取聊天会话摘要失败: {e}")
             return []
+
+    # ===== 会话上下文管理 =====
+
+    def get_chat_context(self, session_id: str) -> str | None:
+        """获取会话上下文（JSON 字符串）
+
+        Args:
+            session_id: 会话ID
+
+        Returns:
+            上下文 JSON 字符串，如果不存在则返回 None
+        """
+        try:
+            with self.db_base.get_session() as session:
+                chat = session.query(Chat).filter_by(session_id=session_id).first()
+                if chat:
+                    return chat.context
+                return None
+        except SQLAlchemyError as e:
+            logger.error(f"获取会话上下文失败: {e}")
+            return None
+
+    def update_chat_context(self, session_id: str, context: str) -> bool:
+        """更新会话上下文
+
+        Args:
+            session_id: 会话ID
+            context: JSON 格式的上下文字符串
+
+        Returns:
+            是否更新成功
+        """
+        try:
+            with self.db_base.get_session() as session:
+                chat = session.query(Chat).filter_by(session_id=session_id).first()
+                if chat:
+                    chat.context = context
+                    chat.updated_at = datetime.now()
+                    session.flush()
+                    return True
+                else:
+                    # 如果会话不存在，自动创建
+                    chat = Chat(
+                        session_id=session_id,
+                        chat_type="general",
+                        context=context,
+                    )
+                    session.add(chat)
+                    session.flush()
+                    logger.info(f"自动创建会话并设置上下文: {session_id}")
+                    return True
+        except SQLAlchemyError as e:
+            logger.error(f"更新会话上下文失败: {e}")
+            return False

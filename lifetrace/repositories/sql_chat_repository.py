@@ -96,3 +96,9 @@ class SqlChatRepository(IChatRepository):
             chat_type=chat_type,
             limit=limit,
         )
+
+    def get_chat_context(self, session_id: str) -> str | None:
+        return self._manager.get_chat_context(session_id)
+
+    def update_chat_context(self, session_id: str, context: str) -> bool:
+        return self._manager.update_chat_context(session_id, context)

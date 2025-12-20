@@ -85,6 +85,24 @@ class IChatRepository(ABC):
         """获取聊天会话摘要列表"""
         pass
 
+    @abstractmethod
+    def get_chat_context(self, session_id: str) -> str | None:
+        """获取会话上下文（JSON 字符串）"""
+        pass
+
+    @abstractmethod
+    def update_chat_context(self, session_id: str, context: str) -> bool:
+        """更新会话上下文
+
+        Args:
+            session_id: 会话ID
+            context: JSON 格式的上下文字符串
+
+        Returns:
+            是否更新成功
+        """
+        pass
+
 
 class ITodoRepository(ABC):
     """Todo 仓库接口"""

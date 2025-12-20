@@ -1,12 +1,15 @@
-"""数据库基础管理器 - 负责数据库初始化和会话管理"""
+"""数据库基础管理器 - 负责数据库初始化和会话管理
+
+使用 SQLModel 进行数据库管理，迁移由 Alembic 处理。
+"""
 
 import os
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlmodel import Session, SQLModel
 
-from lifetrace.storage.models import Base
 from lifetrace.util.config import config
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.utils import ensure_dir
@@ -36,23 +39,16 @@ class DatabaseBase:
                 "sqlite:///" + config.database_path, echo=False, pool_pre_ping=True
             )
 
-            # 创建会话工厂
+            # 创建会话工厂（兼容旧代码）
             self.SessionLocal = sessionmaker(bind=self.engine)
 
-            # 创建表
-            Base.metadata.create_all(bind=self.engine)
+            # 导入所有模型以确保 metadata 包含所有表
+            from lifetrace.storage import models  # noqa: F401
 
-            # 进行 projects 表结构迁移（确保新列存在）
-            self._migrate_projects_table()
-
-            # 进行 activities 表结构迁移（确保新表存在）
-            self._migrate_activities_table()
-
-            # 进行 todos 表结构迁移（确保新列存在）
-            self._migrate_todos_table()
-
-            # 只在数据库不存在时（新创建）打印日志
+            # 创建表（仅在新数据库时）
+            # 对于现有数据库，使用 Alembic 进行迁移
             if not db_exists:
+                SQLModel.metadata.create_all(bind=self.engine)
                 logger.info(f"数据库初始化完成: {config.database_path}")
 
             # 性能优化：添加关键索引
@@ -177,6 +173,14 @@ class DatabaseBase:
                         "idx_activity_event_relations_event_id",
                         "CREATE INDEX IF NOT EXISTS idx_activity_event_relations_event_id ON activity_event_relations(event_id)",
                     ),
+                    (
+                        "idx_chats_session_id",
+                        "CREATE INDEX IF NOT EXISTS idx_chats_session_id ON chats(session_id)",
+                    ),
+                    (
+                        "idx_messages_chat_id",
+                        "CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id)",
+                    ),
                 ]
 
                 # 创建索引
@@ -197,240 +201,21 @@ class DatabaseBase:
             logger.warning(f"创建性能索引失败: {e}")
             raise
 
-    def _migrate_projects_table(self):
-        """迁移 projects 表结构，保持与最新 ORM 定义一致（SQLite 兼容方式）
-
-        - 将旧字段 system_context_prompt 重命名为 description
-        - 删除不再使用的 keywords / whitelist_apps / goal 等列（如存在）
-        - 仅在目标列不存在时执行 ALTER TABLE
-        """
-        try:
-            with self.engine.connect() as conn:
-                if not self._projects_table_exists(conn):
-                    return
-
-                columns = self._get_project_columns(conn)
-                columns = self._ensure_project_identity_columns(conn, columns)
-                columns = self._rename_or_add_description_column(conn, columns)
-                self._drop_legacy_project_columns(conn, columns)
-
-                conn.commit()
-
-        except Exception as e:
-            # 迁移失败不应阻止服务启动，但需要记录错误
-            logger.error(f"projects 表结构迁移失败: {e}")
-
-    def _projects_table_exists(self, conn) -> bool:
-        """检查 projects 表是否存在"""
-        tables = [
-            row[0]
-            for row in conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'")
-            ).fetchall()
-        ]
-        return "projects" in tables
-
-    def _get_project_columns(self, conn) -> list[str]:
-        """获取 projects 表现有列名列表"""
-        column_rows = conn.execute(text("PRAGMA table_info('projects')")).fetchall()
-        return [row[1] for row in column_rows]
-
-    def _add_column_if_missing(
-        self,
-        conn,
-        columns: list[str],
-        column_name: str,
-        ddl: str,
-    ) -> list[str]:
-        """如果列不存在，则执行 ALTER TABLE 添加"""
-        if column_name not in columns:
-            conn.execute(text(ddl))
-            logger.info(f"已为 projects 表添加列: {column_name}")
-            columns.append(column_name)
-        return columns
-
-    def _ensure_project_identity_columns(
-        self,
-        conn,
-        columns: list[str],
-    ) -> list[str]:
-        """确保身份锚点相关列存在"""
-        columns = self._add_column_if_missing(
-            conn,
-            columns,
-            "definition_of_done",
-            "ALTER TABLE projects ADD COLUMN definition_of_done TEXT",
-        )
-        columns = self._add_column_if_missing(
-            conn,
-            columns,
-            "status",
-            "ALTER TABLE projects ADD COLUMN status VARCHAR(20) DEFAULT 'active'",
-        )
-        return columns
-
-    def _rename_or_add_description_column(
-        self,
-        conn,
-        columns: list[str],
-    ) -> list[str]:
-        """处理 description / system_context_prompt 列的兼容迁移"""
-        has_description = "description" in columns
-        has_system_context = "system_context_prompt" in columns
-
-        if not has_description and has_system_context:
-            try:
-                conn.execute(
-                    text("ALTER TABLE projects RENAME COLUMN system_context_prompt TO description")
-                )
-                logger.info("已将 projects 表列 system_context_prompt 重命名为 description")
-                columns.remove("system_context_prompt")
-                columns.append("description")
-            except Exception as e:
-                logger.error(f"重命名 projects.system_context_prompt 为 description 失败: {e}")
-        elif not has_description and not has_system_context:
-            columns = self._add_column_if_missing(
-                conn,
-                columns,
-                "description",
-                "ALTER TABLE projects ADD COLUMN description TEXT",
-            )
-
-        return columns
-
-    def _drop_legacy_project_columns(
-        self,
-        conn,
-        columns: list[str],
-    ) -> None:
-        """删除不再使用的旧列（如果数据库中仍然存在）"""
-        legacy_columns = [
-            "keywords",
-            "whitelist_apps",
-            "keywords_json",
-            "whitelist_apps_json",
-            "milestones_json",
-            "goal",
-        ]
-
-        for col in legacy_columns:
-            if col not in columns:
-                continue
-            try:
-                conn.execute(text(f"ALTER TABLE projects DROP COLUMN {col}"))
-                logger.info(f"已从 projects 表删除废弃列: {col}")
-                columns.remove(col)
-            except Exception as e:
-                logger.warning(
-                    f"尝试删除 projects 表列 {col} 失败，可能是 SQLite 版本不支持 DROP COLUMN: {e}"
-                )
-
-    def _migrate_activities_table(self):
-        """迁移 activities 表结构，确保表存在（SQLite 兼容方式）"""
-        try:
-            with self.engine.connect() as conn:
-                # 检查 activities 表是否存在
-                tables = [
-                    row[0]
-                    for row in conn.execute(
-                        text(
-                            "SELECT name FROM sqlite_master WHERE type='table' AND name='activities'"
-                        )
-                    ).fetchall()
-                ]
-
-                if "activities" not in tables:
-                    # 创建 activities 表
-                    conn.execute(
-                        text(
-                            """
-                        CREATE TABLE activities (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            start_time DATETIME NOT NULL,
-                            end_time DATETIME NOT NULL,
-                            ai_title VARCHAR(100),
-                            ai_summary TEXT,
-                            event_count INTEGER DEFAULT 0,
-                            created_at DATETIME NOT NULL,
-                            updated_at DATETIME NOT NULL,
-                            deleted_at DATETIME
-                        )
-                    """
-                        )
-                    )
-                    logger.info("已创建 activities 表")
-
-                # 检查 activity_event_relations 表是否存在
-                tables = [
-                    row[0]
-                    for row in conn.execute(
-                        text(
-                            "SELECT name FROM sqlite_master WHERE type='table' AND name='activity_event_relations'"
-                        )
-                    ).fetchall()
-                ]
-
-                if "activity_event_relations" not in tables:
-                    # 创建 activity_event_relations 表
-                    conn.execute(
-                        text(
-                            """
-                        CREATE TABLE activity_event_relations (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            activity_id INTEGER NOT NULL,
-                            event_id INTEGER NOT NULL,
-                            created_at DATETIME NOT NULL,
-                            deleted_at DATETIME
-                        )
-                    """
-                        )
-                    )
-                    logger.info("已创建 activity_event_relations 表")
-
-                conn.commit()
-
-        except Exception as e:
-            # 迁移失败不应阻止服务启动，但需要记录错误
-            logger.error(f"activities 表结构迁移失败: {e}")
-
-    def _migrate_todos_table(self):
-        """迁移 todos 表结构，补充缺失列"""
-        try:
-            with self.engine.connect() as conn:
-                tables = [
-                    row[0]
-                    for row in conn.execute(
-                        text("SELECT name FROM sqlite_master WHERE type='table' AND name='todos'")
-                    ).fetchall()
-                ]
-                if "todos" not in tables:
-                    return
-
-                columns = [
-                    row[1] for row in conn.execute(text("PRAGMA table_info('todos')")).fetchall()
-                ]
-
-                if "priority" not in columns:
-                    conn.execute(
-                        text("ALTER TABLE todos ADD COLUMN priority VARCHAR(20) DEFAULT 'none'")
-                    )
-                    logger.info("已为 todos 表添加列: priority")
-
-                if "start_time" not in columns:
-                    conn.execute(text("ALTER TABLE todos ADD COLUMN start_time DATETIME"))
-                    logger.info("已为 todos 表添加列: start_time")
-
-                if "order" not in columns:
-                    conn.execute(text('ALTER TABLE todos ADD COLUMN "order" INTEGER DEFAULT 0'))
-                    logger.info("已为 todos 表添加列: order")
-
-                conn.commit()
-        except Exception as e:
-            logger.error(f"todos 表结构迁移失败: {e}")
-
     @contextmanager
     def get_session(self):
-        """获取数据库会话上下文管理器"""
+        """获取数据库会话上下文管理器（使用 SQLModel Session）"""
+        with Session(self.engine) as session:
+            try:
+                yield session
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                logger.error(f"数据库操作失败: {e}")
+                raise
+
+    @contextmanager
+    def get_sqlalchemy_session(self):
+        """获取 SQLAlchemy 会话上下文管理器（用于兼容旧代码）"""
         session = self.SessionLocal()
         try:
             yield session

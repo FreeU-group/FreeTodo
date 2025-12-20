@@ -1,10 +1,11 @@
 """Chat 业务逻辑层
 
 处理 Chat 相关的业务逻辑，包含会话管理和消息处理。
+会话上下文存储在数据库中，不再使用内存存储。
 """
 
+import json
 import uuid
-from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
@@ -13,12 +14,12 @@ from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
 
+# 会话上下文的最大消息数量
+MAX_CONTEXT_LENGTH = 50
+
 
 class ChatService:
     """Chat 业务逻辑层"""
-
-    # 类级别的会话存储（内存中的上下文管理）
-    _chat_sessions: dict[str, dict[str, Any]] = defaultdict(dict)
 
     def __init__(self, repository: IChatRepository):
         self.repository = repository
@@ -30,54 +31,87 @@ class ChatService:
         """生成新的会话ID"""
         return str(uuid.uuid4())
 
-    # ===== 内存会话管理（上下文） =====
+    # ===== 会话上下文管理（数据库存储） =====
 
     def create_new_session(self, session_id: str | None = None) -> str:
-        """创建新的聊天会话（内存）"""
+        """创建新的聊天会话
+
+        Args:
+            session_id: 可选的会话ID，如果不提供则自动生成
+
+        Returns:
+            会话ID
+        """
         if not session_id:
             session_id = self.generate_session_id()
 
-        self._chat_sessions[session_id] = {
-            "context": [],
-            "created_at": datetime.now(),
-            "last_active": datetime.now(),
-        }
+        # 确保会话在数据库中存在
+        self.ensure_chat_exists(session_id, chat_type="general")
+
+        # 初始化空上下文
+        self.repository.update_chat_context(session_id, json.dumps([]))
 
         logger.info(f"创建新会话: {session_id}")
         return session_id
 
     def clear_session_context(self, session_id: str) -> bool:
-        """清除会话上下文"""
-        if session_id in self._chat_sessions:
-            self._chat_sessions[session_id]["context"] = []
-            self._chat_sessions[session_id]["last_active"] = datetime.now()
+        """清除会话上下文
+
+        Args:
+            session_id: 会话ID
+
+        Returns:
+            是否清除成功
+        """
+        result = self.repository.update_chat_context(session_id, json.dumps([]))
+        if result:
             logger.info(f"清除会话上下文: {session_id}")
-            return True
-        return False
+        return result
 
     def get_session_context(self, session_id: str) -> list[dict[str, Any]]:
-        """获取会话上下文"""
-        if session_id in self._chat_sessions:
-            self._chat_sessions[session_id]["last_active"] = datetime.now()
-            return self._chat_sessions[session_id]["context"]
+        """获取会话上下文
+
+        Args:
+            session_id: 会话ID
+
+        Returns:
+            上下文消息列表
+        """
+        context_json = self.repository.get_chat_context(session_id)
+        if context_json:
+            try:
+                return json.loads(context_json)
+            except json.JSONDecodeError:
+                logger.warning(f"会话上下文 JSON 解析失败: {session_id}")
+                return []
         return []
 
     def add_to_session_context(self, session_id: str, role: str, content: str):
-        """添加消息到会话上下文"""
-        if session_id not in self._chat_sessions:
-            self.create_new_session(session_id)
+        """添加消息到会话上下文
 
-        self._chat_sessions[session_id]["context"].append(
-            {"role": role, "content": content, "timestamp": datetime.now()}
+        Args:
+            session_id: 会话ID
+            role: 消息角色（user, assistant, system）
+            content: 消息内容
+        """
+        # 获取当前上下文
+        context = self.get_session_context(session_id)
+
+        # 添加新消息
+        context.append(
+            {
+                "role": role,
+                "content": content,
+                "timestamp": datetime.now().isoformat(),
+            }
         )
-        self._chat_sessions[session_id]["last_active"] = datetime.now()
 
-        # 限制上下文长度，避免内存过度使用
-        max_context_length = 50
-        if len(self._chat_sessions[session_id]["context"]) > max_context_length:
-            self._chat_sessions[session_id]["context"] = self._chat_sessions[session_id]["context"][
-                -max_context_length:
-            ]
+        # 限制上下文长度，避免数据过大
+        if len(context) > MAX_CONTEXT_LENGTH:
+            context = context[-MAX_CONTEXT_LENGTH:]
+
+        # 保存到数据库
+        self.repository.update_chat_context(session_id, json.dumps(context, ensure_ascii=False))
 
     # ===== 数据库会话管理 =====
 
@@ -140,9 +174,6 @@ class ChatService:
 
     def delete_chat(self, session_id: str) -> bool:
         """删除聊天会话及其所有消息"""
-        # 同时清除内存中的会话
-        if session_id in self._chat_sessions:
-            del self._chat_sessions[session_id]
         return self.repository.delete_chat(session_id)
 
     # ===== 消息管理 =====
