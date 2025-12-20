@@ -70,6 +70,7 @@ function ScreenshotModal({
 	screenshots?: Screenshot[];
 	onClose: () => void;
 }) {
+	const t = useTranslations("debugCapture");
 	const allScreenshots = screenshots || [screenshot];
 	const initialIndex = allScreenshots.findIndex((s) => s.id === screenshot.id);
 	const [currentIndex, setCurrentIndex] = useState(
@@ -162,7 +163,7 @@ function ScreenshotModal({
 				}}
 			>
 				<div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-4 py-3">
-					<h2 className="text-xl font-semibold">截图详情</h2>
+					<h2 className="text-xl font-semibold">{t("screenshotDetail")}</h2>
 					<button
 						type="button"
 						onClick={onClose}
@@ -173,7 +174,7 @@ function ScreenshotModal({
 							"transition-colors",
 							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
 						)}
-						aria-label="关闭"
+						aria-label={t("close")}
 					>
 						<X className="h-5 w-5" />
 					</button>
@@ -187,7 +188,7 @@ function ScreenshotModal({
 									<div className="text-center">
 										<div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
 										<p className="mt-2 text-sm text-muted-foreground">
-											加载中...
+											{t("loading")}
 										</p>
 									</div>
 								</div>
@@ -201,9 +202,9 @@ function ScreenshotModal({
 											viewBox="0 0 24 24"
 											stroke="currentColor"
 											role="img"
-											aria-label="加载失败"
+											aria-label={t("loadFailed")}
 										>
-											<title>加载失败</title>
+											<title>{t("loadFailed")}</title>
 											<path
 												strokeLinecap="round"
 												strokeLinejoin="round"
@@ -211,9 +212,11 @@ function ScreenshotModal({
 												d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
 											/>
 										</svg>
-										<p className="mt-2 text-sm font-medium">图片加载失败</p>
+										<p className="mt-2 text-sm font-medium">
+											{t("imageLoadFailed")}
+										</p>
 										<p className="mt-1 text-xs text-muted-foreground">
-											截图 ID: {currentScreenshot.id}
+											{t("screenshotId")}: {currentScreenshot.id}
 										</p>
 									</div>
 								</div>
@@ -222,7 +225,7 @@ function ScreenshotModal({
 								<img
 									key={currentScreenshot.id}
 									src={getScreenshotImage(currentScreenshot.id)}
-									alt="截图"
+									alt={t("screenshot")}
 									className={`w-full h-auto object-contain ${imageLoading ? "opacity-0" : "opacity-100"} transition-opacity`}
 									onLoad={() => {
 										setImageLoading(false);
@@ -258,7 +261,7 @@ function ScreenshotModal({
 											"hover:bg-background hover:scale-105",
 											"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
 										)}
-										aria-label="上一张"
+										aria-label={t("previous")}
 									>
 										<ChevronLeft className="h-5 w-5" />
 									</button>
@@ -277,7 +280,7 @@ function ScreenshotModal({
 											"hover:bg-background hover:scale-105",
 											"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
 										)}
-										aria-label="下一张"
+										aria-label={t("next")}
 									>
 										<ChevronRight className="h-5 w-5" />
 									</button>
@@ -286,11 +289,11 @@ function ScreenshotModal({
 						</div>
 
 						<div className="border-t border-border p-4 space-y-4">
-							<h3 className="text-base font-semibold">详细信息</h3>
+							<h3 className="text-base font-semibold">{t("details")}</h3>
 							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 								<div className="space-y-1">
 									<div className="text-sm font-medium text-muted-foreground">
-										时间
+										{t("time")}
 									</div>
 									<div className="text-sm text-foreground">
 										{formatDateTime(
@@ -301,23 +304,23 @@ function ScreenshotModal({
 								</div>
 								<div className="space-y-1">
 									<div className="text-sm font-medium text-muted-foreground">
-										应用
+										{t("app")}
 									</div>
 									<div className="text-sm text-foreground">
-										{currentScreenshot.appName || "未知"}
+										{currentScreenshot.appName || t("unknown")}
 									</div>
 								</div>
 								<div className="space-y-1 sm:col-span-2">
 									<div className="text-sm font-medium text-muted-foreground">
-										窗口标题
+										{t("windowTitle")}
 									</div>
 									<div className="text-sm text-foreground">
-										{currentScreenshot.windowTitle || "无"}
+										{currentScreenshot.windowTitle || t("none")}
 									</div>
 								</div>
 								<div className="space-y-1">
 									<div className="text-sm font-medium text-muted-foreground">
-										尺寸
+										{t("size")}
 									</div>
 									<div className="text-sm text-foreground">
 										{currentScreenshot.width} × {currentScreenshot.height}
@@ -328,7 +331,7 @@ function ScreenshotModal({
 							{currentScreenshot.ocrResult?.textContent && (
 								<div className="space-y-2 pt-4 border-t border-border">
 									<div className="text-sm font-medium text-muted-foreground">
-										OCR 结果
+										{t("ocrResult")}
 									</div>
 									<div className="rounded-md border border-border bg-muted/50 p-4 max-h-64 overflow-y-auto">
 										<pre className="whitespace-pre-wrap text-sm text-foreground leading-relaxed font-mono">
@@ -347,6 +350,7 @@ function ScreenshotModal({
 
 export function DebugCapturePanel() {
 	const t = useTranslations("todoExtraction");
+	const tDebug = useTranslations("debugCapture");
 	const [events, setEvents] = useState<Event[]>([]);
 	const [totalCount, setTotalCount] = useState(0);
 	const [loading, setLoading] = useState(true);
@@ -586,7 +590,7 @@ export function DebugCapturePanel() {
 	// 手动聚合选中事件为活动
 	const handleAggregateEvents = async () => {
 		if (selectedEvents.size === 0) {
-			alert("请先选择要聚合的事件");
+			alert(tDebug("selectEventsPrompt"));
 			return;
 		}
 
@@ -597,7 +601,7 @@ export function DebugCapturePanel() {
 		});
 
 		if (unendedEvents.length > 0) {
-			alert("所选事件中包含未结束的事件，无法聚合");
+			alert(tDebug("unendedEventsError"));
 			return;
 		}
 
@@ -610,7 +614,10 @@ export function DebugCapturePanel() {
 			const activity = response;
 
 			alert(
-				`成功创建活动: ${activity?.ai_title || "活动"}\n包含 ${eventIds.length} 个事件`,
+				tDebug("activityCreated", {
+					title: activity?.ai_title || tDebug("activity"),
+					count: eventIds.length,
+				}),
 			);
 
 			// 清空选中状态
@@ -618,7 +625,7 @@ export function DebugCapturePanel() {
 		} catch (error: unknown) {
 			console.error("聚合事件失败:", error);
 			const errorMsg =
-				error instanceof Error ? error.message : "聚合事件失败，请稍后重试";
+				error instanceof Error ? error.message : tDebug("aggregateFailed");
 			alert(errorMsg);
 		} finally {
 			setAggregating(false);
@@ -664,7 +671,7 @@ export function DebugCapturePanel() {
 		} catch (error: unknown) {
 			console.error("提取待办失败:", error);
 			const errorMsg =
-				error instanceof Error ? error.message : "提取待办失败，请稍后重试";
+				error instanceof Error ? error.message : tDebug("extractFailed");
 			toastError(t("extractFailed", { error: errorMsg }));
 		} finally {
 			setExtractingTodos((prev) => {
@@ -802,7 +809,7 @@ export function DebugCapturePanel() {
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
 			{/* 头部 */}
-			<PanelHeader icon={Camera} title="截图管理（开发调试）" />
+			<PanelHeader icon={Camera} title={tDebug("title")} />
 
 			{/* 选中事件提示 */}
 			{selectedEvents.size > 0 && (
@@ -810,7 +817,7 @@ export function DebugCapturePanel() {
 					<div className="flex items-center gap-2">
 						<Check className="h-5 w-5 text-primary" />
 						<span className="font-medium text-primary">
-							已选择 {selectedEvents.size} 个事件
+							{tDebug("selectedEvents", { count: selectedEvents.size })}
 						</span>
 					</div>
 					<div className="flex items-center gap-2">
@@ -823,12 +830,16 @@ export function DebugCapturePanel() {
 							{isAggregating ? (
 								<>
 									<div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-									<span>聚合中...</span>
+									<span>{tDebug("aggregating")}</span>
 								</>
 							) : (
 								<>
 									<Activity className="h-4 w-4" />
-									<span>聚合为活动 ({selectedEvents.size})</span>
+									<span>
+										{tDebug("aggregateActivity", {
+											count: selectedEvents.size,
+										})}
+									</span>
 								</>
 							)}
 						</button>
@@ -838,7 +849,7 @@ export function DebugCapturePanel() {
 							disabled={isAggregating}
 							className="rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
 						>
-							清空选择
+							{tDebug("clearSelection")}
 						</button>
 					</div>
 				</div>
@@ -856,7 +867,7 @@ export function DebugCapturePanel() {
 								htmlFor="start-date"
 								className="text-xs font-medium text-muted-foreground"
 							>
-								开始日期
+								{tDebug("startDate")}
 							</label>
 							<input
 								id="start-date"
@@ -871,7 +882,7 @@ export function DebugCapturePanel() {
 								htmlFor="end-date"
 								className="text-xs font-medium text-muted-foreground"
 							>
-								结束日期
+								{tDebug("endDate")}
 							</label>
 							<input
 								id="end-date"
@@ -886,12 +897,12 @@ export function DebugCapturePanel() {
 								htmlFor="app-name"
 								className="text-xs font-medium text-muted-foreground"
 							>
-								应用名称
+								{tDebug("appName")}
 							</label>
 							<input
 								id="app-name"
 								type="text"
-								placeholder="应用名称"
+								placeholder={tDebug("appNamePlaceholder")}
 								value={appName}
 								onChange={(e) => setAppName(e.target.value)}
 								className="w-full rounded-md border border-input bg-background px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm"
@@ -903,7 +914,7 @@ export function DebugCapturePanel() {
 								className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-md bg-primary px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-primary-foreground hover:bg-primary/90"
 							>
 								<Search className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-								<span className="hidden sm:inline">搜索</span>
+								<span className="hidden sm:inline">{tDebug("search")}</span>
 							</button>
 						</div>
 					</div>
@@ -913,11 +924,12 @@ export function DebugCapturePanel() {
 			{/* 时间轴区域 */}
 			<div className="flex-1 overflow-hidden flex flex-col">
 				<div className="shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 border-b border-border bg-muted/30 px-3 sm:px-4 py-2 sm:py-3">
-					<h2 className="text-sm font-medium">事件时间轴</h2>
+					<h2 className="text-sm font-medium">{tDebug("eventTimeline")}</h2>
 					{!loading && (
 						<div className="text-xs text-muted-foreground">
-							找到 {totalCount} 个事件
-							{events.length < totalCount && `（已加载 ${events.length} 个）`}
+							{tDebug("foundEvents", { total: totalCount })}
+							{events.length < totalCount &&
+								` ${tDebug("loadedEvents", { loaded: events.length })}`}
 						</div>
 					)}
 				</div>
@@ -927,12 +939,12 @@ export function DebugCapturePanel() {
 				>
 					{loading ? (
 						<div className="py-12 text-center text-muted-foreground">
-							加载中...
+							{tDebug("loading")}
 						</div>
 					) : events.length === 0 ? (
 						<div className="py-12 text-center text-muted-foreground font-medium">
-							<p>未找到事件</p>
-							<p className="mt-2 text-sm">请调整搜索条件</p>
+							<p>{tDebug("noEventsFound")}</p>
+							<p className="mt-2 text-sm">{tDebug("adjustSearchCriteria")}</p>
 						</div>
 					) : (
 						<div className="space-y-6">
@@ -959,7 +971,7 @@ export function DebugCapturePanel() {
 														{formatDateTime(`${date}T00:00:00`, "YYYY-MM-DD")}
 													</div>
 													<div className="text-xs text-muted-foreground">
-														{eventCount} 个事件
+														{tDebug("eventsCount", { count: eventCount })}
 													</div>
 												</div>
 											</div>
@@ -1015,7 +1027,11 @@ export function DebugCapturePanel() {
 																			: "opacity-0 group-hover:opacity-100",
 																		"hover:bg-muted",
 																	)}
-																	aria-label={isSelected ? "取消选择" : "选择"}
+																	aria-label={
+																		isSelected
+																			? tDebug("deselect")
+																			: tDebug("select")
+																	}
 																>
 																	{isSelected ? (
 																		<Check className="h-5 w-5 text-primary" />
@@ -1070,7 +1086,8 @@ export function DebugCapturePanel() {
 																	<div className="flex-1 min-w-0 space-y-2">
 																		<div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-wrap">
 																			<h3 className="text-sm sm:text-base font-semibold text-foreground wrap-break-word">
-																				{event.windowTitle || "未知窗口"}
+																				{event.windowTitle ||
+																					tDebug("unknownWindow")}
 																			</h3>
 																			<span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
 																				{event.appName}
@@ -1094,12 +1111,16 @@ export function DebugCapturePanel() {
 																			{duration !== null ? (
 																				<span>
 																					{" "}
-																					(时长 {formatDuration(duration)})
+																					(
+																					{tDebug("duration", {
+																						duration: formatDuration(duration),
+																					})}
+																					)
 																				</span>
 																			) : (
 																				<span className="text-green-600 dark:text-green-400">
 																					{" "}
-																					(进行中)
+																					({tDebug("inProgress")})
 																				</span>
 																			)}
 																		</div>
@@ -1110,7 +1131,7 @@ export function DebugCapturePanel() {
 																					(allOcrText?.length > 100
 																						? "..."
 																						: "") ||
-																				"无描述"}
+																				tDebug("noDescription")}
 																		</div>
 																	</div>
 
@@ -1159,7 +1180,7 @@ export function DebugCapturePanel() {
 																											src={getScreenshotImage(
 																												screenshot.id,
 																											)}
-																											alt={`截图 ${index + 1}`}
+																											alt={`${tDebug("screenshot")} ${index + 1}`}
 																											className="w-full h-full object-cover"
 																											loading="lazy"
 																											onError={(e) => {
@@ -1174,7 +1195,7 @@ export function DebugCapturePanel() {
 																												errorDiv.className =
 																													"flex h-full w-full items-center justify-center text-muted-foreground text-xs bg-destructive/10";
 																												errorDiv.textContent =
-																													"加载失败";
+																													tDebug("loadFailed");
 																												if (
 																													target.parentElement
 																												) {
@@ -1201,7 +1222,9 @@ export function DebugCapturePanel() {
 																						},
 																					)}
 																				<div className="absolute bottom-0 right-0 rounded-md bg-[oklch(var(--overlay))] px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold text-[oklch(var(--foreground))] z-60 pointer-events-none">
-																					{screenshots.length} 张
+																					{tDebug("screenshotCount", {
+																						count: screenshots.length,
+																					})}
 																				</div>
 																			</div>
 																		</div>
@@ -1223,18 +1246,18 @@ export function DebugCapturePanel() {
 						<div className="mt-6 flex justify-center">
 							{loadingMore ? (
 								<div className="text-sm text-muted-foreground">
-									加载更多中...
+									{tDebug("loadingMore")}
 								</div>
 							) : (
 								<div className="text-sm text-muted-foreground">
-									滚动到底部加载更多
+									{tDebug("scrollToLoadMore")}
 								</div>
 							)}
 						</div>
 					)}
 					{!loading && !hasMore && events.length > 0 && (
 						<div className="mt-6 text-center text-sm text-muted-foreground">
-							已加载所有事件
+							{tDebug("allEventsLoaded")}
 						</div>
 					)}
 				</div>

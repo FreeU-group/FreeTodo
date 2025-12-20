@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { useEffect, useRef } from "react";
 
@@ -17,6 +18,7 @@ export function NewTodoInlineForm({
 	onSubmit,
 	onCancel,
 }: NewTodoInlineFormProps) {
+	const t = useTranslations("todoList");
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
@@ -54,15 +56,15 @@ export function NewTodoInlineForm({
 				type="text"
 				value={value}
 				onChange={(e) => onChange(e.target.value)}
-				placeholder="添加任务"
+				placeholder={t("addTodo")}
 				className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
 				required
 			/>
 			<button type="submit" className="sr-only">
-				提交
+				{t("submit")}
 			</button>
 			<button type="reset" className="sr-only">
-				重置
+				{t("reset")}
 			</button>
 		</form>
 	);

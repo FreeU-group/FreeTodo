@@ -44,28 +44,34 @@ export function CostTrackingPanel() {
 	};
 
 	const featureName = (featureId: string) => {
-		// 已知的功能 ID 列表
-		const knownFeatures = [
-			"event_assistant",
-			"event_summary",
-			"project_assistant",
-			"job_task_context_mapper",
-			"job_task_summary",
-			"task_summary",
-		];
-		if (knownFeatures.includes(featureId)) {
-			return t(`featureNames.${featureId}` as Parameters<typeof t>[0]);
+		// 将 camelCase 转换回 snake_case（因为 fetcher 会转换字段名，但翻译 key 是 snake_case）
+		const toSnakeCase = (str: string) =>
+			str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+
+		// 转换为 snake_case 格式以匹配翻译 key
+		const normalizedId = toSnakeCase(featureId);
+		const translationKey = `featureNames.${normalizedId}` as Parameters<
+			typeof t
+		>[0];
+
+		// 尝试获取翻译
+		const translation = t(translationKey);
+
+		// 如果翻译结果包含完整的命名空间路径（说明翻译不存在），返回未知功能
+		if (translation.includes("page.costTracking.featureNames.")) {
+			return t("featureNames.unknown");
 		}
-		return t("featureNames.unknown");
+
+		return translation;
 	};
 
 	const recentData = useMemo(() => {
-		if (!stats || !stats.daily_costs) return [];
-		const dates = Object.keys(stats.daily_costs).sort().slice(-7);
+		if (!stats || !stats.dailyCosts) return [];
+		const dates = Object.keys(stats.dailyCosts).sort().slice(-7);
 		return dates.map((date) => ({
 			date,
-			cost: stats.daily_costs?.[date]?.cost ?? 0,
-			tokens: stats.daily_costs?.[date]?.total_tokens ?? 0,
+			cost: stats.dailyCosts?.[date]?.cost ?? 0,
+			tokens: stats.dailyCosts?.[date]?.totalTokens ?? 0,
 		}));
 	}, [stats]);
 
@@ -75,12 +81,10 @@ export function CostTrackingPanel() {
 	}, [recentData]);
 
 	return (
-		<div className="flex h-full flex-col overflow-auto bg-[oklch(var(--card))] text-[oklch(var(--foreground))]">
+		<div className="flex h-full flex-col overflow-auto bg-background text-foreground">
 			<PanelHeader icon={DollarSign} title={t("title")} />
-			<div className="border-b border-[oklch(var(--border))] bg-[oklch(var(--card))]/80 px-4 py-3">
-				<p className="text-sm text-[oklch(var(--muted-foreground))]">
-					{t("subtitle")}
-				</p>
+			<div className="border-b border-border bg-card/80 px-4 py-3">
+				<p className="text-sm text-muted-foreground">{t("subtitle")}</p>
 			</div>
 
 			<div className="flex-1 space-y-4 overflow-auto p-4">
@@ -92,7 +96,7 @@ export function CostTrackingPanel() {
 					<select
 						value={days}
 						onChange={(e) => setDays(Number(e.target.value))}
-						className="rounded-lg border border-[oklch(var(--border))] bg-[oklch(var(--card))] px-3 py-2 text-sm shadow-sm focus:border-[oklch(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[oklch(var(--primary))]/50"
+						className="rounded-lg border border-[oklch(var(--border))] bg-background px-3 py-2 text-sm shadow-sm focus:border-[oklch(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[oklch(var(--primary))]/50"
 					>
 						<option value={7}>{t("last7Days")}</option>
 						<option value={30}>{t("last30Days")}</option>
@@ -126,38 +130,38 @@ export function CostTrackingPanel() {
 				) : stats ? (
 					<div className="space-y-4">
 						<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-							<div className="rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] p-4 shadow-sm">
+							<div className="rounded-xl border border-[oklch(var(--border))] bg-background p-4 shadow-sm">
 								<div className="flex items-center justify-between text-sm text-[oklch(var(--muted-foreground))]">
 									<span>{t("totalCost")}</span>
 									<DollarSign className="h-4 w-4 text-[oklch(var(--primary))]" />
 								</div>
 								<p className="mt-2 text-3xl font-bold text-[oklch(var(--primary))]">
-									{formatCurrency(stats.total_cost)}
+									{formatCurrency(stats.totalCost)}
 								</p>
 							</div>
 
-							<div className="rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] p-4 shadow-sm">
+							<div className="rounded-xl border border-[oklch(var(--border))] bg-background p-4 shadow-sm">
 								<div className="flex items-center justify-between text-sm text-[oklch(var(--muted-foreground))]">
 									<span>{t("totalTokens")}</span>
 									<Activity className="h-4 w-4 text-[oklch(var(--primary))]" />
 								</div>
 								<p className="mt-2 text-3xl font-bold">
-									{formatNumber(stats.total_tokens)}
+									{formatNumber(stats.totalTokens)}
 								</p>
 							</div>
 
-							<div className="rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] p-4 shadow-sm">
+							<div className="rounded-xl border border-[oklch(var(--border))] bg-background p-4 shadow-sm">
 								<div className="flex items-center justify-between text-sm text-[oklch(var(--muted-foreground))]">
 									<span>{t("totalRequests")}</span>
 									<TrendingUp className="h-4 w-4 text-[oklch(var(--primary))]" />
 								</div>
 								<p className="mt-2 text-3xl font-bold">
-									{formatNumber(stats.total_requests)}
+									{formatNumber(stats.totalRequests)}
 								</p>
 							</div>
 						</div>
 
-						<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] shadow-sm">
+						<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-background shadow-sm">
 							<div className="border-b border-[oklch(var(--border))] px-4 py-3">
 								<h3 className="text-base font-semibold">
 									{t("featureCostDetails")}
@@ -186,7 +190,7 @@ export function CostTrackingPanel() {
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-[oklch(var(--border))]">
-										{Object.entries(stats.feature_costs || {})
+										{Object.entries(stats.featureCosts || {})
 											.sort(([, a], [, b]) => {
 												const aCost =
 													typeof a === "object" && a && "cost" in a
@@ -202,8 +206,8 @@ export function CostTrackingPanel() {
 												const featureData =
 													typeof data === "object" && data
 														? (data as {
-																input_tokens?: number;
-																output_tokens?: number;
+																inputTokens?: number;
+																outputTokens?: number;
 																requests?: number;
 																cost?: number;
 															})
@@ -220,10 +224,10 @@ export function CostTrackingPanel() {
 															{featureId}
 														</td>
 														<td className="px-4 py-3 text-right">
-															{formatNumber(featureData.input_tokens)}
+															{formatNumber(featureData.inputTokens)}
 														</td>
 														<td className="px-4 py-3 text-right">
-															{formatNumber(featureData.output_tokens)}
+															{formatNumber(featureData.outputTokens)}
 														</td>
 														<td className="px-4 py-3 text-right">
 															{formatNumber(featureData.requests)}
@@ -239,7 +243,7 @@ export function CostTrackingPanel() {
 							</div>
 						</div>
 
-						<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] shadow-sm">
+						<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-background shadow-sm">
 							<div className="border-b border-[oklch(var(--border))] px-4 py-3">
 								<h3 className="text-base font-semibold">
 									{t("modelCostDetails")}
@@ -268,15 +272,15 @@ export function CostTrackingPanel() {
 										</tr>
 									</thead>
 									<tbody className="divide-y divide-[oklch(var(--border))]">
-										{Object.entries(stats.model_costs || {})
+										{Object.entries(stats.modelCosts || {})
 											.sort(([, a], [, b]) => {
 												const aCost =
-													typeof a === "object" && a && "total_cost" in a
-														? ((a.total_cost as number) ?? 0)
+													typeof a === "object" && a && "totalCost" in a
+														? ((a.totalCost as number) ?? 0)
 														: 0;
 												const bCost =
-													typeof b === "object" && b && "total_cost" in b
-														? ((b.total_cost as number) ?? 0)
+													typeof b === "object" && b && "totalCost" in b
+														? ((b.totalCost as number) ?? 0)
 														: 0;
 												return bCost - aCost;
 											})
@@ -284,11 +288,11 @@ export function CostTrackingPanel() {
 												const modelData =
 													typeof data === "object" && data
 														? (data as {
-																input_tokens?: number;
-																output_tokens?: number;
-																input_cost?: number;
-																output_cost?: number;
-																total_cost?: number;
+																inputTokens?: number;
+																outputTokens?: number;
+																inputCost?: number;
+																outputCost?: number;
+																totalCost?: number;
 															})
 														: {};
 												return (
@@ -298,19 +302,19 @@ export function CostTrackingPanel() {
 													>
 														<td className="px-4 py-3 font-medium">{model}</td>
 														<td className="px-4 py-3 text-right">
-															{formatNumber(modelData.input_tokens)}
+															{formatNumber(modelData.inputTokens)}
 														</td>
 														<td className="px-4 py-3 text-right">
-															{formatNumber(modelData.output_tokens)}
+															{formatNumber(modelData.outputTokens)}
 														</td>
 														<td className="px-4 py-3 text-right">
-															{formatCurrency(modelData.input_cost)}
+															{formatCurrency(modelData.inputCost)}
 														</td>
 														<td className="px-4 py-3 text-right">
-															{formatCurrency(modelData.output_cost)}
+															{formatCurrency(modelData.outputCost)}
 														</td>
 														<td className="px-4 py-3 text-right font-semibold text-[oklch(var(--primary))]">
-															{formatCurrency(modelData.total_cost)}
+															{formatCurrency(modelData.totalCost)}
 														</td>
 													</tr>
 												);
@@ -321,7 +325,7 @@ export function CostTrackingPanel() {
 						</div>
 
 						{recentData.length > 0 && (
-							<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] shadow-sm">
+							<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-background shadow-sm">
 								<div className="border-b border-[oklch(var(--border))] px-4 py-3">
 									<h3 className="text-base font-semibold">
 										{t("dailyCostTrend")}

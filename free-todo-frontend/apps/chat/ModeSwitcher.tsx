@@ -17,7 +17,7 @@ const getModeLabel = (
 	mode: ChatMode,
 	t: ReturnType<typeof useTranslations>,
 ): string => {
-	return t(`chat.modes.${mode}.label`);
+	return t(`modes.${mode}.label`);
 };
 
 // Helper function to get mode description
@@ -25,7 +25,7 @@ const getModeDescription = (
 	mode: ChatMode,
 	t: ReturnType<typeof useTranslations>,
 ): string => {
-	return t(`chat.modes.${mode}.description`);
+	return t(`modes.${mode}.description`);
 };
 
 export function ModeSwitcher({

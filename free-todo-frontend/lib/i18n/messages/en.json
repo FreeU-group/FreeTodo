@@ -133,6 +133,8 @@
 				"job_task_context_mapper": "Task Context Mapping",
 				"job_task_summary": "Task Summary Generation",
 				"task_summary": "Task Summary (Manual)",
+				"activity_summary": "Activity Summary",
+				"vision_assistant": "Auto Todo Detection",
 				"unknown": "Unknown Feature"
 			}
 		}
@@ -400,6 +402,83 @@
 	},
 	"todoDetail": {
 		"editTitle": "Click to edit title",
-		"viewDescription": "View description"
+		"viewDescription": "View description",
+		"selectTodoPrompt": "Please select a todo to view details"
+	},
+	"debugCapture": {
+		"title": "Screenshot Management (Debug)",
+		"screenshotDetail": "Screenshot Details",
+		"close": "Close",
+		"loading": "Loading...",
+		"loadFailed": "Load Failed",
+		"imageLoadFailed": "Image Load Failed",
+		"screenshotId": "Screenshot ID",
+		"screenshot": "Screenshot",
+		"previous": "Previous",
+		"next": "Next",
+		"details": "Details",
+		"time": "Time",
+		"app": "App",
+		"unknown": "Unknown",
+		"windowTitle": "Window Title",
+		"none": "None",
+		"size": "Size",
+		"ocrResult": "OCR Result",
+		"selectedEvents": "Selected {count} events",
+		"aggregating": "Aggregating...",
+		"aggregateActivity": "Aggregate as Activity ({count})",
+		"clearSelection": "Clear Selection",
+		"startDate": "Start Date",
+		"endDate": "End Date",
+		"appName": "App Name",
+		"appNamePlaceholder": "App name",
+		"search": "Search",
+		"eventTimeline": "Event Timeline",
+		"foundEvents": "Found {total} events",
+		"loadedEvents": "({loaded} loaded)",
+		"loadingMore": "Loading more...",
+		"scrollToLoadMore": "Scroll to load more",
+		"allEventsLoaded": "All events loaded",
+		"noEventsFound": "No events found",
+		"adjustSearchCriteria": "Please adjust search criteria",
+		"eventsCount": "{count} events",
+		"select": "Select",
+		"deselect": "Deselect",
+		"unknownWindow": "Unknown Window",
+		"duration": "Duration {duration}",
+		"inProgress": "In Progress",
+		"noDescription": "No description",
+		"screenshotCount": "{count} screenshots",
+		"selectEventsPrompt": "Please select events to aggregate first",
+		"unendedEventsError": "Selected events contain unended events, cannot aggregate",
+		"activityCreated": "Successfully created activity: {title}\nContains {count} events",
+		"activity": "Activity",
+		"aggregateFailed": "Failed to aggregate events, please try again later",
+		"extractFailed": "Failed to extract todos, please try again later"
+	},
+	"achievements": {
+		"title": "Achievement System",
+		"placeholder": "Placeholder: plug an achievements component here",
+		"achievement1": {
+			"name": "First Steps",
+			"description": "Complete first todo"
+		},
+		"achievement2": {
+			"name": "Todo Master",
+			"description": "Complete 10 todos"
+		},
+		"achievement3": {
+			"name": "Efficiency Star",
+			"description": "Complete tasks for 7 consecutive days"
+		},
+		"achievement4": {
+			"name": "Perfectionist",
+			"description": "Complete 100 tasks"
+		}
+	},
+	"todoList": {
+		"addTodo": "Add todo",
+		"submit": "Submit",
+		"reset": "Reset"
 	}
 }

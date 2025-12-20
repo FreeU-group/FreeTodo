@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
@@ -13,6 +14,7 @@ import { NotesEditor } from "./components/NotesEditor";
 import { useNotesAutosize } from "./hooks/useNotesAutosize";
 
 export function TodoDetail() {
+	const t = useTranslations("todoDetail");
 	// 从 TanStack Query 获取 todos 数据
 	const { data: todos = [] } = useTodos();
 
@@ -80,7 +82,7 @@ export function TodoDetail() {
 	if (!todo) {
 		return (
 			<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-				请选择一个待办事项查看详情
+				{t("selectTodoPrompt")}
 			</div>
 		);
 	}

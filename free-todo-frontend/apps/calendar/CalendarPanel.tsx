@@ -324,7 +324,6 @@ function QuickCreateBar({
 	onTimeChange,
 	onConfirm,
 	onCancel,
-	labels,
 }: {
 	targetDate: Date | null;
 	value: string;
@@ -333,13 +332,8 @@ function QuickCreateBar({
 	onTimeChange: (v: string) => void;
 	onConfirm: () => void;
 	onCancel: () => void;
-	labels: {
-		createOnDate: string;
-		closeCreate: string;
-		inputTodoTitle: string;
-		create: string;
-	};
 }) {
+	const t = useTranslations("calendar");
 	if (!targetDate) return null;
 	return (
 		<div className="fixed bottom-24 left-1/2 z-40 w-full max-w-4xl -translate-x-1/2 px-3">
@@ -348,17 +342,14 @@ function QuickCreateBar({
 					<div className="flex items-center gap-2 text-sm text-muted-foreground">
 						<Calendar className="h-4 w-4" />
 						<span>
-							{labels.createOnDate.replace(
-								"{date}",
-								formatHumanDate(targetDate),
-							)}
+							{t("createOnDate", { date: formatHumanDate(targetDate) })}
 						</span>
 					</div>
 					<button
 						type="button"
 						onClick={onCancel}
 						className="rounded-md p-1 text-muted-foreground hover:bg-muted/50"
-						aria-label={labels.closeCreate}
+						aria-label={t("closeCreate")}
 					>
 						<X className="h-4 w-4" />
 					</button>
@@ -367,7 +358,7 @@ function QuickCreateBar({
 					<input
 						value={value}
 						onChange={(e) => onChange(e.target.value)}
-						placeholder={labels.inputTodoTitle}
+						placeholder={t("inputTodoTitle")}
 						className="flex-1 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
 					/>
 					<div className="flex items-center gap-2">
@@ -387,7 +378,7 @@ function QuickCreateBar({
 							)}
 						>
 							<Plus className="h-4 w-4" />
-							{labels.create}
+							{t("create")}
 						</button>
 					</div>
 				</div>
@@ -733,12 +724,6 @@ export function CalendarPanel() {
 				onCancel={() => {
 					setQuickTargetDate(null);
 					setQuickTitle("");
-				}}
-				labels={{
-					createOnDate: t("createOnDate"),
-					closeCreate: t("closeCreate"),
-					inputTodoTitle: t("inputTodoTitle"),
-					create: t("create"),
 				}}
 			/>
 		</div>

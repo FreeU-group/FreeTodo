@@ -133,6 +133,8 @@
 				"job_task_context_mapper": "任务上下文映射",
 				"job_task_summary": "任务摘要生成",
 				"task_summary": "任务摘要生成（手动）",
+				"activity_summary": "活动总结",
+				"vision_assistant": "自动待办检测",
 				"unknown": "未知功能"
 			}
 		}
@@ -400,6 +402,83 @@
 	},
 	"todoDetail": {
 		"editTitle": "点击编辑标题",
-		"viewDescription": "查看描述"
+		"viewDescription": "查看描述",
+		"selectTodoPrompt": "请选择一个待办事项查看详情"
+	},
+	"debugCapture": {
+		"title": "截图管理（开发调试）",
+		"screenshotDetail": "截图详情",
+		"close": "关闭",
+		"loading": "加载中...",
+		"loadFailed": "加载失败",
+		"imageLoadFailed": "图片加载失败",
+		"screenshotId": "截图 ID",
+		"screenshot": "截图",
+		"previous": "上一张",
+		"next": "下一张",
+		"details": "详细信息",
+		"time": "时间",
+		"app": "应用",
+		"unknown": "未知",
+		"windowTitle": "窗口标题",
+		"none": "无",
+		"size": "尺寸",
+		"ocrResult": "OCR 结果",
+		"selectedEvents": "已选择 {count} 个事件",
+		"aggregating": "聚合中...",
+		"aggregateActivity": "聚合为活动 ({count})",
+		"clearSelection": "清空选择",
+		"startDate": "开始日期",
+		"endDate": "结束日期",
+		"appName": "应用名称",
+		"appNamePlaceholder": "应用名称",
+		"search": "搜索",
+		"eventTimeline": "事件时间轴",
+		"foundEvents": "找到 {total} 个事件",
+		"loadedEvents": "（已加载 {loaded} 个）",
+		"loadingMore": "加载更多中...",
+		"scrollToLoadMore": "滚动到底部加载更多",
+		"allEventsLoaded": "已加载所有事件",
+		"noEventsFound": "未找到事件",
+		"adjustSearchCriteria": "请调整搜索条件",
+		"eventsCount": "{count} 个事件",
+		"select": "选择",
+		"deselect": "取消选择",
+		"unknownWindow": "未知窗口",
+		"duration": "时长 {duration}",
+		"inProgress": "进行中",
+		"noDescription": "无描述",
+		"screenshotCount": "{count} 张",
+		"selectEventsPrompt": "请先选择要聚合的事件",
+		"unendedEventsError": "所选事件中包含未结束的事件，无法聚合",
+		"activityCreated": "成功创建活动: {title}\n包含 {count} 个事件",
+		"activity": "活动",
+		"aggregateFailed": "聚合事件失败，请稍后重试",
+		"extractFailed": "提取待办失败，请稍后重试"
+	},
+	"achievements": {
+		"title": "成就系统",
+		"placeholder": "占位：在这里接入成就组件",
+		"achievement1": {
+			"name": "初出茅庐",
+			"description": "完成第一个待办"
+		},
+		"achievement2": {
+			"name": "待办达人",
+			"description": "完成 10 个待办"
+		},
+		"achievement3": {
+			"name": "效率之星",
+			"description": "连续 7 天完成任务"
+		},
+		"achievement4": {
+			"name": "完美主义者",
+			"description": "完成 100 个任务"
+		}
+	},
+	"todoList": {
+		"addTodo": "添加待办",
+		"submit": "提交",
+		"reset": "重置"
 	}
 }
