@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import {
 	useSaveAndInitLlmApiSaveAndInitLlmPost,
@@ -11,21 +12,6 @@ import { SettingsSection } from "./SettingsSection";
 
 interface LlmConfigSectionProps {
 	config: Record<string, unknown> | undefined;
-	t: {
-		apiKey: string;
-		baseUrl: string;
-		model: string;
-		temperature: string;
-		maxTokens: string;
-		testConnection: string;
-		testSuccess: string;
-		testFailed: string;
-		apiKeyRequired: string;
-		apiKeyHint: string;
-		apiKeyLink: string;
-		saveFailed: string;
-		llmConfig: string;
-	};
 	loading?: boolean;
 }
 
@@ -34,9 +20,9 @@ interface LlmConfigSectionProps {
  */
 export function LlmConfigSection({
 	config,
-	t,
 	loading = false,
 }: LlmConfigSectionProps) {
+	const t = useTranslations("page.settings");
 	const saveConfigMutation = useSaveConfig();
 	const testLlmMutation = useTestLlmConfigApiTestLlmConfigPost();
 	const saveAndInitLlmMutation = useSaveAndInitLlmApiSaveAndInitLlmPost();
@@ -82,7 +68,7 @@ export function LlmConfigSection({
 		if (!currentApiKey || !currentBaseUrl) {
 			setTestMessage({
 				type: "error",
-				text: t.apiKeyRequired,
+				text: t("apiKeyRequired"),
 			});
 			return;
 		}
@@ -101,19 +87,19 @@ export function LlmConfigSection({
 			if (result.success) {
 				setTestMessage({
 					type: "success",
-					text: t.testSuccess,
+					text: t("testSuccess"),
 				});
 			} else {
 				setTestMessage({
 					type: "error",
-					text: `${t.testFailed}: ${result.error || "Unknown error"}`,
+					text: `${t("testFailed")}: ${result.error || "Unknown error"}`,
 				});
 			}
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : "Network error";
 			setTestMessage({
 				type: "error",
-				text: `${t.testFailed}: ${errorMsg}`,
+				text: `${t("testFailed")}: ${errorMsg}`,
 			});
 		}
 	};
@@ -163,12 +149,12 @@ export function LlmConfigSection({
 		} catch (error) {
 			console.error("保存 LLM 配置失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.saveFailed.replace("{error}", errorMsg));
+			toastError(t("saveFailed", { error: errorMsg }));
 		}
 	};
 
 	return (
-		<SettingsSection title={t.llmConfig}>
+		<SettingsSection title={t("llmConfig")}>
 			<div className="space-y-3">
 				{/* 消息提示 */}
 				{testMessage && (
@@ -189,27 +175,27 @@ export function LlmConfigSection({
 						htmlFor="llm-api-key"
 						className="mb-1 block text-sm font-medium text-foreground"
 					>
-						{t.apiKey} <span className="text-red-500">*</span>
+						{t("apiKey")} <span className="text-red-500">*</span>
 					</label>
 					<input
 						id="llm-api-key"
 						type="password"
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-						placeholder={t.apiKey}
+						placeholder={t("apiKey")}
 						value={llmApiKey}
 						onChange={(e) => setLlmApiKey(e.target.value)}
 						onBlur={handleSaveLlmConfig}
 						disabled={isLoading}
 					/>
 					<p className="mt-1 text-xs text-muted-foreground">
-						{t.apiKeyHint}{" "}
+						{t("apiKeyHint")}{" "}
 						<a
 							href="https://bailian.console.aliyun.com/?tab=api#/api"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="text-primary hover:underline"
 						>
-							{t.apiKeyLink}
+							{t("apiKeyLink")}
 						</a>
 					</p>
 				</div>
@@ -220,7 +206,7 @@ export function LlmConfigSection({
 						htmlFor="llm-base-url"
 						className="mb-1 block text-sm font-medium text-foreground"
 					>
-						{t.baseUrl} <span className="text-red-500">*</span>
+						{t("baseUrl")} <span className="text-red-500">*</span>
 					</label>
 					<input
 						id="llm-base-url"
@@ -241,7 +227,7 @@ export function LlmConfigSection({
 							htmlFor="llm-model"
 							className="mb-1 block text-sm font-medium text-foreground"
 						>
-							{t.model}
+							{t("model")}
 						</label>
 						<input
 							id="llm-model"
@@ -259,7 +245,7 @@ export function LlmConfigSection({
 							htmlFor="llm-temperature"
 							className="mb-1 block text-sm font-medium text-foreground"
 						>
-							{t.temperature}
+							{t("temperature")}
 						</label>
 						<input
 							id="llm-temperature"
@@ -279,7 +265,7 @@ export function LlmConfigSection({
 							htmlFor="llm-max-tokens"
 							className="mb-1 block text-sm font-medium text-foreground"
 						>
-							{t.maxTokens}
+							{t("maxTokens")}
 						</label>
 						<input
 							id="llm-max-tokens"
@@ -307,8 +293,8 @@ export function LlmConfigSection({
 					className="w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					{testLlmMutation.isPending
-						? `${t.testConnection}...`
-						: t.testConnection}
+						? `${t("testConnection")}...`
+						: t("testConnection")}
 				</button>
 			</div>
 		</SettingsSection>

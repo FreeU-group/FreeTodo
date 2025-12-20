@@ -1,19 +1,17 @@
 "use client";
 
 import { Check, ChevronDown, LayoutGrid } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 import { LAYOUT_PRESETS, useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
 export function LayoutSelector() {
 	const { applyLayout, panelFeatureMap } = useUiStore();
-	const { locale } = useLocaleStore();
 	const [mounted, setMounted] = useState(false);
 	const [isOpen, setIsOpen] = useState(false);
 	const dropdownRef = useRef<HTMLDivElement>(null);
-	const t = useTranslations(locale);
+	const t = useTranslations("layoutSelector");
 
 	useEffect(() => {
 		setMounted(true);
@@ -58,8 +56,7 @@ export function LayoutSelector() {
 	const currentLayoutId = getCurrentLayoutId();
 
 	const getLayoutName = (layoutId: string) => {
-		const key = layoutId as keyof typeof t.layoutSelector.layouts;
-		return t.layoutSelector.layouts[key] || layoutId;
+		return t(`layouts.${layoutId}`);
 	};
 
 	return (
@@ -68,8 +65,8 @@ export function LayoutSelector() {
 				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				className="flex items-center gap-1 rounded-md p-2 text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground hover:shadow-md active:scale-95 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-				title={t.layoutSelector.selectLayout}
-				aria-label={t.layoutSelector.selectLayout}
+				title={t("selectLayout")}
+				aria-label={t("selectLayout")}
 				aria-expanded={isOpen}
 				aria-haspopup="listbox"
 			>
@@ -86,7 +83,7 @@ export function LayoutSelector() {
 				<div
 					className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-md border border-border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95"
 					role="listbox"
-					aria-label={t.layoutSelector.selectLayout}
+					aria-label={t("selectLayout")}
 				>
 					{LAYOUT_PRESETS.map((layout) => (
 						<button

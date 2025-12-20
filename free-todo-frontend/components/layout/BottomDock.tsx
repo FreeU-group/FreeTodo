@@ -3,12 +3,11 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import type { LucideIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PanelFeature, PanelPosition } from "@/lib/config/panel-config";
 import { FEATURE_ICON_MAP } from "@/lib/config/panel-config";
 import type { DragData, DropData } from "@/lib/dnd";
-import { useTranslations } from "@/lib/i18n";
-import type { Translation } from "@/lib/i18n/types";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
@@ -27,9 +26,7 @@ interface DockItem {
 	group?: string;
 }
 
-const FEATURE_LABEL_MAP: Partial<
-	Record<PanelFeature, keyof Translation["bottomDock"]>
-> = {
+const FEATURE_LABEL_MAP: Partial<Record<PanelFeature, string>> = {
 	calendar: "calendar",
 	activity: "activity",
 	todos: "todos",
@@ -43,9 +40,7 @@ const FEATURE_LABEL_MAP: Partial<
 };
 
 // 功能到翻译键的映射配置，缺失项回退到 todos
-function getFeatureLabelKey(
-	feature: PanelFeature,
-): keyof Translation["bottomDock"] {
+function getFeatureLabelKey(feature: PanelFeature): string {
 	return FEATURE_LABEL_MAP[feature] ?? "todos";
 }
 
@@ -187,8 +182,8 @@ export function BottomDock({ className }: BottomDockProps) {
 		getFeatureByPosition,
 		setPanelFeature,
 	} = useUiStore();
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const { locale: _ } = useLocaleStore();
+	const t = useTranslations("bottomDock");
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
@@ -262,7 +257,7 @@ export function BottomDock({ className }: BottomDockProps) {
 		return {
 			id: position,
 			icon: Icon,
-			label: t.bottomDock[labelKey],
+			label: t(labelKey),
 			isActive,
 			onClick,
 			group: "views",

@@ -14,13 +14,12 @@ import {
 	RotateCcw,
 	X,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { PanelHeader } from "@/components/common/PanelHeader";
 import { TodoContextMenu } from "@/components/common/TodoContextMenu";
 import { type DragData, type DropData, usePendingUpdate } from "@/lib/dnd";
-import { useTranslations } from "@/lib/i18n";
 import { useCreateTodo, useTodos } from "@/lib/query";
-import { useLocaleStore } from "@/lib/store/locale";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { Todo, TodoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -398,8 +397,7 @@ function QuickCreateBar({
 }
 
 export function CalendarPanel() {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("calendar");
 
 	// 从 TanStack Query 获取 todos 数据
 	const { data: todos = [] } = useTodos();
@@ -417,19 +415,19 @@ export function CalendarPanel() {
 	const [quickTime, setQuickTime] = useState(DEFAULT_NEW_TIME);
 
 	const VIEW_OPTIONS: { id: CalendarView; label: string }[] = [
-		{ id: "month", label: t.calendar.monthView },
-		{ id: "week", label: t.calendar.weekView },
-		{ id: "day", label: t.calendar.dayView },
+		{ id: "month", label: t("monthView") },
+		{ id: "week", label: t("weekView") },
+		{ id: "day", label: t("dayView") },
 	];
 
 	const WEEKDAY_LABELS = [
-		t.calendar.weekdays.monday,
-		t.calendar.weekdays.tuesday,
-		t.calendar.weekdays.wednesday,
-		t.calendar.weekdays.thursday,
-		t.calendar.weekdays.friday,
-		t.calendar.weekdays.saturday,
-		t.calendar.weekdays.sunday,
+		t("weekdays.monday"),
+		t("weekdays.tuesday"),
+		t("weekdays.wednesday"),
+		t("weekdays.thursday"),
+		t("weekdays.friday"),
+		t("weekdays.saturday"),
+		t("weekdays.sunday"),
 	];
 
 	const range = useMemo(() => {
@@ -536,7 +534,7 @@ export function CalendarPanel() {
 					onSelectDay={handleSelectDay}
 					onSelectTodo={(todo) => setSelectedTodoId(todo.id)}
 					todos={groupedByDay.get(toDateKey(day.date)) || []}
-					todayText={t.calendar.today}
+					todayText={t("today")}
 				/>
 			))}
 		</div>
@@ -552,7 +550,7 @@ export function CalendarPanel() {
 					onSelectDay={handleSelectDay}
 					onSelectTodo={(todo) => setSelectedTodoId(todo.id)}
 					todos={groupedByDay.get(toDateKey(day.date)) || []}
-					todayText={t.calendar.today}
+					todayText={t("today")}
 				/>
 			))}
 		</div>
@@ -566,7 +564,7 @@ export function CalendarPanel() {
 				<div className="flex flex-col gap-3">
 					{todaysTodos.length === 0 ? (
 						<div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-							{t.calendar.noTodosDue}
+							{t("noTodosDue")}
 						</div>
 					) : (
 						todaysTodos.map((item) => (
@@ -600,7 +598,7 @@ export function CalendarPanel() {
 														: "text-muted-foreground",
 											)}
 										>
-											{formatTimeLabel(item.deadline, t.calendar.allDay)}
+											{formatTimeLabel(item.deadline, t("allDay"))}
 										</span>
 									</div>
 									{item.todo.tags && item.todo.tags.length > 0 && (
@@ -627,31 +625,34 @@ export function CalendarPanel() {
 	return (
 		<div className="flex h-full flex-col overflow-hidden bg-background">
 			{/* 顶部标题栏 */}
-			<PanelHeader icon={Calendar} title={t.calendar.title} />
+			<PanelHeader icon={Calendar} title={t("title")} />
 			{/* 顶部工具栏 */}
 			<div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-4 py-3">
 				<span className="text-sm font-medium text-foreground">
 					{view === "month" &&
-						t.calendar.yearMonth
-							.replace("{year}", String(currentDate.getFullYear()))
-							.replace("{month}", String(currentDate.getMonth() + 1))}
+						t("yearMonth", {
+							year: currentDate.getFullYear(),
+							month: currentDate.getMonth() + 1,
+						})}
 					{view === "week" &&
-						t.calendar.yearMonthWeek
-							.replace("{year}", String(currentDate.getFullYear()))
-							.replace("{month}", String(currentDate.getMonth() + 1))
-							.replace("{week}", String(getWeekOfYear(currentDate)))}
+						t("yearMonthWeek", {
+							year: currentDate.getFullYear(),
+							month: currentDate.getMonth() + 1,
+							week: getWeekOfYear(currentDate),
+						})}
 					{view === "day" &&
-						t.calendar.yearMonthDay
-							.replace("{year}", String(currentDate.getFullYear()))
-							.replace("{month}", String(currentDate.getMonth() + 1))
-							.replace("{day}", String(currentDate.getDate()))}
+						t("yearMonthDay", {
+							year: currentDate.getFullYear(),
+							month: currentDate.getMonth() + 1,
+							day: currentDate.getDate(),
+						})}
 				</span>
 				<div className="flex items-center gap-2">
 					<button
 						type="button"
 						onClick={() => handleNavigate("prev")}
 						className="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-card text-muted-foreground hover:bg-muted/60"
-						aria-label={t.calendar.previous}
+						aria-label={t("previous")}
 					>
 						<ChevronLeft className="h-4 w-4" />
 					</button>
@@ -661,13 +662,13 @@ export function CalendarPanel() {
 						className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm font-medium text-foreground hover:bg-muted/60"
 					>
 						<RotateCcw className="h-4 w-4" />
-						{t.calendar.today}
+						{t("today")}
 					</button>
 					<button
 						type="button"
 						onClick={() => handleNavigate("next")}
 						className="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-card text-muted-foreground hover:bg-muted/60"
-						aria-label={t.calendar.next}
+						aria-label={t("next")}
 					>
 						<ChevronRight className="h-4 w-4" />
 					</button>
@@ -694,7 +695,7 @@ export function CalendarPanel() {
 						className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
 					>
 						<Plus className="h-4 w-4" />
-						{t.calendar.create}
+						{t("create")}
 					</button>
 				</div>
 			</div>
@@ -708,7 +709,7 @@ export function CalendarPanel() {
 								key={label}
 								className="py-2 text-center text-xs font-medium text-muted-foreground"
 							>
-								{t.calendar.weekPrefix}
+								{t("weekPrefix")}
 								{label}
 							</span>
 						))}
@@ -734,10 +735,10 @@ export function CalendarPanel() {
 					setQuickTitle("");
 				}}
 				labels={{
-					createOnDate: t.calendar.createOnDate,
-					closeCreate: t.calendar.closeCreate,
-					inputTodoTitle: t.calendar.inputTodoTitle,
-					create: t.calendar.create,
+					createOnDate: t("createOnDate"),
+					closeCreate: t("closeCreate"),
+					inputTodoTitle: t("inputTodoTitle"),
+					create: t("create"),
 				}}
 			/>
 		</div>

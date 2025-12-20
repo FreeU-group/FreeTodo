@@ -2,8 +2,8 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell, Check, Clock, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "@/lib/i18n";
 import { useUpdateTodo } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
@@ -58,7 +58,7 @@ export function DynamicIsland() {
 		setExpanded,
 	} = useNotificationStore();
 	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("todoExtraction");
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [currentTime, setCurrentTime] = useState(() =>
 		formatCurrentTime(locale),
@@ -121,12 +121,12 @@ export function DynamicIsland() {
 				id: currentNotification.todoId,
 				input: { status: "active" },
 			});
-			toastSuccess(t.todoExtraction.acceptSuccess);
+			toastSuccess(t("acceptSuccess"));
 			setNotification(null);
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.todoExtraction.acceptFailed.replace("{error}", errorMsg));
+			toastError(t("acceptFailed", { error: errorMsg }));
 		}
 	};
 
@@ -140,12 +140,12 @@ export function DynamicIsland() {
 				id: currentNotification.todoId,
 				input: { status: "canceled" },
 			});
-			toastSuccess(t.todoExtraction.rejectSuccess);
+			toastSuccess(t("rejectSuccess"));
 			setNotification(null);
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.todoExtraction.rejectFailed.replace("{error}", errorMsg));
+			toastError(t("rejectFailed", { error: errorMsg }));
 		}
 	};
 
@@ -271,7 +271,7 @@ export function DynamicIsland() {
 												whileHover={!isProcessing ? { scale: 1.05 } : {}}
 												whileTap={!isProcessing ? { scale: 0.95 } : {}}
 												className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-												aria-label={t.todoExtraction.accept}
+												aria-label={t("accept")}
 											>
 												{isProcessing ? (
 													<>
@@ -285,12 +285,12 @@ export function DynamicIsland() {
 														>
 															<Clock className="h-4 w-4" />
 														</motion.div>
-														<span>{t.todoExtraction.accepting}</span>
+														<span>{t("accepting")}</span>
 													</>
 												) : (
 													<>
 														<Check className="h-4 w-4" />
-														<span>{t.todoExtraction.accept}</span>
+														<span>{t("accept")}</span>
 													</>
 												)}
 											</motion.button>
@@ -301,7 +301,7 @@ export function DynamicIsland() {
 												whileHover={!isProcessing ? { scale: 1.05 } : {}}
 												whileTap={!isProcessing ? { scale: 0.95 } : {}}
 												className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-												aria-label={t.todoExtraction.reject}
+												aria-label={t("reject")}
 											>
 												{isProcessing ? (
 													<>
@@ -315,12 +315,12 @@ export function DynamicIsland() {
 														>
 															<Clock className="h-4 w-4" />
 														</motion.div>
-														<span>{t.todoExtraction.rejecting}</span>
+														<span>{t("rejecting")}</span>
 													</>
 												) : (
 													<>
 														<X className="h-4 w-4" />
-														<span>{t.todoExtraction.reject}</span>
+														<span>{t("reject")}</span>
 													</>
 												)}
 											</motion.button>

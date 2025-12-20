@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Clock, Edit2, Pause, Play, RefreshCw, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import {
 	getGetAllJobsApiSchedulerJobsGetQueryKey,
@@ -14,86 +15,23 @@ import {
 	useResumeJobApiSchedulerJobsJobIdResumePost,
 	useUpdateJobIntervalApiSchedulerJobsJobIdIntervalPut,
 } from "@/lib/generated/scheduler/scheduler";
+import { useLocaleStore } from "@/lib/store/locale";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { SettingsSection } from "./SettingsSection";
-
-// 任务配置信息
-interface JobConfig {
-	zh: string;
-	en: string;
-	legacy?: boolean; // 是否为旧版任务（在此前端不需要）
-	description?: { zh: string; en: string };
-}
-
-// 任务名称和配置映射
-const JOB_CONFIG_MAP: Record<string, JobConfig> = {
-	recorder_job: {
-		zh: "屏幕录制",
-		en: "Screen Recorder",
-		description: {
-			zh: "定时截取屏幕截图",
-			en: "Capture screenshots periodically",
-		},
-	},
-	ocr_job: {
-		zh: "文字识别",
-		en: "OCR Processing",
-		description: {
-			zh: "识别截图中的文字内容",
-			en: "Extract text from screenshots",
-		},
-	},
-	task_context_mapper_job: {
-		zh: "任务上下文关联",
-		en: "Task Context Mapper",
-		legacy: true,
-		description: {
-			zh: "（旧版）关联截图与任务上下文",
-			en: "(Legacy) Associate screenshots with task context",
-		},
-	},
-	task_summary_job: {
-		zh: "任务总结",
-		en: "Task Summary",
-		legacy: true,
-		description: {
-			zh: "（旧版）生成任务执行总结",
-			en: "(Legacy) Generate task execution summary",
-		},
-	},
-	clean_data_job: {
-		zh: "数据清理",
-		en: "Data Cleanup",
-		description: {
-			zh: "清理过期的截图和数据",
-			en: "Clean up expired screenshots and data",
-		},
-	},
-	activity_aggregator_job: {
-		zh: "活动聚合",
-		en: "Activity Aggregator",
-		description: {
-			zh: "聚合用户活动事件",
-			en: "Aggregate user activity events",
-		},
-	},
-};
 
 // Legacy 任务列表
 const LEGACY_JOB_IDS = ["task_context_mapper_job", "task_summary_job"];
 
 interface SchedulerSectionProps {
-	locale: "zh" | "en";
 	loading?: boolean;
 }
 
 /**
  * 调度器管理设置区块
  */
-export function SchedulerSection({
-	locale,
-	loading = false,
-}: SchedulerSectionProps) {
+export function SchedulerSection({ loading = false }: SchedulerSectionProps) {
+	const { locale } = useLocaleStore();
+	const t = useTranslations("scheduler");
 	const queryClient = useQueryClient();
 	const [editingJobId, setEditingJobId] = useState<string | null>(null);
 	const [editInterval, setEditInterval] = useState({
@@ -150,15 +88,11 @@ export function SchedulerSection({
 	const handlePauseJob = async (jobId: string) => {
 		try {
 			await pauseJobMutation.mutateAsync({ jobId });
-			toastSuccess(
-				locale === "zh"
-					? `任务 ${getJobName(jobId)} 已暂停`
-					: `Job ${getJobName(jobId)} paused`,
-			);
+			toastSuccess(t("jobPaused", { job: getJobName(jobId) }));
 			handleRefresh();
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
-			toastError(locale === "zh" ? `暂停失败: ${msg}` : `Pause failed: ${msg}`);
+			toastError(t("pauseFailed", { error: msg }));
 		}
 	};
 
@@ -166,17 +100,11 @@ export function SchedulerSection({
 	const handleResumeJob = async (jobId: string) => {
 		try {
 			await resumeJobMutation.mutateAsync({ jobId });
-			toastSuccess(
-				locale === "zh"
-					? `任务 ${getJobName(jobId)} 已恢复`
-					: `Job ${getJobName(jobId)} resumed`,
-			);
+			toastSuccess(t("jobResumed", { job: getJobName(jobId) }));
 			handleRefresh();
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
-			toastError(
-				locale === "zh" ? `恢复失败: ${msg}` : `Resume failed: ${msg}`,
-			);
+			toastError(t("resumeFailed", { error: msg }));
 		}
 	};
 
@@ -184,11 +112,11 @@ export function SchedulerSection({
 	const handlePauseAll = async () => {
 		try {
 			await pauseAllMutation.mutateAsync();
-			toastSuccess(locale === "zh" ? "已暂停所有任务" : "All jobs paused");
+			toastSuccess(t("allJobsPaused"));
 			handleRefresh();
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
-			toastError(locale === "zh" ? `暂停失败: ${msg}` : `Pause failed: ${msg}`);
+			toastError(t("pauseFailed", { error: msg }));
 		}
 	};
 
@@ -196,13 +124,11 @@ export function SchedulerSection({
 	const handleResumeAll = async () => {
 		try {
 			await resumeAllMutation.mutateAsync();
-			toastSuccess(locale === "zh" ? "已恢复所有任务" : "All jobs resumed");
+			toastSuccess(t("allJobsResumed"));
 			handleRefresh();
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
-			toastError(
-				locale === "zh" ? `恢复失败: ${msg}` : `Resume failed: ${msg}`,
-			);
+			toastError(t("resumeFailed", { error: msg }));
 		}
 	};
 
@@ -225,7 +151,7 @@ export function SchedulerSection({
 
 		// 验证至少有一个值
 		if (hours === 0 && minutes === 0 && seconds === 0) {
-			toastError(locale === "zh" ? "间隔时间不能为0" : "Interval cannot be 0");
+			toastError(t("intervalCannotBeZero"));
 			return;
 		}
 
@@ -239,37 +165,31 @@ export function SchedulerSection({
 					seconds: seconds > 0 ? seconds : undefined,
 				},
 			});
-			toastSuccess(
-				locale === "zh"
-					? `任务 ${getJobName(jobId)} 间隔已更新`
-					: `Job ${getJobName(jobId)} interval updated`,
-			);
+			toastSuccess(t("intervalUpdated", { job: getJobName(jobId) }));
 			handleCancelEdit();
 			handleRefresh();
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
-			toastError(
-				locale === "zh" ? `更新失败: ${msg}` : `Update failed: ${msg}`,
-			);
+			toastError(t("updateFailed", { error: msg }));
 		}
 	};
 
 	// 获取任务显示名称
 	const getJobName = (jobId: string) => {
-		const config = JOB_CONFIG_MAP[jobId];
-		if (config) {
-			return locale === "zh" ? config.zh : config.en;
+		try {
+			return t(`jobs.${jobId}` as Parameters<typeof t>[0]);
+		} catch {
+			return jobId;
 		}
-		return jobId;
 	};
 
 	// 获取任务描述
 	const getJobDescription = (jobId: string) => {
-		const config = JOB_CONFIG_MAP[jobId];
-		if (config?.description) {
-			return locale === "zh" ? config.description.zh : config.description.en;
+		try {
+			return t(`jobDescriptions.${jobId}` as Parameters<typeof t>[0]);
+		} catch {
+			return "";
 		}
-		return "";
 	};
 
 	// 检查是否为 legacy 任务
@@ -280,7 +200,7 @@ export function SchedulerSection({
 	// 格式化下次运行时间
 	const formatNextRunTime = (nextRunTime: string | null) => {
 		if (!nextRunTime) {
-			return locale === "zh" ? "已暂停" : "Paused";
+			return t("paused");
 		}
 		const date = new Date(nextRunTime);
 		return date.toLocaleString(locale === "zh" ? "zh-CN" : "en-US", {
@@ -300,12 +220,10 @@ export function SchedulerSection({
 			const minutes = parseInt(match[2], 10);
 			const seconds = parseInt(match[3], 10);
 			const parts: string[] = [];
-			if (hours > 0) parts.push(locale === "zh" ? `${hours}小时` : `${hours}h`);
-			if (minutes > 0)
-				parts.push(locale === "zh" ? `${minutes}分钟` : `${minutes}m`);
-			if (seconds > 0)
-				parts.push(locale === "zh" ? `${seconds}秒` : `${seconds}s`);
-			return parts.join(" ") || (locale === "zh" ? "未知" : "Unknown");
+			if (hours > 0) parts.push(`${hours}${t("hour")}`);
+			if (minutes > 0) parts.push(`${minutes}${t("minute")}`);
+			if (seconds > 0) parts.push(`${seconds}${t("second")}`);
+			return parts.join(" ") || trigger;
 		}
 		return trigger;
 	};
@@ -365,15 +283,7 @@ export function SchedulerSection({
 							className={`h-2 w-2 rounded-full shrink-0 ${
 								isRunning ? "bg-green-500" : "bg-yellow-500"
 							}`}
-							title={
-								isRunning
-									? locale === "zh"
-										? "运行中"
-										: "Running"
-									: locale === "zh"
-										? "已暂停"
-										: "Paused"
-							}
+							title={isRunning ? t("running") : t("paused")}
 						/>
 						<div className="min-w-0 flex-1">
 							<div className="flex items-center gap-2">
@@ -406,12 +316,12 @@ export function SchedulerSection({
 						{isRunning ? (
 							<>
 								<Pause className="h-3 w-3" />
-								{locale === "zh" ? "暂停" : "Pause"}
+								{t("pause")}
 							</>
 						) : (
 							<>
 								<Play className="h-3 w-3" />
-								{locale === "zh" ? "恢复" : "Resume"}
+								{t("resume")}
 							</>
 						)}
 					</button>
@@ -436,7 +346,7 @@ export function SchedulerSection({
 									}
 									className="w-12 rounded border border-input bg-background px-1 py-0.5 text-xs text-center"
 								/>
-								<span>{locale === "zh" ? "时" : "h"}</span>
+								<span>{t("hour")}</span>
 							</div>
 							<div className="flex items-center gap-1">
 								<input
@@ -452,7 +362,7 @@ export function SchedulerSection({
 									}
 									className="w-12 rounded border border-input bg-background px-1 py-0.5 text-xs text-center"
 								/>
-								<span>{locale === "zh" ? "分" : "m"}</span>
+								<span>{t("minute")}</span>
 							</div>
 							<div className="flex items-center gap-1">
 								<input
@@ -468,14 +378,14 @@ export function SchedulerSection({
 									}
 									className="w-12 rounded border border-input bg-background px-1 py-0.5 text-xs text-center"
 								/>
-								<span>{locale === "zh" ? "秒" : "s"}</span>
+								<span>{t("second")}</span>
 							</div>
 							<button
 								type="button"
 								onClick={() => handleSaveInterval(job.id)}
 								disabled={isLoading}
 								className="p-1 rounded hover:bg-accent text-green-600"
-								title={locale === "zh" ? "保存" : "Save"}
+								title={t("save")}
 							>
 								<Check className="h-3 w-3" />
 							</button>
@@ -483,7 +393,7 @@ export function SchedulerSection({
 								type="button"
 								onClick={handleCancelEdit}
 								className="p-1 rounded hover:bg-accent text-red-600"
-								title={locale === "zh" ? "取消" : "Cancel"}
+								title={t("cancel")}
 							>
 								<X className="h-3 w-3" />
 							</button>
@@ -491,22 +401,20 @@ export function SchedulerSection({
 					) : (
 						<>
 							<span>
-								{locale === "zh" ? "间隔: " : "Interval: "}
-								{parseInterval(job.trigger)}
+								{t("interval")}: {parseInterval(job.trigger)}
 							</span>
 							<button
 								type="button"
 								onClick={() => handleStartEditInterval(job.id, job.trigger)}
 								disabled={isLoading}
 								className="p-0.5 rounded hover:bg-accent"
-								title={locale === "zh" ? "编辑间隔" : "Edit interval"}
+								title={t("editInterval")}
 							>
 								<Edit2 className="h-3 w-3" />
 							</button>
 							<span className="mx-1">•</span>
 							<span>
-								{locale === "zh" ? "下次: " : "Next: "}
-								{formatNextRunTime(job.next_run_time ?? null)}
+								{t("next")}: {formatNextRunTime(job.next_run_time ?? null)}
 							</span>
 						</>
 					)}
@@ -516,14 +424,7 @@ export function SchedulerSection({
 	};
 
 	return (
-		<SettingsSection
-			title={locale === "zh" ? "定时任务管理" : "Scheduler Management"}
-			description={
-				locale === "zh"
-					? "管理后台定时任务的运行状态和执行间隔"
-					: "Manage background scheduled jobs and their intervals"
-			}
-		>
+		<SettingsSection title={t("title")} description={t("description")}>
 			{/* 状态概览 */}
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -533,18 +434,13 @@ export function SchedulerSection({
 								status?.running ? "bg-green-500" : "bg-red-500"
 							}`}
 						/>
-						{status?.running
-							? locale === "zh"
-								? "调度器运行中"
-								: "Scheduler Running"
-							: locale === "zh"
-								? "调度器已停止"
-								: "Scheduler Stopped"}
+						{status?.running ? t("schedulerRunning") : t("schedulerStopped")}
 					</span>
 					<span>
-						{locale === "zh"
-							? `${status?.runningJobs || 0} 运行 / ${status?.pausedJobs || 0} 暂停`
-							: `${status?.runningJobs || 0} running / ${status?.pausedJobs || 0} paused`}
+						{t("runningCount", {
+							running: status?.runningJobs || 0,
+							paused: status?.pausedJobs || 0,
+						})}
 					</span>
 				</div>
 				<div className="flex items-center gap-2">
@@ -553,7 +449,7 @@ export function SchedulerSection({
 						onClick={handleRefresh}
 						disabled={isLoading}
 						className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
-						title={locale === "zh" ? "刷新" : "Refresh"}
+						title={t("refresh")}
 					>
 						<RefreshCw
 							className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`}
@@ -566,7 +462,7 @@ export function SchedulerSection({
 						className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
 					>
 						<Pause className="h-3 w-3" />
-						{locale === "zh" ? "全部暂停" : "Pause All"}
+						{t("pauseAll")}
 					</button>
 					<button
 						type="button"
@@ -575,7 +471,7 @@ export function SchedulerSection({
 						className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
 					>
 						<Play className="h-3 w-3" />
-						{locale === "zh" ? "全部恢复" : "Resume All"}
+						{t("resumeAll")}
 					</button>
 				</div>
 			</div>
@@ -586,13 +482,13 @@ export function SchedulerSection({
 
 				{activeJobs.length === 0 && !jobsLoading && (
 					<div className="py-4 text-center text-sm text-muted-foreground">
-						{locale === "zh" ? "暂无定时任务" : "No scheduled jobs"}
+						{t("noJobs")}
 					</div>
 				)}
 
 				{jobsLoading && (
 					<div className="py-4 text-center text-sm text-muted-foreground">
-						{locale === "zh" ? "加载中..." : "Loading..."}
+						{t("loading")}
 					</div>
 				)}
 			</div>
@@ -610,11 +506,9 @@ export function SchedulerSection({
 						>
 							▶
 						</span>
-						{locale === "zh"
-							? `旧版任务 (${legacyJobs.length})`
-							: `Legacy Jobs (${legacyJobs.length})`}
+						{t("legacyJobs")} ({legacyJobs.length})
 						<span className="text-[10px] px-1.5 py-0.5 rounded bg-muted">
-							{locale === "zh" ? "此前端不需要" : "Not needed in this frontend"}
+							{t("legacyNotNeeded")}
 						</span>
 					</button>
 

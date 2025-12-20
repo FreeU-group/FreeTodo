@@ -1,22 +1,20 @@
 "use client";
 
 import { Award, Star, Target, Trophy } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { PanelHeader } from "@/components/common/PanelHeader";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 
 /**
  * 成就面板组件
  * 用于展示游戏化的成就系统
  */
 export function AchievementsPanel() {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("page");
 
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-background">
 			{/* 顶部标题栏 */}
-			<PanelHeader icon={Award} title={t.page.achievementsLabel} />
+			<PanelHeader icon={Award} title={t("achievementsLabel")} />
 
 			{/* 成就内容区域 */}
 			<div className="flex-1 overflow-y-auto px-4 py-6">
@@ -35,7 +33,7 @@ export function AchievementsPanel() {
 						成就系统
 					</h3>
 					<p className="mb-8 max-w-md text-sm text-muted-foreground">
-						{t.page.achievementsPlaceholder}
+						{t("achievementsPlaceholder")}
 					</p>
 
 					{/* 示例成就卡片 */}

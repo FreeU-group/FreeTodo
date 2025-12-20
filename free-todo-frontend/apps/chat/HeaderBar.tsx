@@ -1,7 +1,8 @@
+"use client";
+
 import { History, MessageSquare, PlusCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { PanelHeader } from "@/components/common/PanelHeader";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 import { cn } from "@/lib/utils";
 
 type HeaderBarProps = {
@@ -17,13 +18,12 @@ export function HeaderBar({
 	onToggleHistory,
 	onNewChat,
 }: HeaderBarProps) {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("page");
 
 	return (
 		<PanelHeader
 			icon={MessageSquare}
-			title={t.page.chatLabel}
+			title={t("chatLabel")}
 			actions={
 				<>
 					<button

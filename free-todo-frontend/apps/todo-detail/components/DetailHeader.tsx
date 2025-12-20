@@ -1,9 +1,8 @@
 "use client";
 
 import { FileText, Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { PanelHeader } from "@/components/common/PanelHeader";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 
 interface DetailHeaderProps {
 	onToggleComplete: () => void;
@@ -14,13 +13,12 @@ export function DetailHeader({
 	onToggleComplete,
 	onDelete,
 }: DetailHeaderProps) {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("page");
 
 	return (
 		<PanelHeader
 			icon={FileText}
-			title={t.page.todoDetailLabel}
+			title={t("todoDetailLabel")}
 			actions={
 				<>
 					<button

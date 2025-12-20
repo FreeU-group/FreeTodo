@@ -1,6 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HeaderBar } from "@/apps/chat/HeaderBar";
 import { HistoryDrawer } from "@/apps/chat/HistoryDrawer";
@@ -13,7 +14,6 @@ import { ModeSwitcher } from "@/apps/chat/ModeSwitcher";
 import { PlanSummary } from "@/apps/chat/PlanSummary";
 import { Questionnaire } from "@/apps/chat/Questionnaire";
 import { SummaryStreaming } from "@/apps/chat/SummaryStreaming";
-import { useTranslations } from "@/lib/i18n";
 import { useCreateTodo, useTodos, useUpdateTodo } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 import { usePlanStore } from "@/lib/store/plan-store";
@@ -22,7 +22,8 @@ import type { CreateTodoInput, Todo } from "@/lib/types";
 
 export function ChatPanel() {
 	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const tChat = useTranslations("chat");
+	const tPage = useTranslations("page");
 
 	// 从 TanStack Query 获取 todos 数据（用于 Plan 功能）
 	const { data: todos = [] } = useTodos();
@@ -124,7 +125,7 @@ export function ChatPanel() {
 							error:
 								error instanceof Error
 									? error.message
-									: t.chat.generateQuestionsFailed,
+									: tChat("generateQuestionsFailed"),
 							isLoading: false,
 							isGeneratingQuestions: false,
 						});
@@ -145,7 +146,7 @@ export function ChatPanel() {
 		setQuestions,
 		setQuestionStreaming,
 		setIsGeneratingQuestions,
-		t.chat.generateQuestionsFailed,
+		tChat,
 	]);
 
 	// 处理提交回答
@@ -176,7 +177,9 @@ export function ChatPanel() {
 			// 设置错误状态
 			usePlanStore.setState({
 				error:
-					error instanceof Error ? error.message : t.chat.generateSummaryFailed,
+					error instanceof Error
+						? error.message
+						: tChat("generateSummaryFailed"),
 			});
 		}
 	}, [
@@ -186,7 +189,7 @@ export function ChatPanel() {
 		setSummary,
 		setIsGeneratingSummary,
 		setSummaryStreaming,
-		t.chat.generateSummaryFailed,
+		tChat,
 	]);
 
 	// 处理接收计划
@@ -225,22 +228,18 @@ export function ChatPanel() {
 		createTodo: createTodoWithResult,
 	});
 
-	const typingText = useMemo(() => t.chat.aiThinking, [t.chat.aiThinking]);
+	const typingText = useMemo(() => tChat("aiThinking"), [tChat]);
 
 	const inputPlaceholder =
 		chatMode === "plan"
-			? t.chat.planModeInputPlaceholder
+			? tChat("planModeInputPlaceholder")
 			: chatMode === "edit"
-				? t.chat.editMode?.inputPlaceholder || t.page.chatInputPlaceholder
-				: t.page.chatInputPlaceholder;
+				? tChat("editMode.inputPlaceholder")
+				: tPage("chatInputPlaceholder");
 
 	const formatMessageCount = useCallback(
-		(count?: number) =>
-			(t.page.messagesCount || "{count}").replace(
-				"{count}",
-				String(count ?? 0),
-			),
-		[t.page.messagesCount],
+		(count?: number) => tPage("messagesCount", { count: count ?? 0 }),
+		[tPage],
 	);
 
 	useEffect(() => {
@@ -257,8 +256,8 @@ export function ChatPanel() {
 	return (
 		<div className="flex h-full flex-col bg-background">
 			<HeaderBar
-				chatHistoryLabel={t.page.chatHistory}
-				newChatLabel={t.page.newChat}
+				chatHistoryLabel={tPage("chatHistory")}
+				newChatLabel={tPage("newChat")}
 				onToggleHistory={() => setHistoryOpen(!historyOpen)}
 				onNewChat={handleNewChat}
 			/>
@@ -271,10 +270,10 @@ export function ChatPanel() {
 					conversationId={conversationId}
 					formatMessageCount={formatMessageCount}
 					labels={{
-						recentSessions: t.page.recentSessions,
-						noHistory: t.page.noHistory,
-						loading: t.chat.loading,
-						chatHistory: t.page.chatHistory,
+						recentSessions: tPage("recentSessions"),
+						noHistory: tPage("noHistory"),
+						loading: tChat("loading"),
+						chatHistory: tPage("chatHistory"),
 					}}
 					onSelectSession={handleLoadSession}
 				/>
@@ -313,7 +312,7 @@ export function ChatPanel() {
 								</div>
 							) : (
 								<p className="text-muted-foreground">
-									{t.chat.generatingQuestions}
+									{tChat("generatingQuestions")}
 								</p>
 							)}
 							{planError && (

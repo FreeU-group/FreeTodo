@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { AchievementsPanel } from "@/apps/achievements/AchievementsPanel";
 import { ActivityPanel } from "@/apps/activity/ActivityPanel";
@@ -18,8 +19,6 @@ import {
 	FEATURE_ICON_MAP,
 	IS_DEV_FEATURE_ENABLED,
 } from "@/lib/config/panel-config";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 import { useUiStore } from "@/lib/store/ui-store";
 
 // 动态导入调试面板（仅开发环境）
@@ -33,8 +32,7 @@ interface PanelContentProps {
 
 export function PanelContent({ position }: PanelContentProps) {
 	const { getFeatureByPosition } = useUiStore();
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("page");
 	const [mounted, setMounted] = useState(false);
 
 	useEffect(() => {
@@ -49,38 +47,40 @@ export function PanelContent({ position }: PanelContentProps) {
 		if (!mounted) return "";
 		const feat = getFeatureByPosition(pos);
 		if (!feat) return "";
-		const labelMap: Record<string, string> = {
-			calendar: t.page.calendarLabel,
-			activity: t.page.activityLabel,
-			todos: t.page.todosLabel,
-			chat: t.page.chatLabel,
-			todoDetail: t.page.todoDetailLabel,
-			diary: t.page.diaryLabel,
-			settings: t.page.settingsLabel,
-			costTracking: t.page.costTrackingLabel,
-			achievements: t.page.achievementsLabel,
-			debugShots: t.page.debugShotsLabel,
+		const labelKeyMap: Record<string, string> = {
+			calendar: "calendarLabel",
+			activity: "activityLabel",
+			todos: "todosLabel",
+			chat: "chatLabel",
+			todoDetail: "todoDetailLabel",
+			diary: "diaryLabel",
+			settings: "settingsLabel",
+			costTracking: "costTrackingLabel",
+			achievements: "achievementsLabel",
+			debugShots: "debugShotsLabel",
 		};
-		return labelMap[feat] || "";
+		const key = labelKeyMap[feat];
+		return key ? t(key) : "";
 	};
 
 	const getFeaturePlaceholder = (pos: PanelPosition): string => {
 		if (!mounted) return "";
 		const feat = getFeatureByPosition(pos);
 		if (!feat) return "";
-		const placeholderMap: Record<string, string> = {
-			calendar: t.page.calendarPlaceholder,
-			activity: t.page.activityPlaceholder,
-			todos: t.page.todosPlaceholder,
-			chat: t.page.chatPlaceholder,
-			todoDetail: t.page.todoDetailPlaceholder,
-			diary: t.page.diaryPlaceholder,
-			settings: t.page.settingsPlaceholder,
-			costTracking: t.page.costTrackingPlaceholder,
-			achievements: t.page.achievementsPlaceholder,
-			debugShots: t.page.debugShotsPlaceholder,
+		const placeholderKeyMap: Record<string, string> = {
+			calendar: "calendarPlaceholder",
+			activity: "activityPlaceholder",
+			todos: "todosPlaceholder",
+			chat: "chatPlaceholder",
+			todoDetail: "todoDetailPlaceholder",
+			diary: "diaryPlaceholder",
+			settings: "settingsPlaceholder",
+			costTracking: "costTrackingPlaceholder",
+			achievements: "achievementsPlaceholder",
+			debugShots: "debugShotsPlaceholder",
 		};
-		return placeholderMap[feat] || "";
+		const key = placeholderKeyMap[feat];
+		return key ? t(key) : "";
 	};
 
 	// 获取对应的图标

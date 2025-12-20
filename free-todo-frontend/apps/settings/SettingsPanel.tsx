@@ -1,6 +1,7 @@
 "use client";
 
 import { Settings } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { PanelHeader } from "@/components/common/PanelHeader";
 import {
@@ -9,9 +10,7 @@ import {
 	IS_DEV_FEATURE_ENABLED,
 	type PanelFeature,
 } from "@/lib/config/panel-config";
-import { useTranslations } from "@/lib/i18n";
 import { useConfig, useSaveConfig } from "@/lib/query";
-import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -28,8 +27,9 @@ import {
  * 用于配置系统各项功能
  */
 export function SettingsPanel() {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const tPage = useTranslations("page");
+	const tSettings = useTranslations("page.settings");
+	const tBottomDock = useTranslations("bottomDock");
 
 	// 使用 TanStack Query 获取配置
 	const { data: config, isLoading: configLoading } = useConfig();
@@ -78,13 +78,13 @@ export function SettingsPanel() {
 
 			toastSuccess(
 				enabled
-					? t.page.settings.autoTodoDetectionEnabled
-					: t.page.settings.autoTodoDetectionDisabled,
+					? tSettings("autoTodoDetectionEnabled")
+					: tSettings("autoTodoDetectionDisabled"),
 			);
 		} catch (error) {
 			console.error("保存配置失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.page.settings.saveFailed.replace("{error}", errorMsg));
+			toastError(tSettings("saveFailed", { error: errorMsg }));
 			setAutoTodoDetectionEnabled(!enabled);
 		}
 	};
@@ -105,13 +105,13 @@ export function SettingsPanel() {
 
 			toastSuccess(
 				enabled
-					? `${t.bottomDock[feature as keyof typeof t.bottomDock]} ${t.page.settings.panelEnabled}`
-					: `${t.bottomDock[feature as keyof typeof t.bottomDock]} ${t.page.settings.panelDisabled}`,
+					? `${tBottomDock(feature)} ${tSettings("panelEnabled")}`
+					: `${tBottomDock(feature)} ${tSettings("panelDisabled")}`,
 			);
 		} catch (error) {
 			console.error("保存配置失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.page.settings.saveFailed.replace("{error}", errorMsg));
+			toastError(tSettings("saveFailed", { error: errorMsg }));
 			// 回滚状态
 			setFeatureEnabled(feature, !enabled);
 		}
@@ -125,31 +125,20 @@ export function SettingsPanel() {
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-background">
 			{/* 顶部标题栏 */}
-			<PanelHeader icon={Settings} title={t.page.settingsLabel} />
+			<PanelHeader icon={Settings} title={tPage("settingsLabel")} />
 
 			{/* 设置内容区域 */}
 			<div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
 				{/* LLM 配置 */}
-				<LlmConfigSection
-					config={config}
-					t={{
-						...t.page.settings,
-						llmConfig: t.page.settings.llmConfig,
-					}}
-					loading={loading}
-				/>
+				<LlmConfigSection config={config} loading={loading} />
 
 				{/* 基础设置（录制配置） */}
-				<RecorderConfigSection
-					config={config}
-					t={t.page.settings}
-					loading={loading}
-				/>
+				<RecorderConfigSection config={config} loading={loading} />
 
 				{/* 自动待办检测设置 */}
 				<SettingsSection
-					title={t.page.settings.autoTodoDetectionTitle}
-					description={t.page.settings.autoTodoDetectionDescription}
+					title={tSettings("autoTodoDetectionTitle")}
+					description={tSettings("autoTodoDetectionDescription")}
 				>
 					<div className="flex items-center justify-between">
 						<div className="flex-1">
@@ -157,7 +146,7 @@ export function SettingsPanel() {
 								htmlFor="auto-todo-detection-toggle"
 								className="text-sm font-medium text-foreground"
 							>
-								{t.page.settings.autoTodoDetectionLabel}
+								{tSettings("autoTodoDetectionLabel")}
 							</label>
 						</div>
 						<ToggleSwitch
@@ -165,13 +154,13 @@ export function SettingsPanel() {
 							enabled={autoTodoDetectionEnabled}
 							disabled={loading}
 							onToggle={handleToggleAutoTodoDetection}
-							ariaLabel={t.page.settings.autoTodoDetectionLabel}
+							ariaLabel={tSettings("autoTodoDetectionLabel")}
 						/>
 					</div>
 					{autoTodoDetectionEnabled && (
 						<div className="mt-3 rounded-md bg-primary/10 p-3">
 							<p className="text-xs text-primary">
-								{t.page.settings.autoTodoDetectionHint}
+								{tSettings("autoTodoDetectionHint")}
 							</p>
 						</div>
 					)}
@@ -179,8 +168,8 @@ export function SettingsPanel() {
 
 				{/* 面板开关 */}
 				<SettingsSection
-					title={t.page.settings.panelSwitchesTitle}
-					description={t.page.settings.panelSwitchesDescription}
+					title={tSettings("panelSwitchesTitle")}
+					description={tSettings("panelSwitchesDescription")}
 				>
 					<div className="space-y-3">
 						{availablePanels.map((feature) => {
@@ -190,10 +179,7 @@ export function SettingsPanel() {
 							}
 
 							const enabled = isFeatureEnabled(feature);
-							const panelLabel =
-								(feature in t.bottomDock
-									? t.bottomDock[feature as keyof typeof t.bottomDock]
-									: feature) || feature;
+							const panelLabel = tBottomDock(feature) || feature;
 							const Icon = FEATURE_ICON_MAP[feature];
 
 							return (
@@ -228,7 +214,7 @@ export function SettingsPanel() {
 				</SettingsSection>
 
 				{/* 定时任务管理 */}
-				<SchedulerSection locale={locale} loading={loading} />
+				<SchedulerSection loading={loading} />
 			</div>
 		</div>
 	);

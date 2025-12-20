@@ -1,11 +1,10 @@
 "use client";
 
 import { Check, Clock, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import type { ExtractedTodo } from "@/lib/generated/schemas";
-import { useTranslations } from "@/lib/i18n";
 import { useCreateTodo } from "@/lib/query";
-import { useLocaleStore } from "@/lib/store/locale";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { CreateTodoInput } from "@/lib/types";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -25,8 +24,7 @@ export function TodoExtractionModal({
 	eventId,
 	appName,
 }: TodoExtractionModalProps) {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("todoExtraction");
 	const createTodoMutation = useCreateTodo();
 	const [selectedTodos, setSelectedTodos] = useState<Set<number>>(
 		new Set(todos.map((_, index) => index)),
@@ -52,7 +50,7 @@ export function TodoExtractionModal({
 
 	const handleConfirm = async () => {
 		if (selectedTodos.size === 0) {
-			toastError(t.todoExtraction.noTodosFound);
+			toastError(t("noTodosFound"));
 			return;
 		}
 
@@ -89,14 +87,10 @@ export function TodoExtractionModal({
 		}
 
 		if (successCount > 0) {
-			toastSuccess(
-				t.todoExtraction.addSuccess.replace("{count}", String(successCount)),
-			);
+			toastSuccess(t("addSuccess", { count: successCount }));
 		}
 		if (failCount > 0) {
-			toastError(
-				t.todoExtraction.addFailed.replace("{error}", `失败 ${failCount} 项`),
-			);
+			toastError(t("addFailed", { error: `失败 ${failCount} 项` }));
 		}
 
 		onClose();
@@ -139,9 +133,7 @@ export function TodoExtractionModal({
 				{/* 头部 */}
 				<div className="flex-shrink-0 flex items-center justify-between border-b border-border bg-muted/30 px-4 py-3">
 					<div>
-						<h2 className="text-lg font-semibold">
-							{t.todoExtraction.modalTitle}
-						</h2>
+						<h2 className="text-lg font-semibold">{t("modalTitle")}</h2>
 						{appName && (
 							<p className="text-sm text-muted-foreground mt-1">
 								事件 #{eventId} - {appName}
@@ -161,7 +153,7 @@ export function TodoExtractionModal({
 				{/* 描述 */}
 				<div className="flex-shrink-0 px-4 py-2 border-b border-border bg-muted/20">
 					<p className="text-sm text-muted-foreground">
-						{t.todoExtraction.modalDescription}
+						{t("modalDescription")}
 					</p>
 				</div>
 
@@ -173,14 +165,11 @@ export function TodoExtractionModal({
 						className="text-sm text-primary hover:underline"
 					>
 						{selectedTodos.size === todos.length
-							? t.todoExtraction.deselectAll
-							: t.todoExtraction.selectAll}
+							? t("deselectAll")
+							: t("selectAll")}
 					</button>
 					<span className="text-sm text-muted-foreground">
-						{t.todoExtraction.selectedCount.replace(
-							"{count}",
-							String(selectedTodos.size),
-						)}
+						{t("selectedCount", { count: selectedTodos.size })}
 					</span>
 				</div>
 
@@ -188,7 +177,7 @@ export function TodoExtractionModal({
 				<div className="flex-1 overflow-y-auto p-4 space-y-3">
 					{todos.length === 0 ? (
 						<div className="text-center py-8 text-muted-foreground">
-							<p>{t.todoExtraction.noTodosFound}</p>
+							<p>{t("noTodosFound")}</p>
 						</div>
 					) : (
 						todos.map((todo, index) => {
@@ -250,7 +239,7 @@ export function TodoExtractionModal({
 											</div>
 											<div className="mt-2 pt-2 border-t border-border">
 												<p className="text-xs text-muted-foreground italic">
-													{t.todoExtraction.todoSource}: "{todo.source_text}"
+													{t("todoSource")}: "{todo.source_text}"
 												</p>
 											</div>
 										</div>
@@ -268,7 +257,7 @@ export function TodoExtractionModal({
 						onClick={onClose}
 						className="px-4 py-2 rounded-md border border-input bg-background hover:bg-muted text-sm font-medium transition-colors"
 					>
-						{t.todoExtraction.cancel}
+						{t("cancel")}
 					</button>
 					<button
 						type="button"
@@ -279,10 +268,7 @@ export function TodoExtractionModal({
 							"hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed",
 						)}
 					>
-						{t.todoExtraction.confirmAdd.replace(
-							"{count}",
-							String(selectedTodos.size),
-						)}
+						{t("confirmAdd", { count: selectedTodos.size })}
 					</button>
 				</div>
 			</div>

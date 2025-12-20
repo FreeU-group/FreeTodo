@@ -1,9 +1,9 @@
 "use client";
 
 import { Check, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import ReactMarkdown from "react-markdown";
 import type { ParsedTodoTree } from "@/apps/chat/types";
-import { useTranslations } from "@/lib/i18n";
 import type { Locale } from "@/lib/store/locale";
 import { cn } from "@/lib/utils";
 
@@ -51,26 +51,26 @@ export function PlanSummary({
 	subtasks,
 	onAccept,
 	isApplying,
-	locale,
+	locale: _locale,
 }: PlanSummaryProps) {
-	const t = useTranslations(locale);
+	const t = useTranslations("chat");
 
 	return (
 		<div className="flex-1 overflow-y-auto px-4 py-4">
 			<div className="mx-auto max-w-2xl space-y-6">
 				<div className="rounded-lg bg-muted/50 p-4">
 					<h3 className="mb-2 text-lg font-semibold">
-						{t.chat.planSummary.title}
+						{t("planSummary.title")}
 					</h3>
 					<p className="text-sm text-muted-foreground">
-						{t.chat.planSummary.description}
+						{t("planSummary.description")}
 					</p>
 				</div>
 
 				{/* 待办总结 */}
 				<div className="rounded-lg border bg-card p-4 shadow-sm">
 					<h4 className="mb-3 text-base font-semibold">
-						{t.chat.planSummary.taskSummary}
+						{t("planSummary.taskSummary")}
 					</h4>
 					<div className="prose prose-sm max-w-none dark:prose-invert">
 						<ReactMarkdown>{summary}</ReactMarkdown>
@@ -80,13 +80,13 @@ export function PlanSummary({
 				{/* 子待办列表 */}
 				<div className="rounded-lg border bg-card p-4 shadow-sm">
 					<h4 className="mb-3 text-base font-semibold">
-						{t.chat.planSummary.subtaskList}
+						{t("planSummary.subtaskList")}
 					</h4>
 					{subtasks.length > 0 ? (
 						<SubtaskTree subtasks={subtasks} />
 					) : (
 						<p className="text-sm text-muted-foreground">
-							{t.chat.planSummary.noSubtasks}
+							{t("planSummary.noSubtasks")}
 						</p>
 					)}
 				</div>
@@ -107,12 +107,12 @@ export function PlanSummary({
 						{isApplying ? (
 							<>
 								<Loader2 className="h-4 w-4 animate-spin" />
-								{t.chat.planSummary.applying}
+								{t("planSummary.applying")}
 							</>
 						) : (
 							<>
 								<Check className="h-4 w-4" />
-								{t.chat.planSummary.acceptAndApply}
+								{t("planSummary.acceptAndApply")}
 							</>
 						)}
 					</button>

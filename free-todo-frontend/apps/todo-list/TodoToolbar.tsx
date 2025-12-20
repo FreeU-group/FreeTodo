@@ -1,9 +1,8 @@
 "use client";
 
 import { ListTodo, Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { PanelHeader } from "@/components/common/PanelHeader";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 
 interface TodoToolbarProps {
 	searchQuery: string;
@@ -11,13 +10,12 @@ interface TodoToolbarProps {
 }
 
 export function TodoToolbar({ searchQuery, onSearch }: TodoToolbarProps) {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("page");
 
 	return (
 		<PanelHeader
 			icon={ListTodo}
-			title={t.page.todoListTitle}
+			title={t("todoListTitle")}
 			actions={
 				<div className="relative">
 					<Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

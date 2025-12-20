@@ -13,6 +13,7 @@ import {
 	Square,
 	X,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TodoExtractionModal } from "@/apps/todo-list/TodoExtractionModal";
 import { PanelHeader } from "@/components/common/PanelHeader";
@@ -25,8 +26,6 @@ import {
 } from "@/lib/generated/event/event";
 import { getScreenshotApiScreenshotsScreenshotIdGet } from "@/lib/generated/screenshot/screenshot";
 import { useExtractTodosFromEventApiTodoExtractionExtractPost } from "@/lib/generated/todo-extraction/todo-extraction";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 import { toastError, toastInfo, toastSuccess } from "@/lib/toast";
 import type { Event, Screenshot } from "@/lib/types";
 import {
@@ -347,8 +346,7 @@ function ScreenshotModal({
 }
 
 export function DebugCapturePanel() {
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("todoExtraction");
 	const [events, setEvents] = useState<Event[]>([]);
 	const [totalCount, setTotalCount] = useState(0);
 	const [loading, setLoading] = useState(true);
@@ -630,12 +628,12 @@ export function DebugCapturePanel() {
 	// 提取待办事项
 	const handleExtractTodos = async (eventId: number, eventAppName: string) => {
 		if (!isWhitelistApp(eventAppName)) {
-			toastError(t.todoExtraction.notWhitelistApp);
+			toastError(t("notWhitelistApp"));
 			return;
 		}
 
 		setExtractingTodos((prev) => new Set(prev).add(eventId));
-		toastInfo(t.todoExtraction.extracting);
+		toastInfo(t("extracting"));
 
 		try {
 			const response: TodoExtractionResponse =
@@ -644,27 +642,17 @@ export function DebugCapturePanel() {
 				});
 
 			if (response.error_message) {
-				toastError(
-					t.todoExtraction.extractFailed.replace(
-						"{error}",
-						response.error_message,
-					),
-				);
+				toastError(t("extractFailed", { error: response.error_message }));
 				return;
 			}
 
 			const todos = response.todos || [];
 			if (todos.length === 0) {
-				toastInfo(t.todoExtraction.noTodosFound);
+				toastInfo(t("noTodosFound"));
 				return;
 			}
 
-			toastSuccess(
-				t.todoExtraction.extractSuccess.replace(
-					"{count}",
-					String(todos.length),
-				),
-			);
+			toastSuccess(t("extractSuccess", { count: todos.length }));
 
 			// 打开确认弹窗
 			setExtractionResult({
@@ -677,7 +665,7 @@ export function DebugCapturePanel() {
 			console.error("提取待办失败:", error);
 			const errorMsg =
 				error instanceof Error ? error.message : "提取待办失败，请稍后重试";
-			toastError(t.todoExtraction.extractFailed.replace("{error}", errorMsg));
+			toastError(t("extractFailed", { error: errorMsg }));
 		} finally {
 			setExtractingTodos((prev) => {
 				const newSet = new Set(prev);
@@ -1059,20 +1047,20 @@ export function DebugCapturePanel() {
 																			"opacity-0 group-hover:opacity-100",
 																			"disabled:opacity-50 disabled:cursor-not-allowed",
 																		)}
-																		aria-label={t.todoExtraction.extractButton}
+																		aria-label={t("extractButton")}
 																	>
 																		{extractingTodos.has(event.id) ? (
 																			<>
 																				<div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
 																				<span className="hidden sm:inline">
-																					{t.todoExtraction.extracting}
+																					{t("extracting")}
 																				</span>
 																			</>
 																		) : (
 																			<>
 																				<ClipboardList className="h-3.5 w-3.5" />
 																				<span className="hidden sm:inline">
-																					{t.todoExtraction.extractButton}
+																					{t("extractButton")}
 																				</span>
 																			</>
 																		)}

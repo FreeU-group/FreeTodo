@@ -8,9 +8,9 @@ import {
 	RefreshCw,
 	TrendingUp,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
 import { PanelHeader } from "@/components/common/PanelHeader";
-import { useTranslations } from "@/lib/i18n";
 import { useCostStats } from "@/lib/query";
 import { useLocaleStore } from "@/lib/store/locale";
 
@@ -18,7 +18,7 @@ const DEFAULT_DAYS = 30;
 
 export function CostTrackingPanel() {
 	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("page.costTracking");
 	const [days, setDays] = useState<number>(DEFAULT_DAYS);
 
 	// 使用 TanStack Query 获取费用统计
@@ -43,10 +43,21 @@ export function CostTrackingPanel() {
 		return num.toLocaleString(locale === "zh" ? "zh-CN" : "en-US");
 	};
 
-	const featureName = (featureId: string) =>
-		t.page.costTracking.featureNames[featureId] ??
-		t.page.costTracking.featureNames.unknown ??
-		featureId;
+	const featureName = (featureId: string) => {
+		// 已知的功能 ID 列表
+		const knownFeatures = [
+			"event_assistant",
+			"event_summary",
+			"project_assistant",
+			"job_task_context_mapper",
+			"job_task_summary",
+			"task_summary",
+		];
+		if (knownFeatures.includes(featureId)) {
+			return t(`featureNames.${featureId}` as Parameters<typeof t>[0]);
+		}
+		return t("featureNames.unknown");
+	};
 
 	const recentData = useMemo(() => {
 		if (!stats || !stats.daily_costs) return [];
@@ -65,10 +76,10 @@ export function CostTrackingPanel() {
 
 	return (
 		<div className="flex h-full flex-col overflow-auto bg-[oklch(var(--card))] text-[oklch(var(--foreground))]">
-			<PanelHeader icon={DollarSign} title={t.page.costTracking.title} />
+			<PanelHeader icon={DollarSign} title={t("title")} />
 			<div className="border-b border-[oklch(var(--border))] bg-[oklch(var(--card))]/80 px-4 py-3">
 				<p className="text-sm text-[oklch(var(--muted-foreground))]">
-					{t.page.costTracking.subtitle}
+					{t("subtitle")}
 				</p>
 			</div>
 
@@ -76,16 +87,16 @@ export function CostTrackingPanel() {
 				<div className="flex flex-wrap items-center gap-3">
 					<div className="flex items-center gap-2 text-sm text-[oklch(var(--muted-foreground))]">
 						<Calendar className="h-4 w-4" />
-						<span>{t.page.costTracking.statisticsPeriod}:</span>
+						<span>{t("statisticsPeriod")}:</span>
 					</div>
 					<select
 						value={days}
 						onChange={(e) => setDays(Number(e.target.value))}
 						className="rounded-lg border border-[oklch(var(--border))] bg-[oklch(var(--card))] px-3 py-2 text-sm shadow-sm focus:border-[oklch(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[oklch(var(--primary))]/50"
 					>
-						<option value={7}>{t.page.costTracking.last7Days}</option>
-						<option value={30}>{t.page.costTracking.last30Days}</option>
-						<option value={90}>{t.page.costTracking.last90Days}</option>
+						<option value={7}>{t("last7Days")}</option>
+						<option value={30}>{t("last30Days")}</option>
+						<option value={90}>{t("last90Days")}</option>
 					</select>
 					<button
 						type="button"
@@ -93,7 +104,7 @@ export function CostTrackingPanel() {
 						className="inline-flex items-center gap-2 rounded-lg border border-[oklch(var(--border))] px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-[oklch(var(--muted))]"
 					>
 						<RefreshCw className="h-4 w-4" />
-						{t.page.costTracking.refresh}
+						{t("refresh")}
 					</button>
 				</div>
 
@@ -103,7 +114,7 @@ export function CostTrackingPanel() {
 						<span>
 							{error instanceof Error
 								? error.message
-								: String(error) || t.page.costTracking.loadFailed}
+								: String(error) || t("loadFailed")}
 						</span>
 					</div>
 				)}
@@ -117,7 +128,7 @@ export function CostTrackingPanel() {
 						<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
 							<div className="rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] p-4 shadow-sm">
 								<div className="flex items-center justify-between text-sm text-[oklch(var(--muted-foreground))]">
-									<span>{t.page.costTracking.totalCost}</span>
+									<span>{t("totalCost")}</span>
 									<DollarSign className="h-4 w-4 text-[oklch(var(--primary))]" />
 								</div>
 								<p className="mt-2 text-3xl font-bold text-[oklch(var(--primary))]">
@@ -127,7 +138,7 @@ export function CostTrackingPanel() {
 
 							<div className="rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] p-4 shadow-sm">
 								<div className="flex items-center justify-between text-sm text-[oklch(var(--muted-foreground))]">
-									<span>{t.page.costTracking.totalTokens}</span>
+									<span>{t("totalTokens")}</span>
 									<Activity className="h-4 w-4 text-[oklch(var(--primary))]" />
 								</div>
 								<p className="mt-2 text-3xl font-bold">
@@ -137,7 +148,7 @@ export function CostTrackingPanel() {
 
 							<div className="rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] p-4 shadow-sm">
 								<div className="flex items-center justify-between text-sm text-[oklch(var(--muted-foreground))]">
-									<span>{t.page.costTracking.totalRequests}</span>
+									<span>{t("totalRequests")}</span>
 									<TrendingUp className="h-4 w-4 text-[oklch(var(--primary))]" />
 								</div>
 								<p className="mt-2 text-3xl font-bold">
@@ -149,30 +160,28 @@ export function CostTrackingPanel() {
 						<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] shadow-sm">
 							<div className="border-b border-[oklch(var(--border))] px-4 py-3">
 								<h3 className="text-base font-semibold">
-									{t.page.costTracking.featureCostDetails}
+									{t("featureCostDetails")}
 								</h3>
 							</div>
 							<div className="overflow-x-auto">
 								<table className="min-w-full text-sm">
 									<thead className="bg-[oklch(var(--muted))] text-left text-[oklch(var(--muted-foreground))]">
 										<tr>
+											<th className="px-4 py-2 font-medium">{t("feature")}</th>
 											<th className="px-4 py-2 font-medium">
-												{t.page.costTracking.feature}
-											</th>
-											<th className="px-4 py-2 font-medium">
-												{t.page.costTracking.featureId}
+												{t("featureId")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.inputTokens}
+												{t("inputTokens")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.outputTokens}
+												{t("outputTokens")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.requests}
+												{t("requests")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.cost}
+												{t("cost")}
 											</th>
 										</tr>
 									</thead>
@@ -233,30 +242,28 @@ export function CostTrackingPanel() {
 						<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] shadow-sm">
 							<div className="border-b border-[oklch(var(--border))] px-4 py-3">
 								<h3 className="text-base font-semibold">
-									{t.page.costTracking.modelCostDetails}
+									{t("modelCostDetails")}
 								</h3>
 							</div>
 							<div className="overflow-x-auto">
 								<table className="min-w-full text-sm">
 									<thead className="bg-[oklch(var(--muted))] text-left text-[oklch(var(--muted-foreground))]">
 										<tr>
-											<th className="px-4 py-2 font-medium">
-												{t.page.costTracking.model}
+											<th className="px-4 py-2 font-medium">{t("model")}</th>
+											<th className="px-4 py-2 text-right font-medium">
+												{t("inputTokens")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.inputTokens}
+												{t("outputTokens")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.outputTokens}
+												{t("inputCost")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.inputCost}
+												{t("outputCost")}
 											</th>
 											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.outputCost}
-											</th>
-											<th className="px-4 py-2 text-right font-medium">
-												{t.page.costTracking.totalCostLabel}
+												{t("totalCostLabel")}
 											</th>
 										</tr>
 									</thead>
@@ -317,7 +324,7 @@ export function CostTrackingPanel() {
 							<div className="overflow-hidden rounded-xl border border-[oklch(var(--border))] bg-[oklch(var(--card))] shadow-sm">
 								<div className="border-b border-[oklch(var(--border))] px-4 py-3">
 									<h3 className="text-base font-semibold">
-										{t.page.costTracking.dailyCostTrend}
+										{t("dailyCostTrend")}
 									</h3>
 								</div>
 								<div className="space-y-3 p-4">

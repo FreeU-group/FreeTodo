@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
 import { ScrollbarController } from "@/components/common/ScrollbarController";
 import { ThemeProvider } from "@/components/common/ThemeProvider";
 import { QueryProvider } from "@/lib/query/provider";
@@ -13,16 +15,21 @@ export const metadata: Metadata = {
 	description: "A todo app that tracks your life.",
 };
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
+	const locale = await getLocale();
+	const messages = await getMessages();
+
 	return (
-		<html lang="en" suppressHydrationWarning>
+		<html lang={locale} suppressHydrationWarning>
 			<body
 				className="min-h-screen bg-background text-foreground antialiased"
 				suppressHydrationWarning
 			>
 				<ScrollbarController />
 				<QueryProvider>
-					<ThemeProvider>{children}</ThemeProvider>
+					<NextIntlClientProvider messages={messages}>
+						<ThemeProvider>{children}</ThemeProvider>
+					</NextIntlClientProvider>
 				</QueryProvider>
 			</body>
 		</html>

@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useSaveConfig } from "@/lib/query";
 import { toastError } from "@/lib/toast";
@@ -9,15 +10,6 @@ import { ToggleSwitch } from "./ToggleSwitch";
 
 interface RecorderConfigSectionProps {
 	config: Record<string, unknown> | undefined;
-	t: {
-		basicSettings: string;
-		enableBlacklist: string;
-		enableBlacklistDesc: string;
-		appBlacklist: string;
-		blacklistPlaceholder: string;
-		blacklistDesc: string;
-		saveFailed: string;
-	};
 	loading?: boolean;
 }
 
@@ -27,9 +19,9 @@ interface RecorderConfigSectionProps {
  */
 export function RecorderConfigSection({
 	config,
-	t,
 	loading = false,
 }: RecorderConfigSectionProps) {
+	const t = useTranslations("page.settings");
 	const saveConfigMutation = useSaveConfig();
 
 	// 黑名单配置状态
@@ -118,21 +110,21 @@ export function RecorderConfigSection({
 			setBlacklistEnabled(blacklistEnabled);
 			console.error("保存黑名单设置失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t.saveFailed.replace("{error}", errorMsg));
+			toastError(t("saveFailed", { error: errorMsg }));
 		}
 	};
 
 	return (
-		<SettingsSection title={t.basicSettings}>
+		<SettingsSection title={t("basicSettings")}>
 			<div className="space-y-4">
 				{/* 启用黑名单 */}
 				<div className="flex items-center justify-between">
 					<div className="flex-1">
 						<p className="text-sm font-medium text-foreground">
-							{t.enableBlacklist}
+							{t("enableBlacklist")}
 						</p>
 						<p className="mt-0.5 text-xs text-muted-foreground">
-							{t.enableBlacklistDesc}
+							{t("enableBlacklistDesc")}
 						</p>
 					</div>
 					<ToggleSwitch
@@ -149,7 +141,7 @@ export function RecorderConfigSection({
 							htmlFor="blacklist-input"
 							className="mb-1 block text-sm font-medium text-foreground"
 						>
-							{t.appBlacklist}
+							{t("appBlacklist")}
 						</label>
 						<div className="min-h-[38px] flex flex-wrap gap-1.5 items-center rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 transition-all">
 							{blacklistApps.map((app) => (
@@ -172,7 +164,7 @@ export function RecorderConfigSection({
 								id="blacklist-input"
 								type="text"
 								className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder:text-muted-foreground px-1"
-								placeholder={t.blacklistPlaceholder}
+								placeholder={t("blacklistPlaceholder")}
 								value={blacklistInput}
 								onChange={(e) => setBlacklistInput(e.target.value)}
 								onKeyDown={handleBlacklistKeyDown}
@@ -180,7 +172,7 @@ export function RecorderConfigSection({
 							/>
 						</div>
 						<p className="mt-1 text-xs text-muted-foreground">
-							{t.blacklistDesc}
+							{t("blacklistDesc")}
 						</p>
 					</div>
 				)}

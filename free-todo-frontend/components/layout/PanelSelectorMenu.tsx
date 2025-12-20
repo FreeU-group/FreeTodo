@@ -1,13 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { PanelFeature, PanelPosition } from "@/lib/config/panel-config";
 import { FEATURE_ICON_MAP } from "@/lib/config/panel-config";
-import { useTranslations } from "@/lib/i18n";
-import type { Translation } from "@/lib/i18n/types";
-import { useLocaleStore } from "@/lib/store/locale";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +18,7 @@ interface PanelSelectorMenuProps {
 }
 
 // 功能到翻译键的映射
-function getFeatureLabelKey(
-	feature: PanelFeature,
-): keyof Translation["bottomDock"] {
+function getFeatureLabelKey(feature: PanelFeature): string {
 	return feature;
 }
 
@@ -35,8 +31,7 @@ export function PanelSelectorMenu({
 }: PanelSelectorMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
 	const { getAvailableFeatures } = useUiStore();
-	const { locale } = useLocaleStore();
-	const t = useTranslations(locale);
+	const t = useTranslations("bottomDock");
 
 	const availableFeatures = getAvailableFeatures();
 
@@ -149,7 +144,7 @@ export function PanelSelectorMenu({
 									)}
 								>
 									<Icon className="h-4 w-4 shrink-0" />
-									<span>{t.bottomDock[labelKey]}</span>
+									<span>{t(labelKey)}</span>
 								</button>
 							);
 						})}

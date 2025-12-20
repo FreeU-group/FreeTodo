@@ -1,16 +1,15 @@
 "use client";
 
 import { Monitor, Moon, Sun } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { useTranslations } from "@/lib/i18n";
-import { useLocaleStore } from "@/lib/store/locale";
 
 export function ThemeToggle() {
 	const { theme, setTheme } = useTheme();
-	const { locale } = useLocaleStore();
 	const [mounted, setMounted] = useState(false);
-	const t = useTranslations(locale);
+	const tTheme = useTranslations("theme");
+	const tLayout = useTranslations("layout");
 
 	useEffect(() => {
 		setMounted(true);
@@ -21,9 +20,9 @@ export function ThemeToggle() {
 	}
 
 	const themes = [
-		{ value: "light" as const, icon: Sun, label: t.theme.light },
-		{ value: "dark" as const, icon: Moon, label: t.theme.dark },
-		{ value: "system" as const, icon: Monitor, label: t.theme.system },
+		{ value: "light" as const, icon: Sun, label: tTheme("light") },
+		{ value: "dark" as const, icon: Moon, label: tTheme("dark") },
+		{ value: "system" as const, icon: Monitor, label: tTheme("system") },
 	];
 
 	const validThemes = themes.map((t) => t.value);
@@ -50,8 +49,8 @@ export function ThemeToggle() {
 				setTheme(newTheme);
 			}}
 			className="rounded-md p-2 text-muted-foreground transition-all duration-200 hover:bg-muted hover:text-foreground hover:shadow-md active:scale-95 active:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-			title={`${t.layout.currentTheme}: ${currentThemeLabel}`}
-			aria-label={`${t.layout.currentTheme}: ${currentThemeLabel}`}
+			title={`${tLayout("currentTheme")}: ${currentThemeLabel}`}
+			aria-label={`${tLayout("currentTheme")}: ${currentThemeLabel}`}
 		>
 			<CurrentIcon className="h-5 w-5" />
 		</button>
