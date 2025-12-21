@@ -35,15 +35,23 @@ export class ScheduleExtractionService {
     // 只处理已优化的片段（无论是否包含日程标记，都尝试提取）
     // 因为即使 LLM 没有标记，文本中也可能包含时间信息
     if (!segment.isOptimized) {
+      console.log(`[ScheduleExtraction] 片段 ${segment.id} 未优化，跳过`);
+      return;
+    }
+
+    if (!segment.optimizedText) {
+      console.log(`[ScheduleExtraction] 片段 ${segment.id} 没有优化文本，跳过`);
       return;
     }
 
     // 避免重复处理
     const exists = this.queue.find(s => s.id === segment.id);
     if (exists) {
+      console.log(`[ScheduleExtraction] 片段 ${segment.id} 已在队列中，跳过`);
       return;
     }
 
+    console.log(`[ScheduleExtraction] 将片段 ${segment.id} 加入队列，队列长度: ${this.queue.length}, 文本预览: ${segment.optimizedText.substring(0, 50)}...`);
     this.queue.push(segment);
     this.processQueue();
   }
@@ -100,15 +108,21 @@ export class ScheduleExtractionService {
    */
   private async extractSchedules(segment: TranscriptSegment): Promise<void> {
     if (!segment.optimizedText) {
+      console.log(`[ScheduleExtraction] 片段 ${segment.id} 没有优化文本，跳过提取`);
       return;
     }
 
     try {
+      console.log(`[ScheduleExtraction] 开始提取日程，片段ID: ${segment.id}, 文本: ${segment.optimizedText.substring(0, 100)}...`);
       const schedules = this.parseSchedules(segment.optimizedText, segment);
+      console.log(`[ScheduleExtraction] 提取到 ${schedules.length} 个日程`);
       
       for (const schedule of schedules) {
+        console.log(`[ScheduleExtraction] 提取到日程: ${schedule.description} (时间: ${schedule.scheduleTime.toLocaleString()})`);
         if (this.onScheduleExtracted) {
           this.onScheduleExtracted(schedule);
+        } else {
+          console.warn(`[ScheduleExtraction] onScheduleExtracted 回调未设置`);
         }
       }
     } catch (error) {

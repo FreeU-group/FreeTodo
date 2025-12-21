@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import OpenAI from 'openai';
+import { useEffect, useRef, useState } from 'react';
 import WaveformTimeline from './components/WaveformTimeline';
 import TranscriptionLog from './components/TranscriptionLog';
 import ChatInterface from './components/ChatInterface';
+import ScheduleList from './components/ScheduleList';
 import { useAppStore } from './store/useAppStore';
 import { RecordingService } from './services/RecordingService';
 import { RecognitionService } from './services/RecognitionService';
@@ -335,15 +335,22 @@ export function VoiceModulePanel() {
     // 无论 containsSchedule 是否为 true，都尝试提取日程
     // 因为即使 LLM 没有标记，文本中也可能包含时间信息
     if (scheduleExtractionServiceRef.current) {
-      const segment = transcripts.find(t => t.id === segmentId);
+      // 从最新的状态中获取 segment（因为 updateTranscript 可能还没更新 transcripts）
+      const currentTranscripts = useAppStore.getState().transcripts;
+      const segment = currentTranscripts.find(t => t.id === segmentId);
       if (segment) {
+        console.log(`[VoiceModule] 将片段 ${segmentId} 加入日程提取队列，文本: ${optimizedText.substring(0, 50)}...`);
         scheduleExtractionServiceRef.current.enqueue({
           ...segment,
           optimizedText,
           isOptimized: true,
           containsSchedule,
         });
+      } else {
+        console.warn(`[VoiceModule] 未找到片段 ${segmentId}，无法提取日程`);
       }
+    } else {
+      console.warn(`[VoiceModule] scheduleExtractionServiceRef.current 为空，无法提取日程`);
     }
 
     setTimeout(() => {
@@ -359,7 +366,9 @@ export function VoiceModulePanel() {
   };
 
   const handleScheduleExtracted = (schedule: ScheduleItem) => {
+    console.log(`[VoiceModule] 收到提取的日程: ${schedule.description} (时间: ${schedule.scheduleTime.toLocaleString()})`);
     addSchedule(schedule);
+    console.log(`[VoiceModule] 日程已添加到状态，当前日程数: ${useAppStore.getState().schedules.length}`);
     setTimeout(() => {
       const currentSchedules = useAppStore.getState().schedules;
       const pendingSchedules = currentSchedules.filter(s => s.status === 'pending');
@@ -529,6 +538,16 @@ export function VoiceModulePanel() {
     const msgId = Date.now().toString();
     setChatMessages(prev => [...prev, { id: msgId, role: 'user', text, timestamp: new Date() }]);
     setIsChatLoading(true);
+    
+    // 创建助手消息占位符
+    const assistantMsgId = (Date.now() + 1).toString();
+    setChatMessages(prev => [...prev, {
+      id: assistantMsgId,
+      role: 'model',
+      text: '',
+      timestamp: new Date()
+    }]);
+    
     try {
       // 获取最近 10 分钟的转录内容作为上下文（可选）
       const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
@@ -538,40 +557,17 @@ export function VoiceModulePanel() {
         .join('\n');
       
       // 使用 Next.js 代理路径（会自动代理到后端 localhost:8000）
-      // API Key 由后端管理，前端不需要传递真实 Key
-      // OpenAI SDK 需要完整的 URL，在浏览器环境中使用 window.location.origin
-      let baseURL: string;
+      let apiUrl: string;
       if (typeof window !== 'undefined' && window.location) {
-        // 浏览器环境：使用当前页面的 origin + 代理路径
         const origin = window.location.origin;
         if (!origin || origin === 'null' || origin === 'undefined') {
-          // 如果 origin 无效，使用默认值
-          baseURL = 'http://localhost:3000/api/deepseek';
+          apiUrl = 'http://localhost:3000/api/deepseek/chat/completions';
         } else {
-          baseURL = `${origin}/api/deepseek`;
+          apiUrl = `${origin}/api/deepseek/chat/completions`;
         }
       } else {
-        // 服务端环境：直接使用后端地址
-        baseURL = 'http://localhost:8000/api/deepseek';
+        apiUrl = 'http://localhost:8000/api/deepseek/chat/completions';
       }
-      
-      // 验证 baseURL 是否有效
-      try {
-        new URL(baseURL);
-      } catch (urlError) {
-        console.error('Invalid baseURL:', baseURL, urlError);
-        throw new Error(`Invalid API URL: ${baseURL}`);
-      }
-      
-      const ai = new OpenAI({
-        baseURL: baseURL,
-        apiKey: 'dummy-key', // 后端会使用配置的 API Key，这里只是占位符
-        dangerouslyAllowBrowser: true,
-      });
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('API timeout')), 30000)
-      );
       
       // 构建消息：如果有上下文就加上，没有就只发送用户问题
       const systemPrompt = contextString 
@@ -582,31 +578,80 @@ export function VoiceModulePanel() {
         ? `上下文 (最近10分钟):\n${contextString}\n\n用户提问: ${text}`
         : text;
       
-      const apiPromise = ai.chat.completions.create({
-        model: 'deepseek-chat',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ]
+      // 使用流式 API
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userContent }
+          ],
+          temperature: 0.7,
+          stream: true,
+        }),
       });
       
-      const response = await Promise.race([apiPromise, timeoutPromise]) as any;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       
-      setChatMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        role: 'model',
-        text: response.choices?.[0]?.message?.content || "无法处理该请求",
-        timestamp: new Date()
-      }]);
+      // 读取流式响应
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullText = '';
+      
+      if (!reader) {
+        throw new Error('无法读取响应流');
+      }
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // 保留最后一个不完整的行
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              continue;
+            }
+            
+            try {
+              const chunk = JSON.parse(data);
+              if (chunk.choices && chunk.choices[0]?.delta?.content) {
+                const content = chunk.choices[0].delta.content;
+                fullText += content;
+                
+                // 实时更新消息内容
+                setChatMessages(prev => prev.map(msg => 
+                  msg.id === assistantMsgId 
+                    ? { ...msg, text: fullText }
+                    : msg
+                ));
+              }
+            } catch (e) {
+              console.error('解析流式数据失败:', e, data);
+            }
+          }
+        }
+      }
+      
     } catch (e: any) {
       console.error('Chat API error:', e);
       const errorMessage = e?.message || e?.toString() || "Unknown error";
-      setChatMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        role: 'model', 
-        text: `出错: ${errorMessage}。请检查后端服务是否正常运行，以及 LLM 配置是否正确。`, 
-        timestamp: new Date() 
-      }]);
+      setChatMessages(prev => prev.map(msg => 
+        msg.id === assistantMsgId 
+          ? { ...msg, text: `出错: ${errorMessage}。请检查后端服务是否正常运行，以及 LLM 配置是否正确。` }
+          : msg
+      ));
     } finally {
       setIsChatLoading(false);
     }
@@ -667,10 +712,16 @@ export function VoiceModulePanel() {
       </header>
       <main className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
         <div className="md:col-span-2 flex flex-col h-full overflow-hidden border-r border-border">
-          <div className="h-64 p-4 shrink-0 bg-card/50 flex flex-col">
-            <div className="text-xs text-muted-foreground mb-2 font-mono flex justify-between">
+          <div className="h-72 p-4 shrink-0 bg-card/50 flex flex-col">
+            <div className="text-sm text-foreground mb-3 font-semibold flex justify-between items-center">
               <span>时间轴（绝对时间）</span>
-              <span>{isRecording ? '录音中' : '空闲'}</span>
+              <span className={`text-xs px-2 py-1 rounded-full ${
+                isRecording 
+                  ? 'bg-red-500/10 text-red-600 border border-red-500/20' 
+                  : 'bg-muted text-muted-foreground'
+              }`}>
+                {isRecording ? '● 录音中' : '○ 空闲'}
+              </span>
             </div>
             <div className="flex-1 min-h-0">
               <WaveformTimeline 
@@ -698,21 +749,8 @@ export function VoiceModulePanel() {
         </div>
         <div className="md:col-span-1 h-full min-h-0 overflow-hidden flex flex-col border-l border-border">
           <div className="h-48 p-4 border-b border-border bg-card/50 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-foreground mb-2">日程列表</h3>
-            <div className="space-y-2">
-              {schedules.length === 0 ? (
-                <p className="text-xs text-muted-foreground">暂无日程</p>
-              ) : (
-                schedules.map(schedule => (
-                  <div key={schedule.id} className="text-xs bg-card border border-border p-2 rounded">
-                    <div className="text-amber-600 font-mono">
-                      {schedule.scheduleTime.toLocaleString('zh-CN')}
-                    </div>
-                    <div className="text-foreground mt-1">{schedule.description}</div>
-                  </div>
-                ))
-              )}
-            </div>
+            <h3 className="text-sm font-semibold text-foreground mb-3">日程列表</h3>
+            <ScheduleList schedules={schedules} />
           </div>
           <div className="flex-1 min-h-0">
             <ChatInterface 

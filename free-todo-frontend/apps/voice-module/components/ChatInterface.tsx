@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { ChatMessage } from '../types';
 
 interface ChatInterfaceProps {
@@ -38,31 +40,61 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, onSendMessage, 
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+        {messages.map((msg, index) => {
+          const isLastMessage = index === messages.length - 1;
+          const isStreaming = isLoading && isLastMessage && msg.role === 'model';
+          
+          return (
             <div
-              className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
-                msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-br-none'
-                  : 'bg-muted text-foreground rounded-bl-none'
-              }`}
+              key={msg.id}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {msg.text}
+              <div
+                className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground rounded-br-none'
+                    : 'bg-muted text-foreground rounded-bl-none'
+                }`}
+              >
+                {msg.role === 'model' ? (
+                  <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1.5 prose-p:leading-relaxed prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        h1: ({ children }) => <h1 className="text-base font-bold mb-2 mt-0">{children}</h1>,
+                        h2: ({ children }) => <h2 className="text-sm font-semibold mb-2 mt-2">{children}</h2>,
+                        h3: ({ children }) => <h3 className="text-sm font-semibold mb-1 mt-2">{children}</h3>,
+                        p: ({ children }) => <p className="my-1.5 leading-relaxed">{children}</p>,
+                        ul: ({ children }) => <ul className="my-2 list-disc pl-5 space-y-0.5">{children}</ul>,
+                        ol: ({ children }) => <ol className="my-2 list-decimal pl-5 space-y-0.5">{children}</ol>,
+                        li: ({ children }) => <li className="my-0.5">{children}</li>,
+                        strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                        em: ({ children }) => <em className="italic">{children}</em>,
+                        code: ({ children, className }) => {
+                          const isInline = !className;
+                          return isInline ? (
+                            <code className="bg-muted/50 px-1 py-0.5 rounded text-xs font-mono">{children}</code>
+                          ) : (
+                            <code className="block bg-muted/50 p-2 rounded text-xs font-mono overflow-x-auto">{children}</code>
+                          );
+                        },
+                        pre: ({ children }) => <pre className="bg-muted/50 p-2 rounded text-xs font-mono overflow-x-auto my-2">{children}</pre>,
+                        blockquote: ({ children }) => <blockquote className="border-l-4 border-primary/30 pl-3 my-2 italic">{children}</blockquote>,
+                      }}
+                    >
+                      {msg.text}
+                    </ReactMarkdown>
+                    {isStreaming && (
+                      <span className="inline-block w-2 h-2 bg-muted-foreground rounded-full ml-1 animate-pulse" />
+                    )}
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap">{msg.text}</div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-muted rounded-lg rounded-bl-none px-4 py-2 flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-            </div>
-          </div>
-        )}
+          );
+        })}
         <div ref={bottomRef} />
       </div>
 

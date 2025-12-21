@@ -20,6 +20,7 @@ from lifetrace.routers import (
     project,
     rag,
     scheduler,
+    schedules,  # 日程管理路由
     screenshot,
     search,
     system,
@@ -128,6 +129,7 @@ app.include_router(todo_extraction.router)
 app.include_router(vision.router)
 app.include_router(audio.router)
 app.include_router(transcripts.router)
+app.include_router(schedules.router)  # 日程管理路由
 app.include_router(deepseek.router)
 # WebSocket ASR - 优先使用 Faster-Whisper（如果可用），否则使用 FunASR
 try:

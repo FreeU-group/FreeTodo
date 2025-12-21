@@ -96,11 +96,12 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
       const pps = pixelsPerSecond();
       const centerY = height / 2;
       
-      // 1. 绘制时间刻度
-      ctx.strokeStyle = '#475569';
-      ctx.lineWidth = 1;
-      ctx.font = '10px monospace';
-      ctx.fillStyle = '#94a3b8';
+      // 1. 绘制时间刻度（增大字体，提高清晰度）
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 1.5;
+      ctx.font = 'bold 13px monospace'; // 增大字体，加粗
+      ctx.fillStyle = '#cbd5e1'; // 更亮的颜色
+      ctx.textBaseline = 'top';
       
       const startTime = timeline.viewStartTime.getTime();
       const duration = timeline.viewDuration;
@@ -114,9 +115,17 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
           ctx.lineTo(x, height);
           ctx.stroke();
           
-          // 时间标签
+          // 时间标签（增大字体，添加背景以提高可读性）
           const timeLabel = format(new Date(t), 'HH:mm:ss', { locale: zhCN });
-          ctx.fillText(timeLabel, x + 4, 12);
+          const textWidth = ctx.measureText(timeLabel).width;
+          
+          // 绘制半透明背景
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.7)'; // 深色半透明背景
+          ctx.fillRect(x + 4, 2, textWidth + 6, 16);
+          
+          // 绘制文字
+          ctx.fillStyle = '#e2e8f0'; // 亮色文字
+          ctx.fillText(timeLabel, x + 7, 4);
         }
       }
       
@@ -137,35 +146,89 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
         ctx.fillRect(Math.max(0, startX), centerY - 3, Math.min(segmentWidth, width - Math.max(0, startX)), 6);
       });
       
-      // 3. 绘制日程标记
-      schedules.forEach(schedule => {
+      // 3. 绘制日程标记（增大标记和文字，避免重叠）
+      schedules.forEach((schedule, index) => {
         const x = timeToPixel(schedule.scheduleTime);
         if (x >= 0 && x <= width) {
+          // 计算垂直位置，避免重叠（每个标记错开，从更下方开始，避免与时间标签重叠）
+          const verticalOffset = 35 + (index % 3) * 22; // 从35px开始，每3个标记循环，错开22px
+          
+          // 绘制标记点（增大）
           ctx.fillStyle = '#f59e0b';
           ctx.beginPath();
-          ctx.arc(x, 20, 4, 0, Math.PI * 2);
+          ctx.arc(x, verticalOffset, 6, 0, Math.PI * 2); // 增大半径到6px
           ctx.fill();
           
-          ctx.fillStyle = '#fbbf24';
-          ctx.font = '9px sans-serif';
-          ctx.fillText(schedule.description.substring(0, 10), x + 6, 24);
+          // 绘制外圈（增强可见性）
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, verticalOffset, 6, 0, Math.PI * 2);
+          ctx.stroke();
+          
+          // 绘制连接线
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(x, verticalOffset + 6);
+          ctx.lineTo(x, centerY - 3);
+          ctx.stroke();
+          
+          // 绘制文字背景（提高可读性）
+          const description = schedule.description.length > 20 
+            ? schedule.description.substring(0, 20) + '...' 
+            : schedule.description;
+          ctx.font = 'bold 12px sans-serif'; // 增大字体到12px，加粗
+          const textWidth = ctx.measureText(description).width;
+          
+          // 半透明背景（增大内边距）
+          ctx.fillStyle = 'rgba(251, 191, 36, 0.95)'; // 橙色半透明背景
+          ctx.fillRect(x + 10, verticalOffset - 10, textWidth + 12, 20);
+          
+          // 绘制边框
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 10, verticalOffset - 10, textWidth + 12, 20);
+          
+          // 绘制文字
+          ctx.fillStyle = '#78350f'; // 深色文字
+          ctx.fillText(description, x + 16, verticalOffset - 3);
         }
       });
       
-      // 4. 绘制当前时间指示器
+      // 4. 绘制当前时间指示器（增大，更清晰）
       const currentX = timeToPixel(currentTime);
       if (currentX >= 0 && currentX <= width) {
+        // 绘制垂直线
         ctx.beginPath();
         ctx.moveTo(currentX, 0);
         ctx.lineTo(currentX, height);
         ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5; // 加粗
         ctx.stroke();
         
+        // 绘制顶部指示器（三角形）
         ctx.fillStyle = '#ef4444';
-        ctx.font = '11px monospace';
+        ctx.beginPath();
+        ctx.moveTo(currentX, 0);
+        ctx.lineTo(currentX - 6, 10);
+        ctx.lineTo(currentX + 6, 10);
+        ctx.closePath();
+        ctx.fill();
+        
+        // 绘制时间标签（增大字体，添加背景）
+        ctx.font = 'bold 13px monospace'; // 增大字体
         const timeLabel = format(currentTime, 'HH:mm:ss', { locale: zhCN });
-        ctx.fillText(timeLabel, Math.min(currentX + 4, width - 50), 12);
+        const textWidth = ctx.measureText(timeLabel).width;
+        const labelX = Math.min(currentX + 8, width - textWidth - 10);
+        
+        // 半透明背景
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; // 红色半透明背景
+        ctx.fillRect(labelX - 4, 2, textWidth + 8, 18);
+        
+        // 绘制文字
+        ctx.fillStyle = '#ffffff'; // 白色文字
+        ctx.fillText(timeLabel, labelX, 5);
       }
       
       // 5. 实时录音波形
@@ -295,26 +358,38 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      <div className="absolute top-0 left-0 right-0 h-8 bg-card/80 border-b border-border z-20 flex items-center justify-between px-4">
-        <div className="text-xs text-muted-foreground font-mono">
+      <div className="absolute top-0 left-0 right-0 h-10 bg-card/90 backdrop-blur-sm border-b border-border z-20 flex items-center justify-between px-4">
+        <div className="text-sm text-foreground font-mono font-semibold">
           {format(timeline.viewStartTime, 'yyyy-MM-dd HH:mm:ss', { locale: zhCN })} - {format(new Date(timeline.viewStartTime.getTime() + timeline.viewDuration), 'HH:mm:ss', { locale: zhCN })}
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onZoomChange(1)}
-            className={`px-2 py-1 text-xs rounded transition-colors ${timeline.zoomLevel === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              timeline.zoomLevel === 1 
+                ? 'bg-primary text-primary-foreground shadow-sm' 
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
           >
             1小时
           </button>
           <button
             onClick={() => onZoomChange(2)}
-            className={`px-2 py-1 text-xs rounded transition-colors ${timeline.zoomLevel === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              timeline.zoomLevel === 2 
+                ? 'bg-primary text-primary-foreground shadow-sm' 
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
           >
             6小时
           </button>
           <button
             onClick={() => onZoomChange(3)}
-            className={`px-2 py-1 text-xs rounded transition-colors ${timeline.zoomLevel === 3 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              timeline.zoomLevel === 3 
+                ? 'bg-primary text-primary-foreground shadow-sm' 
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
           >
             24小时
           </button>
@@ -323,7 +398,7 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 
       <div 
         ref={scrollContainerRef}
-        className="absolute top-8 left-0 right-0 bottom-0 overflow-x-auto overflow-y-hidden"
+        className="absolute top-10 left-0 right-0 bottom-0 overflow-x-auto overflow-y-hidden"
         onScroll={handleScroll}
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       >
@@ -337,9 +412,9 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
       </div>
 
       {isRecording && (
-        <div className="absolute top-10 right-2 flex items-center gap-2 pointer-events-none z-30">
-          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-          <span className="text-[10px] text-red-400 font-mono">录音中</span>
+        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 pointer-events-none z-30 bg-red-500/90 backdrop-blur-sm px-2 py-1 rounded-md border border-red-400/50 shadow-sm">
+          <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+          <span className="text-xs font-medium text-white">录音中</span>
         </div>
       )}
     </div>

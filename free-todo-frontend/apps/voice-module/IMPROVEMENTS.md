@@ -301,3 +301,9 @@ const handleScheduleExtracted = async (schedule: ScheduleItem) => {
 
 建议优先实现**日程→Todo**和**语音提取Todo**功能，这两个功能最能体现语音模块的价值。
 
+---
+
+**文档版本**：v1.0  
+**最后更新**：2025-12-21  
+**维护者**：LifeTrace Team From zy
+

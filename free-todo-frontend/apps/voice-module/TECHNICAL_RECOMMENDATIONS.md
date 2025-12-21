@@ -422,3 +422,9 @@ async def stream_transcription(websocket: WebSocket):
 2. ⭐⭐⭐⭐ **集成后端 ASR**（提升体验）
 3. ⭐⭐⭐ **语音提取 Todo**（扩展功能）
 
+---
+
+**文档版本**：v1.0  
+**最后更新**：2025-12-21  
+**维护者**：LifeTrace Team From zy
+
