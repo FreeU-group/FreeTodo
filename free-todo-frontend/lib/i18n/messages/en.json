@@ -56,6 +56,8 @@
 		"costTrackingPlaceholder": "Placeholder: view cost tracking here",
 		"achievementsLabel": "Achievements",
 		"achievementsPlaceholder": "Placeholder: plug an achievements component here",
+		"voiceModuleLabel": "Voice Module",
+		"voiceModulePlaceholder": "7×24 Intelligent Recording Assistant with continuous recording, speech recognition and schedule extraction",
 		"screenshotsLabel": "Screenshots (Debug)",
 		"screenshotsPlaceholder": "Event timeline with screenshots (dev mode only)",
 		"debugShotsLabel": "Debug Shots",
@@ -147,6 +149,7 @@
 		"settings": "Settings",
 		"costTracking": "Cost",
 		"achievements": "Achievements",
+		"voiceModule": "Voice Module",
 		"screenshots": "Screenshots",
 		"debugShots": "Debug Shots"
 	},

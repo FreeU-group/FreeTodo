@@ -12,6 +12,7 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "sqlmodel>=0.0.22",
     "alembic>=1.14.0",
+    "python-multipart>=0.0.6",  # 文件上传支持（Form data）
     # Screenshot and image processing
     "mss>=9.0.0",
     "Pillow>=10.0.0",
