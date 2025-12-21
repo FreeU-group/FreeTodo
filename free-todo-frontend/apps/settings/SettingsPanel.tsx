@@ -2,7 +2,7 @@
 
 import { Settings } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PanelHeader } from "@/components/common/PanelHeader";
 import {
 	ALL_PANEL_FEATURES,
@@ -43,22 +43,32 @@ export function SettingsPanel() {
 	const setFeatureEnabled = useUiStore((state) => state.setFeatureEnabled);
 	const isFeatureEnabled = useUiStore((state) => state.isFeatureEnabled);
 
+	// 用于跟踪最后一次保存的时间戳，防止保存后立即被 refetch 覆盖
+	const lastSaveTimeRef = useRef<number>(0);
+
 	// 当配置加载完成后，同步本地状态
+	// 但如果刚刚保存过配置（500ms 内），则跳过同步，避免被旧值覆盖
 	useEffect(() => {
 		if (config) {
+			const now = Date.now();
+			// 如果刚刚保存过配置（500ms 内），跳过同步
+			if (now - lastSaveTimeRef.current < 500) {
+				return;
+			}
 			setAutoTodoDetectionEnabled(
 				(config.jobsAutoTodoDetectionEnabled as boolean) ?? false,
 			);
-			const costEnabled = (config.uiCostTrackingEnabled as boolean) ?? true;
-			setFeatureEnabled("costTracking", costEnabled);
 		}
-	}, [config, setFeatureEnabled]);
+	}, [config]);
 
 	const loading = configLoading || saveConfigMutation.isPending;
 
 	// 自动待办检测处理
 	const handleToggleAutoTodoDetection = async (enabled: boolean) => {
 		try {
+			// 记录保存时间戳
+			lastSaveTimeRef.current = Date.now();
+
 			await saveConfigMutation.mutateAsync({
 				data: {
 					jobsAutoTodoDetectionEnabled: enabled,
@@ -85,6 +95,8 @@ export function SettingsPanel() {
 			console.error("保存配置失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			toastError(tSettings("saveFailed", { error: errorMsg }));
+			// 失败时清除保存时间戳，允许后续同步
+			lastSaveTimeRef.current = 0;
 			setAutoTodoDetectionEnabled(!enabled);
 		}
 	};
@@ -94,22 +106,13 @@ export function SettingsPanel() {
 		try {
 			setFeatureEnabled(feature, enabled);
 
-			// 如果是费用统计面板，还需要保存到配置
-			if (feature === "costTracking") {
-				await saveConfigMutation.mutateAsync({
-					data: {
-						uiCostTrackingEnabled: enabled,
-					},
-				});
-			}
-
 			toastSuccess(
 				enabled
 					? `${tBottomDock(feature)} ${tSettings("panelEnabled")}`
 					: `${tBottomDock(feature)} ${tSettings("panelDisabled")}`,
 			);
 		} catch (error) {
-			console.error("保存配置失败:", error);
+			console.error("切换面板失败:", error);
 			const errorMsg = error instanceof Error ? error.message : String(error);
 			toastError(tSettings("saveFailed", { error: errorMsg }));
 			// 回滚状态

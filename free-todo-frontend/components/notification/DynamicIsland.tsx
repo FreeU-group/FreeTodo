@@ -21,17 +21,17 @@ function formatTime(
 	const diffMs = now.getTime() - date.getTime();
 	const diffMins = Math.floor(diffMs / 60000);
 	if (diffMins < 1) {
-		return t("todoExtraction.justNow");
+		return t("justNow");
 	}
 	if (diffMins < 60) {
-		return t("todoExtraction.minutesAgo", { count: diffMins });
+		return t("minutesAgo", { count: diffMins });
 	}
 	const diffHours = Math.floor(diffMins / 60);
 	if (diffHours < 24) {
-		return t("todoExtraction.hoursAgo", { count: diffHours });
+		return t("hoursAgo", { count: diffHours });
 	}
 	const diffDays = Math.floor(diffHours / 24);
-	return t("todoExtraction.daysAgo", { count: diffDays });
+	return t("daysAgo", { count: diffDays });
 }
 
 // 格式化当前时间
@@ -49,7 +49,7 @@ function formatCurrentTime(t: ReturnType<typeof useTranslations>): {
 	// 日期格式
 	const month = (now.getMonth() + 1).toString().padStart(2, "0");
 	const day = now.getDate().toString().padStart(2, "0");
-	const date = t("todoExtraction.dateFormat", { month, day });
+	const date = t("dateFormat", { month, day });
 
 	return { time, date };
 }
@@ -128,6 +128,16 @@ export function DynamicIsland() {
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
+			// 如果是 404 错误（todo 已被删除），静默关闭通知
+			if (
+				errorMsg.includes("404") ||
+				errorMsg.includes("Not Found") ||
+				errorMsg.includes("不存在")
+			) {
+				setNotification(null);
+				setExpanded(false);
+				return;
+			}
 			toastError(t("acceptFailed", { error: errorMsg }));
 		}
 	};
@@ -147,6 +157,16 @@ export function DynamicIsland() {
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
+			// 如果是 404 错误（todo 已被删除），静默关闭通知
+			if (
+				errorMsg.includes("404") ||
+				errorMsg.includes("Not Found") ||
+				errorMsg.includes("不存在")
+			) {
+				setNotification(null);
+				setExpanded(false);
+				return;
+			}
 			toastError(t("rejectFailed", { error: errorMsg }));
 		}
 	};

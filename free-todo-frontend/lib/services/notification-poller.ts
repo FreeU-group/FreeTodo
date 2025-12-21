@@ -131,6 +131,25 @@ class NotificationPoller {
 				offset: 0,
 			});
 
+			const store = useNotificationStore.getState();
+			const current = store.currentNotification;
+
+			// 如果当前有 draft todo 通知，检查对应的 todo 是否还存在
+			if (
+				current &&
+				current.source === endpoint.id &&
+				current.todoId !== undefined
+			) {
+				const todoExists =
+					result.todos?.some((todo) => todo.id === current.todoId) ?? false;
+				// 如果 todo 不存在了，清除通知
+				if (!todoExists) {
+					store.setNotification(null);
+					store.setExpanded(false);
+					return;
+				}
+			}
+
 			if (result.todos && result.todos.length > 0) {
 				// 取最新的一个 todo
 				const latestTodo = result.todos[0];
@@ -146,14 +165,18 @@ class NotificationPoller {
 				};
 
 				// 检查是否是新通知（比较 todo ID）
-				const store = useNotificationStore.getState();
-				const current = store.currentNotification;
 				if (
 					!current ||
 					current.id !== notification.id ||
 					current.content !== notification.content
 				) {
 					store.setNotification(notification);
+				}
+			} else {
+				// 如果没有 draft todos 了，且当前通知是来自这个端点的，清除通知
+				if (current && current.source === endpoint.id) {
+					store.setNotification(null);
+					store.setExpanded(false);
 				}
 			}
 		} catch (error) {

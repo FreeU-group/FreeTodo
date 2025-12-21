@@ -147,8 +147,3 @@ llm:
         - max_input_tokens: 256000
           input_price: 0.003
           output_price: 0.03
-
-# UI 配置
-ui:
-  cost_tracking:
-    enabled: true

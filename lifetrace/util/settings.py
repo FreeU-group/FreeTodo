@@ -121,8 +121,6 @@ settings = Dynaconf(
         Validator("llm.vision_model", default="qwen3-vl-plus"),
         Validator("llm.temperature", default=0.7),
         Validator("llm.max_tokens", default=2048, is_type_of=int),
-        # UI 配置
-        Validator("ui.cost_tracking.enabled", default=True, is_type_of=bool),
     ],
 )
 
