@@ -11,6 +11,7 @@ import {
 } from "@/apps/chat/utils/todoContext";
 import type { ChatHistoryItem } from "@/lib/api";
 import { sendChatMessageStream } from "@/lib/api";
+import { getChatPromptsApiGetChatPromptsGet } from "@/lib/generated/config/config";
 import { useChatHistory, useChatSessions, useTodos } from "@/lib/query";
 import { useChatStore } from "@/lib/store/chat-store";
 import type { CreateTodoInput, Todo } from "@/lib/types";
@@ -19,53 +20,6 @@ type UseChatControllerParams = {
 	locale: string;
 	selectedTodoIds: number[];
 	createTodo: (todo: CreateTodoInput) => Promise<Todo | null>;
-};
-
-// Build Edit mode system prompt
-const buildEditSystemPrompt = (locale: string): string => {
-	return locale === "zh"
-		? `你是一个待办编辑助手。根据用户的请求和关联待办的上下文，生成有用的内容。
-
-**重要规则：**
-1. 使用 ## 标题来分隔不同的内容块
-2. **每个内容块的末尾必须添加 [append_to: <todo_id>]**，推荐这段内容应该追加到哪个待办的备注中
-3. 使用上下文中提供的待办ID（数字），根据内容相关性选择最合适的待办
-4. 每个内容块都必须有推荐的目标待办，不能遗漏
-
-**输出格式示例：**
-## 项目概述
-这是项目的主要目标和范围...
-
-[append_to: 123]
-
-## 下一步行动
-1. 完成需求分析
-2. 安排会议
-
-[append_to: 456]
-
-注意：[append_to: xxx] 中的 xxx 必须是上下文中存在的待办ID数字。`
-		: `You are a todo editing assistant. Generate helpful content based on the user's request and linked todos context.
-
-**Important Rules:**
-1. Use ## headers to separate distinct content blocks
-2. **Every content block MUST end with [append_to: <todo_id>]** to recommend which todo this content should be appended to
-3. Use the todo IDs (numbers) provided in context, choose the most relevant one based on content
-4. Every block must have a recommended target todo, do not omit any
-
-**Output Format Example:**
-## Project Overview
-This section describes the main goals and scope...
-
-[append_to: 123]
-
-## Next Steps
-1. Complete requirements analysis
-2. Schedule meeting
-
-[append_to: 456]
-
-Note: The xxx in [append_to: xxx] must be an existing todo ID number from the context.`;
 };
 
 export const useChatController = ({
@@ -80,11 +34,36 @@ export const useChatController = ({
 		t,
 	);
 
-	// Edit mode system prompt
-	const editSystemPrompt = useMemo(
-		() => buildEditSystemPrompt(locale),
-		[locale],
-	);
+	// 从 API 获取编辑模式系统提示词
+	const [editSystemPrompt, setEditSystemPrompt] = useState<string>("");
+
+	useEffect(() => {
+		let cancelled = false;
+		async function loadPrompts() {
+			try {
+				const response = (await getChatPromptsApiGetChatPromptsGet({
+					locale,
+				})) as {
+					success: boolean;
+					editSystemPrompt: string;
+					planSystemPrompt: string;
+				};
+				if (!cancelled && response.success) {
+					setEditSystemPrompt(response.editSystemPrompt);
+				}
+			} catch (error) {
+				console.error("Failed to load chat prompts:", error);
+				// 如果加载失败，使用空字符串（向后兼容）
+				if (!cancelled) {
+					setEditSystemPrompt("");
+				}
+			}
+		}
+		void loadPrompts();
+		return () => {
+			cancelled = true;
+		};
+	}, [locale]);
 
 	// 从 TanStack Query 获取 todos 数据
 	const { data: todos = [] } = useTodos();
@@ -210,6 +189,16 @@ export const useChatController = ({
 	const handleSend = useCallback(async () => {
 		const text = inputValue.trim();
 		if (!text || isStreaming) return;
+
+		// 检查 prompt 是否已加载（plan 和 edit 模式需要）
+		if (chatMode === "plan" && !planSystemPrompt) {
+			setError(t("promptNotLoaded") || "提示词正在加载中，请稍候...");
+			return;
+		}
+		if (chatMode === "edit" && !editSystemPrompt) {
+			setError(t("promptNotLoaded") || "提示词正在加载中，请稍候...");
+			return;
+		}
 
 		setInputValue("");
 		setError(null);

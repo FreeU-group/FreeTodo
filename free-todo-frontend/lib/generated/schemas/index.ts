@@ -68,6 +68,7 @@ export * from "./generatedTaskItem";
 export * from "./generatedTaskItemDescription";
 export * from "./generateTasksResponse";
 export * from "./getChatHistoryApiChatHistoryGetParams";
+export * from "./getChatPromptsApiGetChatPromptsGetParams";
 export * from "./getContextsApiContextsGetParams";
 export * from "./getCostStatsApiCostTrackingStatsGetParams";
 export * from "./getLogContentApiLogsContentGetParams";
