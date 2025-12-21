@@ -8,16 +8,19 @@ type TranslationFunction = (
 // 格式化优先级
 const formatPriority = (
 	priority: TodoPriority,
-	t: TranslationFunction,
+	tCommon: TranslationFunction,
 ): string => {
-	const priorityKey = `common.priority.${priority}`;
-	return t(priorityKey);
+	const priorityKey = `priority.${priority}`;
+	return tCommon(priorityKey);
 };
 
 // 格式化状态
-const formatStatus = (status: TodoStatus, t: TranslationFunction): string => {
-	const statusKey = `common.status.${status}`;
-	return t(statusKey);
+const formatStatus = (
+	status: TodoStatus,
+	tCommon: TranslationFunction,
+): string => {
+	const statusKey = `status.${status}`;
+	return tCommon(statusKey);
 };
 
 // 查找最高级父待办
@@ -47,51 +50,54 @@ export const buildDetailedTodoInfo = (
 	todo: Todo,
 	allTodos: Todo[],
 	t: TranslationFunction,
+	tCommon: TranslationFunction,
 	indent = "",
 ): string => {
 	const lines: string[] = [];
 
 	// ID is critical for AI to reference when recommending target todos
-	const idLabel = t("chat.todoContext.id");
+	const idLabel = t("todoContext.id");
 	lines.push(`${indent}${idLabel}: ${todo.id}`);
 
-	const label = t("chat.todoContext.name");
+	const label = t("todoContext.name");
 	lines.push(`${indent}${label}: ${todo.name}`);
 
 	if (todo.description) {
-		const descLabel = t("chat.todoContext.description");
+		const descLabel = t("todoContext.description");
 		lines.push(`${indent}${descLabel}: ${todo.description}`);
 	}
 
 	if (todo.userNotes) {
-		const notesLabel = t("chat.todoContext.notes");
+		const notesLabel = t("todoContext.notes");
 		lines.push(`${indent}${notesLabel}: ${todo.userNotes}`);
 	}
 
 	if (todo.deadline) {
-		const ddlLabel = t("chat.todoContext.deadline");
+		const ddlLabel = t("todoContext.deadline");
 		lines.push(`${indent}${ddlLabel}: ${todo.deadline}`);
 	}
 
-	const priorityLabel = t("chat.todoContext.priority");
-	lines.push(`${indent}${priorityLabel}: ${formatPriority(todo.priority, t)}`);
+	const priorityLabel = t("todoContext.priority");
+	lines.push(
+		`${indent}${priorityLabel}: ${formatPriority(todo.priority, tCommon)}`,
+	);
 
-	const statusLabel = t("chat.todoContext.status");
-	lines.push(`${indent}${statusLabel}: ${formatStatus(todo.status, t)}`);
+	const statusLabel = t("todoContext.status");
+	lines.push(`${indent}${statusLabel}: ${formatStatus(todo.status, tCommon)}`);
 
 	if (todo.tags?.length) {
-		const tagsLabel = t("chat.todoContext.tags");
+		const tagsLabel = t("todoContext.tags");
 		lines.push(`${indent}${tagsLabel}: ${todo.tags.join(", ")}`);
 	}
 
 	// Show parentTodoId as numeric ID for AI reference
 	if (todo.parentTodoId) {
-		const parentIdLabel = t("chat.todoContext.parentTodoId");
+		const parentIdLabel = t("todoContext.parentTodoId");
 		lines.push(`${indent}${parentIdLabel}: ${todo.parentTodoId}`);
 		// Also show parent name for context
 		const parent = allTodos.find((t) => t.id === todo.parentTodoId);
 		if (parent) {
-			const parentNameLabel = t("chat.todoContext.parentName");
+			const parentNameLabel = t("todoContext.parentName");
 			lines.push(`${indent}${parentNameLabel}: ${parent.name}`);
 		}
 	}
@@ -106,10 +112,10 @@ export const buildTodoLine = (todo: Todo, t: TranslationFunction) => {
 		parts.push(todo.description);
 	}
 	if (todo.deadline) {
-		parts.push(t("chat.todoContext.due", { deadline: todo.deadline }));
+		parts.push(t("todoContext.due", { deadline: todo.deadline }));
 	}
 	if (todo.tags?.length) {
-		parts.push(t("chat.todoContext.tagsLabel", { tags: todo.tags.join(", ") }));
+		parts.push(t("todoContext.tagsLabel", { tags: todo.tags.join(", ") }));
 	}
 	return `- ${parts.join(" | ")}`;
 };
@@ -119,9 +125,10 @@ export const buildHierarchicalTodoContext = (
 	selectedTodos: Todo[],
 	allTodos: Todo[],
 	t: TranslationFunction,
+	tCommon: TranslationFunction,
 ): string => {
 	if (!selectedTodos.length) {
-		return t("chat.noTodosAvailable");
+		return t("noTodosAvailable");
 	}
 
 	const sections: string[] = [];
@@ -130,9 +137,9 @@ export const buildHierarchicalTodoContext = (
 		const todoSection: string[] = [];
 
 		// 1. 选中待办的详细信息
-		const selectedLabel = t("chat.selectedTodo");
+		const selectedLabel = t("selectedTodo");
 		todoSection.push(selectedLabel);
-		todoSection.push(buildDetailedTodoInfo(selectedTodo, allTodos, t));
+		todoSection.push(buildDetailedTodoInfo(selectedTodo, allTodos, t, tCommon));
 
 		// 2. 查找最高级父待办
 		const rootTodo = findRootTodo(selectedTodo, allTodos);
@@ -140,22 +147,24 @@ export const buildHierarchicalTodoContext = (
 		// 如果选中的待办不是根待办，显示根待办信息和完整子树
 		if (rootTodo.id !== selectedTodo.id) {
 			todoSection.push("");
-			const rootLabel = t("chat.rootParentTodo");
+			const rootLabel = t("rootParentTodo");
 			todoSection.push(rootLabel);
-			todoSection.push(buildDetailedTodoInfo(rootTodo, allTodos, t));
+			todoSection.push(buildDetailedTodoInfo(rootTodo, allTodos, t, tCommon));
 
 			// 3. 收集根待办下的所有子待办
 			const allDescendants = collectAllDescendants(rootTodo, allTodos);
 			if (allDescendants.length > 0) {
 				todoSection.push("");
-				const childrenLabel = t("chat.allSubTodos", {
+				const childrenLabel = t("allSubTodos", {
 					count: allDescendants.length,
 				});
 				todoSection.push(childrenLabel);
 
 				for (const child of allDescendants) {
 					todoSection.push("");
-					todoSection.push(buildDetailedTodoInfo(child, allTodos, t, "  "));
+					todoSection.push(
+						buildDetailedTodoInfo(child, allTodos, t, tCommon, "  "),
+					);
 				}
 			}
 		} else {
@@ -163,14 +172,16 @@ export const buildHierarchicalTodoContext = (
 			const allDescendants = collectAllDescendants(selectedTodo, allTodos);
 			if (allDescendants.length > 0) {
 				todoSection.push("");
-				const childrenLabel = t("chat.allSubTodosRoot", {
+				const childrenLabel = t("allSubTodosRoot", {
 					count: allDescendants.length,
 				});
 				todoSection.push(childrenLabel);
 
 				for (const child of allDescendants) {
 					todoSection.push("");
-					todoSection.push(buildDetailedTodoInfo(child, allTodos, t, "  "));
+					todoSection.push(
+						buildDetailedTodoInfo(child, allTodos, t, tCommon, "  "),
+					);
 				}
 			}
 		}
@@ -190,9 +201,9 @@ export const buildTodoContextBlock = (
 	t: TranslationFunction,
 ) => {
 	if (!list.length) {
-		return t("chat.noTodosAvailable");
+		return t("noTodosAvailable");
 	}
-	const header = t("chat.todoContextHeader", {
+	const header = t("todoContextHeader", {
 		source: sourceLabel,
 		count: list.length,
 	});

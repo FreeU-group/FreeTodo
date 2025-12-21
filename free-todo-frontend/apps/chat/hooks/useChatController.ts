@@ -74,6 +74,7 @@ export const useChatController = ({
 	createTodo,
 }: UseChatControllerParams) => {
 	const t = useTranslations("chat");
+	const tCommon = useTranslations("common");
 	const { planSystemPrompt, parsePlanTodos, buildTodoPayloads } = usePlanParser(
 		locale,
 		t,
@@ -216,7 +217,7 @@ export const useChatController = ({
 		// 当有选中待办时，使用完整的层级上下文（包含所有参数和父子关系）
 		// 否则使用简单的空上下文提示
 		const todoContext = hasSelection
-			? buildHierarchicalTodoContext(effectiveTodos, todos, t)
+			? buildHierarchicalTodoContext(effectiveTodos, todos, t, tCommon)
 			: buildTodoContextBlock([], t("noTodoContext"), t);
 		const userLabel = t("userInput");
 
@@ -356,6 +357,7 @@ export const useChatController = ({
 		parsePlanTodos,
 		planSystemPrompt,
 		t,
+		tCommon,
 		todos,
 		setConversationId,
 	]);
