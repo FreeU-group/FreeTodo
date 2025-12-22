@@ -56,7 +56,7 @@
 @layer base {
 	:root,
 	:root[data-color-theme="blue"] {
-		--radius: 0.65rem;
+		--radius: 1rem;
 		/* 说明：
 		 * 这里的 CSS 变量只保存 OKLCH 的参数（可选包含 / alpha），
 		 * 使用时统一写成 oklch(var(--xxx))，避免出现 oklch(oklch(...)) 导致样式失效。

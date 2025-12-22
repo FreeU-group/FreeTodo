@@ -360,7 +360,7 @@ export default function HomePage() {
 
 					<div
 						ref={containerRef}
-						className="relative bg-primary-foreground dark:bg-accent flex min-h-0 flex-1 overflow-hidden px-3 pb-3"
+						className="relative bg-primary-foreground dark:bg-accent flex min-h-0 flex-1 overflow-hidden px-3 pb-7"
 					>
 						{/* 始终渲染所有面板和 ResizeHandle，通过 isVisible 控制动画，避免 DOM 移除导致的布局跳跃 */}
 						<PanelContainer
