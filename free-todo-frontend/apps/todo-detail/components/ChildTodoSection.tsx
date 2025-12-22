@@ -1,15 +1,9 @@
 "use client";
 
-import {
-	Calendar,
-	ChevronDown,
-	ChevronUp,
-	Plus,
-	Tag as TagIcon,
-	X,
-} from "lucide-react";
+import { Calendar, Plus, Tag as TagIcon, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SectionHeader } from "@/components/common/SectionHeader";
 import { TodoContextMenu } from "@/components/common/TodoContextMenu";
 import type { Todo, TodoStatus, UpdateTodoInput } from "@/lib/types";
 import { cn, sortTodosByOrder } from "@/lib/utils";
@@ -43,6 +37,7 @@ export function ChildTodoSection({
 	const tTodoDetail = useTranslations("todoDetail");
 	const [isAddingChild, setIsAddingChild] = useState(false);
 	const [childName, setChildName] = useState("");
+	const [isHovered, setIsHovered] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	// 使用与 TodoList 相同的排序逻辑：按 order 字段排序，如果 order 相同则按创建时间排序
@@ -89,31 +84,32 @@ export function ChildTodoSection({
 	};
 
 	return (
-		<div className="mb-4">
-			<div className="mb-2 flex items-center justify-between">
-				<div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					{tTodoDetail("childTodos")}
-					{sortedChildTodos.length > 0 && (
-						<span className="ml-1">
-							{sortedChildTodos.filter((c) => c.status === "completed").length}/
-							{sortedChildTodos.length}
-						</span>
-					)}
-				</div>
-				<button
-					type="button"
-					onClick={onToggle}
-					aria-pressed={show}
-					aria-label={show ? "折叠" : "展开"}
-					className="rounded-md px-2 py-1 transition-colors hover:bg-muted/40 text-muted-foreground"
-				>
-					{show ? (
-						<ChevronUp className="h-4 w-4" />
-					) : (
-						<ChevronDown className="h-4 w-4" />
-					)}
-				</button>
-			</div>
+		<div
+			role="group"
+			className="mb-4"
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
+		>
+			<SectionHeader
+				title={
+					<>
+						{tTodoDetail("childTodos")}
+						{sortedChildTodos.length > 0 && (
+							<span className="ml-1">
+								{
+									sortedChildTodos.filter((c) => c.status === "completed")
+										.length
+								}
+								/{sortedChildTodos.length}
+							</span>
+						)}
+					</>
+				}
+				show={show}
+				onToggle={onToggle}
+				headerClassName="mb-2"
+				isHovered={isHovered}
+			/>
 			{show && (
 				<>
 					<div className="space-y-1">

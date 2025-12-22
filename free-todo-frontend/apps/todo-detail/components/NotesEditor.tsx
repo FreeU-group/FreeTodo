@@ -1,8 +1,8 @@
 "use client";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslations } from "next-intl";
-import type { ChangeEvent } from "react";
+import { type ChangeEvent, useState } from "react";
+import { SectionHeader } from "@/components/common/SectionHeader";
 
 interface NotesEditorProps {
 	value: string;
@@ -24,6 +24,7 @@ export function NotesEditor({
 	adjustHeight,
 }: NotesEditorProps) {
 	const t = useTranslations("todoDetail");
+	const [isHovered, setIsHovered] = useState(false);
 	const handleChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
 		onChange(event.target.value);
 		requestAnimationFrame(adjustHeight);
@@ -34,25 +35,19 @@ export function NotesEditor({
 	};
 
 	return (
-		<div className="mb-8">
-			<div className="mb-2 flex items-center justify-between">
-				<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					{t("notesLabel")}
-				</h2>
-				<button
-					type="button"
-					onClick={onToggle}
-					aria-pressed={show}
-					aria-label={show ? "折叠" : "展开"}
-					className="rounded-md px-2 py-1 transition-colors hover:bg-muted/40 text-muted-foreground"
-				>
-					{show ? (
-						<ChevronUp className="h-4 w-4" />
-					) : (
-						<ChevronDown className="h-4 w-4" />
-					)}
-				</button>
-			</div>
+		<div
+			role="group"
+			className="mb-8"
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
+		>
+			<SectionHeader
+				title={t("notesLabel")}
+				show={show}
+				onToggle={onToggle}
+				headerClassName="mb-2"
+				isHovered={isHovered}
+			/>
 			{show && (
 				<textarea
 					ref={notesRef}

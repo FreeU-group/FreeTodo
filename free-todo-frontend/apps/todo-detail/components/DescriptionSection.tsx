@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, ChevronDown, ChevronUp, Paperclip, X } from "lucide-react";
+import { Check, Paperclip, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { SectionHeader } from "@/components/common/SectionHeader";
 import type { TodoAttachment } from "@/lib/types";
 
 interface DescriptionSectionProps {
@@ -27,6 +28,7 @@ export function DescriptionSection({
 	const [editValue, setEditValue] = useState(description || "");
 	// 本地显示值，用于乐观更新
 	const [displayValue, setDisplayValue] = useState(description || "");
+	const [isHovered, setIsHovered] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const hasAttachments = attachments && attachments.length > 0;
 	const justSavedRef = useRef<boolean>(false);
@@ -107,25 +109,19 @@ export function DescriptionSection({
 	};
 
 	return (
-		<div className="mb-8">
-			<div className="mb-3 flex items-center justify-between">
-				<h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					{t("descriptionLabel")}
-				</h2>
-				<button
-					type="button"
-					onClick={onToggle}
-					aria-pressed={show}
-					aria-label={show ? "折叠" : "展开"}
-					className="rounded-md px-2 py-1 transition-colors hover:bg-muted/40 text-muted-foreground"
-				>
-					{show ? (
-						<ChevronUp className="h-4 w-4" />
-					) : (
-						<ChevronDown className="h-4 w-4" />
-					)}
-				</button>
-			</div>
+		<div
+			role="group"
+			className="mb-8"
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
+		>
+			<SectionHeader
+				title={t("descriptionLabel")}
+				show={show}
+				onToggle={onToggle}
+				headerClassName="mb-3"
+				isHovered={isHovered}
+			/>
 			{show && (
 				<>
 					{isEditing ? (
