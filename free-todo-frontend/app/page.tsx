@@ -324,7 +324,7 @@ export default function HomePage() {
 		<GlobalDndProvider>
 			<main className="relative flex h-screen flex-col overflow-hidden text-foreground">
 				<div className="relative z-10 flex h-full flex-col text-foreground">
-					<header className="relative flex h-12 shrink-0 items-center bg-primary-foreground dark:bg-background px-4 text-foreground overflow-visible">
+					<header className="relative flex h-12 shrink-0 items-center bg-primary-foreground dark:bg-accent px-4 text-foreground overflow-visible">
 						{/* 左侧：Logo */}
 						<div className="flex items-center gap-2 shrink-0">
 							<Image
@@ -360,7 +360,7 @@ export default function HomePage() {
 
 					<div
 						ref={containerRef}
-						className="relative bg-primary-foreground dark:bg-background flex min-h-0 flex-1 overflow-hidden px-3 pb-3"
+						className="relative bg-primary-foreground dark:bg-accent flex min-h-0 flex-1 overflow-hidden px-3 pb-3"
 					>
 						{/* 始终渲染所有面板和 ResizeHandle，通过 isVisible 控制动画，避免 DOM 移除导致的布局跳跃 */}
 						<PanelContainer
