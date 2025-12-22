@@ -50,8 +50,14 @@ if (!gotTheLock) {
 			if (mainWindow.isMinimized()) mainWindow.restore();
 			mainWindow.focus();
 		} else {
-			// 如果窗口不存在，创建新窗口
-			createWindow();
+			// 如果窗口不存在，等待应用 ready 后再创建窗口，避免在未 ready 状态下创建 BrowserWindow
+			if (app.isReady()) {
+				createWindow();
+			} else {
+				app.once("ready", () => {
+					createWindow();
+				});
+			}
 		}
 	});
 }
