@@ -57,7 +57,7 @@ export function ModeSwitcher({
 			</button>
 			{modeMenuOpen && (
 				<div className="absolute z-20 mb-2 w-36 overflow-hidden rounded-lg border border-border bg-background shadow-lg bottom-full">
-					{(["ask", "plan", "edit"] as const).map((mode) => (
+					{(["ask", "plan", "edit", "difyTest"] as const).map((mode) => (
 						<button
 							key={mode}
 							type="button"

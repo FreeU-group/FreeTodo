@@ -205,6 +205,9 @@
 	},
 	"chat": {
 		"planModeInputPlaceholder": "e.g. Help me plan the todos for moving this weekend",
+		"difyTest": {
+			"inputPlaceholder": "Prompt for Dify test channel..."
+		},
 		"aiThinking": "AI is thinking...",
 		"generatingQuestions": "AI is generating questions...",
 		"generateQuestionsFailed": "Failed to generate questions, please try again",
@@ -284,6 +287,10 @@
 			"edit": {
 				"label": "Edit",
 				"description": "Generate and append to notes"
+			},
+			"difyTest": {
+				"label": "Dify Test",
+				"description": "Use Dify API test channel for replies"
 			},
 			"active": "Active"
 		},

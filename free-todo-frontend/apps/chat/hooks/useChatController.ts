@@ -217,6 +217,9 @@ export const useChatController = ({
 		} else if (chatMode === "edit") {
 			// Edit mode: combine todo context with edit system prompt
 			payloadMessage = `${editSystemPrompt}\n\n${todoContext}\n\n${userLabel}: ${text}`;
+		} else if (chatMode === "difyTest") {
+			// Dify 测试模式：直接把用户输入作为消息，避免额外的前置 system prompt 干扰
+			payloadMessage = text;
 		} else {
 			// Ask mode: just todo context
 			payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
@@ -238,6 +241,8 @@ export const useChatController = ({
 		let assistantContent = "";
 
 		try {
+			const modeForBackend = chatMode === "difyTest" ? "dify_test" : chatMode;
+
 			await sendChatMessageStream(
 				{
 					message: payloadMessage,
@@ -245,6 +250,7 @@ export const useChatController = ({
 					// 当发送格式化消息（包含todo上下文）时，设置useRag=false
 					// 因为前端已经构建了完整的prompt，后端只需要解析并保存用户输入部分
 					useRag: false,
+					mode: modeForBackend,
 				},
 				(chunk) => {
 					assistantContent += chunk;

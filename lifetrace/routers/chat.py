@@ -18,6 +18,7 @@ from lifetrace.schemas.chat import (
     PlanSummaryRequest,
 )
 from lifetrace.services.chat_service import ChatService
+from lifetrace.services.dify_client import call_dify_chat
 from lifetrace.storage import todo_mgr
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
@@ -76,179 +77,56 @@ async def chat_with_llm(
 
 
 @router.post("/stream")
-async def chat_with_llm_stream(  # noqa: C901, PLR0915
+async def chat_with_llm_stream(
     message: ChatMessage,
     chat_service: ChatService = Depends(get_chat_service),
 ):
-    """与LLM聊天接口（流式输出）"""
+    """与LLM聊天接口（流式输出）
+
+    支持额外的 mode 字段：
+    - 默认为现有行为（走本地 LLM + RAG）
+    - 当 mode == \"dify_test\" 时，走 Dify 测试通道
+    """
     try:
         logger.info(
             f"[stream] 收到聊天消息: {message.message}, project_id: {message.project_id}, task_ids: {message.task_ids}"
         )
 
-        # 确保有 session_id，如果没有则创建
-        session_id = message.conversation_id
-        if not session_id:
-            session_id = chat_service.generate_session_id()
-            logger.info(f"[stream] 创建新会话: {session_id}")
+        # 1. 会话初始化与聊天会话创建
+        session_id = _ensure_stream_session(message, chat_service)
 
-        # 检查数据库中是否存在该会话，如果不存在则创建
-        chat = chat_service.get_chat_by_session_id(session_id)
-        if not chat:
-            # 根据是否有 project_id 判断聊天类型
-            chat_type = "project" if message.project_id else "event"
-            # 创建新的聊天会话
-            chat_service.create_chat(
-                session_id=session_id,
-                chat_type=chat_type,
-                title=message.message[:50] if len(message.message) > 50 else message.message,  # noqa: PLR2004
-                context_id=message.project_id if message.project_id else None,
-            )
-            logger.info(f"[stream] 在数据库中创建会话: {session_id}, 类型: {chat_type}")
+        # 2. Dify 测试模式（直接返回）
+        if getattr(message, "mode", None) == "dify_test":
+            return _create_dify_streaming_response(message, chat_service, session_id)
 
-        # 根据use_rag参数决定是否使用RAG服务
-        user_message_to_save = message.message  # 用于保存到数据库的原始消息
+        # 3. 根据 use_rag 构建 messages / temperature，并处理 RAG 失败场景
+        (
+            messages,
+            temperature,
+            user_message_to_save,
+            error_response,
+        ) = await _build_stream_messages_and_temperature(message, session_id)
 
-        if message.use_rag:
-            # 使用RAG服务的流式处理方法，避免重复的意图识别
-            rag_service = get_rag_service()
-            rag_result = await rag_service.process_query_stream(
-                message.message, message.project_id, message.task_ids, session_id
-            )
+        if error_response is not None:
+            return error_response
 
-            if not rag_result.get("success", False):
-                # 如果RAG处理失败，返回错误信息
-                error_msg = rag_result.get("response", "处理您的查询时出现了错误，请稍后重试。")
-
-                async def error_generator():
-                    yield error_msg
-
-                return StreamingResponse(error_generator(), media_type="text/plain; charset=utf-8")
-
-            # 获取构建好的messages和temperature
-            messages = rag_result.get("messages", [])
-            temperature = rag_result.get("temperature", 0.7)
-        else:
-            # 不使用RAG，直接构建消息
-            # 前端已经构建了完整的prompt（包含system和user消息）
-            # 这里需要解析消息，检查是否包含system prompt
-            full_message = message.message
-
-            # 检查消息格式：如果包含"用户输入:"或"User input:"，说明前端已经构建了system prompt
-            if "用户输入:" in full_message or "User input:" in full_message:
-                # 分离system prompt和user input
-                if "用户输入:" in full_message:
-                    parts = full_message.split("用户输入:", 1)
-                else:
-                    parts = full_message.split("User input:", 1)
-
-                if len(parts) == 2:  # noqa: PLR2004
-                    system_prompt = parts[0].strip()
-                    user_input = parts[1].strip()
-                    messages = [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_input},
-                    ]
-                    # 保存时只保存用户输入部分
-                    user_message_to_save = user_input
-                else:
-                    # 如果没有找到分隔符，将整个消息作为user消息
-                    messages = [{"role": "user", "content": full_message}]
-            else:
-                # 普通消息，直接作为user消息
-                messages = [{"role": "user", "content": full_message}]
-
-            temperature = 0.7
-
-        # 保存用户消息到数据库（保存原始用户输入，不包含system prompt）
+        # 4. 保存用户原始输入（不含 system prompt）
         chat_service.add_message(
             session_id=session_id,
             role="user",
             content=user_message_to_save,
         )
 
-        # 获取RAG服务（在生成器外部获取，避免重复初始化）
+        # 5. 调用 LLM，生成统一的流式响应
         rag_svc = get_rag_service()
-
-        # 调用LLM流式API并逐块返回
-        def token_generator():
-            try:
-                if not rag_svc.llm_client.is_available():
-                    yield "抱歉，LLM服务当前不可用，请稍后重试。"
-                    return
-
-                # 使用LLM客户端进行流式生成
-                response = rag_svc.llm_client.client.chat.completions.create(
-                    model=rag_svc.llm_client.model,
-                    messages=messages,
-                    temperature=temperature,
-                    stream=True,
-                    stream_options={"include_usage": True},  # 请求包含usage信息
-                )
-
-                total_content = ""
-                usage_info = None
-
-                for chunk in response:
-                    # 检查是否有usage信息（通常在最后一个chunk中）
-                    if hasattr(chunk, "usage") and chunk.usage:
-                        usage_info = chunk.usage
-
-                    # 检查choices是否存在且不为空
-                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
-                        content = chunk.choices[0].delta.content
-                        total_content += content
-                        yield content
-
-                # 流式响应结束后，保存助手回复到数据库
-                if total_content:
-                    chat_service.add_message(
-                        session_id=session_id,
-                        role="assistant",
-                        content=total_content,
-                        token_count=usage_info.total_tokens if usage_info else None,
-                        model=rag_svc.llm_client.model,
-                    )
-                    logger.info("[stream] 消息已保存到数据库")
-
-                # 流式响应结束后记录token使用量
-                if usage_info:
-                    try:
-                        from lifetrace.util.token_usage_logger import log_token_usage
-
-                        # 根据是否有 project_id 判断是项目助手还是事件助手
-                        feature_type = (
-                            "project_assistant" if message.project_id else "event_assistant"
-                        )
-
-                        log_token_usage(
-                            model=rag_svc.llm_client.model,
-                            input_tokens=usage_info.prompt_tokens,
-                            output_tokens=usage_info.completion_tokens,
-                            endpoint="stream_chat",
-                            user_query=message.message,
-                            response_type="stream",
-                            feature_type=feature_type,
-                            additional_info={
-                                "total_tokens": usage_info.total_tokens,
-                                "temperature": temperature,
-                                "response_length": len(total_content),
-                                "project_id": message.project_id,
-                                "task_ids": message.task_ids,
-                                "selected_tasks_count": len(message.task_ids)
-                                if message.task_ids
-                                else 0,
-                            },
-                        )
-                        logger.info(
-                            f"[stream] Token使用量已记录: input={usage_info.prompt_tokens}, output={usage_info.completion_tokens}"
-                        )
-                    except Exception as log_error:
-                        logger.error(f"[stream] 记录token使用量失败: {log_error}")
-
-            except Exception as e:
-                logger.error(f"[stream] 生成失败: {e}")
-                yield "\n[提示] 流式生成出现异常，已结束。"
+        token_generator = _create_llm_stream_generator(
+            rag_svc=rag_svc,
+            messages=messages,
+            temperature=temperature,
+            chat_service=chat_service,
+            session_id=session_id,
+            original_message=message,
+        )
 
         headers = {
             "Cache-Control": "no-cache",
@@ -256,12 +134,247 @@ async def chat_with_llm_stream(  # noqa: C901, PLR0915
             "X-Session-Id": session_id,  # 返回 session_id 供前端使用
         }
         return StreamingResponse(
-            token_generator(), media_type="text/plain; charset=utf-8", headers=headers
+            token_generator, media_type="text/plain; charset=utf-8", headers=headers
         )
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"[stream] 聊天处理失败: {e}")
         raise HTTPException(status_code=500, detail="流式聊天处理失败") from e
+
+
+def _ensure_stream_session(message: ChatMessage, chat_service: ChatService) -> str:
+    """确保流式聊天有有效的 session，并在需要时创建数据库会话。"""
+    session_id = message.conversation_id or chat_service.generate_session_id()
+    if not message.conversation_id:
+        logger.info(f"[stream] 创建新会话: {session_id}")
+
+    chat = chat_service.get_chat_by_session_id(session_id)
+    if not chat:
+        chat_type = "project" if message.project_id else "event"
+        title = message.message[:50] if len(message.message) > 50 else message.message  # noqa: PLR2004
+        chat_service.create_chat(
+            session_id=session_id,
+            chat_type=chat_type,
+            title=title,
+            context_id=message.project_id or None,
+        )
+        logger.info(f"[stream] 在数据库中创建会话: {session_id}, 类型: {chat_type}")
+
+    return session_id
+
+
+def _create_dify_streaming_response(
+    message: ChatMessage,
+    chat_service: ChatService,
+    session_id: str,
+) -> StreamingResponse:
+    """处理 Dify 测试模式，保持一次性 blocking 调用但以流式接口返回。"""
+    logger.info("[stream] 进入 Dify 测试模式")
+
+    # 保存用户消息
+    chat_service.add_message(
+        session_id=session_id,
+        role="user",
+        content=message.message,
+    )
+
+    def dify_token_generator():
+        try:
+            result = call_dify_chat(message.message)
+            yield result
+
+            # 保存助手回复
+            chat_service.add_message(
+                session_id=session_id,
+                role="assistant",
+                content=result,
+            )
+            logger.info("[stream][dify] 消息已保存到数据库")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[stream][dify] 生成失败: {e}")
+            yield "Dify 测试模式调用失败，请检查后端 Dify 配置。"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "X-Session-Id": session_id,
+    }
+    return StreamingResponse(
+        dify_token_generator(), media_type="text/plain; charset=utf-8", headers=headers
+    )
+
+
+async def _build_stream_messages_and_temperature(
+    message: ChatMessage,
+    session_id: str,
+) -> tuple[list[dict[str, str]], float, str, StreamingResponse | None]:
+    """根据 use_rag / 前端 prompt 构建 messages 与 temperature。
+
+    返回 (messages, temperature, user_message_to_save, error_response)。
+    当 RAG 失败时，error_response 不为 None，调用方应直接返回该响应。
+    """
+    user_message_to_save = message.message
+
+    if message.use_rag:
+        # 使用 RAG 服务的流式处理方法，避免重复的意图识别
+        rag_service = get_rag_service()
+        rag_result = await rag_service.process_query_stream(
+            message.message,
+            message.project_id,
+            message.task_ids,
+            session_id,
+        )
+
+        if not rag_result.get("success", False):
+            error_msg = rag_result.get(
+                "response",
+                "处理您的查询时出现了错误，请稍后重试。",
+            )
+
+            async def error_generator():
+                yield error_msg
+
+            return (
+                [],
+                0.7,
+                user_message_to_save,
+                StreamingResponse(
+                    error_generator(),
+                    media_type="text/plain; charset=utf-8",
+                ),
+            )
+
+        messages = rag_result.get("messages", [])
+        temperature = rag_result.get("temperature", 0.7)
+        return messages, temperature, user_message_to_save, None
+
+    # 不使用 RAG，直接构建消息，兼容前端已构建好的 system prompt
+    full_message = message.message
+    if "用户输入:" in full_message or "User input:" in full_message:
+        if "用户输入:" in full_message:
+            parts = full_message.split("用户输入:", 1)
+        else:
+            parts = full_message.split("User input:", 1)
+
+        if len(parts) == 2:  # noqa: PLR2004
+            system_prompt = parts[0].strip()
+            user_input = parts[1].strip()
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_input},
+            ]
+            user_message_to_save = user_input
+        else:
+            messages = [{"role": "user", "content": full_message}]
+    else:
+        messages = [{"role": "user", "content": full_message}]
+
+    return messages, 0.7, user_message_to_save, None
+
+
+def _create_llm_stream_generator(
+    *,
+    rag_svc,
+    messages: list[dict[str, str]],
+    temperature: float,
+    chat_service: ChatService,
+    session_id: str,
+    original_message: ChatMessage,
+):
+    """构造统一的 LLM 流式生成器，并负责保存消息与记录 token 使用量。"""
+
+    def token_generator():
+        try:
+            if not rag_svc.llm_client.is_available():
+                yield "抱歉，LLM服务当前不可用，请稍后重试。"
+                return
+
+            response = rag_svc.llm_client.client.chat.completions.create(
+                model=rag_svc.llm_client.model,
+                messages=messages,
+                temperature=temperature,
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+
+            total_content = ""
+            usage_info = None
+
+            for chunk in response:
+                if hasattr(chunk, "usage") and chunk.usage:
+                    usage_info = chunk.usage
+
+                if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    total_content += content
+                    yield content
+
+            if total_content:
+                chat_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=total_content,
+                    token_count=usage_info.total_tokens if usage_info else None,
+                    model=rag_svc.llm_client.model,
+                )
+                logger.info("[stream] 消息已保存到数据库")
+
+            if usage_info:
+                _log_stream_token_usage(
+                    rag_svc=rag_svc,
+                    usage_info=usage_info,
+                    original_message=original_message,
+                    temperature=temperature,
+                    total_content=total_content,
+                    session_id=session_id,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[stream] 生成失败: {e}")
+            yield "\n[提示] 流式生成出现异常，已结束。"
+
+    return token_generator()
+
+
+def _log_stream_token_usage(
+    *,
+    rag_svc,
+    usage_info,
+    original_message: ChatMessage,
+    temperature: float,
+    total_content: str,
+    session_id: str,
+) -> None:
+    """记录流式聊天的 token 使用量，抽离成独立函数以降低主流程复杂度。"""
+    try:
+        from lifetrace.util.token_usage_logger import log_token_usage
+
+        feature_type = "project_assistant" if original_message.project_id else "event_assistant"
+
+        log_token_usage(
+            model=rag_svc.llm_client.model,
+            input_tokens=usage_info.prompt_tokens,
+            output_tokens=usage_info.completion_tokens,
+            endpoint="stream_chat",
+            user_query=original_message.message,
+            response_type="stream",
+            feature_type=feature_type,
+            additional_info={
+                "total_tokens": usage_info.total_tokens,
+                "temperature": temperature,
+                "response_length": len(total_content),
+                "project_id": original_message.project_id,
+                "task_ids": original_message.task_ids,
+                "selected_tasks_count": len(original_message.task_ids)
+                if original_message.task_ids
+                else 0,
+                "session_id": session_id,
+            },
+        )
+        logger.info(
+            f"[stream] Token使用量已记录: input={usage_info.prompt_tokens}, output={usage_info.completion_tokens}"
+        )
+    except Exception as log_error:  # noqa: BLE001
+        logger.error(f"[stream] 记录token使用量失败: {log_error}")
 
 
 @router.post("/stream-with-context")

@@ -15,6 +15,7 @@ import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
 import { toastError, toastSuccess } from "@/lib/toast";
 import {
+	DifyConfigSection,
 	LlmConfigSection,
 	RecorderConfigSection,
 	SchedulerSection,
@@ -134,6 +135,9 @@ export function SettingsPanel() {
 			<div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
 				{/* LLM 配置 */}
 				<LlmConfigSection config={config} loading={loading} />
+
+				{/* Dify 配置 */}
+				<DifyConfigSection config={config} loading={loading} />
 
 				{/* 基础设置（录制配置） */}
 				<RecorderConfigSection config={config} loading={loading} />

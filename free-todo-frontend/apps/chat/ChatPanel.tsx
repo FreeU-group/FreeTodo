@@ -235,7 +235,9 @@ export function ChatPanel() {
 			? tChat("planModeInputPlaceholder")
 			: chatMode === "edit"
 				? tChat("editMode.inputPlaceholder")
-				: tPage("chatInputPlaceholder");
+				: chatMode === "difyTest"
+					? tChat("difyTest.inputPlaceholder")
+					: tPage("chatInputPlaceholder");
 
 	const formatMessageCount = useCallback(
 		(count?: number) => tPage("messagesCount", { count: count ?? 0 }),

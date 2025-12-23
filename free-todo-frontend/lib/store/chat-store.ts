@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-
-export type ChatMode = "ask" | "plan" | "edit";
+import type { ChatMode } from "@/apps/chat/types";
 
 interface ChatStoreState {
 	chatMode: ChatMode;
@@ -13,7 +12,12 @@ interface ChatStoreState {
 }
 
 const isValidChatMode = (value: string | null): value is ChatMode => {
-	return value === "ask" || value === "plan" || value === "edit";
+	return (
+		value === "ask" ||
+		value === "plan" ||
+		value === "edit" ||
+		value === "difyTest"
+	);
 };
 
 export const useChatStore = create<ChatStoreState>()(

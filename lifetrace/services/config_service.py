@@ -49,6 +49,7 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "llm_": (4, "llm"),
     "server_": (7, "server"),
     "chat_": (5, "chat"),
+    "dify_": (5, "dify"),
 }
 
 # 复合任务名映射：首部分 -> 完整任务名
@@ -227,6 +228,10 @@ class ConfigService:
             "chat.history_limit",
             # 自动待办检测配置
             "jobs.auto_todo_detection.enabled",
+            # Dify 配置
+            "dify.enabled",
+            "dify.api_key",
+            "dify.base_url",
         ]
 
         config_dict = {}

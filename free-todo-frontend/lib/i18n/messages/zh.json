@@ -205,6 +205,9 @@
 	},
 	"chat": {
 		"planModeInputPlaceholder": "例如：帮我规划周末搬家需要做的事",
+		"difyTest": {
+			"inputPlaceholder": "这里是 Dify 测试通道的提示词..."
+		},
 		"aiThinking": "AI 正在思考...",
 		"generatingQuestions": "AI正在拆解待办...",
 		"generateQuestionsFailed": "拆解待办失败，请重试",
@@ -284,6 +287,10 @@
 			"edit": {
 				"label": "Edit 模式",
 				"description": "生成内容追加到待办备注"
+			},
+			"difyTest": {
+				"label": "Dify Test 模式",
+				"description": "通过 Dify 测试通道返回回复"
 			},
 			"active": "当前"
 		},
