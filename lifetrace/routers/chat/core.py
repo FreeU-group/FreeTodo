@@ -162,7 +162,14 @@ def _create_dify_streaming_response(
     chat_service: ChatService,
     session_id: str,
 ) -> StreamingResponse:
-    """处理 Dify 测试模式，保持一次性 blocking 调用但以流式接口返回。"""
+    """处理 Dify 测试模式，使用真正的流式输出。
+
+    从 message 对象中提取 Dify 相关参数：
+    - dify_response_mode: 响应模式（streaming/blocking），默认 streaming
+    - dify_user: 用户标识，默认 lifetrace-user
+    - dify_inputs: Dify 输入变量字典
+    - 其他以 dify_ 开头的字段会作为额外参数传递给 Dify API
+    """
     logger.info("[stream] 进入 Dify 测试模式")
 
     # 保存用户消息
@@ -172,18 +179,46 @@ def _create_dify_streaming_response(
         content=message.message,
     )
 
-    def dify_token_generator():
-        try:
-            result = call_dify_chat(message.message)
-            yield result
+    # 从 message 中提取 Dify 相关参数
+    message_dict = message.model_dump(
+        exclude={"message", "conversation_id", "project_id", "task_ids", "use_rag", "mode"}
+    )
 
-            # 保存助手回复
-            chat_service.add_message(
-                session_id=session_id,
-                role="assistant",
-                content=result,
-            )
-            logger.info("[stream][dify] 消息已保存到数据库")
+    # 提取 Dify 特定参数
+    response_mode = message_dict.pop("dify_response_mode", "streaming")
+    user = message_dict.pop("dify_user", None)
+    inputs = message_dict.pop("dify_inputs", None)
+
+    # 构建额外的 payload 参数（移除 dify_ 前缀）
+    extra_payload = {}
+    for key, value in list(message_dict.items()):
+        if key.startswith("dify_"):
+            # 移除 dify_ 前缀，将剩余的键名作为 payload 参数
+            payload_key = key[5:]  # 移除 "dify_" 前缀
+            extra_payload[payload_key] = value
+
+    def dify_token_generator():
+        total_content = ""
+        try:
+            # 调用 call_dify_chat，传递所有可配置的参数
+            for chunk in call_dify_chat(
+                message=message.message,
+                user=user,
+                response_mode=response_mode,
+                inputs=inputs,
+                **extra_payload,
+            ):
+                total_content += chunk
+                yield chunk
+
+            # 保存完整的助手回复
+            if total_content:
+                chat_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=total_content,
+                )
+                logger.info("[stream][dify] 消息已保存到数据库")
         except Exception as e:  # noqa: BLE001
             logger.error(f"[stream][dify] 生成失败: {e}")
             yield "Dify 测试模式调用失败，请检查后端 Dify 配置。"
