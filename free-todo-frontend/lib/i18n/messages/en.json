@@ -80,6 +80,10 @@
 			"panelEnabled": "Enabled",
 			"panelDisabled": "Disabled",
 			"llmConfig": "LLM Configuration",
+			"difyConfigTitle": "Dify Test Configuration",
+			"difyEnabledLabel": "Enable Dify test mode",
+			"difyEnabledDescription": "When enabled, the Dify Test mode in chat will use Dify API for responses.",
+			"difySaveSuccess": "Dify configuration saved",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",
 			"model": "Model",
@@ -325,6 +329,11 @@
 			"sunday": "Sun"
 		},
 		"weekPrefix": ""
+	},
+	"datePicker": {
+		"time": "Time",
+		"clear": "Clear",
+		"confirm": "Confirm"
 	},
 	"layoutSelector": {
 		"label": "Layout",

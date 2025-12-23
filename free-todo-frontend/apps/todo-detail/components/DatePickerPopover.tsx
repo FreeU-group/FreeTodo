@@ -1,17 +1,9 @@
 "use client";
 
-import {
-	Bell,
-	CalendarDays,
-	CalendarPlus,
-	ChevronLeft,
-	ChevronRight,
-	Clock,
-	Moon,
-	Repeat,
-	Sun,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocaleStore } from "@/lib/store/locale";
 import { cn } from "@/lib/utils";
 
 interface DatePickerPopoverProps {
@@ -19,8 +11,6 @@ interface DatePickerPopoverProps {
 	onChange: (value?: string) => void;
 	onClose: () => void;
 }
-
-type TabMode = "date" | "range";
 
 // 农历数据和算法（简化版）
 const LUNAR_INFO = [
@@ -330,7 +320,16 @@ function buildMonthDays(currentDate: Date): CalendarDay[] {
 	});
 }
 
-const WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"];
+const WEEKDAY_KEYS = [
+	"monday",
+	"tuesday",
+	"wednesday",
+	"thursday",
+	"friday",
+	"saturday",
+	"sunday",
+] as const;
+type WeekdayKey = (typeof WEEKDAY_KEYS)[number];
 
 export function DatePickerPopover({
 	value,
@@ -338,7 +337,9 @@ export function DatePickerPopover({
 	onClose,
 }: DatePickerPopoverProps) {
 	const popoverRef = useRef<HTMLDivElement>(null);
-	const [tabMode, setTabMode] = useState<TabMode>("date");
+	const { locale } = useLocaleStore();
+	const tCalendar = useTranslations("calendar");
+	const tDatePicker = useTranslations("datePicker");
 	const [currentMonth, setCurrentMonth] = useState<Date>(() => {
 		if (value) {
 			const d = new Date(value);
@@ -366,6 +367,7 @@ export function DatePickerPopover({
 	});
 
 	const monthDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth]);
+	const showLunar = locale === "zh";
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
@@ -414,38 +416,6 @@ export function DatePickerPopover({
 		setSelectedDate(today);
 	};
 
-	const handleQuickSelect = (
-		type: "today" | "tomorrow" | "week" | "evening",
-	) => {
-		const now = new Date();
-		let date: Date;
-		let time = "";
-
-		switch (type) {
-			case "today":
-				date = now;
-				break;
-			case "tomorrow":
-				date = addDays(now, 1);
-				break;
-			case "week":
-				date = addDays(now, 7);
-				break;
-			case "evening":
-				date = now;
-				time = "21:00";
-				break;
-			default:
-				date = now;
-		}
-
-		setSelectedDate(date);
-		setCurrentMonth(date);
-		if (time) {
-			setSelectedTime(time);
-		}
-	};
-
 	const handleSelectDate = (day: CalendarDay) => {
 		setSelectedDate(day.date);
 	};
@@ -480,71 +450,13 @@ export function DatePickerPopover({
 			ref={popoverRef}
 			className="absolute left-0 top-full z-50 mt-2 w-[320px] rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
 		>
-			{/* Tab 切换 */}
-			<div className="flex border-b border-border">
-				<button
-					type="button"
-					onClick={() => setTabMode("date")}
-					className={cn(
-						"flex-1 py-3 text-sm font-medium transition-colors",
-						tabMode === "date"
-							? "bg-muted/50 text-foreground"
-							: "text-muted-foreground hover:text-foreground",
-					)}
-				>
-					日期
-				</button>
-				<button
-					type="button"
-					onClick={() => setTabMode("range")}
-					className={cn(
-						"flex-1 py-3 text-sm font-medium transition-colors",
-						tabMode === "range"
-							? "bg-muted/50 text-foreground"
-							: "text-muted-foreground hover:text-foreground",
-					)}
-				>
-					时间段
-				</button>
-			</div>
-
-			{/* 快捷选择 */}
-			<div className="flex items-center justify-around border-b border-border px-4 py-3">
-				<button
-					type="button"
-					onClick={() => handleQuickSelect("today")}
-					className="flex flex-col items-center gap-1 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-				>
-					<Sun className="h-5 w-5" />
-				</button>
-				<button
-					type="button"
-					onClick={() => handleQuickSelect("tomorrow")}
-					className="flex flex-col items-center gap-1 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-				>
-					<CalendarDays className="h-5 w-5" />
-				</button>
-				<button
-					type="button"
-					onClick={() => handleQuickSelect("week")}
-					className="flex flex-col items-center gap-1 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-				>
-					<CalendarPlus className="h-5 w-5" />
-					<span className="text-[10px]">+7</span>
-				</button>
-				<button
-					type="button"
-					onClick={() => handleQuickSelect("evening")}
-					className="flex flex-col items-center gap-1 rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-				>
-					<Moon className="h-5 w-5" />
-				</button>
-			</div>
-
 			{/* 月份导航 */}
 			<div className="flex items-center justify-between px-4 py-2">
 				<span className="text-sm font-medium">
-					{currentMonth.getFullYear()}年{currentMonth.getMonth() + 1}月
+					{tCalendar("yearMonth", {
+						year: currentMonth.getFullYear(),
+						month: currentMonth.getMonth() + 1,
+					})}
 				</span>
 				<div className="flex items-center gap-1">
 					<button
@@ -575,15 +487,15 @@ export function DatePickerPopover({
 
 			{/* 星期标题 */}
 			<div className="grid grid-cols-7 px-2">
-				{WEEKDAY_LABELS.map((label, idx) => (
+				{WEEKDAY_KEYS.map((key, idx) => (
 					<span
-						key={label}
+						key={key}
 						className={cn(
 							"py-1 text-center text-xs font-medium",
 							idx >= 5 ? "text-muted-foreground/70" : "text-muted-foreground",
 						)}
 					>
-						{label}
+						{tCalendar(`weekdays.${key}` as `weekdays.${WeekdayKey}`)}
 					</span>
 				))}
 			</div>
@@ -630,7 +542,7 @@ export function DatePickerPopover({
 											: "text-muted-foreground/60",
 								)}
 							>
-								{day.lunarText}
+								{showLunar ? day.lunarText : ""}
 							</span>
 							{day.holiday?.isHoliday !== undefined && (
 								<span
@@ -650,64 +562,36 @@ export function DatePickerPopover({
 			</div>
 
 			{/* 时间选项 */}
-			<div className="border-t border-border">
-				<button
-					type="button"
-					className="flex w-full items-center justify-between px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/30"
-				>
+			<div className="px-4 py-3">
+				<div className="flex w-full items-center justify-between text-sm text-muted-foreground">
 					<div className="flex items-center gap-2">
 						<Clock className="h-4 w-4" />
-						<span>时间</span>
+						<span>{tDatePicker("time")}</span>
 					</div>
-					<div className="flex items-center gap-2">
-						<input
-							type="time"
-							value={selectedTime}
-							onChange={(e) => setSelectedTime(e.target.value)}
-							className="rounded border border-border bg-transparent px-2 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-						/>
-						<ChevronRight className="h-4 w-4" />
-					</div>
-				</button>
-
-				<button
-					type="button"
-					className="flex w-full items-center justify-between px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/30"
-				>
-					<div className="flex items-center gap-2">
-						<Bell className="h-4 w-4" />
-						<span>提醒</span>
-					</div>
-					<ChevronRight className="h-4 w-4" />
-				</button>
-
-				<button
-					type="button"
-					className="flex w-full items-center justify-between px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/30"
-				>
-					<div className="flex items-center gap-2">
-						<Repeat className="h-4 w-4" />
-						<span>重复</span>
-					</div>
-					<ChevronRight className="h-4 w-4" />
-				</button>
+					<input
+						type="time"
+						value={selectedTime}
+						onChange={(e) => setSelectedTime(e.target.value)}
+						className="rounded border border-border bg-transparent px-2 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
 			</div>
 
 			{/* 底部按钮 */}
-			<div className="flex items-center gap-2 border-t border-border p-3">
+			<div className="flex items-center gap-2 p-3">
 				<button
 					type="button"
 					onClick={handleClear}
 					className="flex-1 rounded-lg border border-border py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
 				>
-					清除
+					{tDatePicker("clear")}
 				</button>
 				<button
 					type="button"
 					onClick={handleConfirm}
 					className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
 				>
-					确定
+					{tDatePicker("confirm")}
 				</button>
 			</div>
 		</div>

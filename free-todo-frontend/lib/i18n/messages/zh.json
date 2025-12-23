@@ -80,6 +80,10 @@
 			"panelEnabled": "已启用",
 			"panelDisabled": "已禁用",
 			"llmConfig": "LLM 配置",
+			"difyConfigTitle": "Dify 测试配置",
+			"difyEnabledLabel": "启用 Dify 测试模式",
+			"difyEnabledDescription": "开启后，聊天面板中的 Dify Test 模式将通过 Dify API 返回回复。",
+			"difySaveSuccess": "Dify 配置已保存",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",
 			"model": "模型",
@@ -325,6 +329,11 @@
 			"sunday": "日"
 		},
 		"weekPrefix": "周"
+	},
+	"datePicker": {
+		"time": "时间",
+		"clear": "清除",
+		"confirm": "确定"
 	},
 	"layoutSelector": {
 		"label": "布局",

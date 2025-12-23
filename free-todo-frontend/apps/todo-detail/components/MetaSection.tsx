@@ -111,7 +111,7 @@ export function MetaSection({
 						{getStatusLabel(todo.status, tCommon)}
 					</button>
 					{isStatusMenuOpen && (
-						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
+						<div className="pointer-events-auto absolute left-0 top-full z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
 							<div className="py-1" role="listbox">
 								{statusOptions.map((status) => (
 									<button
@@ -162,7 +162,7 @@ export function MetaSection({
 						{getPriorityLabel(todo.priority ?? "none", tCommon)}
 					</button>
 					{isPriorityMenuOpen && (
-						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
+						<div className="pointer-events-auto absolute left-0 top-full z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
 							<div className="py-1" role="listbox">
 								{priorityOptions.map((priority) => (
 									<button
