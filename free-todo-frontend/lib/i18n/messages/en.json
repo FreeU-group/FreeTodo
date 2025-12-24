@@ -140,6 +140,7 @@
 				"activity_summary": "Activity Summary",
 				"vision_assistant": "Auto Todo Detection",
 				"workspace_assistant": "Workspace Assistant",
+				"plan_assistant": "Plan Assistant",
 				"unknown": "Unknown Feature"
 			}
 		}
