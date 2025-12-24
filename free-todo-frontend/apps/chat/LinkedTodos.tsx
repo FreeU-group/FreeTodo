@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { Todo } from "@/lib/types";
 
 type LinkedTodosProps = {
@@ -13,12 +14,12 @@ type LinkedTodosProps = {
 export function LinkedTodos({
 	effectiveTodos,
 	hasSelection,
-	locale,
 	showTodosExpanded,
 	onToggleExpand,
 	onClearSelection,
 	onToggleTodo,
 }: LinkedTodosProps) {
+	const t = useTranslations("chat");
 	// 没有关联待办时，不显示任何内容
 	if (effectiveTodos.length === 0) {
 		return null;
@@ -32,9 +33,7 @@ export function LinkedTodos({
 	return (
 		<div className="flex flex-wrap items-center gap-2 pb-2 mb-2 border-b border-border">
 			<span className="text-xs font-semibold text-foreground">
-				{locale === "zh"
-					? `关联待办（${effectiveTodos.length}）`
-					: `Linked todos (${effectiveTodos.length})`}
+				{t("linkedTodos", { count: effectiveTodos.length })}
 			</span>
 			{previewTodos.map((todo) => (
 				<button
@@ -55,13 +54,7 @@ export function LinkedTodos({
 					onClick={onToggleExpand}
 					className="text-[11px] text-muted-foreground transition-colors hover:text-foreground"
 				>
-					{showTodosExpanded
-						? locale === "zh"
-							? "收起"
-							: "Collapse"
-						: locale === "zh"
-							? "展开"
-							: "Expand"}
+					{showTodosExpanded ? t("collapse") : t("expand")}
 				</button>
 			)}
 			{hasSelection && (
@@ -70,7 +63,7 @@ export function LinkedTodos({
 					onClick={onClearSelection}
 					className="text-[11px] text-[oklch(var(--primary))] transition-colors hover:text-[oklch(var(--primary-border))]"
 				>
-					{locale === "zh" ? "清空选择" : "Clear selection"}
+					{t("clearSelection")}
 				</button>
 			)}
 		</div>

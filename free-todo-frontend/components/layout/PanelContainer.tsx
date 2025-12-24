@@ -85,13 +85,14 @@ export function PanelContainer({
 			className={cn(
 				"relative flex h-full min-h-0 flex-col",
 				"bg-[oklch(var(--card))]",
-				"border border-[oklch(var(--border))]",
 				"rounded-(--radius)",
 				"overflow-hidden",
+				// 边框样式：正常状态 vs 拖拽悬停状态
+				isOver && isVisible
+					? "border-2 border-primary/70"
+					: "border border-[oklch(var(--border))]",
 				// 当不可见时，隐藏边框和背景，避免残留视觉元素
 				!isVisible && "border-transparent bg-transparent",
-				// 拖拽悬停时的视觉反馈
-				isOver && isVisible && "ring-2 ring-primary/50",
 				className,
 			)}
 			initial={false}

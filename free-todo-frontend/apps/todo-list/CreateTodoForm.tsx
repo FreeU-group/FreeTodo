@@ -1,14 +1,18 @@
 "use client";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { priorityOptions } from "@/apps/todo-detail/helpers";
 import { useCreateTodo } from "@/lib/query";
 import type { CreateTodoInput, TodoPriority } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, getPriorityLabel } from "@/lib/utils";
 
 interface CreateTodoFormProps {
 	onSuccess?: () => void;
 }
 
 export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
+	const tCommon = useTranslations("common");
+	const tTodoList = useTranslations("todoList");
 	const createTodoMutation = useCreateTodo();
 	const [isExpanded, setIsExpanded] = useState(false);
 	const [name, setName] = useState("");
@@ -62,7 +66,7 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 						value={name}
 						onChange={(e) => setName(e.target.value)}
 						onFocus={() => setIsExpanded(true)}
-						placeholder="新建待办..."
+						placeholder={tTodoList("addTodo")}
 						className="flex-1 bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none"
 					/>
 					{name.trim() && (
@@ -70,7 +74,7 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 							type="submit"
 							className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
 						>
-							添加
+							{tTodoList("add")}
 						</button>
 					)}
 				</div>
@@ -82,7 +86,7 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 								htmlFor="deadline-input"
 								className="mb-1 block text-xs font-medium text-muted-foreground"
 							>
-								截止日期
+								{tTodoList("deadline")}
 							</label>
 							<input
 								id="deadline-input"
@@ -98,13 +102,13 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 								htmlFor="description-input"
 								className="mb-1 block text-xs font-medium text-muted-foreground"
 							>
-								描述
+								{tTodoList("description")}
 							</label>
 							<textarea
 								id="description-input"
 								value={description}
 								onChange={(e) => setDescription(e.target.value)}
-								placeholder="描述任务细节..."
+								placeholder={tTodoList("descriptionPlaceholder")}
 								className="w-full min-h-[80px] rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 							/>
 						</div>
@@ -114,14 +118,14 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 								htmlFor="tags-input"
 								className="mb-1 block text-xs font-medium text-muted-foreground"
 							>
-								标签（逗号分隔）
+								{tTodoList("tags")}
 							</label>
 							<input
 								id="tags-input"
 								type="text"
 								value={tags}
 								onChange={(e) => setTags(e.target.value)}
-								placeholder="如：工作, 报告"
+								placeholder={tTodoList("tagsPlaceholder")}
 								className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 							/>
 						</div>
@@ -131,7 +135,7 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 								htmlFor="priority-select"
 								className="mb-1 block text-xs font-medium text-muted-foreground"
 							>
-								优先级
+								{tTodoList("priority")}
 							</label>
 							<select
 								id="priority-select"
@@ -139,10 +143,11 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 								onChange={(e) => setPriority(e.target.value as TodoPriority)}
 								className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 							>
-								<option value="high">高</option>
-								<option value="medium">中</option>
-								<option value="low">低</option>
-								<option value="none">无</option>
+								{priorityOptions.map((p) => (
+									<option key={p} value={p}>
+										{getPriorityLabel(p, tCommon)}
+									</option>
+								))}
 							</select>
 						</div>
 
@@ -151,13 +156,13 @@ export function CreateTodoForm({ onSuccess }: CreateTodoFormProps) {
 								htmlFor="user-notes-input"
 								className="mb-1 block text-xs font-medium text-muted-foreground"
 							>
-								备注
+								{tTodoList("notes")}
 							</label>
 							<textarea
 								id="user-notes-input"
 								value={userNotes}
 								onChange={(e) => setUserNotes(e.target.value)}
-								placeholder="个人备注或行动项"
+								placeholder={tTodoList("notesPlaceholder")}
 								className="w-full min-h-[60px] rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 							/>
 						</div>

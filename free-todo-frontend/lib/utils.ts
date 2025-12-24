@@ -2,7 +2,7 @@ import clsx, { type ClassValue } from "clsx";
 import dayjs from "dayjs";
 import { twMerge } from "tailwind-merge";
 import "dayjs/locale/zh-cn";
-import type { Todo } from "./types";
+import type { Todo, TodoPriority, TodoStatus } from "./types";
 
 dayjs.locale("zh-cn");
 
@@ -98,4 +98,40 @@ export function sortTodosByOriginalOrder<T extends Todo>(
 	return [...todos].sort(
 		(a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0),
 	);
+}
+
+// ============================================================================
+// Todo 国际化工具函数
+// ============================================================================
+
+/**
+ * 翻译函数类型
+ */
+export type TranslationFunction = (
+	key: string,
+	values?: Record<string, string | number | Date>,
+) => string;
+
+/**
+ * 获取优先级的本地化标签
+ * @param priority 优先级
+ * @param t 翻译函数（从 useTranslations("common") 获取）
+ */
+export function getPriorityLabel(
+	priority: TodoPriority,
+	t: TranslationFunction,
+): string {
+	return t(`priority.${priority}`);
+}
+
+/**
+ * 获取状态的本地化标签
+ * @param status 状态
+ * @param t 翻译函数（从 useTranslations("common") 获取）
+ */
+export function getStatusLabel(
+	status: TodoStatus,
+	t: TranslationFunction,
+): string {
+	return t(`status.${status}`);
 }

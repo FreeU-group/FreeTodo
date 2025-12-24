@@ -1,12 +1,12 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 
 interface SummaryStreamingProps {
 	streamingText: string;
-	locale: string;
 }
 
 // 尝试从流式文本中提取部分内容用于预览
@@ -38,10 +38,8 @@ const extractPreview = (
 	return { hasJson: false };
 };
 
-export function SummaryStreaming({
-	streamingText,
-	locale,
-}: SummaryStreamingProps) {
+export function SummaryStreaming({ streamingText }: SummaryStreamingProps) {
+	const t = useTranslations("chat");
 	const preview = useMemo(() => extractPreview(streamingText), [streamingText]);
 
 	return (
@@ -50,33 +48,23 @@ export function SummaryStreaming({
 				<div className="rounded-lg bg-muted/50 p-4">
 					<div className="mb-2 flex items-center gap-2">
 						<Loader2 className="h-4 w-4 animate-spin text-primary" />
-						<h3 className="text-lg font-semibold">
-							{locale === "zh"
-								? "AI正在生成总结..."
-								: "AI is generating summary..."}
-						</h3>
+						<h3 className="text-lg font-semibold">{t("generatingSummary")}</h3>
 					</div>
 					<p className="text-sm text-muted-foreground">
-						{locale === "zh"
-							? "请稍候，AI正在根据您的回答生成详细的任务总结和子任务列表"
-							: "Please wait, AI is generating a detailed task summary and subtask list based on your answers"}
+						{t("generatingSummaryDesc")}
 					</p>
 				</div>
 
 				{/* 流式显示区域 */}
 				{streamingText && (
 					<div className="rounded-lg border bg-card p-4 shadow-sm">
-						<h4 className="mb-3 text-base font-semibold">
-							{locale === "zh" ? "生成中..." : "Generating..."}
-						</h4>
+						<h4 className="mb-3 text-base font-semibold">{t("generating")}</h4>
 						{preview.summary ? (
 							<div className="prose prose-sm max-w-none dark:prose-invert">
 								<ReactMarkdown>{preview.summary}</ReactMarkdown>
 								{preview.hasJson && (
 									<div className="mt-2 text-xs text-muted-foreground">
-										{locale === "zh"
-											? "正在解析完整内容..."
-											: "Parsing full content..."}
+										{t("parsingContent")}
 									</div>
 								)}
 							</div>

@@ -120,7 +120,7 @@
 ### Orval 代码生成
 
 - **配置文件**：`orval.config.ts`
-- **生成命令**：`pnpm orval`（需后端服务运行）
+- **生成命令**：`pnpm orval`（需后端服务运行）。当后端与前端交互的 api 有变化时，主动使用本命令，在前端主动采用本命令生成的前后端交互 api，不要自己手写 api。
 - **生成内容**：TypeScript 类型、Zod schemas、React Query hooks
 - **输出目录**：`lib/generated/`（按 API tag 分割，如 `todos/`, `chat/`）
 

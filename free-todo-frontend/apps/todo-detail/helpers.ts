@@ -16,7 +16,7 @@ export const priorityOptions: TodoPriority[] = [
 
 export const getStatusClassNames = (status: TodoStatus) =>
 	cn(
-		"rounded-full border px-2 py-0.5 text-xs font-medium",
+		"inline-flex items-center justify-center rounded-full border px-2 py-1 text-xs font-medium leading-none",
 		status === "active"
 			? "border-primary/70 bg-primary/20 text-primary"
 			: status === "completed"
@@ -28,7 +28,7 @@ export const getStatusClassNames = (status: TodoStatus) =>
 
 export const getPriorityClassNames = (priority: TodoPriority) =>
 	cn(
-		"inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
+		"inline-flex items-center justify-center gap-1 rounded-full border px-2 py-1 text-xs font-medium leading-none",
 		priority === "high"
 			? "border-destructive/60 bg-destructive/10 text-destructive"
 			: priority === "medium"
@@ -51,16 +51,16 @@ export const getPriorityIconColor = (priority: TodoPriority) => {
 	}
 };
 
-export const getPriorityLabel = (priority: TodoPriority) => {
+export const getPriorityBorderColor = (priority: TodoPriority) => {
 	switch (priority) {
 		case "high":
-			return "高";
+			return "border-destructive/60";
 		case "medium":
-			return "中";
+			return "border-primary/60";
 		case "low":
-			return "低";
+			return "border-secondary/60";
 		default:
-			return "无";
+			return "border-muted-foreground/40";
 	}
 };
 

@@ -29,6 +29,7 @@ export default defineConfig({
 					useMutation: true,
 				},
 			},
+			prettier: false,
 		},
 	},
 });

@@ -7,29 +7,30 @@ import {
 import { queryKeys } from "./keys";
 
 // Cost stats response type (since API returns unknown, we define it based on usage)
+// Note: fetcher converts snake_case to camelCase, so we use camelCase here
 interface CostStatsResponse {
 	data?: {
-		total_cost?: number;
-		total_tokens?: number;
-		total_requests?: number;
-		daily_costs?: Record<string, { cost?: number; total_tokens?: number }>;
-		feature_costs?: Record<
+		totalCost?: number;
+		totalTokens?: number;
+		totalRequests?: number;
+		dailyCosts?: Record<string, { cost?: number; totalTokens?: number }>;
+		featureCosts?: Record<
 			string,
 			{
-				input_tokens?: number;
-				output_tokens?: number;
+				inputTokens?: number;
+				outputTokens?: number;
 				requests?: number;
 				cost?: number;
 			}
 		>;
-		model_costs?: Record<
+		modelCosts?: Record<
 			string,
 			{
-				input_tokens?: number;
-				output_tokens?: number;
-				input_cost?: number;
-				output_cost?: number;
-				total_cost?: number;
+				inputTokens?: number;
+				outputTokens?: number;
+				inputCost?: number;
+				outputCost?: number;
+				totalCost?: number;
 			}
 		>;
 	};

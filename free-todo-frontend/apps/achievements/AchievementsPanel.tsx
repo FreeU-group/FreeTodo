@@ -10,6 +10,7 @@ import { PanelHeader } from "@/components/common/PanelHeader";
  */
 export function AchievementsPanel() {
 	const t = useTranslations("page");
+	const tAchievements = useTranslations("achievements");
 
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-background">
@@ -30,10 +31,10 @@ export function AchievementsPanel() {
 					</div>
 
 					<h3 className="mb-2 text-xl font-semibold text-foreground">
-						成就系统
+						{tAchievements("title")}
 					</h3>
 					<p className="mb-8 max-w-md text-sm text-muted-foreground">
-						{t("achievementsPlaceholder")}
+						{tAchievements("placeholder")}
 					</p>
 
 					{/* 示例成就卡片 */}
@@ -46,10 +47,10 @@ export function AchievementsPanel() {
 								</div>
 								<div className="flex-1">
 									<h4 className="mb-1 text-sm font-medium text-foreground">
-										初出茅庐
+										{tAchievements("achievement1.name")}
 									</h4>
 									<p className="text-xs text-muted-foreground">
-										完成第一个待办
+										{tAchievements("achievement1.description")}
 									</p>
 									<div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
 										<div className="h-full w-0 bg-blue-500 transition-all" />
@@ -66,10 +67,10 @@ export function AchievementsPanel() {
 								</div>
 								<div className="flex-1">
 									<h4 className="mb-1 text-sm font-medium text-foreground">
-										待办达人
+										{tAchievements("achievement2.name")}
 									</h4>
 									<p className="text-xs text-muted-foreground">
-										完成 10 个待办
+										{tAchievements("achievement2.description")}
 									</p>
 									<div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
 										<div className="h-full w-0 bg-purple-500 transition-all" />
@@ -86,10 +87,10 @@ export function AchievementsPanel() {
 								</div>
 								<div className="flex-1">
 									<h4 className="mb-1 text-sm font-medium text-foreground">
-										效率之星
+										{tAchievements("achievement3.name")}
 									</h4>
 									<p className="text-xs text-muted-foreground">
-										连续 7 天完成任务
+										{tAchievements("achievement3.description")}
 									</p>
 									<div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
 										<div className="h-full w-0 bg-green-500 transition-all" />
@@ -106,10 +107,10 @@ export function AchievementsPanel() {
 								</div>
 								<div className="flex-1">
 									<h4 className="mb-1 text-sm font-medium text-foreground">
-										完美主义者
+										{tAchievements("achievement4.name")}
 									</h4>
 									<p className="text-xs text-muted-foreground">
-										完成 100 个任务
+										{tAchievements("achievement4.description")}
 									</p>
 									<div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
 										<div className="h-full w-0 bg-orange-500 transition-all" />

@@ -5,12 +5,14 @@ import { Bell, Check, Clock, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { useUpdateTodo } from "@/lib/query";
-import { useLocaleStore } from "@/lib/store/locale";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { toastError, toastSuccess } from "@/lib/toast";
 
 // 简单的相对时间格式化
-function formatTime(timestamp: string, locale: string): string {
+function formatTime(
+	timestamp: string,
+	t: ReturnType<typeof useTranslations>,
+): string {
 	const date = new Date(timestamp);
 	if (Number.isNaN(date.getTime())) {
 		return "";
@@ -19,21 +21,24 @@ function formatTime(timestamp: string, locale: string): string {
 	const diffMs = now.getTime() - date.getTime();
 	const diffMins = Math.floor(diffMs / 60000);
 	if (diffMins < 1) {
-		return locale === "zh" ? "刚刚" : "just now";
+		return t("justNow");
 	}
 	if (diffMins < 60) {
-		return locale === "zh" ? `${diffMins}分钟前` : `${diffMins}m ago`;
+		return t("minutesAgo", { count: diffMins });
 	}
 	const diffHours = Math.floor(diffMins / 60);
 	if (diffHours < 24) {
-		return locale === "zh" ? `${diffHours}小时前` : `${diffHours}h ago`;
+		return t("hoursAgo", { count: diffHours });
 	}
 	const diffDays = Math.floor(diffHours / 24);
-	return locale === "zh" ? `${diffDays}天前` : `${diffDays}d ago`;
+	return t("daysAgo", { count: diffDays });
 }
 
 // 格式化当前时间
-function formatCurrentTime(locale: string): { time: string; date: string } {
+function formatCurrentTime(t: ReturnType<typeof useTranslations>): {
+	time: string;
+	date: string;
+} {
 	const now = new Date();
 
 	// 时间格式：HH:MM
@@ -44,7 +49,7 @@ function formatCurrentTime(locale: string): { time: string; date: string } {
 	// 日期格式
 	const month = (now.getMonth() + 1).toString().padStart(2, "0");
 	const day = now.getDate().toString().padStart(2, "0");
-	const date = locale === "zh" ? `${month}月${day}日` : `${month}/${day}`;
+	const date = t("dateFormat", { month, day });
 
 	return { time, date };
 }
@@ -57,12 +62,9 @@ export function DynamicIsland() {
 		setNotification,
 		setExpanded,
 	} = useNotificationStore();
-	const { locale } = useLocaleStore();
 	const t = useTranslations("todoExtraction");
 	const containerRef = useRef<HTMLDivElement>(null);
-	const [currentTime, setCurrentTime] = useState(() =>
-		formatCurrentTime(locale),
-	);
+	const [currentTime, setCurrentTime] = useState(() => formatCurrentTime(t));
 	const updateTodoMutation = useUpdateTodo();
 	const isProcessing = updateTodoMutation.isPending;
 
@@ -74,7 +76,7 @@ export function DynamicIsland() {
 	// 更新时间
 	useEffect(() => {
 		const updateTime = () => {
-			setCurrentTime(formatCurrentTime(locale));
+			setCurrentTime(formatCurrentTime(t));
 		};
 
 		// 立即更新一次
@@ -84,7 +86,7 @@ export function DynamicIsland() {
 		const interval = setInterval(updateTime, 1000);
 
 		return () => clearInterval(interval);
-	}, [locale]);
+	}, [t]);
 
 	// 点击外部关闭
 	useEffect(() => {
@@ -126,6 +128,16 @@ export function DynamicIsland() {
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
+			// 如果是 404 错误（todo 已被删除），静默关闭通知
+			if (
+				errorMsg.includes("404") ||
+				errorMsg.includes("Not Found") ||
+				errorMsg.includes("不存在")
+			) {
+				setNotification(null);
+				setExpanded(false);
+				return;
+			}
 			toastError(t("acceptFailed", { error: errorMsg }));
 		}
 	};
@@ -145,6 +157,16 @@ export function DynamicIsland() {
 			setExpanded(false);
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error);
+			// 如果是 404 错误（todo 已被删除），静默关闭通知
+			if (
+				errorMsg.includes("404") ||
+				errorMsg.includes("Not Found") ||
+				errorMsg.includes("不存在")
+			) {
+				setNotification(null);
+				setExpanded(false);
+				return;
+			}
 			toastError(t("rejectFailed", { error: errorMsg }));
 		}
 	};
@@ -197,7 +219,9 @@ export function DynamicIsland() {
 						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2
 						${isExpanded ? "px-4 py-2.5" : "px-3 py-2"}
 					`}
-						aria-label={isExpanded ? "收起通知" : "展开通知"}
+						aria-label={
+							isExpanded ? t("collapseNotification") : t("expandNotification")
+						}
 					>
 						<AnimatePresence mode="wait">
 							{!isExpanded ? (
@@ -224,7 +248,7 @@ export function DynamicIsland() {
 										<Bell className="h-4 w-4 text-primary shrink-0" />
 									</motion.div>
 									<span className="text-sm font-medium text-foreground truncate max-w-[120px]">
-										{currentNotification.title || "新通知"}
+										{currentNotification.title || t("newNotification")}
 									</span>
 								</motion.div>
 							) : (
@@ -258,7 +282,7 @@ export function DynamicIsland() {
 									{/* 时间戳 */}
 									{currentNotification.timestamp && (
 										<span className="text-xs text-muted-foreground/70 shrink-0 whitespace-nowrap">
-											{formatTime(currentNotification.timestamp, locale)}
+											{formatTime(currentNotification.timestamp, t)}
 										</span>
 									)}
 									{/* Draft Todo 操作按钮 */}
@@ -333,7 +357,7 @@ export function DynamicIsland() {
 										whileHover={{ scale: 1.1, rotate: 90 }}
 										whileTap={{ scale: 0.9 }}
 										className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors ml-1"
-										aria-label="关闭通知"
+										aria-label={t("closeNotification")}
 									>
 										<X className="h-3.5 w-3.5" />
 									</motion.button>

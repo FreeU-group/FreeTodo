@@ -11,7 +11,7 @@
 		"format": "biome format --write ./app ./apps ./components ./lib ./i18n",
 		"check": "biome check ./app ./apps ./components ./lib ./i18n",
 		"type-check": "tsc --noEmit",
-		"api:generate": "orval",
+		"api:generate": "orval && biome format --write ./lib/generated",
 		"api:generate:watch": "orval --watch",
 		"backend:build": "cd ../lifetrace && bash scripts/build-backend.sh",
 		"backend:build:win": "cd ../lifetrace && powershell -ExecutionPolicy Bypass -File scripts/build-backend.ps1",

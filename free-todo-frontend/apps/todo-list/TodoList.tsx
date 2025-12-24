@@ -7,6 +7,7 @@
 
 import { type DragEndEvent, useDndMonitor } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { useCallback, useState } from "react";
 import { MultiTodoContextMenu } from "@/components/common/MultiTodoContextMenu";
@@ -21,6 +22,7 @@ import { TodoToolbar } from "./TodoToolbar";
 import { TodoTreeList } from "./TodoTreeList";
 
 export function TodoList() {
+	const tTodoList = useTranslations("todoList");
 	// 从 TanStack Query 获取 todos 数据
 	const { data: todos = [], isLoading, error } = useTodos();
 
@@ -310,7 +312,7 @@ export function TodoList() {
 			error instanceof Error ? error.message : String(error) || "Unknown error";
 		return (
 			<div className="flex h-full items-center justify-center text-destructive">
-				加载失败: {errorMessage}
+				{tTodoList("loadFailed", { error: errorMessage })}
 			</div>
 		);
 	}
@@ -332,7 +334,7 @@ export function TodoList() {
 
 					{filteredTodos.length === 0 ? (
 						<div className="flex h-[200px] items-center justify-center px-4 text-sm text-muted-foreground">
-							暂无待办事项
+							{tTodoList("noTodos")}
 						</div>
 					) : (
 						<TodoTreeList

@@ -61,8 +61,6 @@ _COMPOUND_JOB_NAMES: dict[str, str] = {
 
 # 最小 jobs 配置部分数量
 _MIN_JOBS_PARTS = 3
-# 最小 UI 配置部分数量
-_MIN_UI_PARTS = 2
 
 
 def _convert_jobs_key(parts: list[str]) -> str:
@@ -92,14 +90,6 @@ def _convert_jobs_key(parts: list[str]) -> str:
     return f"jobs.{job_name}.{'.'.join(remaining)}"
 
 
-def _convert_ui_key(rest: str) -> str:
-    """转换 ui 相关的配置键"""
-    parts = rest.split("_")
-    if len(parts) >= _MIN_UI_PARTS:
-        return f"ui.{'_'.join(parts[:-1])}.{parts[-1]}"
-    return f"ui.{rest}"
-
-
 def snake_to_dot_notation(key: str) -> str:
     """将 snake_case 格式的键转换为点分隔格式
 
@@ -127,10 +117,6 @@ def snake_to_dot_notation(key: str) -> str:
     for prefix, (prefix_len, dot_prefix) in _SIMPLE_PREFIX_MAP.items():
         if key.startswith(prefix):
             return f"{dot_prefix}.{key[prefix_len:]}"
-
-    # 处理 ui 相关配置
-    if key.startswith("ui_"):
-        return _convert_ui_key(key[3:])
 
     # 默认：简单地将下划线替换为点
     return key.replace("_", ".")
@@ -241,8 +227,6 @@ class ConfigService:
             "chat.history_limit",
             # 自动待办检测配置
             "jobs.auto_todo_detection.enabled",
-            # UI 配置
-            "ui.cost_tracking.enabled",
         ]
 
         config_dict = {}

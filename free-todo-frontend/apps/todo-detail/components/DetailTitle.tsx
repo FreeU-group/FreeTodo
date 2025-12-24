@@ -1,22 +1,15 @@
 "use client";
 
-import { Info } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
 
 interface DetailTitleProps {
 	name: string;
-	showDescription: boolean;
-	onToggleDescription: () => void;
 	onNameChange?: (newName: string) => void;
 }
 
-export function DetailTitle({
-	name,
-	showDescription,
-	onToggleDescription,
-	onNameChange,
-}: DetailTitleProps) {
+export function DetailTitle({ name, onNameChange }: DetailTitleProps) {
+	const t = useTranslations("todoDetail");
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState(name);
 	const [isComposing, setIsComposing] = useState(false);
@@ -78,32 +71,18 @@ export function DetailTitle({
 					onKeyDown={handleKeyDown}
 					onCompositionStart={() => setIsComposing(true)}
 					onCompositionEnd={() => setIsComposing(false)}
-					className="flex-1 text-3xl font-bold text-foreground bg-transparent border-b-2 border-primary focus:outline-none"
+					className="flex-1 text-xl text-foreground bg-transparent border-b-2 border-primary focus:outline-none"
 				/>
 			) : (
 				<button
 					type="button"
 					onClick={handleStartEdit}
-					aria-label="点击编辑标题"
-					className="text-3xl font-bold text-foreground cursor-pointer hover:text-primary/80 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-sm text-left flex-1"
+					aria-label={t("editTitle")}
+					className="text-xl text-foreground cursor-pointer hover:text-primary/80 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-sm text-left flex-1"
 				>
 					{name}
 				</button>
 			)}
-			<button
-				type="button"
-				onClick={onToggleDescription}
-				aria-pressed={showDescription}
-				aria-label="查看描述"
-				className={cn(
-					"rounded-md border px-2 py-1 transition-colors",
-					showDescription
-						? "border-primary/60 bg-primary/10 text-primary"
-						: "border-border text-muted-foreground hover:bg-muted/40",
-				)}
-			>
-				<Info className="h-5 w-5" />
-			</button>
 		</div>
 	);
 }

@@ -2,6 +2,7 @@
 
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { motion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +13,21 @@ import { useLocaleStore } from "@/lib/store/locale";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
 import { PanelSelectorMenu } from "./PanelSelectorMenu";
+
+// 动画配置常量
+const DOCK_ANIMATION_CONFIG = {
+	spring: {
+		type: "spring" as const,
+		stiffness: 350,
+		damping: 30,
+		mass: 0.8,
+	},
+};
+
+// Dock 高度相关常量（单位: px）
+const DOCK_TRIGGER_ZONE = 80; // 触发展开的底部区域高度（鼠标进入此区域时展开）
+const HIDE_DELAY_MS = 1000; // 鼠标离开触发区域后收起的延迟时间
+const DOCK_BOTTOM_OFFSET = 12; // bottom-3 = 12px
 
 interface BottomDockProps {
 	className?: string;
@@ -187,9 +203,67 @@ export function BottomDock({ className }: BottomDockProps) {
 	const t = useTranslations("bottomDock");
 	const [mounted, setMounted] = useState(false);
 
+	// Dock 展开/收起状态
+	const [isExpanded, setIsExpanded] = useState(false);
+	const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const dockRef = useRef<HTMLDivElement | null>(null);
+	const [dockHeight, setDockHeight] = useState(52); // 默认高度估算值
+
 	useEffect(() => {
 		setMounted(true);
 	}, []);
+
+	// 测量 dock 实际高度
+	useEffect(() => {
+		if (dockRef.current) {
+			const height = dockRef.current.offsetHeight;
+			if (height > 0) {
+				setDockHeight(height);
+			}
+		}
+	}, []);
+
+	// 全局鼠标位置监听 - 当鼠标接近屏幕底部时展开 dock
+	useEffect(() => {
+		if (!mounted) return;
+
+		const handleMouseMove = (e: MouseEvent) => {
+			const windowHeight = window.innerHeight;
+			const mouseY = e.clientY;
+			const distanceFromBottom = windowHeight - mouseY;
+
+			// 鼠标在底部触发区域内
+			if (distanceFromBottom <= DOCK_TRIGGER_ZONE) {
+				// 清除可能存在的隐藏定时器
+				if (hideTimeoutRef.current) {
+					clearTimeout(hideTimeoutRef.current);
+					hideTimeoutRef.current = null;
+				}
+				setIsExpanded(true);
+			} else {
+				// 鼠标离开触发区域，启动延迟收起
+				if (!hideTimeoutRef.current) {
+					hideTimeoutRef.current = setTimeout(() => {
+						setIsExpanded(false);
+						hideTimeoutRef.current = null;
+					}, HIDE_DELAY_MS);
+				}
+			}
+		};
+
+		window.addEventListener("mousemove", handleMouseMove);
+
+		return () => {
+			window.removeEventListener("mousemove", handleMouseMove);
+			if (hideTimeoutRef.current) {
+				clearTimeout(hideTimeoutRef.current);
+			}
+		};
+	}, [mounted]);
+
+	// 计算收起时的 translateY 值
+	// 收起时，dock 完全隐藏到屏幕底部外
+	const hiddenTranslateY = dockHeight + DOCK_BOTTOM_OFFSET;
 
 	const [menuState, setMenuState] = useState<{
 		isOpen: boolean;
@@ -246,7 +320,7 @@ export function BottomDock({ className }: BottomDockProps) {
 			return {
 				id: position,
 				icon: FEATURE_ICON_MAP.todos,
-				label: "未分配",
+				label: t("unassigned"),
 				isActive,
 				onClick,
 				group: "views",
@@ -282,13 +356,20 @@ export function BottomDock({ className }: BottomDockProps) {
 	const hasMultipleGroups = groupEntries.length > 1;
 
 	return (
-		<div
+		<motion.div
 			className={cn(
-				"pointer-events-auto fixed bottom-6 left-1/2 z-50 -translate-x-1/2",
+				"pointer-events-auto fixed bottom-1 left-1/2 z-50",
 				className,
 			)}
+			initial={false}
+			animate={{
+				x: "-50%",
+				y: isExpanded ? 0 : hiddenTranslateY,
+			}}
+			transition={DOCK_ANIMATION_CONFIG.spring}
 		>
 			<div
+				ref={dockRef}
 				className={cn(
 					"flex items-center gap-2",
 					"bg-[oklch(var(--card))]/80",
@@ -348,6 +429,6 @@ export function BottomDock({ className }: BottomDockProps) {
 					anchorElement={menuState.anchorElement}
 				/>
 			)}
-		</div>
+		</motion.div>
 	);
 }

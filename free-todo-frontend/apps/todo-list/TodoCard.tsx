@@ -7,13 +7,13 @@ import {
 	Calendar,
 	ChevronRight,
 	CornerDownRight,
-	Flag,
 	Paperclip,
 	Plus,
 	Sparkles,
 	Tag,
 	X,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TodoContextMenu } from "@/components/common/TodoContextMenu";
@@ -47,6 +47,7 @@ export function TodoCard({
 	onSelect,
 	onSelectSingle,
 }: TodoCardProps) {
+	const tTodoDetail = useTranslations("todoDetail");
 	// 从 TanStack Query 获取 todos 数据（用于检查是否有子任务）
 	const { data: todos = [] } = useTodos();
 
@@ -154,29 +155,16 @@ export function TodoCard({
 		[],
 	);
 
-	const getPriorityBgColor = (priority: TodoPriority) => {
+	const getPriorityBorderColor = (priority: TodoPriority) => {
 		switch (priority) {
 			case "high":
-				return "border-destructive/60 bg-destructive/10 text-destructive";
+				return "border-destructive/60";
 			case "medium":
-				return "border-primary/60 bg-primary/10 text-primary";
+				return "border-primary/60";
 			case "low":
-				return "border-secondary/60 bg-secondary/20 text-secondary-foreground";
+				return "border-secondary/60";
 			default:
-				return "border-muted-foreground/40 text-muted-foreground";
-		}
-	};
-
-	const getPriorityLabel = (priority: TodoPriority) => {
-		switch (priority) {
-			case "high":
-				return "高";
-			case "medium":
-				return "中";
-			case "low":
-				return "低";
-			default:
-				return "无";
+				return "border-muted-foreground/40";
 		}
 	};
 
@@ -290,7 +278,7 @@ export function TodoCard({
 				}
 			}}
 			className={cn(
-				"todo-card group relative flex h-full flex-col gap-3 rounded-xl p-3 cursor-pointer",
+				"todo-card group relative flex h-full flex-col justify-center gap-1 rounded-lg px-1 py-2 cursor-pointer",
 				"border border-transparent transition-all duration-200",
 				"bg-card dark:bg-background hover:bg-muted/40",
 				"select-none", // 阻止文本选择
@@ -309,53 +297,64 @@ export function TodoCard({
 							e.stopPropagation();
 							toggleTodoExpanded(todo.id);
 						}}
-						className="mt-1 shrink-0 flex h-5 w-5 items-center justify-center rounded-md hover:bg-muted/50 transition-colors"
-						aria-label={isExpanded ? "折叠子任务" : "展开子任务"}
+						className="shrink-0 flex h-4 w-4 items-center justify-center rounded-md hover:bg-muted/50 transition-colors"
+						aria-label={
+							isExpanded
+								? tTodoDetail("collapseSubTasks")
+								: tTodoDetail("expandSubTasks")
+						}
 					>
 						<ChevronRight
 							className={cn(
-								"h-4 w-4 text-muted-foreground transition-transform duration-200",
+								"h-3 w-3 text-muted-foreground transition-transform duration-200",
 								isExpanded && "rotate-90",
 							)}
 						/>
 					</button>
 				)}
-				{!hasChildren && <div className="w-5 shrink-0" />}
+				{!hasChildren && <div className="w-4 shrink-0" />}
 				<button type="button" onClick={handleToggleStatus} className="shrink-0">
 					{todo.status === "completed" ? (
-						<div className="flex h-5 w-5 items-center justify-center rounded-md bg-[oklch(var(--primary))] border border-[oklch(var(--primary))] shadow-inner">
-							<span className="text-[10px] text-[oklch(var(--primary-foreground))] font-semibold">
+						<div className="flex h-4 w-4 items-center justify-center rounded-md bg-[oklch(var(--primary))] border border-[oklch(var(--primary))] shadow-inner">
+							<span className="text-[8px] text-[oklch(var(--primary-foreground))] font-semibold">
 								✓
 							</span>
 						</div>
 					) : todo.status === "canceled" ? (
 						<div
 							className={cn(
-								"flex h-5 w-5 items-center justify-center rounded-md border-2",
-								"border-muted-foreground/40 bg-muted/30 text-muted-foreground/70",
+								"flex h-4 w-4 items-center justify-center rounded-md border-2",
+								getPriorityBorderColor(todo.priority ?? "none"),
+								"bg-muted/30 text-muted-foreground/70",
 								"transition-colors",
-								"hover:border-muted-foreground/60 hover:bg-muted/40 hover:text-muted-foreground",
+								"hover:bg-muted/40 hover:text-muted-foreground",
 							)}
 						>
-							<X className="h-3.5 w-3.5" strokeWidth={2.5} />
+							<X className="h-2.5 w-2.5" strokeWidth={2.5} />
 						</div>
 					) : todo.status === "draft" ? (
-						<div className="flex h-5 w-5 items-center justify-center rounded-md bg-orange-500 border border-orange-600 dark:border-orange-500 shadow-inner">
-							<span className="text-[12px] text-white dark:text-orange-50 font-semibold">
+						<div className="flex h-4 w-4 items-center justify-center rounded-md bg-orange-500 border border-orange-600 dark:border-orange-500 shadow-inner">
+							<span className="text-[10px] text-white dark:text-orange-50 font-semibold">
 								—
 							</span>
 						</div>
 					) : (
-						<div className="h-5 w-5 rounded-md border-2 border-muted-foreground/40 hover:border-foreground transition-colors" />
+						<div
+							className={cn(
+								"h-4 w-4 rounded-md border-2 transition-colors",
+								getPriorityBorderColor(todo.priority ?? "none"),
+								"hover:border-foreground",
+							)}
+						/>
 					)}
 				</button>
 
-				<div className="flex-1 min-w-0 space-y-1">
-					<div className="flex items-start justify-between gap-2">
-						<div className="min-w-0 flex-1 space-y-1">
+				<div className="flex-1 min-w-0">
+					<div className="flex items-center justify-between gap-2 h-4">
+						<div className="min-w-0 flex-1 flex items-center h-4">
 							<h3
 								className={cn(
-									"text-sm font-semibold text-foreground",
+									"text-sm text-foreground leading-4 m-0 h-4 flex items-center",
 									todo.status === "completed" &&
 										"line-through text-muted-foreground",
 									todo.status === "canceled" &&
@@ -364,11 +363,11 @@ export function TodoCard({
 							>
 								{todo.name}
 							</h3>
-							{todo.description && (
+							{/* {todo.description && (
 								<p className="text-xs text-muted-foreground line-clamp-2">
 									{todo.description}
 								</p>
-							)}
+							)} */}
 						</div>
 						{/* AI规划按钮 - hover时显示 */}
 						<button
@@ -377,26 +376,28 @@ export function TodoCard({
 								e.stopPropagation();
 								handleStartPlan();
 							}}
-							className="opacity-0 group-hover:opacity-100 shrink-0 flex h-6 w-6 items-center justify-center rounded-md hover:bg-muted/50 transition-all"
-							aria-label="使用AI规划"
-							title="使用AI规划"
+							className="opacity-0 group-hover:opacity-100 shrink-0 flex h-4 w-4 items-center justify-center rounded-md hover:bg-muted/50 transition-all"
+							aria-label={tTodoDetail("useAiPlan")}
+							title={tTodoDetail("useAiPlanTitle")}
 						>
-							<Sparkles className="h-4 w-4 text-primary" />
+							<Sparkles className="h-3 w-3 text-primary" />
 						</button>
 
 						<div className="flex items-center gap-2 shrink-0">
-							{todo.priority && todo.priority !== "none" && (
+							{/* {todo.priority && todo.priority !== "none" && (
 								<div
 									className={cn(
 										"flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
 										getPriorityBgColor(todo.priority),
 									)}
-									title={`优先级：${getPriorityLabel(todo.priority)}`}
+									title={tTodoDetail("priorityLabel", {
+										priority: getPriorityLabel(todo.priority, tCommon),
+									})}
 								>
 									<Flag className="h-3.5 w-3.5" fill="currentColor" />
-									<span>{getPriorityLabel(todo.priority)}</span>
+									<span>{getPriorityLabel(todo.priority, tCommon)}</span>
 								</div>
-							)}
+							)} */}
 							{todo.attachments && todo.attachments.length > 0 && (
 								<span className="flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground bg-muted/50">
 									<Paperclip className="h-3 w-3" />
@@ -406,40 +407,44 @@ export function TodoCard({
 						</div>
 					</div>
 
-					<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-						{todo.deadline && (
-							<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
-								<Calendar className="h-3 w-3" />
-								<span>{formatDate(todo.deadline)}</span>
-							</div>
-						)}
+					{(todo.deadline ||
+						(todo.attachments && todo.attachments.length > 0) ||
+						(todo.tags && todo.tags.length > 0)) && (
+						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
+							{todo.deadline && (
+								<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
+									<Calendar className="h-3 w-3" />
+									<span>{formatDate(todo.deadline)}</span>
+								</div>
+							)}
 
-						{todo.attachments && todo.attachments.length > 0 && (
-							<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
-								<Paperclip className="h-3 w-3" />
-								<span>{todo.attachments.length}</span>
-							</div>
-						)}
+							{todo.attachments && todo.attachments.length > 0 && (
+								<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
+									<Paperclip className="h-3 w-3" />
+									<span>{todo.attachments.length}</span>
+								</div>
+							)}
 
-						{todo.tags && todo.tags.length > 0 && (
-							<div className="flex flex-wrap items-center gap-1">
-								<Tag className="h-3 w-3" />
-								{todo.tags.slice(0, 3).map((tag) => (
-									<span
-										key={tag}
-										className="px-2 py-0.5 rounded-full bg-muted text-[11px] font-medium text-foreground"
-									>
-										{tag}
-									</span>
-								))}
-								{todo.tags.length > 3 && (
-									<span className="text-[11px] text-muted-foreground">
-										+{todo.tags.length - 3}
-									</span>
-								)}
-							</div>
-						)}
-					</div>
+							{todo.tags && todo.tags.length > 0 && (
+								<div className="flex flex-wrap items-center gap-1">
+									<Tag className="h-3 w-3" />
+									{todo.tags.slice(0, 3).map((tag) => (
+										<span
+											key={tag}
+											className="px-2 py-0.5 rounded-full bg-muted text-[11px] font-medium text-foreground"
+										>
+											{tag}
+										</span>
+									))}
+									{todo.tags.length > 3 && (
+										<span className="text-[11px] text-muted-foreground">
+											+{todo.tags.length - 3}
+										</span>
+									)}
+								</div>
+							)}
+						</div>
+					)}
 				</div>
 			</div>
 
@@ -447,7 +452,7 @@ export function TodoCard({
 				<form
 					onSubmit={handleCreateChild}
 					onMouseDown={(e) => e.stopPropagation()}
-					className="mt-3 space-y-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-3"
+					className="mt-2 space-y-2 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-2"
 				>
 					<input
 						ref={childInputRef}
@@ -468,7 +473,7 @@ export function TodoCard({
 								setChildName("");
 							}
 						}}
-						placeholder="输入子待办名称..."
+						placeholder={tTodoDetail("addChildPlaceholder")}
 						className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 					/>
 					<div className="flex items-center justify-end gap-2">
@@ -480,14 +485,14 @@ export function TodoCard({
 							}}
 							className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
 						>
-							取消
+							{tTodoDetail("cancel")}
 						</button>
 						<button
 							type="submit"
 							className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
 						>
 							<Plus className="h-4 w-4" />
-							添加
+							{tTodoDetail("add")}
 						</button>
 					</div>
 				</form>
@@ -513,7 +518,7 @@ export function TodoCard({
 						)}
 					>
 						<CornerDownRight className="h-4 w-4" />
-						<span>设为子任务</span>
+						<span>{tTodoDetail("setAsChild")}</span>
 					</div>
 				</div>
 			)}

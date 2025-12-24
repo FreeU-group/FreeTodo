@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Trash2 } from "lucide-react";
+import { CheckCircle2, FileText, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { PanelHeader } from "@/components/common/PanelHeader";
 
@@ -14,6 +14,7 @@ export function DetailHeader({
 	onDelete,
 }: DetailHeaderProps) {
 	const t = useTranslations("page");
+	const tTodoDetail = useTranslations("todoDetail");
 
 	return (
 		<PanelHeader
@@ -24,17 +25,18 @@ export function DetailHeader({
 					<button
 						type="button"
 						onClick={onToggleComplete}
-						className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+						className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted/50 transition-colors"
+						aria-label={tTodoDetail("markAsComplete")}
 					>
-						Mark as complete
+						<CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-foreground" />
 					</button>
 					<button
 						type="button"
 						onClick={onDelete}
-						className="flex items-center gap-1 rounded-md border border-destructive/40 px-2 py-1 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+						className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-destructive/10 transition-colors"
+						aria-label={tTodoDetail("delete")}
 					>
-						<Trash2 className="h-4 w-4" />
-						<span>Delete</span>
+						<Trash2 className="h-4 w-4 text-destructive" />
 					</button>
 				</>
 			}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
@@ -13,6 +14,7 @@ import { NotesEditor } from "./components/NotesEditor";
 import { useNotesAutosize } from "./hooks/useNotesAutosize";
 
 export function TodoDetail() {
+	const t = useTranslations("todoDetail");
 	// 从 TanStack Query 获取 todos 数据
 	const { data: todos = [] } = useTodos();
 
@@ -23,7 +25,10 @@ export function TodoDetail() {
 	// 从 Zustand 获取 UI 状态
 	const { selectedTodoId, setSelectedTodoId, onTodoDeleted } = useTodoStore();
 
+	// 各 section 的折叠状态
 	const [showDescription, setShowDescription] = useState(true);
+	const [showNotes, setShowNotes] = useState(true);
+	const [showChildTodos, setShowChildTodos] = useState(true);
 
 	// 本地状态管理 userNotes，用于即时输入响应
 	const [localUserNotes, setLocalUserNotes] = useState<string>("");
@@ -80,7 +85,7 @@ export function TodoDetail() {
 	if (!todo) {
 		return (
 			<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-				请选择一个待办事项查看详情
+				{t("selectTodoPrompt")}
 			</div>
 		);
 	}
@@ -206,13 +211,8 @@ export function TodoDetail() {
 				onDelete={handleDelete}
 			/>
 
-			<div className="flex-1 overflow-y-auto px-4 py-6">
-				<DetailTitle
-					name={todo.name}
-					showDescription={showDescription}
-					onToggleDescription={() => setShowDescription((prev) => !prev)}
-					onNameChange={handleNameChange}
-				/>
+			<div className="flex-1 overflow-y-scroll px-4 py-6">
+				<DetailTitle name={todo.name} onNameChange={handleNameChange} />
 
 				<MetaSection
 					todo={todo}
@@ -224,16 +224,18 @@ export function TodoDetail() {
 					onTagsChange={(tags) => updateTodo(todo.id, { tags })}
 				/>
 
-				{showDescription && (
-					<DescriptionSection
-						description={todo.description}
-						attachments={todo.attachments}
-						onDescriptionChange={handleDescriptionChange}
-					/>
-				)}
+				<DescriptionSection
+					description={todo.description}
+					attachments={todo.attachments}
+					show={showDescription}
+					onToggle={() => setShowDescription((prev) => !prev)}
+					onDescriptionChange={handleDescriptionChange}
+				/>
 
 				<NotesEditor
 					value={localUserNotes}
+					show={showNotes}
+					onToggle={() => setShowNotes((prev) => !prev)}
 					onChange={handleNotesChange}
 					onBlur={handleNotesBlur}
 					notesRef={notesRef}
@@ -243,8 +245,12 @@ export function TodoDetail() {
 				<ChildTodoSection
 					childTodos={childTodos}
 					allTodos={todos}
+					show={showChildTodos}
+					onToggle={() => setShowChildTodos((prev) => !prev)}
 					onSelectTodo={setSelectedTodoId}
 					onCreateChild={handleCreateChild}
+					onToggleStatus={toggleTodoStatus}
+					onUpdateTodo={updateTodo}
 				/>
 			</div>
 		</div>

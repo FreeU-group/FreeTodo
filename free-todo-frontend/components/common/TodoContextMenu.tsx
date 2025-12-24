@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, Sparkles, Trash2, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { cloneElement, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -25,6 +26,7 @@ export function TodoContextMenu({
 	onAddChild,
 	onContextMenuOpen,
 }: TodoContextMenuProps) {
+	const t = useTranslations("contextMenu");
 	// 从 TanStack Query 获取 mutation 操作和 todos 数据
 	const { data: todos = [] } = useTodos();
 	const { createTodo, updateTodo, deleteTodo } = useTodoMutations();
@@ -246,7 +248,7 @@ export function TodoContextMenu({
 								setChildName("");
 							}
 						}}
-						placeholder="输入子待办名称..."
+						placeholder={t("childNamePlaceholder")}
 						className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 					/>
 					<div className="flex items-center justify-end gap-2">
@@ -258,14 +260,14 @@ export function TodoContextMenu({
 							}}
 							className="rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
 						>
-							取消
+							{t("cancelButton")}
 						</button>
 						<button
 							type="submit"
 							className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
 						>
 							<Plus className="h-4 w-4" />
-							添加
+							{t("addButton")}
 						</button>
 					</div>
 				</form>
@@ -290,7 +292,7 @@ export function TodoContextMenu({
 								onClick={handleAddChildClick}
 							>
 								<Plus className="h-4 w-4" />
-								<span>添加子待办</span>
+								<span>{t("addChild")}</span>
 							</button>
 							<button
 								type="button"
@@ -298,7 +300,7 @@ export function TodoContextMenu({
 								onClick={handleStartPlan}
 							>
 								<Sparkles className="h-4 w-4" />
-								<span>使用AI规划</span>
+								<span>{t("useAiPlan")}</span>
 							</button>
 							<button
 								type="button"
@@ -306,7 +308,7 @@ export function TodoContextMenu({
 								onClick={handleCancel}
 							>
 								<X className="h-4 w-4" />
-								<span>放弃</span>
+								<span>{t("cancel")}</span>
 							</button>
 							<button
 								type="button"
@@ -314,7 +316,7 @@ export function TodoContextMenu({
 								onClick={handleDelete}
 							>
 								<Trash2 className="h-4 w-4" />
-								<span>删除</span>
+								<span>{t("delete")}</span>
 							</button>
 						</div>
 					</div>,

@@ -14,7 +14,6 @@ import { queryKeys } from "./keys";
 export interface AppConfig {
 	// 现有配置
 	jobsAutoTodoDetectionEnabled?: boolean;
-	uiCostTrackingEnabled?: boolean;
 	// LLM 配置
 	llmApiKey?: string;
 	llmBaseUrl?: string;

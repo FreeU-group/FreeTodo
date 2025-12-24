@@ -7,9 +7,10 @@
 
 import { DragOverlay } from "@dnd-kit/core";
 import { Calendar, Flag, Paperclip, Tag, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, getPriorityLabel, getStatusLabel } from "@/lib/utils";
 import type { ActiveDragState, DragData } from "./types";
 
 // ============================================================================
@@ -42,34 +43,6 @@ function getPriorityBgColor(priority: TodoPriority) {
 	}
 }
 
-function getPriorityLabel(priority: TodoPriority) {
-	switch (priority) {
-		case "high":
-			return "高";
-		case "medium":
-			return "中";
-		case "low":
-			return "低";
-		default:
-			return "无";
-	}
-}
-
-function getStatusLabel(status: TodoStatus) {
-	switch (status) {
-		case "active":
-			return "Active";
-		case "completed":
-			return "Completed";
-		case "canceled":
-			return "Canceled";
-		case "draft":
-			return "Draft";
-		default:
-			return status;
-	}
-}
-
 function formatDate(dateString?: string) {
 	if (!dateString) return null;
 	const date = new Date(dateString);
@@ -90,6 +63,8 @@ interface TodoCardOverlayProps {
 }
 
 function TodoCardOverlay({ todo, depth = 0 }: TodoCardOverlayProps) {
+	const tCommon = useTranslations("common");
+	const tTodoDetail = useTranslations("todoDetail");
 	return (
 		<div
 			className="opacity-90 pointer-events-none"
@@ -157,10 +132,12 @@ function TodoCardOverlay({ todo, depth = 0 }: TodoCardOverlayProps) {
 											"flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
 											getPriorityBgColor(todo.priority),
 										)}
-										title={`优先级：${getPriorityLabel(todo.priority)}`}
+										title={tTodoDetail("priorityLabel", {
+											priority: getPriorityLabel(todo.priority, tCommon),
+										})}
 									>
 										<Flag className="h-3.5 w-3.5" fill="currentColor" />
-										<span>{getPriorityLabel(todo.priority)}</span>
+										<span>{getPriorityLabel(todo.priority, tCommon)}</span>
 									</div>
 								)}
 								{todo.status && (
@@ -170,7 +147,7 @@ function TodoCardOverlay({ todo, depth = 0 }: TodoCardOverlayProps) {
 											getStatusColor(todo.status),
 										)}
 									>
-										{getStatusLabel(todo.status)}
+										{getStatusLabel(todo.status, tCommon)}
 									</span>
 								)}
 							</div>

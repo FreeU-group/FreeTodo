@@ -23,6 +23,7 @@ import type {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { customFetcher } from ".././fetcher";
 import type {
+	GetChatPromptsApiGetChatPromptsGetParams,
 	HTTPValidationError,
 	SaveAndInitLlmApiSaveAndInitLlmPostBody,
 	SaveConfigApiSaveConfigPostBody,
@@ -444,3 +445,174 @@ export const useSaveConfigApiSaveConfigPost = <
 
 	return useMutation(mutationOptions, queryClient);
 };
+/**
+ * 获取前端聊天功能所需的 prompt
+
+Args:
+    locale: 语言代码，'zh' 或 'en'，默认为 'zh'
+
+Returns:
+    包含 editSystemPrompt 和 planSystemPrompt 的字典
+ * @summary Get Chat Prompts
+ */
+export const getChatPromptsApiGetChatPromptsGet = (
+	params?: GetChatPromptsApiGetChatPromptsGetParams,
+	signal?: AbortSignal,
+) => {
+	return customFetcher<unknown>({
+		url: `/api/get-chat-prompts`,
+		method: "GET",
+		params,
+		signal,
+	});
+};
+
+export const getGetChatPromptsApiGetChatPromptsGetQueryKey = (
+	params?: GetChatPromptsApiGetChatPromptsGetParams,
+) => {
+	return [`/api/get-chat-prompts`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetChatPromptsApiGetChatPromptsGetQueryOptions = <
+	TData = Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+	TError = HTTPValidationError,
+>(
+	params?: GetChatPromptsApiGetChatPromptsGetParams,
+	options?: {
+		query?: Partial<
+			UseQueryOptions<
+				Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+				TError,
+				TData
+			>
+		>;
+	},
+) => {
+	const { query: queryOptions } = options ?? {};
+
+	const queryKey =
+		queryOptions?.queryKey ??
+		getGetChatPromptsApiGetChatPromptsGetQueryKey(params);
+
+	const queryFn: QueryFunction<
+		Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>
+	> = ({ signal }) => getChatPromptsApiGetChatPromptsGet(params, signal);
+
+	return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+		Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+		TError,
+		TData
+	> & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetChatPromptsApiGetChatPromptsGetQueryResult = NonNullable<
+	Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>
+>;
+export type GetChatPromptsApiGetChatPromptsGetQueryError = HTTPValidationError;
+
+export function useGetChatPromptsApiGetChatPromptsGet<
+	TData = Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+	TError = HTTPValidationError,
+>(
+	params: undefined | GetChatPromptsApiGetChatPromptsGetParams,
+	options: {
+		query: Partial<
+			UseQueryOptions<
+				Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+				TError,
+				TData
+			>
+		> &
+			Pick<
+				DefinedInitialDataOptions<
+					Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+					TError,
+					Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>
+				>,
+				"initialData"
+			>;
+	},
+	queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & {
+	queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetChatPromptsApiGetChatPromptsGet<
+	TData = Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+	TError = HTTPValidationError,
+>(
+	params?: GetChatPromptsApiGetChatPromptsGetParams,
+	options?: {
+		query?: Partial<
+			UseQueryOptions<
+				Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+				TError,
+				TData
+			>
+		> &
+			Pick<
+				UndefinedInitialDataOptions<
+					Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+					TError,
+					Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>
+				>,
+				"initialData"
+			>;
+	},
+	queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+	queryKey: DataTag<QueryKey, TData, TError>;
+};
+export function useGetChatPromptsApiGetChatPromptsGet<
+	TData = Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+	TError = HTTPValidationError,
+>(
+	params?: GetChatPromptsApiGetChatPromptsGetParams,
+	options?: {
+		query?: Partial<
+			UseQueryOptions<
+				Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+				TError,
+				TData
+			>
+		>;
+	},
+	queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+	queryKey: DataTag<QueryKey, TData, TError>;
+};
+/**
+ * @summary Get Chat Prompts
+ */
+
+export function useGetChatPromptsApiGetChatPromptsGet<
+	TData = Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+	TError = HTTPValidationError,
+>(
+	params?: GetChatPromptsApiGetChatPromptsGetParams,
+	options?: {
+		query?: Partial<
+			UseQueryOptions<
+				Awaited<ReturnType<typeof getChatPromptsApiGetChatPromptsGet>>,
+				TError,
+				TData
+			>
+		>;
+	},
+	queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & {
+	queryKey: DataTag<QueryKey, TData, TError>;
+} {
+	const queryOptions = getGetChatPromptsApiGetChatPromptsGetQueryOptions(
+		params,
+		options,
+	);
+
+	const query = useQuery(queryOptions, queryClient) as UseQueryResult<
+		TData,
+		TError
+	> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+	query.queryKey = queryOptions.queryKey;
+
+	return query;
+}

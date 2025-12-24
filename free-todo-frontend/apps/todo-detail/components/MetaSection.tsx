@@ -1,13 +1,13 @@
 "use client";
 
 import { Calendar, Flag, Tag as TagIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, getPriorityLabel, getStatusLabel } from "@/lib/utils";
 import {
 	formatDateTime,
 	getPriorityClassNames,
-	getPriorityLabel,
 	getStatusClassNames,
 	priorityOptions,
 	statusOptions,
@@ -29,6 +29,8 @@ export function MetaSection({
 	onDeadlineChange,
 	onTagsChange,
 }: MetaSectionProps) {
+	const tCommon = useTranslations("common");
+	const tTodoDetail = useTranslations("todoDetail");
 	const statusMenuRef = useRef<HTMLDivElement | null>(null);
 	const priorityMenuRef = useRef<HTMLDivElement | null>(null);
 	const deadlineContainerRef = useRef<HTMLDivElement | null>(null);
@@ -95,7 +97,7 @@ export function MetaSection({
 	return (
 		<div className="mb-6 text-sm text-muted-foreground">
 			<div className="flex flex-wrap items-center gap-3">
-				<div className="relative" ref={statusMenuRef}>
+				<div className="relative flex items-center" ref={statusMenuRef}>
 					<button
 						type="button"
 						onClick={() => setIsStatusMenuOpen((prev) => !prev)}
@@ -106,7 +108,7 @@ export function MetaSection({
 						aria-expanded={isStatusMenuOpen}
 						aria-haspopup="listbox"
 					>
-						{todo.status}
+						{getStatusLabel(todo.status, tCommon)}
 					</button>
 					{isStatusMenuOpen && (
 						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
@@ -131,10 +133,12 @@ export function MetaSection({
 										aria-selected={status === todo.status}
 									>
 										<span className={getStatusClassNames(status)}>
-											{status}
+											{getStatusLabel(status, tCommon)}
 										</span>
 										{status === todo.status && (
-											<span className="text-[11px] text-primary">当前</span>
+											<span className="text-[11px] text-primary">
+												{tTodoDetail("current")}
+											</span>
 										)}
 									</button>
 								))}
@@ -143,7 +147,7 @@ export function MetaSection({
 					)}
 				</div>
 
-				<div className="relative" ref={priorityMenuRef}>
+				<div className="relative flex items-center" ref={priorityMenuRef}>
 					<button
 						type="button"
 						onClick={() => setIsPriorityMenuOpen((prev) => !prev)}
@@ -154,8 +158,8 @@ export function MetaSection({
 						aria-expanded={isPriorityMenuOpen}
 						aria-haspopup="listbox"
 					>
-						<Flag className="h-4 w-4" fill="currentColor" aria-hidden />
-						{getPriorityLabel(todo.priority ?? "none")}
+						<Flag className="h-3 w-3" fill="currentColor" aria-hidden />
+						{getPriorityLabel(todo.priority ?? "none", tCommon)}
 					</button>
 					{isPriorityMenuOpen && (
 						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
@@ -185,10 +189,12 @@ export function MetaSection({
 												fill="currentColor"
 												aria-hidden
 											/>
-											{getPriorityLabel(priority)}
+											{getPriorityLabel(priority, tCommon)}
 										</span>
 										{priority === (todo.priority ?? "none") && (
-											<span className="text-[11px] text-primary">当前</span>
+											<span className="text-[11px] text-primary">
+												{tTodoDetail("current")}
+											</span>
 										)}
 									</button>
 								))}
@@ -197,15 +203,17 @@ export function MetaSection({
 					)}
 				</div>
 
-				<div className="relative" ref={deadlineContainerRef}>
+				<div className="relative flex items-center" ref={deadlineContainerRef}>
 					<button
 						type="button"
 						onClick={() => setIsDatePickerOpen((prev) => !prev)}
-						className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 transition-colors hover:border-border hover:bg-muted/40"
+						className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs transition-colors hover:border-border hover:bg-muted/40"
 					>
-						<Calendar className="h-4 w-4" />
+						<Calendar className="h-3 w-3" />
 						<span className="truncate">
-							{todo.deadline ? formatDateTime(todo.deadline) : "添加截止时间"}
+							{todo.deadline
+								? formatDateTime(todo.deadline)
+								: tTodoDetail("addDeadline")}
 						</span>
 					</button>
 					{isDatePickerOpen && (
@@ -223,13 +231,13 @@ export function MetaSection({
 						setTagsInput(todo.tags?.join(", ") ?? "");
 						setIsEditingTags(true);
 					}}
-					className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 transition-colors hover:border-border hover:bg-muted/40"
+					className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs transition-colors hover:border-border hover:bg-muted/40"
 				>
-					<TagIcon className="h-4 w-4" />
+					<TagIcon className="h-3 w-3" />
 					<span className="truncate">
 						{todo.tags && todo.tags.length > 0
 							? todo.tags.join(", ")
-							: "添加标签"}
+							: tTodoDetail("addTags")}
 					</span>
 				</button>
 			</div>
@@ -240,15 +248,15 @@ export function MetaSection({
 						type="text"
 						value={tagsInput}
 						onChange={(e) => setTagsInput(e.target.value)}
-						placeholder="使用逗号分隔多个标签"
+						placeholder={tTodoDetail("tagsPlaceholder")}
 						className="min-w-[240px] rounded-md border border-border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
 					/>
 					<button
 						type="button"
 						onClick={handleTagsSave}
-						className="rounded-md bg-primary px-2 py-1 text-primary-foreground transition-colors hover:bg-primary/90"
+						className="rounded-md bg-primary px-2 py-1 text-sm text-primary-foreground transition-colors hover:bg-primary/90"
 					>
-						保存
+						{tTodoDetail("save")}
 					</button>
 					<button
 						type="button"
@@ -256,16 +264,16 @@ export function MetaSection({
 							setIsEditingTags(false);
 							setTagsInput(todo.tags?.join(", ") ?? "");
 						}}
-						className="rounded-md border border-border px-2 py-1 text-muted-foreground transition-colors hover:bg-muted/40"
+						className="rounded-md border border-border px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-muted/40"
 					>
-						取消
+						{tTodoDetail("cancel")}
 					</button>
 					<button
 						type="button"
 						onClick={handleTagsClear}
-						className="rounded-md border border-destructive/40 px-2 py-1 text-destructive transition-colors hover:bg-destructive/10"
+						className="rounded-md border border-destructive/40 px-2 py-1 text-sm text-destructive transition-colors hover:bg-destructive/10"
 					>
-						清空
+						{tTodoDetail("clear")}
 					</button>
 				</div>
 			)}

@@ -135,6 +135,8 @@
 				"job_task_context_mapper": "Task Context Mapping",
 				"job_task_summary": "Task Summary Generation",
 				"task_summary": "Task Summary (Manual)",
+				"activity_summary": "Activity Summary",
+				"vision_assistant": "Auto Todo Detection",
 				"unknown": "Unknown Feature"
 			}
 		}
@@ -151,7 +153,8 @@
 		"achievements": "Achievements",
 		"voiceModule": "Voice Module",
 		"screenshots": "Screenshots",
-		"debugShots": "Debug Shots"
+		"debugShots": "Debug Shots",
+		"unassigned": "Unassigned"
 	},
 	"todoExtraction": {
 		"extractButton": "Extract Todos",
@@ -171,6 +174,9 @@
 		"todoTime": "Time",
 		"todoSource": "Source",
 		"todoScheduledTime": "Scheduled Time",
+		"source": "Source",
+		"time": "Time",
+		"eventId": "Event ID",
 		"addSuccess": "Successfully added {count} todos",
 		"addFailed": "Failed to add todos: {error}",
 		"selectedCount": "Selected {count} items",
@@ -182,7 +188,19 @@
 		"acceptSuccess": "Added to todo list",
 		"rejectSuccess": "Rejected",
 		"acceptFailed": "Failed: {error}",
-		"rejectFailed": "Failed: {error}"
+		"rejectFailed": "Failed: {error}",
+		"autoExtracted": "Auto Extracted",
+		"noTimeSpecified": "No time specified",
+		"failedItems": "{count} items failed",
+		"newNotification": "New notification",
+		"collapseNotification": "Collapse notification",
+		"expandNotification": "Expand notification",
+		"closeNotification": "Close notification",
+		"justNow": "just now",
+		"minutesAgo": "{count}m ago",
+		"hoursAgo": "{count}h ago",
+		"daysAgo": "{count}d ago",
+		"dateFormat": "{month}/{day}"
 	},
 	"chat": {
 		"planModeInputPlaceholder": "e.g. Help me plan the todos for moving this weekend",
@@ -191,6 +209,46 @@
 		"generateQuestionsFailed": "Failed to generate questions, please try again",
 		"generateSummaryFailed": "Failed to generate summary, please try again",
 		"loading": "Loading",
+		"initialMessage": "Hi! I'm your task assistant. I can break down work, plan the day, or just chat.",
+		"assistant": "Assistant",
+		"user": "You",
+		"chatMode": "Chat mode",
+		"toggleMode": "Toggle Ask/Plan/Edit mode",
+		"mentionFileOrTodo": "Mention a file or todo",
+		"send": "Send",
+		"linkedTodos": "Linked todos ({count})",
+		"linkedTodosEn": "Linked todos ({count})",
+		"collapse": "Collapse",
+		"expand": "Expand",
+		"clearSelection": "Clear selection",
+		"generatingQuestion": "Generating question {count}",
+		"answerQuestions": "Please answer the following questions to complete task details",
+		"answerQuestionsDesc": "Your answers will help AI better understand task requirements and generate a detailed plan",
+		"multipleChoice": "(Multiple choice)",
+		"customAnswer": "Custom answer",
+		"customAnswerPlaceholder": "Enter your custom answer...",
+		"submitting": "Submitting...",
+		"submitAnswer": "Submit answer",
+		"generatingSummary": "AI is generating summary...",
+		"generatingSummaryDesc": "Please wait, AI is generating a detailed task summary and subtask list based on your answers",
+		"generating": "Generating...",
+		"parsingContent": "Parsing full content...",
+		"noTodoContext": "No todo context",
+		"userInput": "User input",
+		"loadHistoryFailed": "Failed to load history",
+		"noTodosAvailable": "No todos available; chat context is empty.",
+		"selectedTodo": "[Selected Todo]",
+		"rootParentTodo": "[Root Parent Todo]",
+		"allSubTodos": "[All Sub-todos] (total {count})",
+		"allSubTodosRoot": "[All Sub-todos] (total {count})",
+		"todoContextHeader": "{source} (total {count}):",
+		"todoContextHeaderEn": "{source} (total {count}):",
+		"noPlanJsonFound": "No todo JSON found; no tasks created.",
+		"parsedNoValidTodos": "Parsed but no valid todos found.",
+		"parsePlanJsonFailed": "Failed to parse plan JSON; no tasks created.",
+		"noResponseReceived": "No response received, please try again.",
+		"addedTodos": "Added {count} todos to the list.",
+		"errorOccurred": "Something went wrong. Please try again.",
 		"planSummary": {
 			"title": "Todo Planning Result",
 			"description": "Please review the AI-generated todo summary and subtask list, then click Accept to confirm",
@@ -212,6 +270,35 @@
 			"appended": "Appended",
 			"failed": "Failed",
 			"aiRecommended": "AI"
+		},
+		"modes": {
+			"ask": {
+				"label": "Ask",
+				"description": "Chat freely"
+			},
+			"plan": {
+				"label": "Plan",
+				"description": "Break down and add todos"
+			},
+			"edit": {
+				"label": "Edit",
+				"description": "Generate and append to notes"
+			},
+			"active": "Active"
+		},
+		"todoContext": {
+			"id": "ID",
+			"name": "Name",
+			"description": "Description",
+			"notes": "Notes",
+			"deadline": "Deadline",
+			"priority": "Priority",
+			"status": "Status",
+			"tags": "Tags",
+			"parentTodoId": "Parent Todo ID",
+			"parentName": "Parent Name",
+			"due": "Due: {deadline}",
+			"tagsLabel": "Tags: {tags}"
 		}
 	},
 	"calendar": {
@@ -223,9 +310,9 @@
 		"previous": "Previous",
 		"next": "Next",
 		"create": "Create",
-		"yearMonth": "{month} {year}",
-		"yearMonthWeek": "{month} {year} (Week {week})",
-		"yearMonthDay": "{month} {day}, {year}",
+		"yearMonth": "{year}.{month}",
+		"yearMonthWeek": "{year}.{month} (Week {week})",
+		"yearMonthDay": "{year}.{month}.{day}",
 		"createOnDate": "Create todo on {date}",
 		"closeCreate": "Close",
 		"inputTodoTitle": "Enter todo title...",
@@ -283,6 +370,7 @@
 		"allJobsResumed": "All jobs resumed",
 		"intervalUpdated": "Job {job} interval updated",
 		"updateFailed": "Update failed: {error}",
+		"dateLocale": "en-US",
 		"jobs": {
 			"recorder_job": "Screen Recorder",
 			"ocr_job": "OCR Processing",
@@ -299,5 +387,148 @@
 			"clean_data_job": "Clean up expired screenshots and data",
 			"activity_aggregator_job": "Aggregate user activity events"
 		}
+	},
+	"common": {
+		"priority": {
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low",
+			"none": "None"
+		},
+		"status": {
+			"active": "Active",
+			"completed": "Completed",
+			"canceled": "Canceled",
+			"draft": "Draft"
+		},
+		"numberLocale": "en-US"
+	},
+	"debugCapture": {
+		"title": "Screenshot Management (Debug)",
+		"screenshotDetail": "Screenshot Details",
+		"close": "Close",
+		"loading": "Loading...",
+		"loadFailed": "Load Failed",
+		"imageLoadFailed": "Image Load Failed",
+		"screenshotId": "Screenshot ID",
+		"screenshot": "Screenshot",
+		"previous": "Previous",
+		"next": "Next",
+		"details": "Details",
+		"time": "Time",
+		"app": "App",
+		"unknown": "Unknown",
+		"windowTitle": "Window Title",
+		"none": "None",
+		"size": "Size",
+		"ocrResult": "OCR Result",
+		"selectedEvents": "Selected {count} events",
+		"aggregating": "Aggregating...",
+		"aggregateActivity": "Aggregate as Activity ({count})",
+		"clearSelection": "Clear Selection",
+		"startDate": "Start Date",
+		"endDate": "End Date",
+		"appName": "App Name",
+		"appNamePlaceholder": "App name",
+		"search": "Search",
+		"eventTimeline": "Event Timeline",
+		"foundEvents": "Found {total} events",
+		"loadedEvents": "({loaded} loaded)",
+		"loadingMore": "Loading more...",
+		"scrollToLoadMore": "Scroll to load more",
+		"allEventsLoaded": "All events loaded",
+		"noEventsFound": "No events found",
+		"adjustSearchCriteria": "Please adjust search criteria",
+		"eventsCount": "{count} events",
+		"select": "Select",
+		"deselect": "Deselect",
+		"unknownWindow": "Unknown Window",
+		"duration": "Duration {duration}",
+		"inProgress": "In Progress",
+		"noDescription": "No description",
+		"screenshotCount": "{count} screenshots",
+		"selectEventsPrompt": "Please select events to aggregate first",
+		"unendedEventsError": "Selected events contain unended events, cannot aggregate",
+		"activityCreated": "Successfully created activity: {title}\nContains {count} events",
+		"activity": "Activity",
+		"aggregateFailed": "Failed to aggregate events, please try again later",
+		"extractFailed": "Failed to extract todos, please try again later"
+	},
+	"achievements": {
+		"title": "Achievement System",
+		"placeholder": "Placeholder: plug an achievements component here",
+		"achievement1": {
+			"name": "First Steps",
+			"description": "Complete first todo"
+		},
+		"achievement2": {
+			"name": "Todo Master",
+			"description": "Complete 10 todos"
+		},
+		"achievement3": {
+			"name": "Efficiency Star",
+			"description": "Complete tasks for 7 consecutive days"
+		},
+		"achievement4": {
+			"name": "Perfectionist",
+			"description": "Complete 100 tasks"
+		}
+	},
+	"todoList": {
+		"addTodo": "Add todo",
+		"add": "Add",
+		"submit": "Submit",
+		"reset": "Reset",
+		"searchPlaceholder": "Search todos...",
+		"loadFailed": "Load failed: {error}",
+		"noTodos": "No todos",
+		"deadline": "Deadline",
+		"description": "Description",
+		"descriptionPlaceholder": "Describe task details...",
+		"tags": "Tags (comma-separated)",
+		"tagsPlaceholder": "e.g., work, report",
+		"priority": "Priority",
+		"notes": "Notes",
+		"notesPlaceholder": "Personal notes or action items"
+	},
+	"todoDetail": {
+		"editTitle": "Click to edit title",
+		"viewDescription": "View description",
+		"selectTodoPrompt": "Please select a todo to view details",
+		"markAsComplete": "Mark as complete",
+		"delete": "Delete",
+		"addDeadline": "Add deadline",
+		"addTags": "Add tags",
+		"tagsPlaceholder": "Separate multiple tags with commas",
+		"save": "Save",
+		"cancel": "Cancel",
+		"clear": "Clear",
+		"current": "Current",
+		"priorityLabel": "Priority: {priority}",
+		"setAsChild": "Set as child task",
+		"collapseSubTasks": "Collapse sub-tasks",
+		"expandSubTasks": "Expand sub-tasks",
+		"addChildPlaceholder": "Enter child todo name...",
+		"add": "Add",
+		"addChild": "Add child todo",
+		"childTodos": "Child Todos",
+		"useAiPlan": "Use AI to plan",
+		"useAiPlanTitle": "Use AI to plan",
+		"descriptionLabel": "Description",
+		"notesLabel": "Notes",
+		"descriptionEmptyPlaceholder": "No description (click to add)",
+		"notesPlaceholder": "Insert your notes here"
+	},
+	"contextMenu": {
+		"selectedCount": "Selected {count} items",
+		"batchCancel": "Batch Cancel",
+		"batchDelete": "Batch Delete",
+		"addChild": "Add child todo",
+		"useAiPlan": "Use AI to plan",
+		"cancel": "Cancel",
+		"delete": "Delete",
+		"childNamePlaceholder": "Enter child todo name...",
+		"cancelButton": "Cancel",
+		"addButton": "Add"
 	}
 }

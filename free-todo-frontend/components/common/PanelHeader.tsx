@@ -91,7 +91,12 @@ export function PanelHeader({
 		: undefined;
 
 	const headerContent = (
-		<div className={cn("shrink-0 bg-primary/15", isDragging && "opacity-50")}>
+		<div
+			className={cn(
+				"shrink-0 bg-background border-b",
+				isDragging && "opacity-50",
+			)}
+		>
 			<div
 				ref={isDraggable ? setNodeRef : undefined}
 				style={style}
@@ -102,8 +107,8 @@ export function PanelHeader({
 					className,
 				)}
 			>
-				<h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-					<Icon className="h-5 w-5 text-primary" />
+				<h2 className="flex items-center gap-2 text-base text-foreground">
+					<Icon className="h-4 w-4 text-primary" />
 					{title}
 				</h2>
 				{actions && <div className="flex items-center gap-2">{actions}</div>}

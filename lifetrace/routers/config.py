@@ -7,6 +7,7 @@ from openai import OpenAI
 
 from lifetrace.services.config_service import ConfigService, is_llm_configured
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.prompt_loader import get_prompt
 
 logger = get_logger()
 
@@ -203,3 +204,43 @@ async def save_config(settings: dict[str, Any]):
     except Exception as e:
         logger.error(f"保存配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}") from e
+
+
+@router.get("/get-chat-prompts")
+async def get_chat_prompts(locale: str = "zh"):
+    """获取前端聊天功能所需的 prompt
+
+    Args:
+        locale: 语言代码，'zh' 或 'en'，默认为 'zh'
+
+    Returns:
+        包含 editSystemPrompt 和 planSystemPrompt 的字典
+    """
+    try:
+        # 根据语言选择对应的 prompt key
+        edit_key = "edit_system_prompt_zh" if locale == "zh" else "edit_system_prompt_en"
+        plan_key = "plan_system_prompt_zh" if locale == "zh" else "plan_system_prompt_en"
+
+        edit_prompt = get_prompt("chat_frontend", edit_key)
+        plan_prompt = get_prompt("chat_frontend", plan_key)
+
+        if not edit_prompt or not plan_prompt:
+            logger.warning(f"无法加载 prompt，locale={locale}")
+            raise HTTPException(
+                status_code=500,
+                detail="无法加载 prompt 配置，请检查 prompt.yaml",
+            )
+
+        return {
+            "success": True,
+            "editSystemPrompt": edit_prompt,
+            "planSystemPrompt": plan_prompt,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取聊天 prompt 失败: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取聊天 prompt 失败: {str(e)}",
+        ) from e

@@ -15,7 +15,6 @@ import {
 	useResumeJobApiSchedulerJobsJobIdResumePost,
 	useUpdateJobIntervalApiSchedulerJobsJobIdIntervalPut,
 } from "@/lib/generated/scheduler/scheduler";
-import { useLocaleStore } from "@/lib/store/locale";
 import { toastError, toastSuccess } from "@/lib/toast";
 import { SettingsSection } from "./SettingsSection";
 
@@ -30,7 +29,6 @@ interface SchedulerSectionProps {
  * 调度器管理设置区块
  */
 export function SchedulerSection({ loading = false }: SchedulerSectionProps) {
-	const { locale } = useLocaleStore();
 	const t = useTranslations("scheduler");
 	const queryClient = useQueryClient();
 	const [editingJobId, setEditingJobId] = useState<string | null>(null);
@@ -202,8 +200,9 @@ export function SchedulerSection({ loading = false }: SchedulerSectionProps) {
 		if (!nextRunTime) {
 			return t("paused");
 		}
+		const dateLocale = t("dateLocale");
 		const date = new Date(nextRunTime);
-		return date.toLocaleString(locale === "zh" ? "zh-CN" : "en-US", {
+		return date.toLocaleString(dateLocale, {
 			month: "short",
 			day: "numeric",
 			hour: "2-digit",

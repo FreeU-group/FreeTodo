@@ -1,4 +1,5 @@
 import { ChevronDown } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ChatMode } from "@/apps/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -12,37 +13,33 @@ type ModeSwitcherProps = {
 };
 
 // Helper function to get mode label
-const getModeLabel = (mode: ChatMode, locale: string): string => {
-	const labels: Record<ChatMode, { zh: string; en: string }> = {
-		ask: { zh: "Ask 模式", en: "Ask" },
-		plan: { zh: "Plan 模式", en: "Plan" },
-		edit: { zh: "Edit 模式", en: "Edit" },
-	};
-	return locale === "zh" ? labels[mode].zh : labels[mode].en;
+const getModeLabel = (
+	mode: ChatMode,
+	t: ReturnType<typeof useTranslations>,
+): string => {
+	return t(`modes.${mode}.label`);
 };
 
 // Helper function to get mode description
-const getModeDescription = (mode: ChatMode, locale: string): string => {
-	const descriptions: Record<ChatMode, { zh: string; en: string }> = {
-		ask: { zh: "直接聊天或提问", en: "Chat freely" },
-		plan: { zh: "拆解需求并生成待办", en: "Break down and add todos" },
-		edit: { zh: "生成内容追加到待办备注", en: "Generate and append to notes" },
-	};
-	return locale === "zh" ? descriptions[mode].zh : descriptions[mode].en;
+const getModeDescription = (
+	mode: ChatMode,
+	t: ReturnType<typeof useTranslations>,
+): string => {
+	return t(`modes.${mode}.description`);
 };
 
 export function ModeSwitcher({
 	chatMode,
-	locale,
 	modeMenuOpen,
 	onToggleMenu,
 	onChangeMode,
 	variant = "default",
 }: ModeSwitcherProps) {
+	const t = useTranslations("chat");
 	return (
 		<div className="relative">
 			<label className="sr-only" htmlFor="chat-mode">
-				{locale === "zh" ? "对话模式" : "Chat mode"}
+				{t("chatMode")}
 			</label>
 			<button
 				type="button"
@@ -53,13 +50,9 @@ export function ModeSwitcher({
 					"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 					variant === "inline" ? "h-10 bg-background/80" : "h-11 bg-muted/60",
 				)}
-				aria-label={
-					locale === "zh"
-						? "切换 Ask/Plan/Edit 模式"
-						: "Toggle Ask/Plan/Edit mode"
-				}
+				aria-label={t("toggleMode")}
 			>
-				<span>{getModeLabel(chatMode, locale)}</span>
+				<span>{getModeLabel(chatMode, t)}</span>
 				<ChevronDown className="h-4 w-4 text-muted-foreground" />
 			</button>
 			{modeMenuOpen && (
@@ -76,10 +69,10 @@ export function ModeSwitcher({
 									: "text-foreground hover:bg-foreground/5",
 							)}
 						>
-							<span>{getModeLabel(mode, locale)}</span>
+							<span>{getModeLabel(mode, t)}</span>
 							{mode === chatMode && (
 								<span className="text-xs text-primary">
-									{locale === "zh" ? "当前" : "Active"}
+									{t("modes.active")}
 								</span>
 							)}
 						</button>
@@ -88,7 +81,7 @@ export function ModeSwitcher({
 			)}
 			{variant === "default" && (
 				<p className="mt-1 text-[11px] text-muted-foreground">
-					{getModeDescription(chatMode, locale)}
+					{getModeDescription(chatMode, t)}
 				</p>
 			)}
 		</div>

@@ -30,9 +30,9 @@ export function HeaderBar({
 						type="button"
 						onClick={onToggleHistory}
 						className={cn(
-							"flex h-9 w-9 items-center justify-center rounded-md",
-							"border border-border text-muted-foreground transition-colors",
-							"hover:bg-foreground/5 hover:text-foreground",
+							"flex h-7 w-7 items-center justify-center rounded-md",
+							"text-muted-foreground transition-colors",
+							"hover:bg-muted/50 hover:text-foreground",
 							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 						)}
 						aria-label={chatHistoryLabel}
@@ -43,7 +43,7 @@ export function HeaderBar({
 						type="button"
 						onClick={onNewChat}
 						className={cn(
-							"flex h-9 w-9 items-center justify-center rounded-md",
+							"flex h-7 w-7 items-center justify-center rounded-md",
 							"bg-primary text-primary-foreground transition-colors",
 							"hover:bg-primary/90",
 							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
