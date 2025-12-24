@@ -103,22 +103,22 @@
 
 	.dark,
 	.dark[data-color-theme="blue"] {
-		--background: 0.28 0.005 285.823;
+		--background: 0.2667 0.011 254.03;
 		--foreground: 0.985 0 0;
 		--card: 0.21 0.006 285.885;
 		--card-foreground: 0.985 0 0;
 		--popover: 0.21 0.006 285.885;
 		--popover-foreground: 0.985 0 0;
-		--primary: 0.488 0.243 264.376;
+		--primary: 0.788 0.243 264.376;
 		--primary-foreground: 0.97 0.014 254.604;
-		--primary-weak: 0.488 0.243 264.376 / 0.1;
-		--primary-weak-hover: 0.488 0.243 264.376 / 0.28;
-		--primary-border: 0.488 0.243 264.376;
+		--primary-weak: 0.788 0.243 264.376 / 0.1;
+		--primary-weak-hover: 0.788 0.243 264.376 / 0.28;
+		--primary-border: 0.788 0.243 264.376;
 		--secondary: 0.274 0.006 286.033;
 		--secondary-foreground: 0.985 0 0;
 		--muted: 0.274 0.006 286.033;
 		--muted-foreground: 0.705 0.015 286.067;
-		--accent: 0.25 0.006 286.033;
+		--accent: 0.3408 0.0054 271.26;
 		--accent-foreground: 0.985 0 0;
 		--destructive: 0.704 0.191 22.216;
 		--border: 1 0 0 / 10%;
@@ -127,7 +127,7 @@
 		--chart-1: 0.809 0.105 251.813;
 		--chart-2: 0.623 0.214 259.815;
 		--chart-3: 0.546 0.245 262.881;
-		--chart-4: 0.488 0.243 264.376;
+		--chart-4: 0.688 0.243 264.376;
 		--chart-5: 0.424 0.199 265.638;
 		--sidebar: 0.21 0.006 285.885;
 		--sidebar-foreground: 0.985 0 0;

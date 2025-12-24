@@ -382,7 +382,7 @@ export function BottomDock({ className }: BottomDockProps) {
 				ref={dockRef}
 				className={cn(
 					"flex items-center gap-2",
-					"bg-[oklch(var(--card))]/80",
+					"bg-[oklch(var(--card))]/80 dark:bg-background",
 					"backdrop-blur-md",
 					"border border-[oklch(var(--border))]",
 					"shadow-lg",
