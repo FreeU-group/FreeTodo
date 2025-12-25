@@ -49,11 +49,8 @@ export const useChatStore = create<ChatStoreState>()(
 								? state.chatMode
 								: "ask";
 
-							// 验证 conversationId
-							const conversationId: string | null =
-								state.conversationId && typeof state.conversationId === "string"
-									? state.conversationId
-									: null;
+							// 验证 conversationId - 刷新后清空，不默认选中历史记录
+							const conversationId: string | null = null;
 
 							// 验证 historyOpen
 							const historyOpen: boolean =
