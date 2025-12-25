@@ -571,6 +571,7 @@
 		"delete": "Delete",
 		"childNamePlaceholder": "Enter child todo name...",
 		"cancelButton": "Cancel",
-		"addButton": "Add"
+		"addButton": "Add",
+		"extractButton": "Extract Todos"
 	}
 }

@@ -2,8 +2,12 @@
 
 import { Trash2, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import React, { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import React from "react";
+import {
+	BaseContextMenu,
+	type MenuItem,
+	useContextMenu,
+} from "@/components/common/BaseContextMenu";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { Todo } from "@/lib/types";
@@ -25,50 +29,10 @@ export function MultiTodoContextMenu({
 	// 从 Zustand 获取 UI 状态操作
 	const { onTodoDeleted, clearTodoSelection } = useTodoStore();
 
-	// 右键菜单状态
-	const [contextMenu, setContextMenu] = useState({
-		open: false,
-		x: 0,
-		y: 0,
-	});
-	const menuRef = useRef<HTMLDivElement | null>(null);
+	// 使用通用菜单 hook
+	const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
 
-	// 右键菜单：点击外部、滚动或按下 ESC 时关闭
-	useEffect(() => {
-		if (!contextMenu.open) return;
-
-		const handleClose = () => {
-			setContextMenu((state) =>
-				state.open ? { ...state, open: false } : state,
-			);
-		};
-
-		const handleClickOutside = (event: MouseEvent) => {
-			const target = event.target as Node;
-			if (menuRef.current?.contains(target)) {
-				return;
-			}
-			handleClose();
-		};
-
-		const handleEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				handleClose();
-			}
-		};
-
-		document.addEventListener("mousedown", handleClickOutside);
-		document.addEventListener("keydown", handleEscape);
-		document.addEventListener("scroll", handleClose, true);
-
-		return () => {
-			document.removeEventListener("mousedown", handleClickOutside);
-			document.removeEventListener("keydown", handleEscape);
-			document.removeEventListener("scroll", handleClose, true);
-		};
-	}, [contextMenu.open]);
-
-	const openContextMenu = (event: React.MouseEvent) => {
+	const handleOpenContextMenu = (event: React.MouseEvent) => {
 		// 只在有多个选中时才显示菜单
 		if (selectedTodoIds.length <= 1) {
 			return;
@@ -77,20 +41,9 @@ export function MultiTodoContextMenu({
 		event.preventDefault();
 		event.stopPropagation();
 
-		const menuWidth = 180;
-		const menuHeight = 100;
-		const viewportWidth =
-			typeof window !== "undefined" ? window.innerWidth : menuWidth;
-		const viewportHeight =
-			typeof window !== "undefined" ? window.innerHeight : menuHeight;
-
-		const x = Math.min(Math.max(event.clientX, 8), viewportWidth - menuWidth);
-		const y = Math.min(Math.max(event.clientY, 8), viewportHeight - menuHeight);
-
-		setContextMenu({
-			open: true,
-			x,
-			y,
+		openContextMenu(event, {
+			menuWidth: 180,
+			menuHeight: 100,
 		});
 	};
 
@@ -107,7 +60,7 @@ export function MultiTodoContextMenu({
 		} catch (err) {
 			console.error("Failed to cancel todos:", err);
 		}
-		setContextMenu((state) => ({ ...state, open: false }));
+		closeContextMenu();
 		clearTodoSelection();
 	};
 
@@ -166,56 +119,43 @@ export function MultiTodoContextMenu({
 		} catch (err) {
 			console.error("Failed to delete todos:", err);
 		}
-		setContextMenu((state) => ({ ...state, open: false }));
+		closeContextMenu();
 		clearTodoSelection();
 	};
 
+	// 构建菜单项
+	const menuItems: MenuItem[] = [
+		{
+			icon: X,
+			label: t("batchCancel"),
+			onClick: handleCancel,
+		},
+		{
+			icon: Trash2,
+			label: t("batchDelete"),
+			onClick: handleDelete,
+			isLast: true,
+		},
+	];
+
 	// 克隆子元素并添加 onContextMenu 处理器
 	const childWithContextMenu = React.cloneElement(children, {
-		onContextMenu: openContextMenu,
+		onContextMenu: handleOpenContextMenu,
 	} as React.HTMLAttributes<HTMLElement>);
 
 	return (
 		<>
 			{childWithContextMenu}
 
-			{contextMenu.open &&
-				selectedTodoIds.length > 1 &&
-				typeof document !== "undefined" &&
-				createPortal(
-					<div className="fixed inset-0 z-120 pointer-events-none">
-						<div
-							ref={menuRef}
-							className="pointer-events-auto min-w-[170px] rounded-md border border-border bg-background shadow-lg"
-							style={{
-								top: contextMenu.y,
-								left: contextMenu.x,
-								position: "absolute",
-							}}
-						>
-							<div className="px-3 py-2 text-xs text-muted-foreground border-b border-border">
-								{t("selectedCount", { count: selectedTodoIds.length })}
-							</div>
-							<button
-								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors"
-								onClick={handleCancel}
-							>
-								<X className="h-4 w-4" />
-								<span>{t("batchCancel")}</span>
-							</button>
-							<button
-								type="button"
-								className="flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors last:rounded-b-md"
-								onClick={handleDelete}
-							>
-								<Trash2 className="h-4 w-4" />
-								<span>{t("batchDelete")}</span>
-							</button>
-						</div>
-					</div>,
-					document.body,
-				)}
+			{contextMenu.open && selectedTodoIds.length > 1 && (
+				<BaseContextMenu
+					items={menuItems}
+					open={contextMenu.open}
+					position={{ x: contextMenu.x, y: contextMenu.y }}
+					onClose={closeContextMenu}
+					header={t("selectedCount", { count: selectedTodoIds.length })}
+				/>
+			)}
 		</>
 	);
 }

@@ -571,6 +571,7 @@
 		"delete": "删除",
 		"childNamePlaceholder": "输入子待办名称...",
 		"cancelButton": "取消",
-		"addButton": "添加"
+		"addButton": "添加",
+		"extractButton": "提取待办"
 	}
 }

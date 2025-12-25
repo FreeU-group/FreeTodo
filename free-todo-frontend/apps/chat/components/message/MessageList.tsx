@@ -1,11 +1,16 @@
-import { Loader2 } from "lucide-react";
+import { ListTodo, Loader2, MoreVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PromptSuggestions } from "@/apps/chat/components/input/PromptSuggestions";
 import { EditModeMessage } from "@/apps/chat/components/message/EditModeMessage";
 import type { ChatMessage, ChatMode } from "@/apps/chat/types";
+import {
+	BaseContextMenu,
+	type MenuItem,
+	useContextMenu,
+} from "@/components/common/BaseContextMenu";
 import type { Todo, UpdateTodoInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -37,11 +42,19 @@ export function MessageList({
 	onSelectPrompt,
 }: MessageListProps) {
 	const t = useTranslations("chat");
+	const tContextMenu = useTranslations("contextMenu");
 	const messageListRef = useRef<HTMLDivElement>(null);
 	// 跟踪用户是否在底部（或接近底部）
 	const isAtBottomRef = useRef(true);
 	// 跟踪上一次消息数量，用于检测新消息
 	const prevMessageCountRef = useRef(0);
+	// 跟踪每个消息的 hover 状态和菜单状态
+	const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+	const [menuOpenForMessageId, setMenuOpenForMessageId] = useState<
+		string | null
+	>(null);
+	const messageMenuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+	const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
 
 	// 检查是否应该显示预设按钮：消息为空或只有一条初始assistant消息
 	const shouldShowSuggestions = useMemo(() => {
@@ -152,6 +165,55 @@ export function MessageList({
 					!isEmptyStreamingMessage &&
 					onUpdateTodo;
 
+				// 是否为 assistant 消息且不是空的 streaming 消息
+				const isAssistantMessageWithContent =
+					msg.role === "assistant" && msg.content && !isEmptyStreamingMessage;
+
+				// 处理消息菜单按钮点击
+				const handleMessageMenuClick = (event: React.MouseEvent) => {
+					event.stopPropagation();
+					const messageBox = messageMenuRefs.current.get(msg.id);
+					if (!messageBox) return;
+
+					const rect = messageBox.getBoundingClientRect();
+					// 菜单位置：消息框右下角，稍微偏移
+					const menuWidth = 180;
+					const menuHeight = 60;
+					const viewportWidth = window.innerWidth;
+					const viewportHeight = window.innerHeight;
+
+					const x = Math.min(
+						Math.max(rect.right - menuWidth, 8),
+						viewportWidth - menuWidth,
+					);
+					const y = Math.min(
+						Math.max(rect.bottom + 4, 8),
+						viewportHeight - menuHeight,
+					);
+
+					setMenuOpenForMessageId(msg.id);
+					openContextMenu(event, {
+						menuWidth,
+						menuHeight,
+						calculatePosition: () => ({ x, y }),
+					});
+				};
+
+				// 构建菜单项（仅当菜单为此消息打开时）
+				const menuItems: MenuItem[] = [];
+				if (isAssistantMessageWithContent && menuOpenForMessageId === msg.id) {
+					menuItems.push({
+						icon: ListTodo,
+						label: tContextMenu("extractButton"),
+						onClick: () => {
+							// TODO: 实现提取待办功能
+							console.log("提取待办，消息ID:", msg.id);
+						},
+						isFirst: true,
+						isLast: true,
+					});
+				}
+
 				return (
 					<div
 						key={msg.id}
@@ -182,17 +244,45 @@ export function MessageList({
 							</div>
 						) : (
 							<div
+								ref={(el) => {
+									if (el) {
+										messageMenuRefs.current.set(msg.id, el);
+									} else {
+										messageMenuRefs.current.delete(msg.id);
+									}
+								}}
+								role="group"
 								className={cn(
-									"max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm",
+									"relative max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm",
 									msg.role === "assistant"
 										? "bg-muted text-foreground"
 										: "bg-primary text-primary-foreground",
 								)}
+								onMouseEnter={() => {
+									if (isAssistantMessageWithContent) {
+										setHoveredMessageId(msg.id);
+									}
+								}}
+								onMouseLeave={() => {
+									setHoveredMessageId(null);
+								}}
 							>
 								<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">
 									{msg.role === "assistant" ? t("assistant") : t("user")}
 								</div>
-								<div className="leading-relaxed">
+								<div className="leading-relaxed relative">
+									{/* Hover 时显示的菜单按钮 - 位于右下角 */}
+									{hoveredMessageId === msg.id &&
+										isAssistantMessageWithContent && (
+											<button
+												type="button"
+												onClick={handleMessageMenuClick}
+												className="absolute -bottom-1 -right-1 opacity-70 hover:opacity-100 transition-opacity rounded-full p-1.5 bg-background/80 hover:bg-background shadow-sm border border-border/50"
+												aria-label={tContextMenu("extractButton")}
+											>
+												<MoreVertical className="h-3.5 w-3.5" />
+											</button>
+										)}
 									<ReactMarkdown
 										remarkPlugins={[remarkGfm]}
 										components={{
@@ -312,6 +402,33 @@ export function MessageList({
 					</div>
 				);
 			})}
+			{/* 消息菜单 */}
+			{menuOpenForMessageId && contextMenu.open && (
+				<BaseContextMenu
+					items={(() => {
+						const msg = messages.find((m) => m.id === menuOpenForMessageId);
+						if (!msg || msg.role !== "assistant" || !msg.content) return [];
+						return [
+							{
+								icon: ListTodo,
+								label: tContextMenu("extractButton"),
+								onClick: () => {
+									// TODO: 实现提取待办功能
+									console.log("提取待办，消息ID:", menuOpenForMessageId);
+								},
+								isFirst: true,
+								isLast: true,
+							},
+						];
+					})()}
+					open={contextMenu.open}
+					position={{ x: contextMenu.x, y: contextMenu.y }}
+					onClose={() => {
+						setMenuOpenForMessageId(null);
+						closeContextMenu();
+					}}
+				/>
+			)}
 		</div>
 	);
 }
