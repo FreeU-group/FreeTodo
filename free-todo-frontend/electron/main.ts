@@ -464,16 +464,18 @@ function startBackendServer(): void {
 	// 获取后端可执行文件路径
 	let backendPath: string;
 	let backendDir: string;
+	// Windows 平台需要 .exe 扩展名，其他平台不需要
+	const execName = process.platform === "win32" ? "lifetrace.exe" : "lifetrace";
 
 	if (app.isPackaged) {
 		// 打包环境：后端在 Resources/backend/lifetrace
 		backendDir = path.join(process.resourcesPath, "backend");
-		backendPath = path.join(backendDir, "lifetrace");
+		backendPath = path.join(backendDir, execName);
 	} else {
 		// 开发环境：使用 dist-backend
 		const projectRoot = path.resolve(__dirname, "../..");
 		backendDir = path.join(projectRoot, "..", "dist-backend");
-		backendPath = path.join(backendDir, "lifetrace");
+		backendPath = path.join(backendDir, execName);
 	}
 
 	// 检查后端可执行文件是否存在
