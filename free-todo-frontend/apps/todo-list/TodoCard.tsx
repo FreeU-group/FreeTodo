@@ -63,6 +63,11 @@ export function TodoCard({
 	const [childName, setChildName] = useState("");
 	const childInputRef = useRef<HTMLInputElement | null>(null);
 
+	// 就地编辑 todo name 的状态
+	const [isEditingName, setIsEditingName] = useState(false);
+	const [editingName, setEditingName] = useState("");
+	const nameInputRef = useRef<HTMLInputElement | null>(null);
+
 	// 构建类型化的拖拽数据
 	const dragData: DragData = useMemo(
 		() => ({
@@ -182,6 +187,20 @@ export function TodoCard({
 		}
 	}, [isAddingChild]);
 
+	useEffect(() => {
+		if (isEditingName) {
+			nameInputRef.current?.focus();
+			nameInputRef.current?.select();
+		}
+	}, [isEditingName]);
+
+	// 当 todo.name 变化时，如果不在编辑模式，同步 editingName
+	useEffect(() => {
+		if (!isEditingName) {
+			setEditingName(todo.name);
+		}
+	}, [todo.name, isEditingName]);
+
 	const handleCreateChild = async (e?: React.FormEvent) => {
 		if (e) e.preventDefault();
 		const name = childName.trim();
@@ -254,6 +273,43 @@ export function TodoCard({
 
 	const handleAddChildFromMenu = () => {
 		setIsAddingChild(true);
+	};
+
+	const handleStartEditName = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		setEditingName(todo.name);
+		setIsEditingName(true);
+	};
+
+	const handleSaveName = async () => {
+		const trimmedName = editingName.trim();
+		if (!trimmedName) {
+			// 如果名称为空，恢复原值
+			setEditingName(todo.name);
+			setIsEditingName(false);
+			return;
+		}
+
+		if (trimmedName === todo.name) {
+			// 如果没有变化，直接退出编辑模式
+			setIsEditingName(false);
+			return;
+		}
+
+		try {
+			await updateTodo(todo.id, { name: trimmedName });
+			setIsEditingName(false);
+		} catch (err) {
+			console.error("Failed to update todo name:", err);
+			// 保存失败时恢复原值
+			setEditingName(todo.name);
+			setIsEditingName(false);
+		}
+	};
+
+	const handleCancelEditName = () => {
+		setEditingName(todo.name);
+		setIsEditingName(false);
 	};
 
 	const cardContent = (
@@ -356,17 +412,52 @@ export function TodoCard({
 				<div className="flex-1 min-w-0">
 					<div className="flex items-start justify-between gap-2">
 						<div className="min-w-0 flex-1">
-							<h3
-								className={cn(
-									"text-sm text-foreground leading-5 m-0 wrap-break-word line-clamp-3",
-									todo.status === "completed" &&
-										"line-through text-muted-foreground",
-									todo.status === "canceled" &&
-										"line-through text-muted-foreground",
-								)}
-							>
-								{todo.name}
-							</h3>
+							{isEditingName ? (
+								<input
+									ref={nameInputRef}
+									type="text"
+									value={editingName}
+									onChange={(e) => setEditingName(e.target.value)}
+									onBlur={handleSaveName}
+									onKeyDown={(e) => {
+										e.stopPropagation();
+										if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+											e.preventDefault();
+											handleSaveName();
+										} else if (e.key === "Escape") {
+											handleCancelEditName();
+										}
+									}}
+									onMouseDown={(e) => e.stopPropagation()}
+									className={cn(
+										"w-full text-sm text-foreground leading-5 m-0 px-1 py-0.5 rounded-md",
+										"bg-background border border-primary focus:outline-none focus:ring-2 focus:ring-primary",
+										"wrap-break-word",
+									)}
+								/>
+							) : (
+								<div
+									role="button"
+									tabIndex={0}
+									onClick={handleStartEditName}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											handleStartEditName(e as unknown as React.MouseEvent);
+										}
+									}}
+									className={cn(
+										"text-sm text-foreground leading-5 m-0 wrap-break-word line-clamp-3",
+										"cursor-text hover:bg-muted/30 rounded-md px-1 py-0.5 transition-colors",
+										todo.status === "completed" &&
+											"line-through text-muted-foreground",
+										todo.status === "canceled" &&
+											"line-through text-muted-foreground",
+									)}
+								>
+									{todo.name}
+								</div>
+							)}
 							{/* {todo.description && (
 								<p className="text-xs text-muted-foreground line-clamp-2">
 									{todo.description}
