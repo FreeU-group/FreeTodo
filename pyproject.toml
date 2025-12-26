@@ -10,50 +10,36 @@ dependencies = [
     "uvicorn[standard]>=0.20.0",
     "pydantic>=2.0.0",
     "sqlalchemy>=2.0.0",
+    "sqlmodel>=0.0.22",
+    "alembic>=1.14.0",
     # Screenshot and image processing
     "mss>=9.0.0",
     "Pillow>=10.0.0",
     "imagehash>=4.3.0",
-    "opencv-python>=4.8.0",
-    # OCR processing
+    # OCR processing (rapidocr requires numpy)
     "rapidocr-onnxruntime",
-    "numpy>=1.21.0",
+    "numpy>=1.21.0,<2.0.0",  # 限制到 1.x 版本以确保 PyInstaller 兼容性
     # Data processing
     "pyyaml>=6.0",
-    "typer>=0.9.0",
+    "sentence-transformers>=2.2.0",  # 文本嵌入模型
+    "chromadb>=0.4.0",               # 向量数据库
+    "scipy>=1.9.0",                  # 科学计算（用于余弦距离）
+    "hdbscan>=0.8.0",                # 文本聚类算法
     # Scheduler
     "apscheduler>=3.10.0",
-    # Web interface
-    "jinja2>=3.1.0",
-    "python-multipart>=0.0.6",
     # Utils
     "psutil>=5.9.0",
-    "python-dateutil>=2.8.0",
-    # Command line interface
-    "rich>=13.0.0",
-    # PyTorch (Required by CLIP)
-    "torch>=2.0.0",
-    "torchvision>=0.15.0",
-    "torchaudio>=2.0.0",
-    # Transformers (Hugging Face CLIP model)
-    "transformers>=4.21.0",
-    # Numerical computing
-    "scipy>=1.9.0",
-    "hdbscan>=0.8.0",
-    # Embedding models and vector database
-    "sentence-transformers>=2.2.0",
-    "chromadb>=0.4.0",
     # OpenAI API
     "openai>=1.0.0",
-    # Environment variables
-    "python-dotenv>=1.0.0",
+    # Configuration management with hot reload support (includes yaml support)
+    "dynaconf[yaml]>=3.2.0",
+    # Logging
+    "loguru>=0.7.3",
     # macOS specific dependencies (only install on macOS)
     "pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'",
     "pyobjc-framework-Quartz>=9.0; sys_platform == 'darwin'",
     # Windows specific dependencies (only install on Windows)
     "pywin32>=306; sys_platform == 'win32'",
-    "open-clip-torch>=3.2.0",
-    "loguru>=0.7.3",
 ]
 
 # Ruff 配置 - Python linter 和 formatter
@@ -129,6 +115,7 @@ indent-style = "space"
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 
 [dependency-groups]
+# 开发工具
 dev = [
     "pre-commit>=4.4.0",
     "ruff>=0.14.4",

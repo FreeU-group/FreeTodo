@@ -21,7 +21,7 @@ echo "Using virtual environment: $VENV_DIR"
 # Check if .venv exists
 if [ ! -d "$VENV_DIR" ]; then
     echo "Error: Virtual environment not found at $VENV_DIR"
-    echo "Please run 'uv sync' first to create the virtual environment."
+    echo "Please run 'uv sync --group dev' first to create the virtual environment."
     exit 1
 fi
 
@@ -39,10 +39,16 @@ fi
 
 # Use .venv Python and PyInstaller
 VENV_PYTHON="$VENV_DIR/bin/python"
-PYINSTALLER_CMD="$VENV_PYINSTALLER"
 
 echo "Using Python: $VENV_PYTHON"
-echo "Using PyInstaller: $PYINSTALLER_CMD"
+echo "Using PyInstaller: $VENV_PYINSTALLER"
+
+# Verify critical dependencies are available in .venv
+echo "Verifying dependencies in .venv..."
+"$VENV_PYTHON" -c "import fastapi, uvicorn, pydantic; print('✓ All critical dependencies found')" || {
+    echo "Error: Missing dependencies in .venv. Please run 'uv sync --group dev' first."
+    exit 1
+}
 
 # Clean previous build
 if [ -d "$DIST_DIR" ]; then

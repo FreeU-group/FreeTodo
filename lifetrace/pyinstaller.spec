@@ -61,12 +61,21 @@ datas = [
 ]
 
 # Hidden imports (modules that PyInstaller might miss)
+# 注意：这些模块需要与 pyproject.toml 中的依赖保持一致
 hiddenimports = [
+    # LifeTrace core modules
     "lifetrace",
     "lifetrace.server",
     "lifetrace.util",
     "lifetrace.util.config",
     "lifetrace.util.logging_config",
+    "lifetrace.routers",
+    "lifetrace.storage",
+    "lifetrace.llm",
+    "lifetrace.jobs",
+    "lifetrace.schemas",
+    "lifetrace.services",
+    # FastAPI and web server (fastapi, uvicorn)
     "fastapi",
     "uvicorn",
     "uvicorn.loops",
@@ -78,17 +87,35 @@ hiddenimports = [
     "uvicorn.protocols.websockets.auto",
     "uvicorn.lifespan",
     "uvicorn.lifespan.on",
+    "jinja2",  # FastAPI 依赖
+    # Data validation and ORM (pydantic, sqlalchemy, sqlmodel, alembic)
     "pydantic",
     "pydantic.json",
     "sqlalchemy",
     "sqlalchemy.engine",
     "sqlalchemy.pool",
     "sqlalchemy.dialects.sqlite",
+    "sqlmodel",
+    "alembic",
+    "alembic.config",
+    "alembic.script",
+    "alembic.runtime",
+    "alembic.runtime.environment",
+    "alembic.runtime.migration",
+    # Screenshot and image processing (mss, Pillow, imagehash)
     "mss",
     "PIL",
     "PIL.Image",
-    "cv2",
+    "imagehash",
+    "cv2",  # rapidocr 依赖
     "numpy",
+    "numpy._core",
+    "numpy._core._multiarray_umath",
+    "numpy._core.multiarray",
+    "numpy._core.umath",
+    "numpy._globals",
+    "numpy._core._globals",
+    # OCR processing (rapidocr-onnxruntime)
     "rapidocr_onnxruntime",
     "rapidocr_onnxruntime.main",
     "rapidocr_onnxruntime.cal_rec_boxes",
@@ -96,7 +123,16 @@ hiddenimports = [
     "rapidocr_onnxruntime.ch_ppocr_det",
     "rapidocr_onnxruntime.ch_ppocr_rec",
     "rapidocr_onnxruntime.utils",
+    # Configuration (pyyaml, dynaconf)
     "yaml",
+    "dynaconf",
+    "dynaconf.loaders",
+    "dynaconf.loaders.yaml_loader",
+    "dynaconf.utils",
+    "dynaconf.utils.boxing",
+    "dynaconf.utils.parse_conf",
+    "dynaconf.validator",
+    # Scheduler (apscheduler)
     "apscheduler",
     "apscheduler.executors",
     "apscheduler.executors.pool",
@@ -105,20 +141,12 @@ hiddenimports = [
     "apscheduler.triggers",
     "apscheduler.triggers.cron",
     "apscheduler.triggers.interval",
-    "jinja2",
+    # Utils (psutil, openai)
     "psutil",
-    "dateutil",
-    "rich",
-    "torch",
-    "torchvision",
-    "torchaudio",
-    "transformers",
-    "scipy",
-    "hdbscan",
-    "sentence_transformers",
-    "chromadb",
     "openai",
-    "dotenv",
+    "dateutil",  # 可能被其他库依赖
+    "rich",  # 可能被其他库依赖
+    # Logging (loguru)
     "loguru",
     "loguru._defaults",
     "loguru._handler",
@@ -131,17 +159,39 @@ hiddenimports = [
     "loguru._simple_sink",
     "loguru._string_parsers",
     "loguru._writer",
-    "open_clip",
-    # LifeTrace modules
-    "lifetrace.server",
-    "lifetrace.routers",
-    "lifetrace.storage",
-    "lifetrace.llm",
-    "lifetrace.jobs",
-    "lifetrace.util",
-    "lifetrace.schemas",
-    "lifetrace.services",
+    # Vector database and semantic search (可选 vector 组)
+    # 这些是 pyproject.toml 中 [dependency-groups] vector 的依赖
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "transformers",  # sentence-transformers 依赖
+    "scipy",
+    "hdbscan",
+    "sentence_transformers",
+    "chromadb",
 ]
+
+# 平台特定的 hidden imports
+import sys
+if sys.platform == "darwin":
+    # macOS specific (pyobjc-framework-Cocoa, pyobjc-framework-Quartz)
+    hiddenimports.extend([
+        "objc",
+        "AppKit",
+        "Cocoa",
+        "Quartz",
+        "Quartz.CoreGraphics",
+        "CoreFoundation",
+    ])
+elif sys.platform == "win32":
+    # Windows specific (pywin32)
+    hiddenimports.extend([
+        "win32api",
+        "win32con",
+        "win32gui",
+        "win32process",
+        "pywintypes",
+    ])
 
 # Collect all lifetrace source files to ensure they're included
 # PyInstaller needs the parent directory in pathex to find the lifetrace module
@@ -175,6 +225,34 @@ hiddenimports.extend(sentence_transformers_submodules)
 # Collect sentence_transformers data files (model configs, etc.)
 sentence_transformers_datas = collect_data_files("sentence_transformers")
 datas.extend(sentence_transformers_datas)
+
+# Collect dynaconf submodules and data files (配置管理)
+dynaconf_submodules = collect_submodules("dynaconf")
+hiddenimports.extend(dynaconf_submodules)
+dynaconf_datas = collect_data_files("dynaconf")
+datas.extend(dynaconf_datas)
+
+# Collect sqlmodel submodules (ORM)
+sqlmodel_submodules = collect_submodules("sqlmodel")
+hiddenimports.extend(sqlmodel_submodules)
+
+# Collect alembic submodules and data files (数据库迁移)
+alembic_submodules = collect_submodules("alembic")
+hiddenimports.extend(alembic_submodules)
+alembic_datas = collect_data_files("alembic")
+datas.extend(alembic_datas)
+
+# Collect imagehash submodules (图像哈希)
+imagehash_submodules = collect_submodules("imagehash")
+hiddenimports.extend(imagehash_submodules)
+
+# Collect numpy submodules (NumPy 2.x 需要显式收集子模块)
+# NumPy 2.4+ 与 PyInstaller 的兼容性问题，需要确保所有核心模块都被包含
+numpy_submodules = collect_submodules("numpy")
+hiddenimports.extend(numpy_submodules)
+# 特别添加 numpy._core 和 numpy._globals 相关模块
+numpy_core_submodules = collect_submodules("numpy._core")
+hiddenimports.extend(numpy_core_submodules)
 
 a = Analysis(
     ["scripts/start_backend.py"],
