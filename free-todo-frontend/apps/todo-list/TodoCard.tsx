@@ -280,7 +280,7 @@ export function TodoCard({
 			className={cn(
 				"todo-card group relative flex max-h-32 flex-col justify-start gap-1 rounded-lg px-1 py-2 cursor-pointer",
 				"border border-transparent transition-all duration-200",
-				"bg-card dark:bg-background hover:bg-muted/40",
+				"bg-card dark:bg-background hover:bg-muted/40 dark:hover:bg-accent/70",
 				"select-none", // 阻止文本选择
 				selected &&
 					"bg-[oklch(var(--primary-weak))] dark:bg-primary/17 border-[oklch(var(--primary-border)/0.3)] dark:border-primary/30",
