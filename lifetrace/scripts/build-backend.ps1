@@ -9,18 +9,49 @@ $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PROJECT_ROOT = Split-Path -Parent (Split-Path -Parent $SCRIPT_DIR)
 $LIFETRACE_DIR = Split-Path -Parent $SCRIPT_DIR
 $DIST_DIR = "$PROJECT_ROOT\dist-backend"
+$VENV_DIR = "$PROJECT_ROOT\.venv"
 
 Write-Host "Building LifeTrace backend..."
 Write-Host "Project root: $PROJECT_ROOT"
 Write-Host "Lifetrace dir: $LIFETRACE_DIR"
 Write-Host "Output dir: $DIST_DIR"
+Write-Host "Using virtual environment: $VENV_DIR"
 
-# Check if PyInstaller is installed
+# Check if .venv exists
+if (-not (Test-Path $VENV_DIR)) {
+    Write-Host "Error: Virtual environment not found at $VENV_DIR"
+    Write-Host "Please run 'uv sync --group dev' first to create the virtual environment."
+    exit 1
+}
+
+# Check if PyInstaller is installed in .venv
+$VENV_PYINSTALLER = "$VENV_DIR\Scripts\pyinstaller.exe"
+if (-not (Test-Path $VENV_PYINSTALLER)) {
+    Write-Host "PyInstaller not found in .venv. Installing via uv..."
+    Set-Location $PROJECT_ROOT
+    uv sync --group dev
+    if (-not (Test-Path $VENV_PYINSTALLER)) {
+        Write-Host "Error: Failed to install PyInstaller in .venv"
+        exit 1
+    }
+}
+
+# Use .venv Python and PyInstaller
+$VENV_PYTHON = "$VENV_DIR\Scripts\python.exe"
+
+Write-Host "Using Python: $VENV_PYTHON"
+Write-Host "Using PyInstaller: $VENV_PYINSTALLER"
+
+# Verify critical dependencies are available in .venv
+Write-Host "Verifying dependencies in .venv..."
 try {
-    $null = Get-Command pyinstaller -ErrorAction Stop
+    & $VENV_PYTHON -c "import fastapi, uvicorn, pydantic; print('✓ All critical dependencies found')"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Dependency check failed"
+    }
 } catch {
-    Write-Host "PyInstaller is not installed. Installing..."
-    pip install pyinstaller
+    Write-Host "Error: Missing dependencies in .venv. Please run 'uv sync --group dev' first."
+    exit 1
 }
 
 # Clean previous build
@@ -32,12 +63,15 @@ if (Test-Path $DIST_DIR) {
 # Create dist directory
 New-Item -ItemType Directory -Force -Path $DIST_DIR | Out-Null
 
+# Change to project root directory
+Set-Location $PROJECT_ROOT
+
+# Run PyInstaller using .venv Python
+Write-Host "Running PyInstaller..."
 # Change to lifetrace directory to run PyInstaller (so paths in spec file work correctly)
 Set-Location $LIFETRACE_DIR
-
-# Run PyInstaller
-Write-Host "Running PyInstaller..."
-pyinstaller --clean --noconfirm pyinstaller.spec
+# Use .venv Python explicitly to ensure all dependencies are from .venv
+& $VENV_PYTHON -m PyInstaller --clean --noconfirm pyinstaller.spec
 
 # Copy the built executable to dist-backend
 # PyInstaller creates a directory with the same name as the spec file target
