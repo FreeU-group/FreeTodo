@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { ScrollbarController } from "@/components/common/ScrollbarController";
 import { ThemeProvider } from "@/components/common/ThemeProvider";
+import { DynamicIslandProvider } from "@/components/DynamicIsland/DynamicIslandProvider";
 import { QueryProvider } from "@/lib/query/provider";
 import "./globals.css";
 
@@ -28,7 +29,10 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 				<ScrollbarController />
 				<QueryProvider>
 					<NextIntlClientProvider messages={messages}>
-						<ThemeProvider>{children}</ThemeProvider>
+						<ThemeProvider>
+							{children}
+							<DynamicIslandProvider />
+						</ThemeProvider>
 					</NextIntlClientProvider>
 				</QueryProvider>
 			</body>

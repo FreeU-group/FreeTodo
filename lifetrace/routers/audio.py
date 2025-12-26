@@ -1,12 +1,14 @@
 """音频相关路由"""
 
+import hashlib
 import os
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Query
 from fastapi.responses import JSONResponse
 
+from lifetrace.storage import Attachment, AudioRecording, get_session
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.path_utils import get_user_data_dir
 
@@ -26,7 +28,7 @@ async def upload_audio(
     endTime: str = Form(...),
     segmentId: str = Form(...),
 ):
-    """上传音频文件"""
+    """上传音频文件并保存到数据库"""
     try:
         # 解析时间
         start_dt = datetime.fromisoformat(startTime.replace("Z", "+00:00"))
@@ -39,16 +41,56 @@ async def upload_audio(
         file_path = AUDIO_STORAGE_DIR / filename
 
         # 保存文件
+        content = await file.read()
         with open(file_path, "wb") as f:
-            content = await file.read()
             f.write(content)
 
         file_size = os.path.getsize(file_path)
+        
+        # 计算文件哈希
+        file_hash = hashlib.sha256(content).hexdigest()
+
+        # 保存到数据库
+        attachment_id = None
+        audio_recording_id = None
+        
+        with get_session() as session:
+            # 1. 创建 Attachment 记录
+            attachment = Attachment(
+                file_path=str(file_path),
+                file_name=filename,
+                file_size=file_size,
+                mime_type=file.content_type or "audio/webm",
+                file_hash=file_hash,
+            )
+            session.add(attachment)
+            session.flush()  # 获取 attachment.id
+            attachment_id = attachment.id  # 在会话内保存 ID
+
+            # 2. 创建 AudioRecording 记录
+            duration_seconds = int((end_dt - start_dt).total_seconds())
+            audio_recording = AudioRecording(
+                attachment_id=attachment.id,
+                start_time=start_dt,
+                end_time=end_dt,
+                duration_seconds=duration_seconds,
+                segment_id=segmentId,
+            )
+            session.add(audio_recording)
+            session.flush()  # 获取 audio_recording.id
+            audio_recording_id = audio_recording.id  # 在会话内保存 ID
+            # commit 会在上下文管理器退出时自动执行
 
         logger.info(
-            f"音频文件上传成功: {filename}, 大小: {file_size} bytes, "
-            f"时间段: {start_dt} - {end_dt}"
+            f"✅ 音频文件已保存到本地文件夹和数据库: "
+            f"文件路径={file_path}, "
+            f"filename={filename}, "
+            f"attachment_id={attachment_id}, "
+            f"audio_recording_id={audio_recording_id}, "
+            f"大小={file_size} bytes, "
+            f"时间段={start_dt} - {end_dt}"
         )
+        print(f"✅ [音频保存] 文件已保存到: {file_path} (大小: {file_size} bytes)")
 
         # 返回文件ID（使用segmentId作为标识）
         return JSONResponse(
@@ -59,12 +101,67 @@ async def upload_audio(
                 "file_size": file_size,
                 "start_time": start_dt.isoformat(),
                 "end_time": end_dt.isoformat(),
+                "attachment_id": attachment_id,
+                "audio_recording_id": audio_recording_id,
             }
         )
 
     except Exception as e:
-        logger.error(f"音频文件上传失败: {e}", exc_info=True)
+        logger.error(f"❌ 音频文件上传失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}") from e
+
+
+@router.get("")
+async def query_audio_recordings(
+    startTime: str = Query(None, description="开始时间（ISO 格式）"),
+    endTime: str = Query(None, description="结束时间（ISO 格式）"),
+):
+    """查询音频录音记录"""
+    try:
+        from datetime import datetime
+        from lifetrace.storage import AudioRecording, Attachment
+        
+        with get_session() as session:
+            query = session.query(AudioRecording)
+            
+            if startTime and endTime:
+                start_dt = datetime.fromisoformat(startTime.replace("Z", "+00:00"))
+                end_dt = datetime.fromisoformat(endTime.replace("Z", "+00:00"))
+                query = query.filter(
+                    AudioRecording.start_time >= start_dt,
+                    AudioRecording.start_time <= end_dt,
+                )
+            
+            recordings = query.order_by(AudioRecording.start_time).all()
+            
+            results = []
+            for rec in recordings:
+                attachment = None
+                if rec.attachment_id:
+                    attachment = session.query(Attachment).filter(Attachment.id == rec.attachment_id).first()
+                
+                file_url = None
+                if attachment and attachment.file_path:
+                    filename = os.path.basename(attachment.file_path)
+                    file_url = f"/api/audio/file/{filename}"
+                
+                results.append({
+                    "id": rec.segment_id or str(rec.id),
+                    "segment_id": rec.segment_id,
+                    "start_time": rec.start_time.isoformat(),
+                    "end_time": rec.end_time.isoformat() if rec.end_time else None,
+                    "duration_seconds": rec.duration_seconds,
+                    "file_url": file_url,
+                    "filename": os.path.basename(attachment.file_path) if attachment else None,
+                    "file_size": attachment.file_size if attachment else None,
+                })
+            
+            logger.info(f"✅ 查询到 {len(results)} 条音频录音记录")
+            return JSONResponse(content={"recordings": results})
+            
+    except Exception as e:
+        logger.error(f"查询音频录音记录失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}") from e
 
 
 @router.get("/{audio_id}")
@@ -107,11 +204,36 @@ async def get_audio_file(filename: str):
             raise HTTPException(status_code=404, detail="音频文件不存在")
 
         from fastapi.responses import FileResponse
+        from fastapi import Response
 
+        # 确定正确的媒体类型（不包含 codecs，让浏览器自动检测）
+        file_ext = file_path.suffix.lower()
+        media_type_map = {
+            ".webm": "audio/webm",  # 不指定 codecs，让浏览器自动检测
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".ogg": "audio/ogg",
+            ".m4a": "audio/mp4",
+        }
+        media_type = media_type_map.get(file_ext, "audio/webm")
+
+        logger.info(f"返回音频文件: {filename}, 媒体类型: {media_type}, 文件大小: {file_path.stat().st_size} bytes")
+
+        # 添加 CORS 头，确保浏览器可以访问
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_path.stat().st_size),
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Type, Accept-Ranges",
+        }
+        
         return FileResponse(
             path=str(file_path),
-            media_type="audio/webm",
+            media_type=media_type,
             filename=filename,
+            headers=headers,
         )
 
     except HTTPException:

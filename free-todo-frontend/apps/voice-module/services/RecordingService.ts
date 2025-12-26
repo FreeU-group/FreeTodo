@@ -1,8 +1,6 @@
 /**
  * 录音服务 - 负责持续录音和音频分段
  */
-export type AudioSource = 'microphone' | 'system';
-
 export class RecordingService {
   private mediaRecorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
@@ -10,130 +8,60 @@ export class RecordingService {
   private analyser: AnalyserNode | null = null;
   private pendingRestart: boolean = false;
   
-  /**
-   * 获取当前音频流（用于 WebSocket 识别）
-   */
-  getStream(): MediaStream | null {
-    return this.stream;
-  }
-  
   private segmentDuration = 10 * 60 * 1000; // 10分钟
   private currentSegmentStart: number = 0;
   private currentSegmentChunks: Blob[] = [];
   private segmentId: string | null = null;
   
   private isRecording: boolean = false;
+  private isPaused: boolean = false;
   private recordingStartTime: Date | null = null;
-  private audioSource: AudioSource = 'microphone'; // 默认麦克风
   
   // 回调函数
-  private onSegmentReady?: (blob: Blob, startTime: Date, endTime: Date, segmentId: string, audioSource: AudioSource) => void;
+  private onSegmentReady?: (blob: Blob, startTime: Date, endTime: Date, segmentId: string) => void;
   private onError?: (error: Error) => void;
   private onAudioData?: (analyser: AnalyserNode) => void;
   
-  constructor(audioSource: AudioSource = 'microphone') {
-    this.audioSource = audioSource;
-  }
-  
-  /**
-   * 设置音频源
-   */
-  setAudioSource(source: AudioSource): void {
-    if (this.isRecording) {
-      console.warn('Cannot change audio source while recording');
-      return;
-    }
-    this.audioSource = source;
-  }
-  
-  /**
-   * 获取当前音频源
-   */
-  getAudioSource(): AudioSource {
-    return this.audioSource;
-  }
+  constructor() {}
 
   /**
    * 设置回调函数
    */
   setCallbacks(callbacks: {
-    onSegmentReady?: (blob: Blob, startTime: Date, endTime: Date, segmentId: string, audioSource: AudioSource) => void;
+    onSegmentReady?: (blob: Blob, startTime: Date, endTime: Date, segmentId: string) => void;
     onError?: (error: Error) => void;
     onAudioData?: (analyser: AnalyserNode) => void;
   }) {
+    console.log('[RecordingService] 🔧 setCallbacks被调用:', {
+      hasOnSegmentReady: typeof callbacks.onSegmentReady === 'function',
+      hasOnError: typeof callbacks.onError === 'function',
+      hasOnAudioData: typeof callbacks.onAudioData === 'function',
+    });
     this.onSegmentReady = callbacks.onSegmentReady;
     this.onError = callbacks.onError;
     this.onAudioData = callbacks.onAudioData;
+    console.log('[RecordingService] ✅ 回调已设置，this.onSegmentReady:', typeof this.onSegmentReady === 'function');
   }
 
   /**
    * 开始录音
+   * 使用系统默认麦克风（与 Web Speech API 保持一致）
    */
   async start(): Promise<void> {
     if (this.isRecording) {
-      console.warn('Recording already started');
+      console.warn('[RecordingService] Recording already started');
       return;
     }
 
     try {
-      // 根据音频源选择不同的 API
-      if (this.audioSource === 'system') {
-        // 系统音频：使用 getDisplayMedia（需要用户选择屏幕/窗口）
-        // 注意：大多数浏览器要求同时请求视频和音频，然后我们可以移除视频轨道
-        try {
-          this.stream = await navigator.mediaDevices.getDisplayMedia({
-            audio: {
-              echoCancellation: false, // 系统音频不需要回声消除
-              noiseSuppression: false,
-              autoGainControl: false,
-            } as MediaTrackConstraints,
-            video: {
-              // 请求视频（浏览器要求），但我们会立即停止它
-              displaySurface: 'browser' as any, // 只捕获浏览器标签页
-            },
-          });
-          
-          // 检查是否有音频轨道
-          if (this.stream.getAudioTracks().length === 0) {
-            throw new Error('无法获取系统音频，请确保选择了包含音频的标签页');
-          }
-          
-          // 移除视频轨道（我们只需要音频）
-          this.stream.getVideoTracks().forEach(track => {
-            track.stop(); // 停止视频轨道
-            this.stream!.removeTrack(track); // 从流中移除
-          });
-          
-          // 监听音频轨道结束事件（用户可能停止共享）
-          this.stream.getAudioTracks().forEach(track => {
-            track.onended = () => {
-              console.log('音频轨道已结束（用户可能停止了共享）');
-              if (this.isRecording) {
-                this.stop();
-              }
-            };
-          });
-        } catch (error: any) {
-          // 提供更友好的错误信息
-          if (error.name === 'NotAllowedError') {
-            throw new Error('系统音频权限被拒绝，请允许屏幕共享权限');
-          } else if (error.name === 'NotSupportedError') {
-            throw new Error('您的浏览器不支持系统音频捕获，请使用 Chrome 或 Edge 浏览器');
-          } else if (error.name === 'NotFoundError') {
-            throw new Error('未找到可用的音频源，请确保选择了包含音频的标签页');
-          }
-          throw error;
-        }
-      } else {
-        // 麦克风：使用 getUserMedia
-        this.stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          } 
-        });
-      }
+      // 获取麦克风权限（使用系统默认设备）
+      this.stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } 
+      });
 
       // 创建 AudioContext 用于波形分析
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -153,24 +81,30 @@ export class RecordingService {
         mimeType: this.getSupportedMimeType(),
       };
       
+      console.log('[RecordingService] 📹 创建MediaRecorder，MIME类型:', options.mimeType);
       this.mediaRecorder = new MediaRecorder(this.stream, options);
       
       // 设置事件监听
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           this.currentSegmentChunks.push(event.data);
+          // 每10个块输出一次日志
+          if (this.currentSegmentChunks.length % 10 === 0) {
+            console.log(`[RecordingService] 📦 收到音频数据块，累计: ${this.currentSegmentChunks.length} 个`);
+          }
         }
       };
 
       this.mediaRecorder.onerror = (event) => {
         const error = new Error('MediaRecorder error');
-        console.error('MediaRecorder error:', event);
+        console.error('[RecordingService] ❌ MediaRecorder error:', event);
         if (this.onError) {
           this.onError(error);
         }
       };
 
       this.mediaRecorder.onstop = () => {
+        console.log('[RecordingService] 🛑 MediaRecorder onstop事件触发');
         // 先完成当前片段
         this.finalizeSegment();
 
@@ -194,14 +128,46 @@ export class RecordingService {
       // 设置定时器，每10分钟自动分段
       this.scheduleNextSegment();
 
-      console.log('Recording started at', this.recordingStartTime);
+      console.log('[RecordingService] ✅ 录音已开始', {
+        startTime: this.recordingStartTime,
+        segmentId: this.segmentId,
+        hasOnSegmentReady: !!this.onSegmentReady,
+      });
     } catch (error) {
       const err = error instanceof Error ? error : new Error('Failed to start recording');
-      console.error('Failed to start recording:', err);
+      console.error('[RecordingService] ❌ 启动录音失败:', err);
       if (this.onError) {
         this.onError(err);
       }
       throw err;
+    }
+  }
+
+  /**
+   * 暂停录音（保留音频流，暂停MediaRecorder）
+   */
+  pause(): void {
+    if (!this.isRecording || this.isPaused) {
+      return;
+    }
+
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      this.mediaRecorder.pause();
+      this.isPaused = true;
+    }
+  }
+
+  /**
+   * 恢复录音
+   */
+  resume(): void {
+    if (!this.isRecording || !this.isPaused) {
+      return;
+    }
+
+    if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
+      this.mediaRecorder.resume();
+      this.isPaused = false;
     }
   }
 
@@ -212,12 +178,14 @@ export class RecordingService {
     if (!this.isRecording) {
       return;
     }
-
     this.isRecording = false;
+    this.isPaused = false;
+    this.pendingRestart = false; // 停止时不再重启
 
-    // 停止 MediaRecorder
+    // 停止 MediaRecorder（这会触发 onstop 事件，在 onstop 中处理 finalizeSegment）
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       this.mediaRecorder.stop();
+      // 注意：不要在这里调用 finalizeSegment()，因为 onstop 事件会处理
     }
 
     // 停止音频流
@@ -233,19 +201,18 @@ export class RecordingService {
       this.analyser = null;
     }
 
-    // 最终化当前片段
-    this.finalizeSegment();
-
-    console.log('Recording stopped');
+    // 注意：finalizeSegment 会在 onstop 事件中调用，不需要在这里重复调用
   }
 
   /**
    * 获取录音状态
    */
-  getStatus(): { isRecording: boolean; startTime: Date | null } {
+  getStatus(): { isRecording: boolean; isPaused: boolean; startTime: Date | null; hasOnSegmentReady: boolean } {
     return {
       isRecording: this.isRecording,
+      isPaused: this.isPaused,
       startTime: this.recordingStartTime,
+      hasOnSegmentReady: !!this.onSegmentReady,
     };
   }
 
@@ -254,6 +221,13 @@ export class RecordingService {
    */
   getAnalyser(): AnalyserNode | null {
     return this.analyser;
+  }
+
+  /**
+   * 获取当前音频流（用于识别服务）
+   */
+  getStream(): MediaStream | null {
+    return this.stream;
   }
 
   /**
@@ -288,7 +262,7 @@ export class RecordingService {
       // 继续安排下一次分段
       this.scheduleNextSegment();
     } catch (e) {
-      console.error('Failed to start new segment:', e);
+      console.error('[RecordingService] ❌ Failed to start new segment:', e);
       if (this.onError) {
         const err = e instanceof Error ? e : new Error('Failed to start new segment');
         this.onError(err);
@@ -300,19 +274,59 @@ export class RecordingService {
    * 最终化当前片段
    */
   private finalizeSegment(): void {
-    if (this.currentSegmentChunks.length === 0 || !this.segmentId || !this.recordingStartTime) {
+    // 防止重复调用：如果 chunks 已经被清空，说明已经处理过了
+    if (this.currentSegmentChunks.length === 0) {
+      console.log('[RecordingService] ⚠️ 片段已处理过，跳过重复调用');
+      return;
+    }
+
+    if (!this.segmentId || !this.recordingStartTime) {
+      console.warn('[RecordingService] ⚠️ 无法最终化片段：数据不足', {
+        chunksLength: this.currentSegmentChunks.length,
+        segmentId: this.segmentId,
+        recordingStartTime: this.recordingStartTime,
+      });
       return;
     }
 
     const blob = new Blob(this.currentSegmentChunks, { type: this.getSupportedMimeType() || 'audio/webm' });
     const startTime = new Date(this.currentSegmentStart);
     const endTime = new Date();
+    const totalSize = this.currentSegmentChunks.reduce((sum, chunk) => sum + chunk.size, 0);
 
-    if (this.onSegmentReady) {
-      this.onSegmentReady(blob, startTime, endTime, this.segmentId, this.audioSource);
+    console.log('[RecordingService] ✅ 最终化片段', {
+      segmentId: this.segmentId,
+      blobSize: blob.size,
+      totalChunkSize: totalSize,
+      chunksCount: this.currentSegmentChunks.length,
+      duration: endTime.getTime() - startTime.getTime(),
+    });
+
+    if (blob.size === 0) {
+      console.error('[RecordingService] ❌ 警告：最终化的片段大小为 0，跳过保存');
+      this.currentSegmentChunks = [];
+      return;
     }
 
-    // 重置
+    if (this.onSegmentReady) {
+      try {
+        console.log('[RecordingService] 📤 调用onSegmentReady回调，准备保存音频:', {
+          segmentId: this.segmentId,
+          blobSize: blob.size,
+          blobType: blob.type,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+        });
+        this.onSegmentReady(blob, startTime, endTime, this.segmentId);
+        console.log('[RecordingService] ✅ onSegmentReady回调已调用，音频将保存到后端本地文件夹');
+      } catch (error) {
+        console.error('[RecordingService] ❌ onSegmentReady回调执行失败:', error);
+      }
+    } else {
+      console.error('[RecordingService] ❌ onSegmentReady回调未设置！音频无法保存到本地文件夹！');
+    }
+
+    // 最后清空 chunks，防止重复调用（在回调之后清空，确保数据已使用）
     this.currentSegmentChunks = [];
   }
 
@@ -344,4 +358,3 @@ export class RecordingService {
     return ''; // 使用浏览器默认
   }
 }
-

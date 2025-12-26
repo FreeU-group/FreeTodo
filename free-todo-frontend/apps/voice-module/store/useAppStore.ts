@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { TranscriptSegment, ScheduleItem, AudioSegment, TimelineState, ProcessStatus } from '../types';
+import type { ExtractedTodo } from '../services/TodoExtractionService';
 
 interface AppState {
   // 录音状态
@@ -13,6 +14,7 @@ interface AppState {
   // 数据
   transcripts: TranscriptSegment[];
   schedules: ScheduleItem[];
+  extractedTodos: ExtractedTodo[];  // ⚡ 提取的待办事项
   audioSegments: AudioSegment[];
 
   // 进程状态
@@ -27,6 +29,9 @@ interface AppState {
   addTranscript: (segment: TranscriptSegment) => void;
   updateTranscript: (id: string, updates: Partial<TranscriptSegment>) => void;
   addSchedule: (schedule: ScheduleItem) => void;
+  addExtractedTodo: (todo: ExtractedTodo) => void;  // ⚡ 添加提取的待办
+  removeExtractedTodo: (todoId: string) => void;  // ⚡ 移除提取的待办
+  removeSchedule: (scheduleId: string) => void;  // ⚡ 移除日程
   addAudioSegment: (segment: AudioSegment) => void;
   updateAudioSegment: (id: string, updates: Partial<AudioSegment>) => void;
   setProcessStatus: (process: keyof ProcessStatus, status: ProcessStatus[keyof ProcessStatus]) => void;
@@ -49,6 +54,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   transcripts: [],
   schedules: [],
+  extractedTodos: [],  // ⚡ 提取的待办事项
   audioSegments: [],
 
   processStatus: {
@@ -56,6 +62,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     recognition: 'idle',
     optimization: 'idle',
     scheduleExtraction: 'idle',
+    todoExtraction: 'idle',
     persistence: 'idle',
   },
 
@@ -131,6 +138,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
+  addExtractedTodo: (todo: ExtractedTodo) => {
+    set(state => ({
+      extractedTodos: [...state.extractedTodos, todo],
+    }));
+  },
+
+  removeExtractedTodo: (todoId: string) => {
+    set(state => ({
+      extractedTodos: state.extractedTodos.filter(t => t.id !== todoId),
+    }));
+  },
+
+  removeSchedule: (scheduleId: string) => {
+    set(state => ({
+      schedules: state.schedules.filter(s => s.id !== scheduleId),
+    }));
+  },
+
   addAudioSegment: (segment: AudioSegment) => {
     set(state => ({
       audioSegments: [...state.audioSegments, segment],
@@ -146,12 +171,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setProcessStatus: (process: keyof ProcessStatus, status: ProcessStatus[keyof ProcessStatus]) => {
-    set(state => ({
-      processStatus: {
-        ...state.processStatus,
-        [process]: status,
-      },
-    }));
+    set(state => {
+      // 避免无限循环：只有当状态真正改变时才更新
+      if (state.processStatus[process] === status) {
+        return state;
+      }
+      return {
+        processStatus: {
+          ...state.processStatus,
+          [process]: status,
+        },
+      };
+    });
   },
 
   loadHistory: async (startTime: Date, endTime: Date) => {
@@ -164,6 +195,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({
       transcripts: [],
       schedules: [],
+      extractedTodos: [],  // ⚡ 清空提取的待办
       audioSegments: [],
       isRecording: false,
       recordingStartTime: null,

@@ -4,6 +4,7 @@
 export class RecognitionService {
   private recognition: SpeechRecognition | null = null;
   private isRunning: boolean = false;
+  private shouldContinue: boolean = true; // 是否应该继续运行（录音状态下为true）
   private restartTimeout: number | null = null;
   private maxRetries: number = 5;
   private retryCount: number = 0;
@@ -33,15 +34,17 @@ export class RecognitionService {
    */
   start(): void {
     if (this.isRunning) {
-      console.warn('Recognition already running');
+      console.warn('[RecognitionService] Recognition already running');
       return;
     }
+    
+    this.shouldContinue = true; // 开始识别时，标记为应该继续运行
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
       const error = new Error('您的浏览器不支持 Web Speech API');
-      console.error(error);
+      console.error('[RecognitionService] ❌', error);
       if (this.onError) {
         this.onError(error);
       }
@@ -52,7 +55,17 @@ export class RecognitionService {
     }
 
     this.recognition = new SpeechRecognition();
-    if (!this.recognition) return;
+    if (!this.recognition) {
+      const error = new Error('无法创建 SpeechRecognition 实例');
+      console.error('[RecognitionService] ❌', error);
+      if (this.onError) {
+        this.onError(error);
+      }
+      if (this.onStatusChange) {
+        this.onStatusChange('error');
+      }
+      return;
+    }
     
     this.recognition.continuous = true;
     this.recognition.interimResults = true;
@@ -60,7 +73,7 @@ export class RecognitionService {
 
     // 事件监听
     this.recognition.onstart = () => {
-      console.log('Speech recognition started');
+      console.log('[RecognitionService] ✅ 识别服务已启动');
       this.isRunning = true;
       this.retryCount = 0;
       if (this.onStatusChange) {
@@ -83,19 +96,15 @@ export class RecognitionService {
 
     this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       if (!this.recognition) return;
-      console.error('Speech recognition error:', event.error);
+      console.error('[RecognitionService] ❌ Speech recognition error:', event.error);
 
       // 处理不同错误类型
       if (event.error === 'no-speech') {
-        // 无语音输入，继续运行（但不要频繁重启）
-        // 如果连续多次 no-speech，可能是系统音频模式，应该停止
-        if (this.retryCount > 3) {
-          console.warn('连续多次 no-speech 错误，可能是系统音频模式，停止识别');
-          this.stop();
-          return;
-        }
+        // 无语音输入，继续运行
         return;
-      } else if (event.error === 'audio-capture') {
+      }
+
+      if (event.error === 'audio-capture') {
         const error = new Error('无法访问麦克风');
         if (this.onError) {
           this.onError(error);
@@ -113,24 +122,26 @@ export class RecognitionService {
         }
       } else if (event.error === 'network') {
         // 网络错误，尝试重启
-        console.log('Network error, will retry...');
+        console.log('[RecognitionService] 🔄 Network error, will retry...');
         this.scheduleRestart();
       } else {
         // 其他错误，尝试重启
-        console.log(`Error: ${event.error}, will attempt to continue...`);
+        console.log(`[RecognitionService] 🔄 Error: ${event.error}, will attempt to continue...`);
         this.scheduleRestart();
       }
     };
 
     this.recognition.onend = () => {
       if (!this.recognition) return;
-      console.log('Speech recognition ended');
+      console.log('[RecognitionService] 识别结束');
       this.isRunning = false;
 
-      // 如果应该继续运行，自动重启
-      if (this.recognition) {
+      // 如果应该继续运行，自动重启（只有在录音状态下才重启）
+      if (this.recognition && this.shouldContinue) {
+        console.log('[RecognitionService] 🔄 识别结束，准备自动重启...');
         this.scheduleRestart();
       } else {
+        console.log('[RecognitionService] ⏹️ 识别已停止，不再重启');
         if (this.onStatusChange) {
           this.onStatusChange('idle');
         }
@@ -143,7 +154,7 @@ export class RecognitionService {
         this.recognition.start();
       }
     } catch (error) {
-      console.error('Failed to start recognition:', error);
+      console.error('[RecognitionService] ❌ Failed to start recognition:', error);
       const err = error instanceof Error ? error : new Error('无法启动语音识别');
       if (this.onError) {
         this.onError(err);
@@ -158,28 +169,30 @@ export class RecognitionService {
    * 停止识别
    */
   stop(): void {
+    // 清除自动重启定时器
     if (this.restartTimeout) {
       clearTimeout(this.restartTimeout);
       this.restartTimeout = null;
     }
 
+    // 标记为停止状态（防止onend事件触发自动重启）
+    this.shouldContinue = false; // 停止时，标记为不应该继续运行
+    this.isRunning = false;
+    this.retryCount = 0;
+
+    // 停止识别
     if (this.recognition) {
       try {
         this.recognition.stop();
       } catch (e) {
-        console.log('Recognition already stopped');
+        // 忽略已停止的错误
       }
-      this.recognition = null;
     }
 
-    this.isRunning = false;
-    this.retryCount = 0;
-
+    // 更新状态
     if (this.onStatusChange) {
       this.onStatusChange('idle');
     }
-
-    console.log('Recognition stopped');
   }
 
   /**
@@ -200,7 +213,7 @@ export class RecognitionService {
     }
 
     if (this.retryCount >= this.maxRetries) {
-      console.error('Max retries reached, stopping recognition');
+      console.error('[RecognitionService] ❌ Max retries reached, stopping recognition');
       if (this.onError) {
         this.onError(new Error('语音识别重试次数过多，已停止'));
       }
@@ -216,17 +229,19 @@ export class RecognitionService {
     this.restartTimeout = window.setTimeout(() => {
       this.restartTimeout = null;
       
-      if (this.recognition) {
+      // 只有在应该继续运行且识别对象存在时才重启
+      if (this.recognition && this.shouldContinue) {
         try {
-          console.log(`Restarting recognition (attempt ${this.retryCount})...`);
+          console.log(`[RecognitionService] 🔄 Restarting recognition (attempt ${this.retryCount})...`);
           this.recognition.start();
         } catch (error) {
-          console.error('Failed to restart recognition:', error);
-          // 继续尝试
-          this.scheduleRestart();
+          console.error('[RecognitionService] ❌ Failed to restart recognition:', error);
+          // 继续尝试（但检查shouldContinue）
+          if (this.shouldContinue) {
+            this.scheduleRestart();
+          }
         }
       }
     }, delay);
   }
 }
-

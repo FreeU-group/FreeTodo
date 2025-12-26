@@ -1,77 +1,549 @@
+/**
+ * 新的语音模块面板（重构版）
+ * 使用新的UI组件结构，参考千问、飞书、腾讯会议的界面设计
+ * 
+ * 核心功能流程：
+ * 1. 采集音频（保留）
+ * 2. 自动转录
+ * 3. LLM优化
+ * 4. 智能提取（待办事项、日程）
+ */
+
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
-import WaveformTimeline from './components/WaveformTimeline';
-import TranscriptionLog from './components/TranscriptionLog';
-import ChatInterface from './components/ChatInterface';
-import ScheduleList from './components/ScheduleList';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Mic, Play, Upload } from 'lucide-react';
+import { DateSelector } from './components/DateSelector';
+import { OriginalTextView } from './components/OriginalTextView';
+import { OptimizedTextView } from './components/OptimizedTextView';
+import { MeetingSummary } from './components/MeetingSummary';
+import { CompactPlayer } from './components/CompactPlayer';
+import { RecordingView } from './components/RecordingView';
+import { ExtractedItemsPanel } from './components/ExtractedItemsPanel';
+import { AudioListPanel } from './components/AudioListPanel';
+import type { ViewMode } from './components/ModeSwitcher';
 import { useAppStore } from './store/useAppStore';
 import { RecordingService } from './services/RecordingService';
 import { RecognitionService } from './services/RecognitionService';
 import { WebSocketRecognitionService } from './services/WebSocketRecognitionService';
 import { OptimizationService } from './services/OptimizationService';
 import { ScheduleExtractionService } from './services/ScheduleExtractionService';
+import { TodoExtractionService, ExtractedTodo } from './services/TodoExtractionService';
 import { PersistenceService } from './services/PersistenceService';
-import { TranscriptSegment, ChatMessage, AudioSegment, ScheduleItem } from './types';
+import { useModuleContextStore } from '@/lib/store/module-context-store';
+import { useCreateTodo } from '@/lib/query/todos';
+import { cn } from '@/lib/utils';
+import type { TranscriptSegment, AudioSegment, ScheduleItem } from './types';
 
-const SYSTEM_PROMPT_CHAT = `
-你是一个智能语音助手。请根据提供的最近10分钟的语音转录上下文回答用户问题。
-如果答案不在上下文中，请明确告知。
-`;
+// API基础URL
+const API_BASE_URL = typeof window !== 'undefined' 
+  ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api')
+  : 'http://localhost:8000/api';
 
 export function VoiceModulePanel() {
+  // 从store获取状态
   const {
     isRecording,
     recordingStartTime,
-    currentTime,
-    timeline,
     transcripts,
     schedules,
+    extractedTodos,
     audioSegments,
     processStatus,
     startRecording: storeStartRecording,
     stopRecording: storeStopRecording,
     setCurrentTime: storeSetCurrentTime,
-    setTimelineView,
-    setTimelineZoom,
     addTranscript,
     updateTranscript,
     addSchedule,
+    addExtractedTodo,
+    removeExtractedTodo,
+    removeSchedule,
     addAudioSegment,
     updateAudioSegment,
     setProcessStatus,
   } = useAppStore();
 
+  // 服务引用
   const recordingServiceRef = useRef<RecordingService | null>(null);
   const recognitionServiceRef = useRef<RecognitionService | null>(null);
-  const websocketRecognitionServiceRef = useRef<WebSocketRecognitionService | null>(null);
   const optimizationServiceRef = useRef<OptimizationService | null>(null);
   const scheduleExtractionServiceRef = useRef<ScheduleExtractionService | null>(null);
+  const todoExtractionServiceRef = useRef<TodoExtractionService | null>(null);
   const persistenceServiceRef = useRef<PersistenceService | null>(null);
-
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    { 
-      id: 'init', 
-      role: 'model', 
-      text: '你好！我是基于 DeepSeek 的 7×24 智能录音助手。我可以持续录音、识别语音并自动提取日程。你可以随时向我提问，如果有录音内容，我会基于最近的录音内容回答；如果没有录音内容，我也可以回答一般性问题。', 
-      timestamp: new Date() 
-    }
-  ]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
-  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioSource, setAudioSource] = useState<'microphone' | 'system'>('microphone');
-
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const playbackIntervalRef = useRef<number | null>(null);
 
-  // 初始化服务
+  // 音频相关状态
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // 设置当前模块上下文
+  const { setCurrentModule, setVoiceTranscripts } = useModuleContextStore();
+  
+  // 创建Todo的mutation（用于智能提取）
+  const createTodoMutation = useCreateTodo();
+
+  // UI状态
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [pendingTodos, setPendingTodos] = useState<ExtractedTodo[]>([]);  // 待确认的待办列表
+  const [pendingSchedules, setPendingSchedules] = useState<ScheduleItem[]>([]);  // 待确认的日程列表
+  const [meetingSummary, setMeetingSummary] = useState<string>('');  // LLM生成的智能纪要
+  const [currentView, setCurrentView] = useState<'original' | 'optimized'>('original'); // 原文 / 智能优化版
+  const [viewMode, setViewMode] = useState<ViewMode>('playback');
+  const [apiResponse, setApiResponse] = useState<any>(null);  // 存储后端API响应，用于展示
+  const [highlightedSegmentId, setHighlightedSegmentId] = useState<string | undefined>();
+  const [hoveredSegment, setHoveredSegment] = useState<TranscriptSegment | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0); // 录音时长（秒）
+  const [currentSpeaker, setCurrentSpeaker] = useState<string>('发言人1');
+  const [meetingTitle, setMeetingTitle] = useState<string>(''); // 会议标题
+  const [nowTime, setNowTime] = useState<Date>(new Date()); // 当前时间
+
+  // 播放器状态
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [selectedAudioId, setSelectedAudioId] = useState<string | undefined>(undefined);
+
+  // 设置模块上下文
   useEffect(() => {
-    const recordingService = new RecordingService(audioSource);
+    setCurrentModule('voice');
+    return () => {
+      setCurrentModule(null);
+    };
+  }, [setCurrentModule]);
+
+  // 更新音频转录内容到模块上下文（供AI聊天使用）
+  useEffect(() => {
+    // 只传递当前日期的转录内容，并且优先使用优化后的文本
+    const dayTranscripts = transcripts.filter((t) => {
+      const transcriptDate = new Date(t.timestamp);
+      return transcriptDate.toDateString() === selectedDate.toDateString();
+    });
+    
+    setVoiceTranscripts(dayTranscripts.map(t => ({
+      timestamp: t.timestamp,
+      optimizedText: t.optimizedText,
+      rawText: t.rawText,
+    })));
+  }, [transcripts, selectedDate, setVoiceTranscripts]);
+
+  // 不再需要枚举设备，直接使用系统默认麦克风
+
+  // 处理文本优化完成
+  const handleTextOptimized = useCallback((segmentId: string, optimizedText: string, containsSchedule: boolean) => {
+    // 检查优化文本中是否包含日程标记
+    const hasScheduleInText = optimizedText.includes('[SCHEDULE:');
+    const finalContainsSchedule = containsSchedule || hasScheduleInText;
+    
+    updateTranscript(segmentId, {
+      optimizedText,
+      isOptimized: true,
+      containsSchedule: finalContainsSchedule,
+    });
+
+    const currentTranscripts = useAppStore.getState().transcripts;
+    const segment = currentTranscripts.find(t => t.id === segmentId);
+    if (segment) {
+      const updatedSegment = {
+        ...segment,
+        optimizedText,
+        isOptimized: true,
+        containsSchedule: finalContainsSchedule,
+      };
+      
+      // 如果包含日程标记，添加到日程提取队列
+      if (finalContainsSchedule && scheduleExtractionServiceRef.current) {
+        console.log('[VoiceModulePanel] 📅 检测到日程标记，添加到提取队列:', segmentId);
+        scheduleExtractionServiceRef.current.enqueue(updatedSegment);
+      }
+      
+      // 添加到待办提取队列
+      if (todoExtractionServiceRef.current) {
+        todoExtractionServiceRef.current.enqueue(updatedSegment);
+      }
+    }
+
+    setTimeout(() => {
+      const currentTranscripts = useAppStore.getState().transcripts;
+      const segment = currentTranscripts.find(t => t.id === segmentId);
+      if (segment && persistenceServiceRef.current) {
+        persistenceServiceRef.current.saveTranscripts([segment]).catch(() => {});
+        updateTranscript(segmentId, { uploadStatus: 'uploaded' });
+      }
+    }, 100);
+  }, [updateTranscript]);
+
+  // 处理日程提取 - 先加入到待确认列表，不自动加入
+  const handleScheduleExtracted = useCallback(async (schedule: ScheduleItem) => {
+    // 先加入到待确认列表（智能提取区域）
+    setPendingSchedules(prev => {
+      // 避免重复添加
+      if (prev.find(s => s.id === schedule.id)) {
+        return prev;
+      }
+      return [...prev, schedule];
+    });
+    
+    // 更新segment的containsSchedule标志
+    const currentTranscripts = useAppStore.getState().transcripts;
+    const segment = currentTranscripts.find(t => t.id === schedule.sourceSegmentId);
+    if (segment) {
+      updateTranscript(schedule.sourceSegmentId, {
+        containsSchedule: true,
+      });
+    }
+  }, [updateTranscript]);
+  
+  // 用户点击"加入日程"后调用
+  const handleAddSchedule = useCallback(async (schedule: ScheduleItem) => {
+    // 加入到全局状态（待办事项区域）
+    addSchedule(schedule);
+    
+    // 保存日程到后端
+    if (persistenceServiceRef.current) {
+      try {
+        await persistenceServiceRef.current.saveSchedules([schedule]);
+      } catch (error) {
+        console.warn('[handleAddSchedule] 保存日程到后端失败:', error);
+      }
+    }
+    
+    // 自动创建Todo（与系统待办列表、日历等联动）
+    try {
+      const userNotes = `VOICE_SOURCE_SEGMENT_ID:${schedule.sourceSegmentId}`;
+      await createTodoMutation.mutateAsync({
+        name: schedule.description,
+        deadline: schedule.scheduleTime.toISOString(),
+        startTime: schedule.scheduleTime.toISOString(),
+        status: 'active',
+        priority: 'medium',
+        tags: ['语音提取', '日程'],
+        userNotes: userNotes,
+      });
+    } catch (error) {
+      console.warn('[handleAddSchedule] 自动创建 Todo 失败:', error);
+    }
+  }, [addSchedule, createTodoMutation]);
+
+  // 处理待办提取 - 先加入到待确认列表，不自动加入
+  const handleTodoExtracted = useCallback(async (todo: ExtractedTodo) => {
+    // 先加入到待确认列表（智能提取区域）
+    setPendingTodos(prev => {
+      // 避免重复添加
+      if (prev.find(t => t.id === todo.id)) {
+        return prev;
+      }
+      return [...prev, todo];
+    });
+    
+    const currentTranscripts = useAppStore.getState().transcripts;
+    const segment = currentTranscripts.find(t => t.id === todo.sourceSegmentId);
+    if (segment) {
+      updateTranscript(todo.sourceSegmentId, {
+        containsTodo: true,
+      });
+    }
+  }, [updateTranscript]);
+  
+  // 用户点击"加入待办"后调用
+  const handleAddTodo = useCallback(async (todo: ExtractedTodo) => {
+    // 加入到全局状态（待办事项区域）
+    addExtractedTodo(todo);
+    
+    // 自动创建Todo（与系统待办列表、日历等联动）
+    try {
+      const userNotes = `VOICE_SOURCE_SEGMENT_ID:${todo.sourceSegmentId}`;
+      await createTodoMutation.mutateAsync({
+        name: todo.title,
+        description: todo.description,
+        deadline: todo.deadline?.toISOString(),
+        status: 'active',
+        priority: todo.priority === 'high' ? 'high' : todo.priority === 'low' ? 'low' : 'medium',
+        tags: ['语音提取', '待办事项'],
+        userNotes: userNotes,
+      });
+    } catch (error) {
+      console.warn('[handleAddTodo] 自动创建 Todo 失败:', error);
+    }
+  }, [addExtractedTodo, createTodoMutation]);
+
+  // 处理识别结果（支持自动分段）
+  const handleRecognitionResult = useCallback((text: string, isFinal: boolean) => {
+    console.log('[VoiceModulePanel] 📝 收到识别结果:', { text: text.substring(0, 50), isFinal });
+    
+    // 处理所有结果（包括临时结果）
+    if (!text.trim()) {
+      return;
+    }
+
+    // 如果是临时结果，更新最后一个临时片段或创建新片段
+    if (!isFinal) {
+      // 查找最后一个临时片段
+      const currentTranscripts = useAppStore.getState().transcripts;
+      const lastInterim = currentTranscripts
+        .filter(t => t.isInterim)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+      
+      if (lastInterim) {
+        // 更新临时片段
+        updateTranscript(lastInterim.id, {
+          rawText: text,
+          interimText: text, // 同时更新 interimText，确保UI显示
+          isInterim: true,
+        });
+      } else {
+        // 创建新的临时片段
+        const currentRecordingStartTime = useAppStore.getState().recordingStartTime;
+        if (!currentRecordingStartTime) {
+          return;
+        }
+        
+        const now = Date.now();
+        const relativeEndTime = now - currentRecordingStartTime.getTime();
+        const relativeStartTime = Math.max(0, relativeEndTime - 2000);
+        const absoluteEnd = new Date();
+        const absoluteStart = new Date(absoluteEnd.getTime() - Math.max(500, relativeEndTime - relativeStartTime));
+        
+        const currentAudioSegments = useAppStore.getState().audioSegments;
+        const lastSegment = currentAudioSegments[currentAudioSegments.length - 1];
+        const segmentId = lastSegment?.id;
+
+        const segment: TranscriptSegment = {
+          id: `transcript_interim_${Date.now()}`,
+          timestamp: new Date(),
+          absoluteStart,
+          absoluteEnd,
+          segmentId,
+          rawText: text,
+          interimText: text, // 设置 interimText，确保UI显示
+          isOptimized: false,
+          isInterim: true,
+          containsSchedule: false,
+          audioStart: relativeStartTime,
+          audioEnd: relativeEndTime,
+          uploadStatus: 'pending',
+        };
+
+        addTranscript(segment);
+      }
+      return;
+    }
+    
+    // 处理最终结果 - 支持自动分段
+    const currentRecordingStartTime = useAppStore.getState().recordingStartTime;
+    const currentAudioSegments = useAppStore.getState().audioSegments;
+    if (!currentRecordingStartTime) {
+      console.warn('[VoiceModulePanel] ⚠️ 录音开始时间为空，跳过识别结果');
+      return;
+    }
+
+    // 检测句子结束标记（句号、问号、感叹号、分号、换行等），自动分段
+    // 使用正则表达式匹配句子结束标记，保留标记
+    const sentencePattern = /([^。！？；\n]+[。！？；\n])/g;
+    const matches = text.match(sentencePattern);
+    
+    // 如果文本包含多个句子，需要分段处理
+    if (matches && matches.length > 1) {
+      const currentTranscripts = useAppStore.getState().transcripts;
+      const lastInterim = currentTranscripts
+        .filter(t => t.isInterim)
+        .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+      
+      const now = Date.now();
+      const relativeEndTime = now - currentRecordingStartTime.getTime();
+      const relativeStartTime = lastInterim?.audioStart || Math.max(0, relativeEndTime - 2000);
+      const totalDuration = relativeEndTime - relativeStartTime;
+      const avgSentenceDuration = totalDuration / matches.length;
+      
+      matches.forEach((sentence, index) => {
+        const sentenceStartTime = relativeStartTime + avgSentenceDuration * index;
+        const sentenceEndTime = relativeStartTime + avgSentenceDuration * (index + 1);
+        const absoluteEnd = new Date(currentRecordingStartTime.getTime() + sentenceEndTime);
+        const absoluteStart = new Date(currentRecordingStartTime.getTime() + sentenceStartTime);
+
+        const lastSegment = currentAudioSegments[currentAudioSegments.length - 1];
+        const segmentId = lastSegment?.id;
+
+        const segment: TranscriptSegment = {
+          id: `transcript_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          timestamp: new Date(),
+          absoluteStart,
+          absoluteEnd,
+          segmentId,
+          rawText: sentence.trim(),
+          isOptimized: false,
+          isInterim: false,
+          containsSchedule: false,
+          audioStart: sentenceStartTime,
+          audioEnd: sentenceEndTime,
+          uploadStatus: 'pending',
+        };
+
+        console.log('[VoiceModulePanel] ✅ 添加转录片段（自动分段）:', segment.id, sentence.trim().substring(0, 30));
+        addTranscript(segment);
+
+        // 添加到优化队列
+        if (optimizationServiceRef.current) {
+          optimizationServiceRef.current.enqueue(segment);
+        }
+      });
+      
+      return;
+    }
+
+    // 单个句子或没有明确分段的情况
+    const currentTranscripts = useAppStore.getState().transcripts;
+    const lastInterim = currentTranscripts
+      .filter(t => t.isInterim)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())[0];
+    
+    if (lastInterim && lastInterim.rawText && text.includes(lastInterim.rawText.substring(0, Math.min(10, lastInterim.rawText.length)))) {
+      // 更新临时片段为最终结果
+      const now = Date.now();
+      const relativeEndTime = now - currentRecordingStartTime.getTime();
+      const relativeStartTime = lastInterim.audioStart || Math.max(0, relativeEndTime - 2000);
+      const absoluteEnd = new Date();
+      const absoluteStart = lastInterim.absoluteStart || new Date(absoluteEnd.getTime() - Math.max(500, relativeEndTime - relativeStartTime));
+      
+      updateTranscript(lastInterim.id, {
+        rawText: text,
+        isInterim: false,
+        absoluteEnd,
+        audioEnd: relativeEndTime,
+      });
+      
+      // 添加到优化队列
+      const updatedSegment: TranscriptSegment = {
+        ...lastInterim,
+        rawText: text,
+        isInterim: false,
+        absoluteEnd,
+        audioEnd: relativeEndTime,
+      };
+      if (optimizationServiceRef.current) {
+        optimizationServiceRef.current.enqueue(updatedSegment);
+      }
+    } else {
+      // 创建新的最终片段
+      const now = Date.now();
+      const relativeEndTime = now - currentRecordingStartTime.getTime();
+      const relativeStartTime = Math.max(0, relativeEndTime - 2000);
+      const absoluteEnd = new Date();
+      const absoluteStart = new Date(absoluteEnd.getTime() - Math.max(500, relativeEndTime - relativeStartTime));
+
+      const lastSegment = currentAudioSegments[currentAudioSegments.length - 1];
+      const segmentId = lastSegment?.id;
+
+      const segment: TranscriptSegment = {
+        id: `transcript_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        timestamp: new Date(),
+        absoluteStart,
+        absoluteEnd,
+        segmentId,
+        rawText: text,
+        isOptimized: false,
+        isInterim: false,
+        containsSchedule: false,
+        audioStart: relativeStartTime,
+        audioEnd: relativeEndTime,
+        uploadStatus: 'pending',
+      };
+
+      console.log('[VoiceModulePanel] ✅ 添加转录片段:', segment.id);
+      addTranscript(segment);
+
+      // 添加到优化队列
+      if (optimizationServiceRef.current) {
+        optimizationServiceRef.current.enqueue(segment);
+      }
+    }
+  }, [addTranscript, updateTranscript]);
+
+  // 处理音频段就绪
+  // 使用 ref 存储回调，避免闭包问题
+  const handleAudioSegmentReadyRef = useRef<((blob: Blob, startTime: Date, endTime: Date, segmentId: string) => Promise<void>) | null>(null);
+
+  // 处理音频段就绪（完全参考代码实现）
+  const handleAudioSegmentReady = useCallback(async (
+    blob: Blob,
+    startTime: Date,
+    endTime: Date,
+    segmentId: string
+  ) => {
+    // 创建本地Blob URL用于立即播放
+    const localAudioUrl = URL.createObjectURL(blob);
+    
+    // 打印保存的音频URL（用户要求）
+    console.log('[VoiceModulePanel] 💾 音频已保存到本地（Blob URL）:', {
+      segmentId,
+      localAudioUrl,
+      blobSize: blob.size,
+      blobType: blob.type, // 应该是 audio/webm;codecs=opus
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+    });
+
+    // 创建音频片段记录（参考代码）
+    const audioSegment: AudioSegment = {
+      id: segmentId,
+      startTime,
+      endTime,
+      duration: endTime.getTime() - startTime.getTime(),
+      fileSize: blob.size,
+      audioSource: 'microphone',
+      uploadStatus: 'pending',
+      fileUrl: localAudioUrl, // 使用本地URL，确保可以立即播放
+      unixStartTime: startTime.getTime(), // 添加Unix时间戳，用于精确跳转
+      unixEndTime: endTime.getTime(),
+    };
+
+    addAudioSegment(audioSegment);
+
+    // 上传音频到后端（保存到本地文件夹 lifetrace/data/audio）
+    if (persistenceServiceRef.current) {
+      console.log('[VoiceModulePanel] 📤 开始上传音频到后端，保存到本地文件夹...');
+      const audioFileId = await persistenceServiceRef.current.uploadAudio(blob, {
+        startTime,
+        endTime,
+        segmentId,
+      });
+
+      if (audioFileId) {
+        console.log('[VoiceModulePanel] ✅ 音频已成功保存到本地文件夹（lifetrace/data/audio）');
+        updateAudioSegment(segmentId, { uploadStatus: 'uploaded' });
+        // 注意：保留本地Blob URL用于播放，不替换为后端URL
+      } else {
+        console.error('[VoiceModulePanel] ❌ 音频上传失败，未保存到本地文件夹');
+        updateAudioSegment(segmentId, { uploadStatus: 'failed' });
+      }
+    } else {
+      console.error('[VoiceModulePanel] ❌ PersistenceService未初始化，无法保存音频');
+    }
+  }, [addAudioSegment, updateAudioSegment]);
+
+  // 更新 ref，确保总是使用最新的回调
+  useEffect(() => {
+    handleAudioSegmentReadyRef.current = handleAudioSegmentReady;
+  }, [handleAudioSegmentReady]);
+
+  // 初始化服务（只执行一次，完全不依赖任何状态）
+  useEffect(() => {
+    console.log('[VoiceModulePanel] 🔄 useEffect: 初始化服务');
+    const recordingService = new RecordingService();
+    // 初始设置回调（使用 ref，避免闭包问题）
+    // 注意：真正的回调会在 handleStartRecording 中重新设置以确保使用最新引用
     recordingService.setCallbacks({
-      onSegmentReady: handleAudioSegmentReady,
+      onSegmentReady: (blob, startTime, endTime, segmentId) => {
+        // 使用 ref 获取最新的回调
+        if (handleAudioSegmentReadyRef.current) {
+          handleAudioSegmentReadyRef.current(blob, startTime, endTime, segmentId);
+        } else {
+          console.error('[VoiceModulePanel] ❌ handleAudioSegmentReadyRef.current 为 null，回调未设置');
+        }
+      },
       onError: (err) => {
         console.error('Recording error:', err);
         setError(err.message);
@@ -83,7 +555,6 @@ export function VoiceModulePanel() {
     });
     recordingServiceRef.current = recordingService;
 
-    // Web Speech API 识别服务（用于麦克风）
     const recognitionService = new RecognitionService();
     recognitionService.setCallbacks({
       onResult: handleRecognitionResult,
@@ -97,21 +568,6 @@ export function VoiceModulePanel() {
       },
     });
     recognitionServiceRef.current = recognitionService;
-    
-    // WebSocket Faster-Whisper 识别服务（用于系统音频和高质量识别）
-    const websocketRecognitionService = new WebSocketRecognitionService();
-    websocketRecognitionService.setCallbacks({
-      onResult: handleRecognitionResult,
-      onError: (err) => {
-        console.error('WebSocket recognition error:', err);
-        setError(err.message);
-        setProcessStatus('recognition', 'error');
-      },
-      onStatusChange: (status) => {
-        setProcessStatus('recognition', status);
-      },
-    });
-    websocketRecognitionServiceRef.current = websocketRecognitionService;
 
     const optimizationService = new OptimizationService();
     optimizationService.setCallbacks({
@@ -139,11 +595,18 @@ export function VoiceModulePanel() {
     });
     scheduleExtractionServiceRef.current = scheduleExtractionService;
 
+    const todoExtractionService = new TodoExtractionService();
+    todoExtractionService.setCallbacks({
+      onTodoExtracted: handleTodoExtracted,
+      onError: (err) => {
+        console.error('Todo extraction error:', err);
+      },
+      onStatusChange: () => {},
+    });
+    todoExtractionServiceRef.current = todoExtractionService;
+
     const persistenceService = new PersistenceService();
     persistenceService.setCallbacks({
-      onUploadProgress: (type, progress) => {
-        console.log(`Upload progress (${type}): ${progress}%`);
-      },
       onError: (err) => {
         console.error('Persistence error:', err);
         setProcessStatus('persistence', 'error');
@@ -156,268 +619,174 @@ export function VoiceModulePanel() {
 
     const audio = new Audio();
     audioPlayerRef.current = audio;
+    
+    audio.onerror = () => {
+      setError('音频加载失败');
+      if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
+    };
+    
     audio.onended = () => {
       setIsPlaying(false);
       if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
     };
+    
     audio.onpause = () => {
       setIsPlaying(false);
       if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
     };
+    
     audio.onplay = () => {
       setIsPlaying(true);
       if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
       playbackIntervalRef.current = window.setInterval(() => {
-        if (audio.currentTime) {
-          storeSetCurrentTime(new Date(Date.now() - (audio.duration - audio.currentTime) * 1000));
+        if (audio.currentTime && audio.duration) {
+          setCurrentTime(audio.currentTime);
+          setDuration(audio.duration);
         }
       }, 100);
     };
 
-    let apiKey = process.env.NEXT_PUBLIC_DEEPSEEK_API_KEY;
-    if (!apiKey || apiKey.includes('your_deepseek_api_key')) {
-      apiKey = "sk-26d76c61cf2842fcb729e019d587a026";
-    }
-    setIsApiKeyMissing(!apiKey);
-
+    // 只在组件卸载时清理，不在依赖项变化时清理
+    // 这样可以避免回调被反复清空和重新设置
     return () => {
-      recordingService.stop();
-      recognitionService.stop();
-      websocketRecognitionService.stop();
+      console.log('[VoiceModulePanel] 🧹 useEffect cleanup: 组件卸载，清理服务');
+      // 组件卸载时才清理（不清空回调，只停止服务）
+      if (recordingServiceRef.current) {
+        recordingServiceRef.current.stop();
+      }
+      if (recognitionServiceRef.current) {
+        recognitionServiceRef.current.stop();
+      }
       if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
       audio.pause();
     };
-  }, [audioSource]);
+    // 注意：完全移除依赖项，只在组件挂载时执行一次
+    // 回调会在 handleStartRecording 中重新设置
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // 更新当前时间
   useEffect(() => {
     const interval = setInterval(() => {
       storeSetCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [storeSetCurrentTime]);
 
-  const handleAudioSegmentReady = async (blob: Blob, startTime: Date, endTime: Date, segmentId: string, source: 'microphone' | 'system') => {
-    const audioSegment: AudioSegment = {
-      id: segmentId,
-      startTime,
-      endTime,
-      duration: endTime.getTime() - startTime.getTime(),
-      fileSize: blob.size,
-      audioSource: source,
-      uploadStatus: 'pending',
+  // 录音时长计时器
+  useEffect(() => {
+    let interval: number | null = null;
+    if (isRecording) {
+      interval = window.setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setRecordingDuration(0);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
     };
-    addAudioSegment(audioSegment);
+  }, [isRecording]);
 
-    if (persistenceServiceRef.current) {
-      updateAudioSegment(segmentId, { uploadStatus: 'uploading' });
-      const audioFileId = await persistenceServiceRef.current.uploadAudio(blob, {
-        startTime,
-        endTime,
-        segmentId,
-      });
-      if (audioFileId) {
-        // 获取音频文件 URL
-        const audioUrl = await persistenceServiceRef.current.getAudioUrl(audioFileId);
-        updateAudioSegment(segmentId, { 
-          fileUrl: audioUrl || undefined, 
-          uploadStatus: 'uploaded' 
-        });
-      } else {
-        updateAudioSegment(segmentId, { uploadStatus: 'failed' });
-      }
-    }
-  };
-
-  const handleRecognitionResult = (text: string, isFinal: boolean) => {
-    if (!text.trim()) return;
-    const currentRecordingStartTime = useAppStore.getState().recordingStartTime;
-    if (!currentRecordingStartTime) return;
-
-    const now = Date.now();
-    const relativeEndTime = now - currentRecordingStartTime.getTime();
-    const relativeStartTime = Math.max(0, relativeEndTime - 2000);
-    const absoluteEnd = new Date();
-    const absoluteStart = new Date(absoluteEnd.getTime() - Math.max(500, relativeEndTime - relativeStartTime));
-
-    const lastSegment = useAppStore.getState().audioSegments[useAppStore.getState().audioSegments.length - 1];
-    const transcripts = useAppStore.getState().transcripts;
-    
-    if (isFinal) {
-      // 最终结果：总是创建新片段（保留历史记录）
-      // 检查是否与最后一个最终片段内容相同（避免重复）
-      const lastFinalSegment = [...transcripts].reverse().find(t => !t.isInterim);
-      if (lastFinalSegment && lastFinalSegment.rawText === text) {
-        // 内容相同，可能是重复发送，跳过
-        console.log('跳过重复的识别结果:', text);
-        return;
-      }
-      
-      // 如果有临时片段，先将其转为最终结果
-      const lastInterimSegment = [...transcripts].reverse().find(t => t.isInterim);
-      if (lastInterimSegment && lastInterimSegment.interimText === text) {
-        // 临时片段内容与最终结果相同，直接转为最终结果
-        updateTranscript(lastInterimSegment.id, {
-          rawText: text,
-          isInterim: false,
-          interimText: undefined,
-          absoluteStart,
-          absoluteEnd,
-          audioStart: relativeStartTime,
-          audioEnd: relativeEndTime,
-        });
-        
-        // 触发优化
-        const updatedSegment = { ...lastInterimSegment, rawText: text, isInterim: false };
-        if (optimizationServiceRef.current) {
-          optimizationServiceRef.current.enqueue(updatedSegment);
-        }
-      } else {
-        // 创建新的最终片段
-        const segment: TranscriptSegment = {
-          id: `transcript_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          timestamp: new Date(),
-          absoluteStart,
-          absoluteEnd,
-          segmentId: lastSegment?.id,
-          rawText: text,
-          isOptimized: false,
-          isInterim: false,
-          containsSchedule: false,
-          audioStart: relativeStartTime,
-          audioEnd: relativeEndTime,
-          uploadStatus: 'pending',
-        };
-        addTranscript(segment);
-        if (optimizationServiceRef.current) {
-          optimizationServiceRef.current.enqueue(segment);
-        }
-      }
-    } else {
-      // 临时结果：更新最后一个临时片段或创建新的临时片段
-      const lastInterimSegment = [...transcripts].reverse().find(t => t.isInterim);
-      
-      if (lastInterimSegment) {
-        // 更新临时文本
-        updateTranscript(lastInterimSegment.id, {
-          interimText: text,
-          absoluteEnd,
-          audioEnd: relativeEndTime,
-        });
-      } else {
-        // 创建新的临时片段
-        const segment: TranscriptSegment = {
-          id: `transcript_interim_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-          timestamp: new Date(),
-          absoluteStart,
-          absoluteEnd,
-          segmentId: lastSegment?.id,
-          rawText: '', // 临时结果时为空
-          interimText: text,
-          isOptimized: false,
-          isInterim: true,
-          containsSchedule: false,
-          audioStart: relativeStartTime,
-          audioEnd: relativeEndTime,
-          uploadStatus: 'pending',
-        };
-        addTranscript(segment);
-      }
-    }
-  };
-
-  const handleTextOptimized = (segmentId: string, optimizedText: string, containsSchedule: boolean) => {
-    updateTranscript(segmentId, {
-      optimizedText,
-      isOptimized: true,
-      containsSchedule,
-    });
-
-    // 无论 containsSchedule 是否为 true，都尝试提取日程
-    // 因为即使 LLM 没有标记，文本中也可能包含时间信息
-    if (scheduleExtractionServiceRef.current) {
-      // 从最新的状态中获取 segment（因为 updateTranscript 可能还没更新 transcripts）
-      const currentTranscripts = useAppStore.getState().transcripts;
-      const segment = currentTranscripts.find(t => t.id === segmentId);
-      if (segment) {
-        console.log(`[VoiceModule] 将片段 ${segmentId} 加入日程提取队列，文本: ${optimizedText.substring(0, 50)}...`);
-        scheduleExtractionServiceRef.current.enqueue({
-          ...segment,
-          optimizedText,
-          isOptimized: true,
-          containsSchedule,
-        });
-      } else {
-        console.warn(`[VoiceModule] 未找到片段 ${segmentId}，无法提取日程`);
-      }
-    } else {
-      console.warn(`[VoiceModule] scheduleExtractionServiceRef.current 为空，无法提取日程`);
-    }
-
-    setTimeout(() => {
-      const currentTranscripts = useAppStore.getState().transcripts;
-      const pendingTranscripts = currentTranscripts.filter(t => t.isOptimized && t.uploadStatus === 'pending');
-      if (pendingTranscripts.length >= 10 && persistenceServiceRef.current) {
-        persistenceServiceRef.current.saveTranscripts(pendingTranscripts);
-        pendingTranscripts.forEach(t => {
-          updateTranscript(t.id, { uploadStatus: 'uploaded' });
-        });
-      }
-    }, 100);
-  };
-
-  const handleScheduleExtracted = (schedule: ScheduleItem) => {
-    console.log(`[VoiceModule] 收到提取的日程: ${schedule.description} (时间: ${schedule.scheduleTime.toLocaleString()})`);
-    addSchedule(schedule);
-    console.log(`[VoiceModule] 日程已添加到状态，当前日程数: ${useAppStore.getState().schedules.length}`);
-    setTimeout(() => {
-      const currentSchedules = useAppStore.getState().schedules;
-      const pendingSchedules = currentSchedules.filter(s => s.status === 'pending');
-      if (pendingSchedules.length >= 5 && persistenceServiceRef.current) {
-        persistenceServiceRef.current.saveSchedules(pendingSchedules);
-      }
-    }, 100);
-  };
-
-  const handleStartRecording = async () => {
+  // 处理录音开始
+  const handleStartRecording = useCallback(async () => {
+    console.log('[VoiceModulePanel] 🎤 handleStartRecording被调用');
     setError(null);
-    storeStartRecording();
+    
     try {
-      if (recordingServiceRef.current) {
-        // 更新音频源
-        recordingServiceRef.current.setAudioSource(audioSource);
-        
-        // 如果是系统音频，提示用户
-        if (audioSource === 'system') {
-          // 浏览器会自动弹出选择窗口，这里可以添加提示
-          console.log('请在弹出的窗口中选择要共享的标签页（包含音频）');
-        }
-        
-        await recordingServiceRef.current.start();
-        setProcessStatus('recording', 'running');
+      // 如果正在播放，先停止播放
+      if (isPlaying && audioPlayerRef.current) {
+        console.log('[VoiceModulePanel] ⏸️ 停止播放');
+        handlePause();
       }
-      // 根据音频源选择识别服务
-      if (audioSource === 'microphone') {
-        // 麦克风：使用 Web Speech API（快速、免费）
-        if (recognitionServiceRef.current) {
-          setTimeout(() => {
-            recognitionServiceRef.current?.start();
-          }, 500);
-        }
-      } else if (audioSource === 'system') {
-        // 系统音频：使用 WebSocket Faster-Whisper（支持系统音频，更准确）
-        // 等待录音服务完全启动后再获取流
-        setTimeout(() => {
-          if (recordingServiceRef.current && websocketRecognitionServiceRef.current) {
-            const stream = recordingServiceRef.current.getStream();
-            if (stream) {
-              console.log('启动 WebSocket Faster-Whisper 识别...');
-              websocketRecognitionServiceRef.current.start(stream);
-            } else {
-              console.warn('无法获取音频流，WebSocket 识别未启动');
-              setError('无法获取音频流，请重试');
+      
+      // 清空之前的转录内容（开始新的录音会话）
+      console.log('[VoiceModulePanel] 🧹 清空之前的转录内容');
+      useAppStore.getState().clearData();
+      
+      // 先切换到录音模式
+      console.log('[VoiceModulePanel] 🔄 切换到录音模式');
+      setViewMode('recording');
+      
+      // 检查录音服务是否初始化
+      if (!recordingServiceRef.current) {
+        console.error('[VoiceModulePanel] ❌ 录音服务未初始化！');
+        throw new Error('录音服务未初始化，请刷新页面重试');
+      }
+      
+      console.log('[VoiceModulePanel] 🎤 准备启动录音服务');
+      
+      // 确保回调已设置（在start之前，使用ref获取最新的回调）
+      if (recordingServiceRef.current) {
+        // 确保 ref 已更新
+        handleAudioSegmentReadyRef.current = handleAudioSegmentReady;
+        
+        console.log('[VoiceModulePanel] 🔍 检查回调:', {
+          hasCallback: typeof handleAudioSegmentReady === 'function',
+          hasRefCallback: handleAudioSegmentReadyRef.current !== null,
+        });
+        
+        recordingServiceRef.current.setCallbacks({
+          onSegmentReady: (blob, startTime, endTime, segmentId) => {
+            // 使用 ref 获取最新的回调
+            if (handleAudioSegmentReadyRef.current) {
+              handleAudioSegmentReadyRef.current(blob, startTime, endTime, segmentId);
             }
+          },
+          onError: (err) => {
+            console.error('[VoiceModulePanel] Recording error:', err);
+            setError(err.message);
+            setProcessStatus('recording', 'error');
+          },
+          onAudioData: (analyserNode) => {
+            setAnalyser(analyserNode);
+          },
+        });
+        // 验证回调是否真的设置了
+        const status = recordingServiceRef.current.getStatus();
+        console.log('[VoiceModulePanel] ✅ 已设置录音服务回调，验证:', {
+          hasOnSegmentReady: handleAudioSegmentReadyRef.current !== null,
+          serviceStatus: status,
+        });
+      }
+      
+      // 启动录音服务（使用系统默认麦克风，与 Web Speech API 保持一致）
+      console.log('[VoiceModulePanel] 🚀 调用recordingService.start()（使用系统默认麦克风）');
+      await recordingServiceRef.current.start();
+      console.log('[VoiceModulePanel] ✅ recordingService.start()完成');
+      
+      setProcessStatus('recording', 'running');
+      storeStartRecording();
+      setRecordingDuration(0);
+      console.log('[VoiceModulePanel] ✅ 录音状态已更新');
+      
+      // 启动识别服务（Web Speech API会自动使用麦克风）
+      if (recognitionServiceRef.current) {
+        // 重新设置回调（因为可能在清理时被清空）
+        recognitionServiceRef.current.setCallbacks({
+          onResult: handleRecognitionResult,
+          onError: (err) => {
+            console.error('[VoiceModulePanel] Recognition error:', err);
+            setError(err.message);
+            setProcessStatus('recognition', 'error');
+          },
+          onStatusChange: (status) => {
+            setProcessStatus('recognition', status);
+          },
+        });
+        // 延迟启动识别，确保录音服务已完全启动
+        setTimeout(() => {
+          try {
+            recognitionServiceRef.current?.start();
+            console.log('[VoiceModulePanel] ✅ 识别服务已启动');
+          } catch (recognitionError) {
+            console.error('[VoiceModulePanel] ❌ Recognition start error:', recognitionError);
+            setError('识别服务启动失败，请检查浏览器是否支持语音识别');
           }
-        }, 1000); // 等待录音服务完全启动
+        }, 500);
+      } else {
+        console.error('[VoiceModulePanel] 识别服务未初始化');
+        setError('识别服务未初始化');
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to start recording');
@@ -425,342 +794,1320 @@ export function VoiceModulePanel() {
       setError(error.message);
       setProcessStatus('recording', 'error');
       storeStopRecording();
+      setRecordingDuration(0);
+      // 如果启动失败，切换回回看模式
+      setViewMode('playback');
     }
-  };
+  }, [storeStartRecording, storeStopRecording, setProcessStatus, handleRecognitionResult, isPlaying]);
 
-  const handleStopRecording = async () => {
+  // 处理录音暂停
+  const handlePauseRecording = useCallback(() => {
+    if (!isRecording) {
+      return;
+    }
+    
+    // 暂停识别服务（停止转录）
+    if (recognitionServiceRef.current) {
+      recognitionServiceRef.current.stop();
+    }
+    
+    // 暂停录音服务（暂停MediaRecorder，保留音频流）
+    if (recordingServiceRef.current) {
+      recordingServiceRef.current.pause();
+    }
+    
+    // 更新状态为暂停
+    setProcessStatus('recording', 'paused');
+  }, [isRecording, setProcessStatus]);
+
+  // 处理录音恢复
+  const handleResumeRecording = useCallback(() => {
+    const currentStatus = useAppStore.getState().processStatus.recording;
+    if (currentStatus !== 'paused') {
+      return;
+    }
+    
+    // 恢复录音服务
+    if (recordingServiceRef.current) {
+      recordingServiceRef.current.resume();
+    }
+    
+    // 恢复识别服务
+    if (recognitionServiceRef.current) {
+      recognitionServiceRef.current.start();
+    }
+    
+    // 更新状态为运行中
+    setProcessStatus('recording', 'running');
+  }, [setProcessStatus]);
+
+  // 处理录音停止（参考代码实现 + 自动播放）
+  const handleStopRecording = useCallback(async () => {
     if (recordingServiceRef.current) {
       await recordingServiceRef.current.stop();
       setProcessStatus('recording', 'idle');
     }
+
     if (recognitionServiceRef.current) {
       recognitionServiceRef.current.stop();
     }
-    if (websocketRecognitionServiceRef.current) {
-      websocketRecognitionServiceRef.current.stop();
-    }
+
     storeStopRecording();
-  };
-
-  const handleSeek = async (time: Date) => {
-    if (isRecording) return;
-    const segment = audioSegments.find(s => s.startTime <= time && s.endTime >= time);
-    if (segment && audioPlayerRef.current) {
-      // 如果还没有 fileUrl，尝试获取
-      let audioUrl = segment.fileUrl;
-      if (!audioUrl && segment.id && persistenceServiceRef.current) {
-        const fetchedUrl = await persistenceServiceRef.current.getAudioUrl(segment.id);
-        if (fetchedUrl) {
-          audioUrl = fetchedUrl;
-          updateAudioSegment(segment.id, { fileUrl: fetchedUrl });
-        }
-      }
-      
-      if (audioUrl) {
-        audioPlayerRef.current.src = audioUrl;
-        const seekTime = (time.getTime() - segment.startTime.getTime()) / 1000;
-        audioPlayerRef.current.currentTime = seekTime;
-        audioPlayerRef.current.play();
-      }
-    }
-  };
-
-  const handleTimelineChange = (startTime: Date, duration: number) => {
-    setTimelineView(startTime, duration);
-    const endTime = new Date(startTime.getTime() + duration);
-    if (persistenceServiceRef.current) {
-      persistenceServiceRef.current.queryTranscripts(startTime, endTime).then(fetched => {
-        const existing = useAppStore.getState().transcripts;
-        fetched.forEach(segment => {
-          if (!existing.find(t => t.id === segment.id)) {
-            addTranscript(segment);
-          }
-        });
-      });
-      persistenceServiceRef.current.querySchedules(startTime, endTime).then(fetched => {
-        const existing = useAppStore.getState().schedules;
-        fetched.forEach(schedule => {
-          if (!existing.find(s => s.id === schedule.id)) {
-            addSchedule(schedule);
-          }
-        });
-      });
-    }
-  };
-
-  const handleSegmentClick = async (
-    startMs: number,
-    endMs: number,
-    segmentId?: string,
-    absoluteStartMs?: number
-  ) => {
-    if (isRecording || !recordingStartTime) return;
-    let targetSegment = segmentId ? audioSegments.find(s => s.id === segmentId) : undefined;
-    if (!targetSegment && absoluteStartMs) {
-      const abs = new Date(absoluteStartMs);
-      targetSegment = audioSegments.find(s => s.startTime <= abs && s.endTime >= abs);
-    }
-    if (!targetSegment) {
-      const startTime = new Date(recordingStartTime.getTime() + startMs);
-      await handleSeek(startTime);
-      return;
-    }
-    if (audioPlayerRef.current) {
-      // 如果还没有 fileUrl，尝试获取
-      let audioUrl = targetSegment.fileUrl;
-      if (!audioUrl && targetSegment.id && persistenceServiceRef.current) {
-        const fetchedUrl = await persistenceServiceRef.current.getAudioUrl(targetSegment.id);
-        if (fetchedUrl) {
-          audioUrl = fetchedUrl;
-          updateAudioSegment(targetSegment.id, { fileUrl: fetchedUrl });
-        }
-      }
-      
-      if (audioUrl) {
-        audioPlayerRef.current.src = audioUrl;
-        let seekSeconds = 0;
-        if (absoluteStartMs) {
-          seekSeconds = Math.max(0, (absoluteStartMs - targetSegment.startTime.getTime()) / 1000);
-        } else {
-          seekSeconds = Math.max(0, (startMs - (targetSegment.startTime.getTime() - recordingStartTime.getTime())) / 1000);
-        }
-        audioPlayerRef.current.currentTime = seekSeconds;
-        audioPlayerRef.current.play();
-        return;
-      }
-    }
-    const startTime = new Date(recordingStartTime.getTime() + startMs);
-    await handleSeek(startTime);
-  };
-
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
-    const msgId = Date.now().toString();
-    setChatMessages(prev => [...prev, { id: msgId, role: 'user', text, timestamp: new Date() }]);
-    setIsChatLoading(true);
+    setViewMode('playback');
     
-    // 创建助手消息占位符
-    const assistantMsgId = (Date.now() + 1).toString();
-    setChatMessages(prev => [...prev, {
-      id: assistantMsgId,
-      role: 'model',
-      text: '',
-      timestamp: new Date()
-    }]);
+    // 等待音频段准备好（finalizeSegment会在onstop事件中调用）
+    await new Promise(resolve => setTimeout(resolve, 1500));
     
-    try {
-      // 获取最近 10 分钟的转录内容作为上下文（可选）
-      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-      const contextSegments = transcripts.filter(t => t.timestamp > tenMinutesAgo);
-      const contextString = contextSegments
-        .map(t => `[${t.timestamp.toLocaleTimeString()}] ${t.optimizedText || t.rawText}`)
-        .join('\n');
+    // 获取最新的音频段（刚录完的）
+    const currentAudioSegments = useAppStore.getState().audioSegments;
+    if (currentAudioSegments.length > 0) {
+      // 找到最新的音频段（按结束时间排序）
+      const latestSegment = currentAudioSegments
+        .sort((a, b) => b.endTime.getTime() - a.endTime.getTime())[0];
       
-      // 使用 Next.js 代理路径（会自动代理到后端 localhost:8000）
-      let apiUrl: string;
-      if (typeof window !== 'undefined' && window.location) {
-        const origin = window.location.origin;
-        if (!origin || origin === 'null' || origin === 'undefined') {
-          apiUrl = 'http://localhost:3000/api/deepseek/chat/completions';
-        } else {
-          apiUrl = `${origin}/api/deepseek/chat/completions`;
+      if (latestSegment && latestSegment.fileUrl) {
+        console.log('[VoiceModulePanel] 🎵 找到最新音频段，准备播放:', {
+          segmentId: latestSegment.id,
+          fileUrl: latestSegment.fileUrl,
+          duration: latestSegment.duration,
+          fileSize: latestSegment.fileSize,
+        });
+        
+        // 设置当前播放URL
+        setCurrentAudioUrl(latestSegment.fileUrl);
+        
+        // 加载并播放音频
+        if (audioPlayerRef.current) {
+          audioPlayerRef.current.src = latestSegment.fileUrl;
+          audioPlayerRef.current.load();
+          audioPlayerRef.current.play().catch(() => {
+            // 忽略自动播放失败（浏览器策略）
+          });
         }
       } else {
-        apiUrl = 'http://localhost:8000/api/deepseek/chat/completions';
+        console.warn('[VoiceModulePanel] ⚠️ 最新音频段没有fileUrl，无法播放');
       }
+    } else {
+      console.warn('[VoiceModulePanel] ⚠️ 没有找到音频段');
+    }
+    
+    // 录音结束后，生成智能纪要（使用LLM生成纯文本摘要，不包含标记）
+    try {
+      const currentTranscripts = useAppStore.getState().transcripts;
+      // 收集所有优化后的文本，去除标记
+      const allText = currentTranscripts
+        .filter(t => !t.isInterim && (t.optimizedText || t.rawText))
+        .map(t => {
+          const text = t.optimizedText || t.rawText || '';
+          // 去除 [SCHEDULE:...] 和 [TODO:...] 标记，只保留内容
+          return text
+            .replace(/\[SCHEDULE:\s*([^\]]+)\]/g, '$1')
+            .replace(/\[TODO:\s*([^|]+)(?:\|[^\]]+)?\]/g, '$1');
+        })
+        .filter(t => t.trim().length > 0)
+        .join('\n');
       
-      // 构建消息：如果有上下文就加上，没有就只发送用户问题
-      const systemPrompt = contextString 
-        ? SYSTEM_PROMPT_CHAT 
-        : '你是一个智能语音助手。你可以回答用户的各种问题。如果用户询问关于录音内容的问题，请告知用户目前没有录音内容，建议先开始录音。';
-      
-      const userContent = contextString
-        ? `上下文 (最近10分钟):\n${contextString}\n\n用户提问: ${text}`
-        : text;
-      
-      // 使用流式 API
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userContent }
-          ],
-          temperature: 0.7,
-          stream: true,
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      // 读取流式响应
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullText = '';
-      
-      if (!reader) {
-        throw new Error('无法读取响应流');
-      }
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      if (allText.trim().length > 0) {
+        console.log('[VoiceModulePanel] 📝 开始生成智能纪要...');
         
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // 保留最后一个不完整的行
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') {
-              continue;
-            }
-            
+        // 使用OptimizationService的LLM生成摘要
+        if (optimizationServiceRef.current) {
+          const optimizationService = optimizationServiceRef.current as any;
+          const aiClient = optimizationService.aiClient;
+          
+          if (aiClient) {
             try {
-              const chunk = JSON.parse(data);
-              if (chunk.choices && chunk.choices[0]?.delta?.content) {
-                const content = chunk.choices[0].delta.content;
-                fullText += content;
-                
-                // 实时更新消息内容
-                setChatMessages(prev => prev.map(msg => 
-                  msg.id === assistantMsgId 
-                    ? { ...msg, text: fullText }
-                    : msg
-                ));
+              const response = await aiClient.chat.completions.create({
+                model: 'deepseek-chat',
+                messages: [
+                  {
+                    role: 'system',
+                    content: `你是一个智能会议纪要生成助手。请根据以下转录文本，生成一份简洁、清晰的会议纪要。
+
+要求：
+1. 总结核心内容和要点
+2. 提取关键决策和行动项
+3. 使用自然流畅的中文，不要使用任何标记符号（如 [SCHEDULE:...] 或 [TODO:...]）
+4. 保持逻辑清晰，结构合理
+5. 如果内容较少，可以生成简短的总结；如果内容较多，可以分段总结
+6. 输出纯文本，不要使用任何特殊标记`,
+                  },
+                  {
+                    role: 'user',
+                    content: `请为以下转录内容生成智能纪要：\n\n${allText}`,
+                  },
+                ],
+                temperature: 0.7,
+                max_tokens: 2000,
+              });
+              
+              if (response.choices && response.choices[0] && response.choices[0].message) {
+                const summary = response.choices[0].message.content;
+                if (summary) {
+                  setMeetingSummary(summary);
+                  console.log('[VoiceModulePanel] ✅ 智能纪要生成成功');
+                }
               }
-            } catch (e) {
-              console.error('解析流式数据失败:', e, data);
+            } catch (error) {
+              console.warn('[VoiceModulePanel] ⚠️ 生成智能纪要出错:', error);
             }
+          } else {
+            console.warn('[VoiceModulePanel] ⚠️ AI客户端未初始化，无法生成智能纪要');
           }
         }
       }
-      
-    } catch (e: any) {
-      console.error('Chat API error:', e);
-      const errorMessage = e?.message || e?.toString() || "Unknown error";
-      setChatMessages(prev => prev.map(msg => 
-        msg.id === assistantMsgId 
-          ? { ...msg, text: `出错: ${errorMessage}。请检查后端服务是否正常运行，以及 LLM 配置是否正确。` }
-          : msg
-      ));
-    } finally {
-      setIsChatLoading(false);
+    } catch (error) {
+      console.warn('[VoiceModulePanel] ⚠️ 生成智能纪要出错:', error);
     }
-  };
+  }, [storeStopRecording, setProcessStatus, setViewMode, setCurrentAudioUrl]);
+
+  // 监听灵动岛的录音控制事件（完全同步录音功能）
+  useEffect(() => {
+    const handleDynamicIslandToggleRecording = (event: CustomEvent) => {
+      const { action } = event.detail;
+      console.log('[VoiceModulePanel] 📱 收到灵动岛录音控制事件:', action);
+      
+      if (action === 'start') {
+        if (!isRecording) {
+          console.log('[VoiceModulePanel] 🎤 灵动岛触发：开始录音');
+          handleStartRecording().catch(err => {
+            console.error('[VoiceModulePanel] ❌ 灵动岛启动录音失败:', err);
+          });
+        }
+      } else if (action === 'pause') {
+        if (isRecording) {
+          console.log('[VoiceModulePanel] ⏸️ 灵动岛触发：暂停录音');
+          handlePauseRecording();
+        }
+      } else if (action === 'resume') {
+        const currentStatus = useAppStore.getState().processStatus.recording;
+        if (currentStatus === 'paused') {
+          console.log('[VoiceModulePanel] ▶️ 灵动岛触发：恢复录音');
+          handleResumeRecording();
+        }
+      } else if (action === 'stop') {
+        if (isRecording) {
+          console.log('[VoiceModulePanel] ⏹️ 灵动岛触发：停止录音');
+          handleStopRecording().catch(err => {
+            console.error('[VoiceModulePanel] ❌ 灵动岛停止录音失败:', err);
+          });
+        }
+      }
+    };
+
+    window.addEventListener('dynamic-island-toggle-recording', handleDynamicIslandToggleRecording as EventListener);
+    console.log('[VoiceModulePanel] ✅ 已注册灵动岛录音控制事件监听器');
+    
+    return () => {
+      window.removeEventListener('dynamic-island-toggle-recording', handleDynamicIslandToggleRecording as EventListener);
+      console.log('[VoiceModulePanel] 🧹 已移除灵动岛录音控制事件监听器');
+    };
+  }, [isRecording, handleStartRecording, handlePauseRecording, handleResumeRecording, handleStopRecording]);
+
+  // 处理日期切换 - 从后端加载该日期的数据
+  const handleDateChange = useCallback(async (date: Date) => {
+    setSelectedDate(date);
+    
+    if (!persistenceServiceRef.current) {
+      console.warn('[VoiceModulePanel] PersistenceService未初始化，无法加载历史数据');
+      return;
+    }
+
+    try {
+      // 计算该日期的开始和结束时间
+      const startTime = new Date(date);
+      startTime.setHours(0, 0, 0, 0);
+      const endTime = new Date(date);
+      endTime.setHours(23, 59, 59, 999);
+
+      console.log(`[VoiceModulePanel] 📅 加载日期数据: ${date.toDateString()}, 时间范围: ${startTime.toISOString()} - ${endTime.toISOString()}`);
+
+      // 1. 加载转录文本
+      const loadedTranscripts = await persistenceServiceRef.current.queryTranscripts(startTime, endTime);
+      console.log(`[VoiceModulePanel] ✅ 加载了 ${loadedTranscripts.length} 条转录文本`);
+      
+      // 将加载的转录文本添加到 store（合并，避免重复）
+      loadedTranscripts.forEach(t => {
+        const exists = transcripts.find(tr => tr.id === t.id);
+        if (!exists) {
+          addTranscript(t);
+        }
+      });
+
+      // 2. 加载日程
+      const loadedSchedules = await persistenceServiceRef.current.querySchedules(startTime, endTime);
+      console.log(`[VoiceModulePanel] ✅ 加载了 ${loadedSchedules.length} 条日程`);
+      
+      // 将加载的日程添加到 store（合并，避免重复）
+      loadedSchedules.forEach(s => {
+        const exists = schedules.find(sch => sch.id === s.id);
+        if (!exists) {
+          addSchedule(s);
+        }
+      });
+
+      // 3. 加载音频文件信息
+      const recordings = await persistenceServiceRef.current.queryAudioRecordings(startTime, endTime);
+      console.log(`[VoiceModulePanel] ✅ 加载了 ${recordings.length} 条音频录音记录`);
+
+      // 更新当前音频URL（使用该日期第一个音频文件）
+      const dayAudioSegments = audioSegments.filter(s => {
+        const segmentDate = new Date(s.startTime);
+        return segmentDate.toDateString() === date.toDateString();
+      });
+      
+      if (dayAudioSegments.length > 0 && dayAudioSegments[0].fileUrl) {
+        setCurrentAudioUrl(dayAudioSegments[0].fileUrl);
+        if (audioPlayerRef.current) {
+          audioPlayerRef.current.src = dayAudioSegments[0].fileUrl;
+          audioPlayerRef.current.load();
+        }
+      } else {
+        setCurrentAudioUrl(null);
+      }
+    } catch (error) {
+      console.error('[VoiceModulePanel] ❌ 加载历史数据失败:', error);
+      setError('加载历史数据失败，请重试');
+    }
+  }, [addTranscript, addSchedule, addAudioSegment, transcripts, schedules, audioSegments]);
+
+  // 处理导出
+  const handleExport = useCallback(async () => {
+    try {
+      const dayTranscripts = transcripts.filter((t) => {
+        const transcriptDate = new Date(t.timestamp);
+        return transcriptDate.toDateString() === selectedDate.toDateString();
+      });
+      
+      const exportData = {
+        date: selectedDate.toISOString().split('T')[0],
+        transcripts: dayTranscripts.map(t => ({
+          time: t.audioStart ? `${Math.floor(t.audioStart / 1000 / 60)}:${String(Math.floor((t.audioStart / 1000) % 60)).padStart(2, '0')}` : '00:00',
+          rawText: t.rawText,
+          optimizedText: t.optimizedText || '',
+        })),
+        schedules: schedules.filter(s => {
+          const scheduleDate = new Date(s.scheduleTime);
+          return scheduleDate.toDateString() === selectedDate.toDateString();
+        }),
+        todos: extractedTodos.filter(t => {
+          const todoDate = t.deadline ? new Date(t.deadline) : null;
+          return todoDate && todoDate.toDateString() === selectedDate.toDateString();
+        }),
+      };
+      
+      // 生成JSON文件
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `录音记录_${selectedDate.toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('导出失败:', error);
+      setError('导出失败，请重试');
+    }
+  }, [selectedDate, transcripts, schedules, extractedTodos]);
+
+  // 处理编辑 - 打开编辑模式
+  const handleEdit = useCallback(() => {
+    // 切换视图到编辑模式（可以编辑转录文本）
+    // 这里可以添加一个编辑状态，允许用户编辑转录文本
+    console.log('[VoiceModulePanel] 📝 编辑模式：可以编辑转录文本、日程、待办等');
+    // 暂时显示提示，后续可以实现编辑对话框
+    setError('编辑功能：可以点击转录文本进行编辑（功能开发中）');
+  }, [setError]);
+
+  // 处理选择音频文件
+  const handleSelectAudio = useCallback((audio: AudioSegment) => {
+    setSelectedAudioId(audio.id);
+    if (audio.fileUrl) {
+      setCurrentAudioUrl(audio.fileUrl);
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.src = audio.fileUrl;
+        audioPlayerRef.current.load();
+        // 重置播放位置
+        setCurrentTime(0);
+        if (isPlaying) {
+          audioPlayerRef.current.play().catch(() => {
+            // 忽略自动播放失败
+          });
+        }
+      }
+      // 更新总时长
+      if (audio.duration > 0) {
+        setDuration(audio.duration / 1000);
+      }
+    }
+  }, [isPlaying]);
+
+  // 处理视图切换（原文/智能优化版）
+  const handleViewChange = useCallback((view: 'original' | 'optimized') => {
+    setCurrentView(view);
+  }, []);
+
+  // 处理播放器操作（先声明，供handleModeChange使用）
+  const handlePause = useCallback(() => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+    }
+  }, []);
+
+  // 处理模式切换
+  const handleModeChange = useCallback((mode: ViewMode) => {
+    if (mode === 'recording' && isPlaying) {
+      handlePause();
+    }
+    if (mode === 'playback' && isRecording) {
+      handleStopRecording();
+    }
+    setViewMode(mode);
+  }, [isPlaying, isRecording, handlePause, handleStopRecording]);
+
+  // 处理片段点击（协同功能）- 参考代码实现
+  const handleSegmentClick = useCallback((segment: TranscriptSegment) => {
+    setHighlightedSegmentId(segment.id);
+    
+    if (isRecording || !recordingStartTime) {
+      return;
+    }
+    
+    // 优先使用segmentId匹配audioSegment
+    let targetSegment = segment.segmentId
+      ? audioSegments.find(s => s.id === segment.segmentId)
+      : undefined;
+    
+    // 如果没有segmentId，使用绝对时间匹配
+    if (!targetSegment && segment.absoluteStart) {
+      const abs = segment.absoluteStart.getTime();
+      targetSegment = audioSegments.find(
+        s => s.startTime.getTime() <= abs && s.endTime.getTime() >= abs
+      );
+    }
+    
+    // 如果仍未找到，使用录音开始时间计算
+    if (!targetSegment && segment.audioStart !== undefined) {
+      const startTime = new Date(recordingStartTime.getTime() + segment.audioStart);
+      targetSegment = audioSegments.find(
+        s => s.startTime.getTime() <= startTime.getTime() && s.endTime.getTime() >= startTime.getTime()
+      );
+    }
+    
+    if (!targetSegment && audioSegments.length > 0) {
+      // 最后兜底：使用最新的音频文件
+      targetSegment = audioSegments.sort((a, b) => b.endTime.getTime() - a.endTime.getTime())[0];
+    }
+    
+    if (audioPlayerRef.current && targetSegment?.fileUrl) {
+      audioPlayerRef.current.src = targetSegment.fileUrl;
+      
+      // 计算在该分段内的偏移（秒）
+      let seekSeconds = 0;
+      if (segment.absoluteStart) {
+        // 优先使用绝对时间
+        seekSeconds = Math.max(
+          0,
+          (segment.absoluteStart.getTime() - targetSegment.startTime.getTime()) / 1000
+        );
+      } else if (segment.audioStart !== undefined && recordingStartTime) {
+        // 使用相对录音开始时间计算
+        const segmentAbsoluteTime = recordingStartTime.getTime() + segment.audioStart;
+        seekSeconds = Math.max(
+          0,
+          (segmentAbsoluteTime - targetSegment.startTime.getTime()) / 1000
+        );
+      }
+      
+      // 确保音频已加载
+      if (audioPlayerRef.current.src !== targetSegment.fileUrl) {
+        audioPlayerRef.current.load();
+        audioPlayerRef.current.addEventListener('loadedmetadata', () => {
+          if (audioPlayerRef.current) {
+            const targetTime = Math.min(seekSeconds, audioPlayerRef.current.duration || 0);
+            audioPlayerRef.current.currentTime = targetTime;
+            setCurrentTime(targetTime);
+            audioPlayerRef.current.play().catch(() => {
+              // 忽略播放错误
+            });
+          }
+        }, { once: true });
+      } else {
+        // 如果URL相同，直接设置时间并播放
+        audioPlayerRef.current.pause();
+        const targetTime = Math.min(seekSeconds, audioPlayerRef.current.duration || 0);
+        audioPlayerRef.current.currentTime = targetTime;
+        setCurrentTime(targetTime);
+        Promise.resolve().then(() => {
+          if (audioPlayerRef.current) {
+            audioPlayerRef.current.play().catch(() => {
+              // 忽略播放错误
+            });
+          }
+        });
+      }
+    }
+  }, [isRecording, recordingStartTime, audioSegments, setCurrentTime]);
+
+  const handlePlay = useCallback(() => {
+    if (audioPlayerRef.current && currentAudioUrl) {
+      audioPlayerRef.current.play();
+    }
+  }, [currentAudioUrl]);
+
+  const handleSeek = useCallback((time: number) => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.currentTime = time;
+      setCurrentTime(time);
+    }
+  }, []);
+
+  const handleSkip = useCallback((seconds: number) => {
+    if (audioPlayerRef.current) {
+      const newTime = Math.max(0, Math.min(duration, currentTime + seconds));
+      handleSeek(newTime);
+    }
+  }, [currentTime, duration, handleSeek]);
+
+  // 格式化时间显示
+  const formatTime = useCallback((seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    }
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  }, []);
+
+  // 处理片段悬停（用于播放器显示小节信息）
+  const handleSegmentHover = useCallback((segment: TranscriptSegment | null) => {
+    setHoveredSegment(segment);
+  }, []);
+
+  // 过滤当前日期的转录内容
+  const filteredTranscripts = transcripts.filter((t) => {
+    const transcriptDate = new Date(t.timestamp);
+    return transcriptDate.toDateString() === selectedDate.toDateString();
+  });
+
+  // 获取当前播放位置对应的小节信息
+  const getCurrentSegmentInfo = useCallback(() => {
+    if (!currentTime) return null;
+    const timeInMs = currentTime * 1000;
+    const segment = filteredTranscripts.find(s => {
+      const start = s.audioStart || 0;
+      const end = s.audioEnd || start + 5000;
+      return timeInMs >= start && timeInMs <= end;
+    });
+    if (segment) {
+      const timeInSeconds = segment.audioStart ? segment.audioStart / 1000 : 0;
+      return {
+        time: formatTime(timeInSeconds),
+        text: (segment.optimizedText || segment.rawText || "").substring(0, 50) + "...",
+      };
+    }
+    return null;
+  }, [currentTime, filteredTranscripts, formatTime]);
+
+  // 根据时间获取对应的小节信息（用于悬停显示）
+  const getSegmentAtTime = useCallback((time: number) => {
+    // time 是播放时间（秒），需要转换为毫秒
+    const timeInMs = time * 1000;
+    
+    // 找到包含该时间点的转录片段
+    // 需要找到 audioStart <= timeInMs <= audioEnd 的片段
+    const segment = filteredTranscripts.find(s => {
+      const start = s.audioStart || 0;
+      const end = s.audioEnd || (start + 5000); // 如果没有结束时间，默认5秒
+      return timeInMs >= start && timeInMs <= end;
+    });
+    
+    if (segment) {
+      // 返回该片段的时间（相对于录音开始）和文本
+      const segmentTimeInSeconds = (segment.audioStart || 0) / 1000;
+      return {
+        time: formatTime(segmentTimeInSeconds),
+        text: (segment.optimizedText || segment.rawText || "").substring(0, 80),
+      };
+    }
+    
+    // 如果没有找到精确匹配，返回最接近的片段
+    if (filteredTranscripts.length > 0) {
+      // 找到最接近的片段（按开始时间）
+      const closestSegment = filteredTranscripts.reduce((prev, curr) => {
+        const prevDist = Math.abs((prev.audioStart || 0) - timeInMs);
+        const currDist = Math.abs((curr.audioStart || 0) - timeInMs);
+        return currDist < prevDist ? curr : prev;
+      });
+      
+      const segmentTimeInSeconds = (closestSegment.audioStart || 0) / 1000;
+      return {
+        time: formatTime(segmentTimeInSeconds),
+        text: (closestSegment.optimizedText || closestSegment.rawText || "").substring(0, 80),
+      };
+    }
+    
+    return null;
+  }, [filteredTranscripts, formatTime]);
+
+  // 获取当前日期的音频URL
+  useEffect(() => {
+    const daySegments = audioSegments.filter((s) => {
+      const segmentDate = new Date(s.startTime);
+      return segmentDate.toDateString() === selectedDate.toDateString();
+    });
+    if (daySegments.length > 0) {
+      // 如果还没有选中，或者选中的不在当前日期的列表中，选择第一个
+      const currentSelected = daySegments.find(s => s.id === selectedAudioId);
+      if (!currentSelected) {
+        setSelectedAudioId(daySegments[0].id);
+        if (daySegments[0].fileUrl) {
+          setCurrentAudioUrl(daySegments[0].fileUrl);
+          if (audioPlayerRef.current) {
+            audioPlayerRef.current.src = daySegments[0].fileUrl;
+            audioPlayerRef.current.load();
+          }
+        }
+      } else if (currentSelected.fileUrl) {
+        setCurrentAudioUrl(currentSelected.fileUrl);
+        if (audioPlayerRef.current) {
+          audioPlayerRef.current.src = currentSelected.fileUrl;
+          audioPlayerRef.current.load();
+        }
+      }
+    } else {
+      setCurrentAudioUrl(null);
+      setSelectedAudioId(undefined);
+    }
+  }, [selectedDate, audioSegments, selectedAudioId]);
+
+  // 计算总时长：优先使用音频实际时长，否则使用转录文本计算的总时长
+  const totalDuration = duration > 0 
+    ? duration 
+    : (filteredTranscripts.length > 0
+        ? Math.max(...filteredTranscripts.map(s => (s.audioEnd || 0) / 1000))
+        : 0);
+
+  // 更新当前时间
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // 更新标题（如果没有设置，使用默认值）
+  useEffect(() => {
+    if (!meetingTitle && filteredTranscripts.length > 0) {
+      setMeetingTitle(`${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`);
+    }
+  }, [filteredTranscripts.length, selectedDate, meetingTitle]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background text-foreground">
-      <header className="shrink-0 border-b border-border bg-card/80 backdrop-blur flex items-center justify-between px-6 py-3 relative">
-        <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-muted'}`}></div>
-          <h1 className="font-bold text-lg tracking-tight text-foreground">
-            7×24 智能录音助手
-          </h1>
-        </div>
-        {error && (
-          <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-1 rounded-full text-xs font-medium ${
-            error.includes('系统音频模式') 
-              ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' 
-              : 'bg-red-500/10 text-red-600 border border-red-500/20 animate-pulse'
-          }`}>
-            {error}
-          </div>
-        )}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className={`w-2 h-2 rounded-full ${processStatus.recording === 'running' ? 'bg-green-500' : 'bg-muted'}`}></span>
-            <span>录音</span>
-            <span className={`w-2 h-2 rounded-full ${processStatus.recognition === 'running' ? 'bg-green-500' : 'bg-muted'}`}></span>
-            <span>识别</span>
-          </div>
-          {!isRecording && (
-            <select
-              value={audioSource}
-              onChange={(e) => setAudioSource(e.target.value as 'microphone' | 'system')}
-              className="bg-background border border-input text-foreground text-xs px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/50"
-              title="选择音频来源"
-            >
-              <option value="microphone">🎤 麦克风（Web Speech API）</option>
-              <option value="system">🔊 系统音频（Faster-Whisper 实时识别）</option>
-            </select>
-          )}
-          {!isRecording ? (
-            <button
-              onClick={handleStartRecording}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-1.5 rounded-lg text-sm font-medium transition-all shadow-sm flex items-center gap-2"
-            >
-              开始录音
-            </button>
-          ) : (
-            <button
-              onClick={handleStopRecording}
-              className="bg-red-500/10 hover:bg-red-500/20 text-red-600 border border-red-500/50 px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-            >
-              停止录音
-            </button>
-          )}
-        </div>
-      </header>
-      <main className="flex-1 grid grid-cols-1 md:grid-cols-3 overflow-hidden">
-        <div className="md:col-span-2 flex flex-col h-full overflow-hidden border-r border-border">
-          <div className="h-72 p-4 shrink-0 bg-card/50 flex flex-col">
-            <div className="text-sm text-foreground mb-3 font-semibold flex justify-between items-center">
-              <span>时间轴（绝对时间）</span>
-              <span className={`text-xs px-2 py-1 rounded-full ${
-                isRecording 
-                  ? 'bg-red-500/10 text-red-600 border border-red-500/20' 
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {isRecording ? '● 录音中' : '○ 空闲'}
-              </span>
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      {/* 顶部：左右分栏（区域1和区域2） */}
+      <div className="shrink-0 border-b border-border/50 bg-background/95 backdrop-blur-sm relative z-50">
+        <div className="flex overflow-hidden">
+          {/* 区域1：顶部左侧 */}
+          <div className="flex-[2] border-r border-border/50">
+            <div className="flex items-center gap-4 px-6 py-3">
+              {/* 日期、时间和标题 */}
+              <div className="flex items-center gap-4 flex-1">
+                {/* 日期选择器 */}
+                <DateSelector
+                  selectedDate={selectedDate}
+                  onDateChange={handleDateChange}
+                  onExport={handleExport}
+                  onEdit={handleEdit}
+                />
+                
+                {/* 当前时间 */}
+                <div className="text-sm text-muted-foreground font-mono">
+                  {nowTime.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </div>
+                
+                {/* 标题输入框 */}
+                <input
+                  type="text"
+                  value={meetingTitle || `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`}
+                  onChange={(e) => setMeetingTitle(e.target.value)}
+                  placeholder="输入标题..."
+                  className="flex-1 px-3 py-1.5 text-sm font-medium bg-transparent border-b border-border/50 focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              {/* 录音模式时显示设备选择器 */}
+
+              {/* 功能图标切换（回看模式时显示） */}
+              {viewMode === 'playback' && (
+                <div className="flex items-center gap-1 ml-auto">
+                  <button
+                    onClick={() => handleViewChange('original')}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium rounded-md transition-all",
+                      currentView === 'original'
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                    title="原文"
+                  >
+                    原文
+                  </button>
+                  <button
+                    onClick={() => handleViewChange('optimized')}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium rounded-md transition-all",
+                      currentView === 'optimized'
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                    title="智能优化"
+                  >
+                    智能优化
+                  </button>
+                </div>
+              )}
             </div>
+          </div>
+          
+          {/* 区域2：顶部右侧 */}
+          <div className="flex-1">
+            <div className="flex items-center justify-end gap-2 px-6 py-3">
+            {viewMode === 'playback' ? (
+              <>
+                {/* 测试模式：上传音频文件 */}
+                <label className={cn(
+                  "px-4 py-2.5 rounded-lg transition-all duration-200",
+                  "bg-muted hover:bg-muted/80 text-foreground",
+                  "border border-border/50",
+                  "flex items-center gap-2 text-sm font-medium cursor-pointer",
+                  "hover:shadow-md active:scale-95"
+                )}>
+                  <Upload className="w-4 h-4" />
+                  <span>测试音频</span>
+                  <input
+                    type="file"
+                    accept="audio/*,video/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file && recordingServiceRef.current) {
+                        try {
+                          setError(null);
+                          setViewMode('recording');
+                          
+                          // 创建音频URL用于播放
+                          const audioUrl = URL.createObjectURL(file);
+                          
+                          // 使用文件上传API进行转录测试
+                          const formData = new FormData();
+                          formData.append("file", file);
+                          formData.append("optimize", "true");
+                          formData.append("extract_todos", "true");
+                          formData.append("extract_schedules", "true");
+                          
+                          const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+                          const response = await fetch(`${apiUrl}/audio/transcribe-file`, {
+                            method: 'POST',
+                            body: formData,
+                          });
+                          
+                          if (response.ok) {
+                            const result = await response.json();
+                            console.log('[测试音频] 完整API响应:', JSON.stringify(result, null, 2));
+                            // 存储API响应，用于展示
+                            setApiResponse(result);
+                            
+                            // 获取音频时长
+                            const audio = new Audio();
+                            audio.src = audioUrl;
+                            const duration = await new Promise<number>((resolve) => {
+                              audio.onloadedmetadata = () => {
+                                resolve(audio.duration * 1000); // 转换为毫秒
+                              };
+                              audio.onerror = () => {
+                                // 如果无法加载元数据，使用默认时长
+                                console.warn('无法获取音频时长，使用默认值');
+                                resolve(60000); // 默认1分钟
+                              };
+                              // 超时保护
+                              setTimeout(() => {
+                                if (!audio.duration || isNaN(audio.duration)) {
+                                  resolve(60000); // 默认1分钟
+                                }
+                              }, 3000);
+                            });
+                            
+                            // 创建音频片段
+                            const audioSegment: AudioSegment = {
+                              id: `test_audio_${Date.now()}`,
+                              startTime: new Date(),
+                              endTime: new Date(Date.now() + duration),
+                              duration: duration,
+                              fileSize: file.size,
+                              fileUrl: audioUrl,
+                              audioSource: 'microphone',
+                              uploadStatus: 'uploaded',
+                            };
+                            addAudioSegment(audioSegment);
+                            
+                            // 创建转录片段（按段落分割成多个独立的segment）
+                            if (result.transcript) {
+                              const text = result.transcript;
+                              const optimizedText = result.optimized_text || undefined;
+                              
+                              // 按句号、问号、感叹号、换行符分段
+                              // 如果没有这些标点，按时间点（如"7点"、"7:40"等）或长空格分段
+                              const paragraphRegex = /([。！？\n]+)/g;
+                              const paragraphs: string[] = [];
+                              let lastIndex = 0;
+                              let match;
+                              
+                              while ((match = paragraphRegex.exec(text)) !== null) {
+                                const paragraphText = text.substring(lastIndex, match.index).trim();
+                                if (paragraphText) {
+                                  paragraphs.push(paragraphText);
+                                }
+                                lastIndex = match.index + match[0].length;
+                              }
+                              
+                              // 添加最后一段（如果没有以标点结尾）
+                              if (lastIndex < text.length) {
+                                const remainingText = text.substring(lastIndex).trim();
+                                if (remainingText) {
+                                  paragraphs.push(remainingText);
+                                }
+                              }
+                              
+                              // 如果没有找到段落分隔符，按时间点或长空格分段
+                              if (paragraphs.length === 0 || (paragraphs.length === 1 && paragraphs[0] === text)) {
+                                // 按时间点分段（如"早上7点"、"7点40分"、"11点30分"、"7:40"等）
+                                const timePointRegex = /(早上|上午|中午|下午|晚上|凌晨)?\s*(\d{1,2})[点:](\d{0,2})[分]?|(\d{1,2})点(\d{0,2})分?/g;
+                                const timeMatches: Array<{ index: number; text: string }> = [];
+                                let timeMatch;
+                                
+                                while ((timeMatch = timePointRegex.exec(text)) !== null) {
+                                  timeMatches.push({
+                                    index: timeMatch.index,
+                                    text: timeMatch[0],
+                                  });
+                                }
+                                
+                                if (timeMatches.length > 1) {
+                                  // 按时间点分段
+                                  paragraphs.length = 0; // 清空
+                                  for (let i = 0; i < timeMatches.length; i++) {
+                                    const startIndex = i === 0 ? 0 : timeMatches[i].index;
+                                    const endIndex = i < timeMatches.length - 1 ? timeMatches[i + 1].index : text.length;
+                                    const paragraphText = text.substring(startIndex, endIndex).trim();
+                                    if (paragraphText) {
+                                      paragraphs.push(paragraphText);
+                                    }
+                                  }
+                                } else {
+                                  // 如果没有时间点，按长空格（2个以上空格）分段
+                                  const longSpaceRegex = /\s{2,}/g;
+                                  const spaceMatches: number[] = [0];
+                                  let spaceMatch;
+                                  
+                                  while ((spaceMatch = longSpaceRegex.exec(text)) !== null) {
+                                    spaceMatches.push(spaceMatch.index);
+                                  }
+                                  spaceMatches.push(text.length);
+                                  
+                                  if (spaceMatches.length > 2) {
+                                    paragraphs.length = 0; // 清空
+                                    for (let i = 0; i < spaceMatches.length - 1; i++) {
+                                      const paragraphText = text.substring(spaceMatches[i], spaceMatches[i + 1]).trim();
+                                      if (paragraphText) {
+                                        paragraphs.push(paragraphText);
+                                      }
+                                    }
+                                  } else {
+                                    // 如果都没有，按单个空格或固定长度分段（每50个字符一段）
+                                    paragraphs.length = 0;
+                                    const chunkSize = 50;
+                                    for (let i = 0; i < text.length; i += chunkSize) {
+                                      const chunk = text.substring(i, i + chunkSize).trim();
+                                      if (chunk) {
+                                        paragraphs.push(chunk);
+                                      }
+                                    }
+                                    if (paragraphs.length === 0) {
+                                      paragraphs.push(text);
+                                    }
+                                  }
+                                }
+                              }
+                              
+                              console.log('[测试音频] 原文分段结果:', paragraphs.length, '个段落');
+                              paragraphs.forEach((para, idx) => {
+                                console.log(`  段落${idx + 1}:`, para.substring(0, 30) + '...');
+                              });
+                              
+                              // 同样处理优化文本（按换行符或句号分段）
+                              const optimizedParagraphs: string[] = [];
+                              if (optimizedText) {
+                                // 优化文本通常有换行符，先按换行符分段
+                                const optimizedLines = optimizedText.split(/\n+/).filter((line: string) => line.trim());
+                                if (optimizedLines.length > 0) {
+                                  optimizedParagraphs.push(...optimizedLines.map((line: string) => line.trim()));
+                                } else {
+                                  // 如果没有换行符，按句号分段
+                                  let optLastIndex = 0;
+                                  paragraphRegex.lastIndex = 0; // 重置正则
+                                  while ((match = paragraphRegex.exec(optimizedText)) !== null) {
+                                    const paragraphText = optimizedText.substring(optLastIndex, match.index).trim();
+                                    if (paragraphText) {
+                                      optimizedParagraphs.push(paragraphText);
+                                    }
+                                    optLastIndex = match.index + match[0].length;
+                                  }
+                                  if (optLastIndex < optimizedText.length) {
+                                    const remainingText = optimizedText.substring(optLastIndex).trim();
+                                    if (remainingText) {
+                                      optimizedParagraphs.push(remainingText);
+                                    }
+                                  }
+                                  if (optimizedParagraphs.length === 0) {
+                                    optimizedParagraphs.push(optimizedText);
+                                  }
+                                }
+                              }
+                              
+                              console.log('[测试音频] 优化文本分段结果:', optimizedParagraphs.length, '个段落');
+                              optimizedParagraphs.forEach((para, idx) => {
+                                console.log(`  优化段落${idx + 1}:`, para.substring(0, 30) + '...');
+                              });
+                              
+                              // 为每个段落创建独立的segment
+                              const baseTimestamp = new Date();
+                              const segmentDuration = duration / paragraphs.length; // 平均分配时长
+                              const createdSegments: TranscriptSegment[] = [];
+                              
+                              paragraphs.forEach((paragraph, index) => {
+                                const segmentId = `test_${Date.now()}_${index}`;
+                                // 如果优化文本有对应的段落，使用它；否则为undefined
+                                const optimizedPara = optimizedParagraphs[index];
+                                const segment: TranscriptSegment = {
+                                  id: segmentId,
+                                  timestamp: new Date(baseTimestamp.getTime() + index * segmentDuration),
+                                  rawText: paragraph,
+                                  optimizedText: optimizedPara && optimizedPara.trim() ? optimizedPara : undefined,
+                                  isOptimized: !!(optimizedText && optimizedPara && optimizedPara.trim()),
+                                  isInterim: false,
+                                  containsSchedule: false, // 先设为false，提取后再更新
+                                  containsTodo: false, // 先设为false，提取后再更新
+                                  audioStart: index * segmentDuration,
+                                  audioEnd: (index + 1) * segmentDuration,
+                                  audioFileId: audioSegment.id,
+                                  uploadStatus: 'uploaded',
+                                };
+                                addTranscript(segment);
+                                createdSegments.push(segment);
+                              });
+                              
+                              // 转录完成后，立即触发智能提取（对所有段落）
+                              console.log('[测试音频] 转录完成，开始智能提取');
+                              
+                              // 触发待办提取（对所有段落）
+                              if (todoExtractionServiceRef.current) {
+                                console.log('[测试音频] 触发待办提取服务');
+                                if (todoExtractionServiceRef.current) {
+                                  todoExtractionServiceRef.current.extractedTodosWithoutCallback = [];
+                                }
+                                todoExtractionServiceRef.current.setCallbacks({
+                                  onError: (err) => {
+                                    console.error('Todo extraction error:', err);
+                                  },
+                                  onStatusChange: () => {},
+                                });
+                                // 为所有段落触发提取
+                                createdSegments.forEach((seg) => {
+                                  const textForExtraction = seg.optimizedText || seg.rawText;
+                                  if (textForExtraction) {
+                                    const segmentForExtraction = textForExtraction === seg.optimizedText 
+                                      ? seg 
+                                      : { ...seg, optimizedText: seg.rawText, isOptimized: true };
+                                    todoExtractionServiceRef.current?.enqueue(segmentForExtraction);
+                                  }
+                                });
+                                
+                                setTimeout(() => {
+                                  const storedTodos = todoExtractionServiceRef.current?.extractedTodosWithoutCallback || [];
+                                  if (storedTodos.length > 0) {
+                                    console.log('[测试音频] 发现', storedTodos.length, '个待确认的待办');
+                                    setPendingTodos(storedTodos);
+                                    if (todoExtractionServiceRef.current) {
+                                      todoExtractionServiceRef.current.extractedTodosWithoutCallback = [];
+                                    }
+                                  }
+                                }, 2000);
+                              }
+                              
+                              // 触发日程提取（对所有段落）
+                              if (scheduleExtractionServiceRef.current) {
+                                console.log('[测试音频] 触发日程提取服务');
+                                const service = scheduleExtractionServiceRef.current;
+                                // 不设置onScheduleExtracted回调，让提取结果存储到待确认列表
+                                service.setCallbacks({
+                                  onError: (err) => {
+                                    console.error('Schedule extraction error:', err);
+                                    setProcessStatus('scheduleExtraction', 'error');
+                                  },
+                                  onStatusChange: (status) => {
+                                    setProcessStatus('scheduleExtraction', status);
+                                  },
+                                });
+                                service.extractedSchedulesWithoutCallback = [];
+                                
+                                // 为所有段落触发提取
+                                createdSegments.forEach((seg) => {
+                                  const textForExtraction = seg.optimizedText || seg.rawText;
+                                  if (textForExtraction) {
+                                    const segmentForExtraction = textForExtraction === seg.optimizedText 
+                                      ? seg 
+                                      : { ...seg, optimizedText: seg.rawText, isOptimized: true };
+                                    service.enqueue(segmentForExtraction);
+                                  }
+                                });
+                                
+                                setTimeout(() => {
+                                  const storedSchedules = service.extractedSchedulesWithoutCallback;
+                                  if (storedSchedules.length > 0) {
+                                    console.log('[测试音频] 发现', storedSchedules.length, '个待确认的日程');
+                                    setPendingSchedules(storedSchedules);
+                                    service.extractedSchedulesWithoutCallback = [];
+                                  }
+                                }, 2000);
+                              }
+                              
+                              // 如果后端也返回了提取结果，添加到待确认列表（不自动加入）
+                              const firstSegmentId = createdSegments[0]?.id || '';
+                              if (result.todos && result.todos.length > 0) {
+                                console.log('[测试音频] 后端也返回了', result.todos.length, '个待办事项，添加到待确认列表');
+                                const backendTodos: ExtractedTodo[] = result.todos.map((todo: any, index: number) => ({
+                                  id: `todo_backend_${Date.now()}_${index}_${Math.random()}`,
+                                  sourceSegmentId: firstSegmentId,
+                                  extractedAt: new Date(),
+                                  title: todo.title || todo.name || '待办事项',
+                                  description: todo.description || '',
+                                  deadline: todo.deadline ? new Date(todo.deadline) : undefined,
+                                  priority: todo.priority || 'medium',
+                                  sourceText: todo.source_text || todo.description,
+                                  textStartIndex: todo.text_start_index,
+                                  textEndIndex: todo.text_end_index,
+                                }));
+                                setPendingTodos(prev => [...prev, ...backendTodos]);
+                              }
+                              
+                              if (result.schedules && result.schedules.length > 0) {
+                                console.log('[测试音频] 后端也返回了', result.schedules.length, '个日程，添加到待确认列表');
+                                const backendSchedules: ScheduleItem[] = result.schedules.map((schedule: any, index: number) => ({
+                                  id: `schedule_backend_${Date.now()}_${index}_${Math.random()}`,
+                                  sourceSegmentId: firstSegmentId,
+                                  extractedAt: new Date(),
+                                  scheduleTime: new Date(schedule.schedule_time || schedule.scheduleTime || Date.now()),
+                                  description: schedule.description || schedule.content || '',
+                                  status: 'pending',
+                                  sourceText: schedule.source_text || schedule.description,
+                                  textStartIndex: schedule.text_start_index,
+                                  textEndIndex: schedule.text_end_index,
+                                }));
+                                setPendingSchedules(prev => [...prev, ...backendSchedules]);
+                              }
+                              
+                              // 等待提取处理完成后再验证
+                              setTimeout(() => {
+                                const updatedSegments = useAppStore.getState().transcripts.filter(t => 
+                                  createdSegments.some(s => s.id === t.id)
+                                );
+                                console.log('[测试音频] 验证segment更新:', {
+                                  count: updatedSegments.length,
+                                  withTodo: updatedSegments.filter(s => s.containsTodo).length,
+                                  withSchedule: updatedSegments.filter(s => s.containsSchedule).length,
+                                });
+                                
+                                // 如果提取成功，触发UI更新
+                                if (updatedSegments.some(s => s.containsTodo || s.containsSchedule)) {
+                                  // 触发重新渲染
+                                  setHighlightedSegmentId(firstSegmentId);
+                                  setTimeout(() => setHighlightedSegmentId(undefined), 100);
+                                }
+                              }, 1000);
+                              
+                              // 设置当前音频URL，使播放器可以播放
+                              setCurrentAudioUrl(audioUrl);
+                              
+                              // 初始化播放器
+                              if (audioPlayerRef.current) {
+                                audioPlayerRef.current.src = audioUrl;
+                                audioPlayerRef.current.load();
+                                setDuration(duration / 1000); // 转换为秒
+                              }
+                            }
+                            
+                            setViewMode('playback');
+                          } else {
+                            const errorText = await response.text();
+                            throw new Error(`转录失败: ${errorText}`);
+                          }
+                        } catch (err) {
+                          const error = err instanceof Error ? err : new Error('测试失败');
+                          console.error('Test recording error:', error);
+                          setError(error.message);
+                          setViewMode('playback');
+                        }
+                      }
+                      // 重置 input
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                
+                {/* 开始录音按钮 */}
+                <button
+                  onClick={handleStartRecording}
+                  className={cn(
+                    "px-6 py-3 rounded-xl transition-all duration-300",
+                    "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground",
+                    "hover:from-primary/90 hover:to-primary/80",
+                    "shadow-lg hover:shadow-xl",
+                    "flex items-center gap-2.5 text-sm font-semibold",
+                    "active:scale-95 hover:scale-105",
+                    "border border-primary/20"
+                  )}
+                  title="开始录音"
+                >
+                  <Mic className="w-4 h-4" />
+                  开始录音
+                </button>
+              </>
+            ) : isRecording ? (
+              useAppStore.getState().processStatus.recording === 'paused' ? (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30">
+                  <div className="relative w-2 h-2">
+                    <div className="absolute inset-0 bg-amber-500 rounded-full" />
+                  </div>
+                  <span className="text-xs font-medium text-amber-600 dark:text-amber-400">暂停中</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30">
+                  <div className="relative w-2 h-2">
+                    <div className="absolute inset-0 bg-red-500 rounded-full animate-ping" />
+                    <div className="absolute inset-0 bg-red-500 rounded-full" />
+                  </div>
+                  <span className="text-xs font-medium text-red-600 dark:text-red-400">录音中</span>
+                </div>
+              )
+            ) : (
+              <button
+                onClick={() => handleModeChange('playback')}
+                className={cn(
+                  "px-5 py-2.5 rounded-lg transition-all",
+                  "bg-muted text-foreground",
+                  "hover:bg-muted/80 shadow-md hover:shadow-lg",
+                  "flex items-center gap-2",
+                  "border border-border/50 text-sm font-medium",
+                  "active:scale-95"
+                )}
+                title="切换到回看模式"
+              >
+                <Play className="w-4 h-4 ml-0.5" />
+                回看
+              </button>
+            )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 主内容区域：左右分栏（区域3和区域4） */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 区域3：下方左侧 */}
+        <div className="flex-[2] flex flex-col overflow-hidden border-r border-border/50">
+          {/* 录音模式：显示录音视图 */}
+          {viewMode === 'recording' ? (
+            <RecordingView
+              isRecording={isRecording}
+              isPaused={useAppStore.getState().processStatus.recording === 'paused'}
+              recordingDuration={recordingDuration}
+              segments={filteredTranscripts}
+              currentSpeaker={currentSpeaker}
+              onSpeakerChange={setCurrentSpeaker}
+              onSegmentClick={handleSegmentClick}
+              highlightedSegmentId={highlightedSegmentId}
+              warningMessage={undefined}
+              onPause={handlePauseRecording}
+              onResume={handleResumeRecording}
+              onStop={handleStopRecording}
+              audioLevel={0}
+              analyser={analyser}
+              schedules={schedules.filter(s => {
+                const scheduleDate = new Date(s.scheduleTime);
+                return scheduleDate.toDateString() === selectedDate.toDateString();
+              })}
+              todos={extractedTodos.filter(t => {
+                const todoDate = t.deadline ? new Date(t.deadline) : null;
+                return todoDate ? todoDate.toDateString() === selectedDate.toDateString() : false;
+              })}
+            />
+          ) : (
+            <>
+              {/* 左侧中间：内容视图（回看模式） */}
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                {currentView === 'original' && (
+                  <OriginalTextView
+                    segments={filteredTranscripts}
+                    onSegmentClick={handleSegmentClick}
+                    highlightedSegmentId={highlightedSegmentId}
+                    schedules={schedules.filter(s => {
+                      const scheduleDate = new Date(s.scheduleTime);
+                      return scheduleDate.toDateString() === selectedDate.toDateString();
+                    })}
+                    todos={extractedTodos.filter(t => {
+                      const todoDate = t.deadline ? new Date(t.deadline) : null;
+                      return todoDate ? todoDate.toDateString() === selectedDate.toDateString() : false;
+                    })}
+                  />
+                )}
+                {currentView === 'optimized' && (
+                  <OptimizedTextView
+                    segments={filteredTranscripts}
+                    onSegmentClick={handleSegmentClick}
+                    highlightedSegmentId={highlightedSegmentId}
+                    schedules={schedules.filter(s => {
+                      const scheduleDate = new Date(s.scheduleTime);
+                      return scheduleDate.toDateString() === selectedDate.toDateString();
+                    })}
+                    todos={extractedTodos.filter(t => {
+                      const todoDate = t.deadline ? new Date(t.deadline) : null;
+                      return todoDate ? todoDate.toDateString() === selectedDate.toDateString() : false;
+                    })}
+                  />
+                )}
+              </div>
+
+              {/* 左侧底部：播放器（回看模式时显示） */}
+              <div className="shrink-0 border-t border-border/50">
+                <CompactPlayer
+                  title={meetingTitle}
+                  date={selectedDate}
+                  duration={totalDuration}
+                  currentTime={currentTime}
+                  isPlaying={isPlaying}
+                  audioUrl={currentAudioUrl || undefined}
+                  playbackSpeed={playbackSpeed}
+                  audioSegments={audioSegments.filter(s => {
+                    const segmentDate = new Date(s.startTime);
+                    return segmentDate.toDateString() === selectedDate.toDateString();
+                  })}
+                  selectedAudioId={selectedAudioId}
+                  onSelectAudio={handleSelectAudio}
+                  hoveredSegment={hoveredSegment ? {
+                    time: hoveredSegment.audioStart ? formatTime(hoveredSegment.audioStart / 1000) : "00:00",
+                    text: (hoveredSegment.optimizedText || hoveredSegment.rawText || "").substring(0, 50) + "...",
+                  } : getCurrentSegmentInfo()}
+                  onPlay={handlePlay}
+                  onPause={handlePause}
+                  onSeek={handleSeek}
+                  onSkip={handleSkip}
+                  getSegmentAtTime={getSegmentAtTime}
+                  onSpeedChange={(speed) => {
+                    setPlaybackSpeed(speed);
+                    if (audioPlayerRef.current) {
+                      audioPlayerRef.current.playbackRate = speed;
+                    }
+                  }}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* 右侧：辅助内容区域（1/3） */}
+        <div className="flex-1 flex flex-col overflow-hidden bg-muted/20">
+          {/* 右侧内容：音频列表、智能提取和智能纪要上下排列 */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* 音频列表面板 */}
+            {viewMode === 'playback' && (() => {
+              const dayAudioSegments = audioSegments.filter(s => {
+                const segmentDate = new Date(s.startTime);
+                return segmentDate.toDateString() === selectedDate.toDateString();
+              });
+              
+              if (dayAudioSegments.length > 0) {
+                return (
+                  <>
+                    <AudioListPanel
+                      audioSegments={dayAudioSegments}
+                      selectedAudioId={selectedAudioId}
+                      onSelectAudio={handleSelectAudio}
+                    />
+                    {/* 分割线 */}
+                    <div className="border-t border-border/50 my-2" />
+                  </>
+                );
+              }
+              return null;
+            })()}
+            
+            {/* 智能提取面板 */}
+            {(pendingTodos.length > 0 || pendingSchedules.length > 0) && (
+              <>
+                <ExtractedItemsPanel
+                  todos={pendingTodos}
+                  schedules={pendingSchedules}
+                  onAddTodo={async (todo) => {
+                    // 用户选择加入待办
+                    await handleAddTodo(todo);
+                    // 从待确认列表中移除
+                    setPendingTodos(prev => prev.filter(t => t.id !== todo.id));
+                  }}
+                  onAddSchedule={async (schedule) => {
+                    // 用户选择加入日程
+                    await handleAddSchedule(schedule);
+                    // 从待确认列表中移除
+                    setPendingSchedules(prev => prev.filter(s => s.id !== schedule.id));
+                  }}
+                  onDismissTodo={(todoId) => {
+                    // 用户选择忽略待办
+                    setPendingTodos(prev => prev.filter(t => t.id !== todoId));
+                  }}
+                  onDismissSchedule={(scheduleId) => {
+                    // 用户选择忽略日程
+                    setPendingSchedules(prev => prev.filter(s => s.id !== scheduleId));
+                  }}
+                />
+                {/* 分割线 */}
+                <div className="border-t border-border/50 my-2" />
+              </>
+            )}
+            
+            {/* 智能纪要 */}
             <div className="flex-1 min-h-0">
-              <WaveformTimeline 
-                analyser={analyser}
-                isRecording={isRecording}
-                timeline={timeline}
-                audioSegments={audioSegments}
+              <MeetingSummary
+                segments={filteredTranscripts}
                 schedules={schedules}
-                onSeek={handleSeek}
-                onTimelineChange={handleTimelineChange}
-                onZoomChange={setTimelineZoom}
+                todos={extractedTodos}
+                onSegmentClick={handleSegmentClick}
+                summaryText={meetingSummary}
               />
             </div>
           </div>
-          <div className="flex-1 flex flex-col min-h-0 bg-background">
-            <div className="px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex justify-between items-center bg-card/50 border-b border-border">
-              <span>转录文本（点击文本回放）</span>
-            </div>
-            <TranscriptionLog 
-              segments={transcripts} 
-              onSegmentClick={handleSegmentClick}
-              isRecording={isRecording}
-            />
-          </div>
         </div>
-        <div className="md:col-span-1 h-full min-h-0 overflow-hidden flex flex-col border-l border-border">
-          <div className="h-48 p-4 border-b border-border bg-card/50 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-foreground mb-3">日程列表</h3>
-            <ScheduleList schedules={schedules} />
-          </div>
-          <div className="flex-1 min-h-0">
-            <ChatInterface 
-              messages={chatMessages} 
-              onSendMessage={handleSendMessage} 
-              isLoading={isChatLoading} 
-            />
-          </div>
+      </div>
+
+      {/* 错误提示 */}
+      {error && (
+        <div className="shrink-0 px-6 py-2 bg-red-500/10 text-red-600 dark:text-red-400 text-sm border-t border-red-500/20">
+          {error}
         </div>
-      </main>
+      )}
     </div>
   );
 }

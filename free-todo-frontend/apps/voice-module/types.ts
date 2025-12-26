@@ -11,10 +11,17 @@ export interface TranscriptSegment {
   isOptimized: boolean;
   isInterim: boolean;            // 是否为临时结果
   containsSchedule: boolean;
+  containsTodo?: boolean;        // ⚡ 是否包含待办事项
   audioStart: number;           // 相对录音开始时间（ms）
   audioEnd: number;
   audioFileId?: string;         // 后端音频文件ID
   uploadStatus: 'pending' | 'uploading' | 'uploaded' | 'failed';
+  
+  // ⚡ 时间索引和双向映射（10分钟固定分段架构）
+  segmentIndex?: number;        // 关联的存储轨段索引（0, 1, 2...）
+  relativeOffset?: number;      // 在存储轨段中的偏移（ms，相对于段开始时间）
+  unixStartTime?: number;       // Unix时间戳（毫秒精度）
+  unixEndTime?: number;         // Unix时间戳（毫秒精度）
 }
 
 // 日程项
@@ -25,6 +32,9 @@ export interface ScheduleItem {
   scheduleTime: Date;           // 日程时间
   description: string;          // 日程描述
   status: 'pending' | 'confirmed' | 'cancelled';
+  sourceText?: string;          // 来源文本片段（用于高亮）
+  textStartIndex?: number;      // 文本开始位置（在原文本中的索引）
+  textEndIndex?: number;        // 文本结束位置（在原文本中的索引）
 }
 
 // 音频片段元数据
@@ -35,8 +45,13 @@ export interface AudioSegment {
   duration: number;             // 时长（ms）
   fileSize: number;             // 文件大小（bytes）
   fileUrl?: string;             // 文件URL
-  audioSource: 'microphone' | 'system'; // 音频来源
+  audioSource: 'microphone'; // 音频来源（仅支持麦克风）
   uploadStatus: 'pending' | 'uploading' | 'uploaded' | 'failed';
+  
+  // ⚡ 时间索引（10分钟固定分段架构）
+  segmentIndex?: number;        // 段索引（0, 1, 2...），每10分钟一个
+  unixStartTime?: number;       // Unix时间戳（毫秒精度）
+  unixEndTime?: number;         // Unix时间戳（毫秒精度）
 }
 
 export interface ChatMessage {
@@ -62,10 +77,11 @@ export interface TimelineState {
 
 // 进程状态
 export interface ProcessStatus {
-  recording: 'idle' | 'running' | 'error';
+  recording: 'idle' | 'running' | 'paused' | 'error';
   recognition: 'idle' | 'running' | 'error';
   optimization: 'idle' | 'processing' | 'error';
   scheduleExtraction: 'idle' | 'processing' | 'error';
+  todoExtraction: 'idle' | 'processing' | 'error';
   persistence: 'idle' | 'uploading' | 'error';
 }
 

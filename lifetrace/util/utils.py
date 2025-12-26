@@ -64,7 +64,8 @@ def _get_windows_active_window() -> tuple[str | None, str | None]:
 
             return app_name, window_title
     except ImportError:
-        logger.warning("Windows依赖未安装，无法获取窗口信息")
+        # Windows 依赖未安装是正常的（可选功能），使用 debug 级别避免日志噪音
+        logger.debug("Windows依赖未安装，无法获取窗口信息（这是可选的，不影响核心功能）")
     except Exception as e:
         logger.error(f"获取Windows窗口信息失败: {e}")
 
@@ -253,7 +254,8 @@ def _get_windows_active_window_screen() -> int | None:
         return 1  # 默认返回主屏幕
 
     except ImportError:
-        logger.warning("Windows依赖未安装，无法获取屏幕信息")
+        # Windows 依赖未安装是正常的（可选功能），使用 debug 级别避免日志噪音
+        logger.debug("Windows依赖未安装，无法获取屏幕信息（这是可选的，不影响核心功能）")
     except Exception as e:
         logger.error(f"获取Windows活跃窗口屏幕失败: {e}")
 

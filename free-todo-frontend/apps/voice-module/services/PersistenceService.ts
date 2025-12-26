@@ -1,6 +1,5 @@
-import { TranscriptSegment, ScheduleItem, AudioSegment } from '../types';
+import { TranscriptSegment, ScheduleItem } from '../types';
 
-// 在 Next.js 环境中使用 process.env
 const API_BASE_URL = typeof window !== 'undefined' 
   ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api')
   : 'http://localhost:8000/api';
@@ -12,15 +11,13 @@ export class PersistenceService {
   private uploadQueue: Array<{ type: 'audio' | 'transcript' | 'schedule'; data: any }> = [];
   private isUploading: boolean = false;
   private batchSize: number = 10;
-  private uploadDelay: number = 2000; // 2秒延迟批量上传
+  private uploadDelay: number = 2000;
 
   // 回调函数
-  private onUploadProgress?: (type: string, progress: number) => void;
   private onError?: (error: Error) => void;
   private onStatusChange?: (status: 'idle' | 'uploading' | 'error') => void;
 
   constructor() {
-    // 定期处理上传队列
     if (typeof window !== 'undefined') {
       setInterval(() => {
         this.processUploadQueue();
@@ -32,11 +29,9 @@ export class PersistenceService {
    * 设置回调函数
    */
   setCallbacks(callbacks: {
-    onUploadProgress?: (type: string, progress: number) => void;
     onError?: (error: Error) => void;
     onStatusChange?: (status: 'idle' | 'uploading' | 'error') => void;
   }) {
-    this.onUploadProgress = callbacks.onUploadProgress;
     this.onError = callbacks.onError;
     this.onStatusChange = callbacks.onStatusChange;
   }
@@ -50,6 +45,8 @@ export class PersistenceService {
     segmentId: string;
   }): Promise<string | null> {
     try {
+      console.log(`[PersistenceService] 📤 开始上传音频: segmentId=${metadata.segmentId}, 大小=${blob.size} bytes, 保存到后端: ${API_BASE_URL}/audio/upload`);
+      
       const formData = new FormData();
       formData.append('file', blob, `${metadata.segmentId}.webm`);
       formData.append('startTime', metadata.startTime.toISOString());
@@ -62,15 +59,24 @@ export class PersistenceService {
       });
 
       if (!response.ok) {
-        throw new Error(`Upload failed: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.statusText} - ${errorText}`);
       }
 
       const result = await response.json();
+      console.log(`[PersistenceService] ✅ 音频上传成功:`, {
+        fileId: result.id,
+        segmentId: metadata.segmentId,
+        filename: result.filename,
+        file_path: result.file_path, // 本地文件路径，例如：E:\freeu\LifeTrace\lifetrace\data\audio\segment_xxx_xxx.webm
+        file_size: result.file_size,
+        attachment_id: result.attachment_id,
+        audio_recording_id: result.audio_recording_id,
+      });
       return result.id || null;
     } catch (error) {
-      console.error('Audio upload failed:', error);
+      console.error('[PersistenceService] ❌ 音频上传失败:', error);
       
-      // 失败时加入重试队列
       this.uploadQueue.push({
         type: 'audio',
         data: { blob, metadata, retries: 0 },
@@ -92,15 +98,46 @@ export class PersistenceService {
     if (segments.length === 0) return;
 
     try {
-      const payload = segments.map(segment => ({
-        id: segment.id,
-        timestamp: segment.timestamp.toISOString(),
-        rawText: segment.rawText,
-        optimizedText: segment.optimizedText,
-        audioStart: segment.audioStart,
-        audioEnd: segment.audioEnd,
-        audioFileId: segment.audioFileId,
-      }));
+      const validSegments = segments.filter(segment => {
+        if (segment.isInterim) return false;
+        if (!segment.rawText || segment.rawText.trim().length === 0) return false;
+        if (typeof segment.audioStart !== 'number' || typeof segment.audioEnd !== 'number') return false;
+        if (!isFinite(segment.audioStart) || !isFinite(segment.audioEnd)) return false;
+        
+        const audioStart = Math.round(segment.audioStart);
+        const audioEnd = Math.round(segment.audioEnd);
+        if (audioStart < 0 || audioEnd <= audioStart) return false;
+        if (!segment.timestamp || !(segment.timestamp instanceof Date)) return false;
+        
+        return true;
+      });
+      
+      if (validSegments.length === 0) {
+        return;
+      }
+
+      const payload = validSegments.map(segment => {
+        const audioStart = Math.round(segment.audioStart);
+        const audioEnd = Math.round(segment.audioEnd);
+        
+        if (audioStart < 0 || audioEnd <= audioStart) {
+          return null;
+        }
+        
+        return {
+          id: segment.id,
+          timestamp: segment.timestamp.toISOString(),
+          rawText: segment.rawText || '',
+          optimizedText: segment.optimizedText || null,
+          audioStart: audioStart,
+          audioEnd: audioEnd,
+          audioFileId: segment.audioFileId || null,
+        };
+      }).filter((item): item is NonNullable<typeof item> => item !== null);
+
+      if (payload.length === 0) {
+        return;
+      }
 
       const response = await fetch(`${API_BASE_URL}/transcripts/batch`, {
         method: 'POST',
@@ -115,11 +152,10 @@ export class PersistenceService {
       }
 
       const result = await response.json();
-      console.log(`Saved ${result.saved || segments.length} transcripts`);
+      console.log(`[PersistenceService] Saved ${result.saved || segments.length} transcripts`);
     } catch (error) {
-      console.error('Save transcripts failed:', error);
+      console.error('[PersistenceService] Save transcripts failed:', error);
       
-      // 失败时加入重试队列
       segments.forEach(segment => {
         this.uploadQueue.push({
           type: 'transcript',
@@ -162,11 +198,10 @@ export class PersistenceService {
         throw new Error(`Save schedules failed: ${response.statusText}`);
       }
 
-      console.log(`Saved ${schedules.length} schedules`);
+      console.log(`[PersistenceService] Saved ${schedules.length} schedules`);
     } catch (error) {
-      console.error('Save schedules failed:', error);
+      console.error('[PersistenceService] Save schedules failed:', error);
       
-      // 失败时加入重试队列
       schedules.forEach(schedule => {
         this.uploadQueue.push({
           type: 'schedule',
@@ -212,7 +247,7 @@ export class PersistenceService {
         uploadStatus: 'uploaded' as const,
       }));
     } catch (error) {
-      console.error('Query transcripts failed:', error);
+      console.error('[PersistenceService] Query transcripts failed:', error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Query transcripts failed');
         this.onError(err);
@@ -248,9 +283,46 @@ export class PersistenceService {
         status: s.status as 'pending' | 'confirmed' | 'cancelled',
       }));
     } catch (error) {
-      console.error('Query schedules failed:', error);
+      console.error('[PersistenceService] Query schedules failed:', error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Query schedules failed');
+        this.onError(err);
+      }
+      return [];
+    }
+  }
+
+  /**
+   * 查询音频录音记录
+   */
+  async queryAudioRecordings(startTime: Date, endTime: Date): Promise<Array<{
+    id: string;
+    segment_id: string;
+    start_time: string;
+    end_time: string | null;
+    duration_seconds: number | null;
+    file_url: string | null;
+    filename: string | null;
+    file_size: number | null;
+  }>> {
+    try {
+      const params = new URLSearchParams({
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
+      });
+
+      const response = await fetch(`${API_BASE_URL}/audio?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`Query audio recordings failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.recordings || [];
+    } catch (error) {
+      console.error('[PersistenceService] Query audio recordings failed:', error);
+      if (this.onError) {
+        const err = error instanceof Error ? error : new Error('Query audio recordings failed');
         this.onError(err);
       }
       return [];
@@ -269,60 +341,26 @@ export class PersistenceService {
       }
 
       const data = await response.json();
-      // 后端返回的 url 是相对路径，需要拼接完整 URL
       if (data.url) {
-        // 如果已经是完整 URL，直接返回
         if (data.url.startsWith('http://') || data.url.startsWith('https://')) {
           return data.url;
         }
-        // 如果是相对路径，需要正确拼接
-        // 后端返回的格式可能是 /api/audio/file/xxx.webm
-        // API_BASE_URL 是 http://localhost:8000/api
-        // 需要去掉 API_BASE_URL 的 /api 部分，然后拼接
+        
+        const baseUrl = API_BASE_URL.replace(/\/api$/, '');
+        const urlPath = data.url.startsWith('/') ? data.url : `/${data.url}`;
+        const fullUrl = `${baseUrl}${urlPath}`;
+        
         try {
-          // 确保 API_BASE_URL 是有效的
-          if (!API_BASE_URL || typeof API_BASE_URL !== 'string') {
-            console.error('Invalid API_BASE_URL:', API_BASE_URL);
-            return null;
-          }
-          
-          const baseUrl = API_BASE_URL.replace(/\/api$/, ''); // 去掉末尾的 /api
-          // 确保 baseUrl 和 data.url 都是有效字符串
-          if (!baseUrl || !data.url || typeof data.url !== 'string') {
-            console.error('Invalid URL components:', { baseUrl, url: data.url, apiBaseUrl: API_BASE_URL });
-            return null;
-          }
-          
-          // 确保 data.url 以 / 开头
-          const urlPath = data.url.startsWith('/') ? data.url : `/${data.url}`;
-          const fullUrl = `${baseUrl}${urlPath}`;
-          
-          // 验证 URL 是否有效（使用 try-catch 捕获错误）
-          try {
-            const urlObj = new URL(fullUrl);
-            // 验证通过，返回完整 URL
-            return urlObj.toString();
-          } catch (urlError) {
-            console.error('Invalid URL format:', {
-              fullUrl,
-              baseUrl,
-              urlPath,
-              error: urlError,
-            });
-            return null;
-          }
-        } catch (error) {
-          console.error('Failed to construct audio URL:', error, { 
-            baseUrl: API_BASE_URL, 
-            url: data.url,
-            errorMessage: error instanceof Error ? error.message : String(error)
-          });
+          new URL(fullUrl);
+          return fullUrl;
+        } catch (urlError) {
+          console.error('[PersistenceService] Invalid URL format:', fullUrl);
           return null;
         }
       }
       return null;
     } catch (error) {
-      console.error('Get audio URL failed:', error);
+      console.error('[PersistenceService] Get audio URL failed:', error);
       return null;
     }
   }
@@ -342,13 +380,12 @@ export class PersistenceService {
     }
 
     try {
-      // 按类型分组
       const audioItems = this.uploadQueue.filter(item => item.type === 'audio');
       const transcriptItems = this.uploadQueue.filter(item => item.type === 'transcript');
       const scheduleItems = this.uploadQueue.filter(item => item.type === 'schedule');
 
       // 处理音频上传（逐个处理）
-      for (const item of audioItems.slice(0, 1)) { // 每次只处理一个音频
+      for (const item of audioItems.slice(0, 1)) {
         const { blob, metadata, retries } = item.data;
         if (retries < 3) {
           const id = await this.uploadAudio(blob, metadata);
@@ -358,7 +395,6 @@ export class PersistenceService {
             item.data.retries = (retries || 0) + 1;
           }
         } else {
-          // 超过重试次数，移除
           this.uploadQueue = this.uploadQueue.filter(i => i !== item);
         }
       }
@@ -384,7 +420,7 @@ export class PersistenceService {
       }
 
     } catch (error) {
-      console.error('Process upload queue failed:', error);
+      console.error('[PersistenceService] Process upload queue failed:', error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Process upload queue failed');
         this.onError(err);

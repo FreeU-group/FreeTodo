@@ -147,3 +147,21 @@ llm:
         - max_input_tokens: 256000
           input_price: 0.003
           output_price: 0.03
+
+# 语音识别配置（WhisperLiveKit）
+speech_recognition:
+  # WhisperLiveKit 配置
+  whisper_model_size: base  # 模型大小: tiny, base, small, medium, large-v3
+  whisper_device: cpu        # 设备: cpu, cuda
+  language: auto             # 语言代码: auto (自动检测), zh (中文), en (英文), 等
+                             # 注意: WhisperLiveKit 可能不支持 zh-cn，建议使用 auto
+  # WhisperLiveKit 服务器配置
+  server_port: 8002         # WhisperLiveKit 服务器端口（避免与主服务器冲突）
+  server_host: localhost     # WhisperLiveKit 服务器主机
+  # 自动启动服务器
+  auto_start_server: true   # 是否自动启动 WhisperLiveKit 服务器
+
+# UI 配置
+ui:
+  cost_tracking:
+    enabled: true

@@ -107,37 +107,40 @@ async def query_schedules(
 ):
     """
     查询历史日程
-    
-    注意：当前版本从内存中查询，后续可以从数据库查询
     """
     try:
+        # 暂时从内存中查询，后续可以改为数据库查询
         filtered_schedules = []
         
         for schedule in _schedules_db:
-            schedule_time = datetime.fromisoformat(schedule.scheduleTime.replace('Z', '+00:00'))
-            
-            # 如果提供了时间范围，进行过滤
-            if startTime and endTime:
-                start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
-                end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
+            try:
+                schedule_time = datetime.fromisoformat(schedule.scheduleTime.replace('Z', '+00:00'))
                 
-                if start <= schedule_time <= end:
-                    filtered_schedules.append(schedule)
-            elif startTime:
-                start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
-                if schedule_time >= start:
-                    filtered_schedules.append(schedule)
-            elif endTime:
-                end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
-                if schedule_time <= end:
-                    filtered_schedules.append(schedule)
-            else:
-                # 没有时间范围，返回所有日程
-                filtered_schedules.append(schedule)
+                # 如果提供了时间范围，进行过滤
+                if startTime and endTime:
+                    start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
+                    end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
+                    
+                    if start <= schedule_time <= end:
+                        filtered_schedules.append(schedule.model_dump())
+                elif startTime:
+                    start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
+                    if schedule_time >= start:
+                        filtered_schedules.append(schedule.model_dump())
+                elif endTime:
+                    end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
+                    if schedule_time <= end:
+                        filtered_schedules.append(schedule.model_dump())
+                else:
+                    # 没有时间范围，返回所有日程
+                    filtered_schedules.append(schedule.model_dump())
+            except Exception as e:
+                logger.warning(f"解析日程项失败: {schedule}, 错误: {e}")
+                continue
         
         # 按时间排序
         filtered_schedules.sort(
-            key=lambda s: datetime.fromisoformat(s.scheduleTime.replace('Z', '+00:00'))
+            key=lambda s: datetime.fromisoformat(s.get("scheduleTime", "").replace('Z', '+00:00'))
         )
         
         logger.info(f"查询日程: startTime={startTime}, endTime={endTime}, 结果数={len(filtered_schedules)}")
@@ -145,5 +148,6 @@ async def query_schedules(
         return {"schedules": filtered_schedules}
     except Exception as e:
         logger.error(f"查询日程失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+        # 返回空列表而不是抛出错误，避免前端崩溃
+        return {"schedules": []}
 

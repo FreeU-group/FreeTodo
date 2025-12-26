@@ -134,8 +134,84 @@ async def chat_with_llm_stream(  # noqa: C901, PLR0915
             # 这里需要解析消息，检查是否包含system prompt
             full_message = message.message
 
+            # 检查是否是音频模块的上下文消息（优先检查，因为音频模块可能没有"用户输入:"分隔符）
+            # 检查方式：1. 包含"上下文 (最近10分钟录音转录):" 2. 包含"[音频模块]"标记
+            is_voice_module = (
+                "上下文 (最近10分钟录音转录):" in full_message 
+                or "上下文 (最近10分钟):" in full_message
+                or "[音频模块]" in full_message
+            )
+            
+            logger.info(f"[chat/stream] 检查音频模块: is_voice_module={is_voice_module}, message前100字符: {full_message[:100]}")
+            
+            # 如果是音频模块，直接处理
+            if is_voice_module:
+                # 检查是否有录音上下文
+                has_context = "上下文 (最近10分钟录音转录):" in full_message or "上下文 (最近10分钟):" in full_message
+                
+                if has_context:
+                    # 有录音内容：加载带上下文的系统 prompt
+                    system_prompt = get_prompt("voice_module", "system_assistant_with_context")
+                    # 提取上下文和用户输入
+                    if "用户输入:" in full_message:
+                        parts = full_message.split("用户输入:", 1)
+                    elif "User input:" in full_message:
+                        parts = full_message.split("User input:", 1)
+                    else:
+                        # 如果没有分隔符，整个消息就是用户输入（不应该发生，但处理一下）
+                        parts = [full_message, full_message]
+                    
+                    if len(parts) == 2:  # noqa: PLR2004
+                        context_part = parts[0].replace("上下文 (最近10分钟录音转录):", "").replace("上下文 (最近10分钟):", "").strip()
+                        user_input = parts[1].strip()
+                        # 构建完整的用户消息，包含上下文
+                        user_content = f"以下是最近10分钟的录音转录内容：\n\n{context_part}\n\n用户问题：{user_input}"
+                    else:
+                        user_content = full_message
+                else:
+                    # 无录音内容：加载无上下文的系统 prompt
+                    system_prompt = get_prompt("voice_module", "system_assistant_no_context")
+                    # 提取用户输入（去掉"[音频模块]"标记）
+                    if "[音频模块]" in full_message:
+                        # 提取"[音频模块]"之后的内容
+                        if "用户输入:" in full_message:
+                            user_content = full_message.split("用户输入:", 1)[1].strip()
+                        elif "User input:" in full_message:
+                            user_content = full_message.split("User input:", 1)[1].strip()
+                        else:
+                            # 去掉"[音频模块]"标记
+                            user_content = full_message.replace("[音频模块]", "").strip()
+                    elif "用户输入:" in full_message:
+                        user_content = full_message.split("用户输入:", 1)[1].strip()
+                    elif "User input:" in full_message:
+                        user_content = full_message.split("User input:", 1)[1].strip()
+                    else:
+                        user_content = full_message
+                
+                # 如果 prompt 加载失败，使用默认值
+                if not system_prompt:
+                    system_prompt = "你是一个智能语音助手。请根据提供的录音转录上下文回答用户问题。"
+                
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ]
+                # 保存时只保存用户输入部分（去掉"[音频模块]"标记）
+                if "[音频模块]" in full_message:
+                    if "用户输入:" in full_message:
+                        user_message_to_save = full_message.split("用户输入:", 1)[1].strip()
+                    elif "User input:" in full_message:
+                        user_message_to_save = full_message.split("User input:", 1)[1].strip()
+                    else:
+                        user_message_to_save = full_message.replace("[音频模块]", "").strip()
+                elif "用户输入:" in full_message:
+                    user_message_to_save = full_message.split("用户输入:", 1)[1].strip()
+                elif "User input:" in full_message:
+                    user_message_to_save = full_message.split("User input:", 1)[1].strip()
+                else:
+                    user_message_to_save = user_content
             # 检查消息格式：如果包含"用户输入:"或"User input:"，说明前端已经构建了system prompt
-            if "用户输入:" in full_message or "User input:" in full_message:
+            elif "用户输入:" in full_message or "User input:" in full_message:
                 # 分离system prompt和user input
                 if "用户输入:" in full_message:
                     parts = full_message.split("用户输入:", 1)
@@ -143,12 +219,47 @@ async def chat_with_llm_stream(  # noqa: C901, PLR0915
                     parts = full_message.split("User input:", 1)
 
                 if len(parts) == 2:  # noqa: PLR2004
-                    system_prompt = parts[0].strip()
+                    context_part = parts[0].strip()
                     user_input = parts[1].strip()
-                    messages = [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_input},
-                    ]
+                    
+                    # 如果是音频模块，根据是否有上下文加载不同的系统 prompt
+                    if is_voice_module:
+                        # 检查是否有录音上下文
+                        has_context = "上下文 (最近10分钟录音转录):" in context_part or "上下文 (最近10分钟):" in context_part
+                        
+                        if has_context:
+                            # 有录音内容：加载带上下文的系统 prompt
+                            system_prompt = get_prompt("voice_module", "system_assistant_with_context")
+                            # 提取上下文部分（去掉"上下文 (最近10分钟录音转录):"前缀）
+                            context_text = context_part.replace("上下文 (最近10分钟录音转录):", "").replace("上下文 (最近10分钟):", "").strip()
+                            # 构建完整的用户消息，包含上下文
+                            user_content = f"以下是最近10分钟的录音转录内容：\n\n{context_text}\n\n用户问题：{user_input}"
+                        else:
+                            # 无录音内容：加载无上下文的系统 prompt
+                            system_prompt = get_prompt("voice_module", "system_assistant_no_context")
+                            user_content = user_input
+                        
+                        # 如果 prompt 加载失败，使用默认值
+                        if not system_prompt:
+                            system_prompt = "你是一个智能语音助手。请根据提供的录音转录上下文回答用户问题。"
+                            if has_context:
+                                context_text = context_part.replace("上下文 (最近10分钟录音转录):", "").replace("上下文 (最近10分钟):", "").strip()
+                                user_content = f"以下是最近10分钟的录音转录内容：\n\n{context_text}\n\n用户问题：{user_input}"
+                            else:
+                                user_content = user_input
+                        
+                        messages = [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_content},
+                        ]
+                    else:
+                        # 非音频模块：使用原有的逻辑
+                        system_prompt = context_part
+                        messages = [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_input},
+                        ]
+                    
                     # 保存时只保存用户输入部分
                     user_message_to_save = user_input
                 else:

@@ -5,6 +5,28 @@ import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { TimelineState, AudioSegment, ScheduleItem } from '../types';
 
+// 绘制圆角矩形的辅助函数
+const drawRoundedRect = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.lineTo(x + width - radius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+  ctx.lineTo(x + width, y + height - radius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  ctx.lineTo(x + radius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+  ctx.lineTo(x, y + radius);
+  ctx.quadraticCurveTo(x, y, x + radius, y);
+  ctx.closePath();
+};
+
 interface WaveformTimelineProps {
   analyser: AnalyserNode | null;
   isRecording: boolean;
@@ -93,43 +115,80 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
       
       ctx.clearRect(0, 0, width, height);
       
-      const pps = pixelsPerSecond();
       const centerY = height / 2;
-      
-      // 1. 绘制时间刻度（增大字体，提高清晰度）
-      ctx.strokeStyle = '#64748b';
-      ctx.lineWidth = 1.5;
-      ctx.font = 'bold 13px monospace'; // 增大字体，加粗
-      ctx.fillStyle = '#cbd5e1'; // 更亮的颜色
-      ctx.textBaseline = 'top';
-      
       const startTime = timeline.viewStartTime.getTime();
-      const duration = timeline.viewDuration;
-      const interval = getTimeInterval(duration);
+      const viewDuration = timeline.viewDuration;
+      const gridInterval = getTimeInterval(viewDuration);
       
-      for (let t = startTime; t < startTime + duration; t += interval) {
+      // 1. 绘制背景网格（更现代的设计）
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)'; // 浅灰色网格线
+      ctx.lineWidth = 1;
+      
+      // 绘制水平网格线
+      for (let i = 0; i <= 4; i++) {
+        const y = (height / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+      
+      // 2. 绘制时间刻度（改进的样式）
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)'; // 更柔和的刻度线颜色
+      ctx.lineWidth = 1;
+      ctx.font = '500 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'; // 使用系统字体
+      ctx.textBaseline = 'middle';
+      
+      for (let t = startTime; t < startTime + viewDuration; t += gridInterval) {
         const x = timeToPixel(new Date(t));
         if (x >= 0 && x <= width) {
+          // 绘制主刻度线（更粗）
           ctx.beginPath();
           ctx.moveTo(x, 0);
           ctx.lineTo(x, height);
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
+          ctx.lineWidth = 1.5;
           ctx.stroke();
           
-          // 时间标签（增大字体，添加背景以提高可读性）
-          const timeLabel = format(new Date(t), 'HH:mm:ss', { locale: zhCN });
+          // 绘制时间标签（改进的样式）
+          const timeLabel = format(new Date(t), 'HH:mm', { locale: zhCN });
           const textWidth = ctx.measureText(timeLabel).width;
+          const labelY = 18; // 固定在顶部
           
-          // 绘制半透明背景
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.7)'; // 深色半透明背景
-          ctx.fillRect(x + 4, 2, textWidth + 6, 16);
+          // 绘制圆角背景（更现代）
+          const padding = 6;
+          const bgHeight = 20;
+          const bgWidth = textWidth + padding * 2;
+          const radius = 4;
           
-          // 绘制文字
-          ctx.fillStyle = '#e2e8f0'; // 亮色文字
-          ctx.fillText(timeLabel, x + 7, 4);
+          // 绘制圆角矩形背景
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'; // 更不透明的背景
+          drawRoundedRect(ctx, x - bgWidth / 2, labelY - bgHeight / 2, bgWidth, bgHeight, radius);
+          ctx.fill();
+          
+          // 绘制文字（使用更亮的颜色）
+          ctx.fillStyle = '#f1f5f9'; // 更亮的文字颜色
+          ctx.textAlign = 'center';
+          ctx.fillText(timeLabel, x, labelY);
+          ctx.textAlign = 'left'; // 重置对齐方式
         }
       }
       
-      // 2. 绘制已保存的音频片段
+      // 绘制次要刻度线（更细的线，用于更好的时间感知）
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+      ctx.lineWidth = 0.5;
+      const minorInterval = gridInterval / 5; // 每个主刻度之间5个次要刻度
+      for (let t = startTime; t < startTime + viewDuration; t += minorInterval) {
+        const x = timeToPixel(new Date(t));
+        if (x >= 0 && x <= width && Math.abs((t - startTime) % gridInterval) > minorInterval / 2) {
+          ctx.beginPath();
+          ctx.moveTo(x, height * 0.2);
+          ctx.lineTo(x, height * 0.8);
+          ctx.stroke();
+        }
+      }
+      
+      // 3. 绘制已保存的音频片段（改进的样式）
       audioSegments.forEach(segment => {
         const startX = timeToPixel(segment.startTime);
         const endX = timeToPixel(segment.endTime);
@@ -146,7 +205,7 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
         ctx.fillRect(Math.max(0, startX), centerY - 3, Math.min(segmentWidth, width - Math.max(0, startX)), 6);
       });
       
-      // 3. 绘制日程标记（增大标记和文字，避免重叠）
+      // 4. 绘制日程标记（改进的样式）
       schedules.forEach((schedule, index) => {
         const x = timeToPixel(schedule.scheduleTime);
         if (x >= 0 && x <= width) {
@@ -196,42 +255,65 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
         }
       });
       
-      // 4. 绘制当前时间指示器（增大，更清晰）
+      // 5. 绘制当前时间指示器（改进的样式）
       const currentX = timeToPixel(currentTime);
       if (currentX >= 0 && currentX <= width) {
-        // 绘制垂直线
+        // 绘制阴影效果（更现代）
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.3)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        
+        // 绘制垂直线（带渐变效果）
+        const gradient = ctx.createLinearGradient(currentX, 0, currentX, height);
+        gradient.addColorStop(0, 'rgba(239, 68, 68, 0.8)');
+        gradient.addColorStop(0.5, 'rgba(239, 68, 68, 1)');
+        gradient.addColorStop(1, 'rgba(239, 68, 68, 0.8)');
+        
         ctx.beginPath();
         ctx.moveTo(currentX, 0);
         ctx.lineTo(currentX, height);
-        ctx.strokeStyle = '#ef4444';
-        ctx.lineWidth = 2.5; // 加粗
+        ctx.strokeStyle = gradient;
+        ctx.lineWidth = 3;
         ctx.stroke();
         
-        // 绘制顶部指示器（三角形）
+        // 重置阴影
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+        
+        // 绘制顶部指示器（改进的三角形，带圆角效果）
         ctx.fillStyle = '#ef4444';
         ctx.beginPath();
         ctx.moveTo(currentX, 0);
-        ctx.lineTo(currentX - 6, 10);
-        ctx.lineTo(currentX + 6, 10);
+        ctx.lineTo(currentX - 8, 12);
+        ctx.lineTo(currentX + 8, 12);
         ctx.closePath();
         ctx.fill();
         
-        // 绘制时间标签（增大字体，添加背景）
-        ctx.font = 'bold 13px monospace'; // 增大字体
+        // 绘制时间标签（改进的样式）
+        ctx.font = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         const timeLabel = format(currentTime, 'HH:mm:ss', { locale: zhCN });
         const textWidth = ctx.measureText(timeLabel).width;
-        const labelX = Math.min(currentX + 8, width - textWidth - 10);
+        const labelX = Math.min(currentX + 10, width - textWidth - 12);
+        const labelY = 18;
         
-        // 半透明背景
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.9)'; // 红色半透明背景
-        ctx.fillRect(labelX - 4, 2, textWidth + 8, 18);
+        // 绘制圆角背景
+        const padding = 6;
+        const bgHeight = 20;
+        const bgWidth = textWidth + padding * 2;
+        const radius = 4;
+        
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.95)';
+        drawRoundedRect(ctx, labelX - padding, labelY - bgHeight / 2, bgWidth, bgHeight, radius);
+        ctx.fill();
         
         // 绘制文字
-        ctx.fillStyle = '#ffffff'; // 白色文字
-        ctx.fillText(timeLabel, labelX, 5);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.fillText(timeLabel, labelX, labelY);
       }
       
-      // 5. 实时录音波形
+      // 6. 实时录音波形
       if (isRecording && analyser) {
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteTimeDomainData(dataArray);

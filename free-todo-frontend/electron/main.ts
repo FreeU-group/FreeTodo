@@ -2,7 +2,7 @@ import { type ChildProcess, fork, spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, desktopCapturer, ipcMain } from "electron";
 
 // 强制生产模式：如果应用已打包，必须使用生产模式
 // 即使 NODE_ENV 被设置为 development，打包的应用也应该运行生产服务器
@@ -143,9 +143,60 @@ async function startNextServer(): Promise<void> {
 	if (app.isPackaged) {
 		logToFile("App is packaged - starting built-in production server");
 	} else if (isDev) {
-		const msg = `Development mode: expecting Next.js dev server at ${SERVER_URL}`;
+		// 开发模式：自动启动 Next.js dev 服务器
+		const msg = `Development mode: starting Next.js dev server at ${SERVER_URL}`;
 		console.log(msg);
 		logToFile(msg);
+		
+		// 检查是否已经有 Next.js 服务器在运行
+		try {
+			await waitForServer(SERVER_URL, 2000);
+			logToFile("Next.js dev server is already running");
+			return;
+		} catch {
+			// 没有运行，需要启动
+		}
+		
+		// 启动 Next.js dev 服务器
+		// 在 Windows 上，需要使用 shell: true 来运行 .cmd 文件
+		const devCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+		const devArgs = ["dev"];
+		
+		logToFile(`Starting Next.js dev server: ${devCommand} ${devArgs.join(" ")}`);
+		logToFile(`Working directory: ${path.join(__dirname, "..")}`);
+		
+		nextProcess = spawn(devCommand, devArgs, {
+			cwd: path.join(__dirname, ".."),
+			env: {
+				...process.env,
+				PORT: PORT,
+				NODE_ENV: "development",
+			},
+			stdio: ["ignore", "pipe", "pipe"],
+			shell: process.platform === "win32", // Windows 上需要 shell
+		});
+		
+		// 监听输出
+		if (nextProcess.stdout) {
+			nextProcess.stdout.on("data", (data) => {
+				logToFile(`[Next.js Dev] ${data.toString().trim()}`);
+			});
+		}
+		
+		if (nextProcess.stderr) {
+			nextProcess.stderr.on("data", (data) => {
+				logToFile(`[Next.js Dev Error] ${data.toString().trim()}`);
+			});
+		}
+		
+		nextProcess.on("error", (error) => {
+			logToFile(`Failed to start Next.js dev server: ${error.message}`);
+		});
+		
+		nextProcess.on("exit", (code) => {
+			logToFile(`Next.js dev server exited with code ${code}`);
+		});
+		
 		return;
 	} else {
 		logToFile(
@@ -339,24 +390,132 @@ async function startNextServer(): Promise<void> {
  * 创建主窗口
  */
 function createWindow(): void {
+	// 确定 preload 脚本路径
+	let preloadPath: string;
+	if (app.isPackaged) {
+		// 生产环境：preload.js 在资源目录
+		preloadPath = path.join(process.resourcesPath, 'electron', 'preload.js');
+	} else {
+		// 开发环境：使用 dist-electron/preload.js（构建脚本会编译）
+		preloadPath = path.join(__dirname, 'preload.js');
+		
+		logToFile(`Looking for preload script at: ${preloadPath}`);
+		logToFile(`__dirname: ${__dirname}`);
+		logToFile(`Preload exists: ${fs.existsSync(preloadPath)}`);
+		
+		// 如果不存在，尝试其他路径
+		if (!fs.existsSync(preloadPath)) {
+			const possiblePaths = [
+				path.join(__dirname, 'preload.js'),
+				path.resolve(__dirname, '../electron/preload.js'),
+				path.resolve(__dirname, '../electron/preload.ts'),
+				path.resolve(__dirname, '../../dist-electron/preload.js'),
+			];
+			
+			logToFile(`Trying alternative paths...`);
+			for (const altPath of possiblePaths) {
+				logToFile(`  Checking: ${altPath} (exists: ${fs.existsSync(altPath)})`);
+			}
+			
+			preloadPath = possiblePaths.find(p => fs.existsSync(p)) || possiblePaths[0];
+		}
+		
+		if (!fs.existsSync(preloadPath)) {
+			const errorMsg = `Preload script not found at ${preloadPath}. Please run 'pnpm electron:build-main' first.`;
+			logToFile(`ERROR: ${errorMsg}`);
+			console.error(errorMsg);
+		} else {
+			logToFile(`✅ Using preload script: ${preloadPath}`);
+			logToFile(`Preload file size: ${fs.statSync(preloadPath).size} bytes`);
+		}
+	}
+	
+	// 验证 preload 脚本是否存在
+	if (!fs.existsSync(preloadPath)) {
+		const errorMsg = `Preload script not found at ${preloadPath}. Please run 'pnpm electron:build-main' first.`;
+		logToFile(`ERROR: ${errorMsg}`);
+		console.error(errorMsg);
+		dialog.showErrorBox("Preload Script Error", errorMsg);
+	}
+	
+	// 检查是否启用灵动岛模式（透明窗口）
+	// 可以通过环境变量 ENABLE_DYNAMIC_ISLAND=true 启用
+	// 或者在开发模式下默认启用（可以通过设置禁用）
+	const enableDynamicIsland = process.env.ENABLE_DYNAMIC_ISLAND === 'true' 
+		|| (isDev && process.env.ENABLE_DYNAMIC_ISLAND !== 'false'); // 开发模式默认启用
+	
 	mainWindow = new BrowserWindow({
 		width: 1200,
 		height: 800,
 		minWidth: 800,
 		minHeight: 600,
+		frame: enableDynamicIsland ? false : true, // 灵动岛模式无边框
+		transparent: enableDynamicIsland ? true : false, // 灵动岛模式透明
+		alwaysOnTop: enableDynamicIsland ? true : false, // 灵动岛模式置顶
+		hasShadow: enableDynamicIsland ? false : true, // 灵动岛模式无阴影
+		skipTaskbar: enableDynamicIsland ? true : false, // 灵动岛模式不显示在任务栏
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
+			preload: preloadPath, // 添加 preload 脚本
 		},
 		show: false, // 等待内容加载完成再显示
-		backgroundColor: "#1a1a1a",
+		backgroundColor: enableDynamicIsland ? "transparent" : "#1a1a1a",
 	});
 
 	mainWindow.loadURL(SERVER_URL);
 
+	// 监听页面加载完成，检查 preload 脚本是否正确加载
+	mainWindow.webContents.once("did-finish-load", () => {
+		logToFile("Page finished loading, checking preload script...");
+		// 注入调试代码检查 electronAPI
+		mainWindow?.webContents.executeJavaScript(`
+			(function() {
+				const hasElectronAPI = typeof window.electronAPI !== 'undefined';
+				const hasGetSystemAudioStream = hasElectronAPI && typeof window.electronAPI.getSystemAudioStream === 'function';
+				const result = {
+					hasElectronAPI,
+					hasGetSystemAudioStream,
+					electronAPIKeys: hasElectronAPI ? Object.keys(window.electronAPI) : [],
+					userAgent: navigator.userAgent,
+					hasProcess: typeof window.process !== 'undefined',
+					processType: typeof window.process !== 'undefined' ? window.process.type : undefined
+				};
+				console.log('[Electron Main] Preload script check:', result);
+				return result;
+			})();
+		`).then((result) => {
+			logToFile(`Preload script check result: ${JSON.stringify(result, null, 2)}`);
+			if (!result.hasElectronAPI) {
+				logToFile("WARNING: electronAPI is not available in renderer process!");
+				console.warn("⚠️ electronAPI is not available. Check preload script loading.");
+				if (mainWindow) {
+					dialog.showMessageBox(mainWindow, {
+						type: "warning",
+						title: "Preload Script Warning",
+						message: "electronAPI is not available",
+						detail: `This may affect system audio capture.\n\nCheck logs at: ${logFile}\n\nResult: ${JSON.stringify(result, null, 2)}`,
+					});
+				}
+			} else {
+				logToFile("✅ electronAPI is available in renderer process");
+				logToFile(`Available methods: ${result.electronAPIKeys.join(", ")}`);
+			}
+		}).catch((err) => {
+			logToFile(`Error checking preload script: ${err.message}`);
+			console.error("Error checking preload script:", err);
+		});
+	});
+
 	mainWindow.once("ready-to-show", () => {
 		mainWindow?.show();
 		logToFile("Window is ready to show");
+		
+		// 如果启用灵动岛模式，默认设置点击穿透
+		if (enableDynamicIsland && mainWindow) {
+			mainWindow.setIgnoreMouseEvents(true, { forward: true });
+			logToFile("Dynamic Island mode enabled: click-through active");
+		}
 	});
 
 	mainWindow.on("closed", () => {
@@ -649,9 +808,342 @@ if (gotTheLock) {
 		stopNextServer();
 	});
 
+	// 注册 IPC 处理器：设置窗口是否忽略鼠标事件（用于透明窗口点击穿透）
+	ipcMain.on('set-ignore-mouse-events', (event, ignore: boolean, options?: { forward?: boolean }) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (win) {
+			win.setIgnoreMouseEvents(ignore, options || {});
+		}
+	});
+
+	// 注册 IPC 处理器：获取系统音频源
+	ipcMain.handle('get-system-audio-sources', async () => {
+		try {
+			const sources = await desktopCapturer.getSources({
+				types: ['screen', 'window'],
+				thumbnailSize: { width: 0, height: 0 }, // 不需要缩略图
+			});
+			
+			// 返回所有源（让前端尝试）
+			return sources.map(source => ({
+				id: source.id,
+				name: source.name,
+				display_id: source.display_id,
+			}));
+		} catch (error) {
+			console.error('获取系统音频源失败:', error);
+			return [];
+		}
+	});
+
+	// 注册 IPC 处理器：检查虚拟音频设备
+	ipcMain.handle('check-virtual-audio-device', async () => {
+		try {
+			const { spawn } = require('child_process');
+			const platform = process.platform;
+			
+			let scriptPath: string;
+			let command: string[];
+			
+			if (platform === 'win32') {
+				// Windows: 使用 PowerShell 脚本
+				scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_windows.ps1');
+				command = ['powershell', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, '-CheckOnly'];
+			} else if (platform === 'darwin') {
+				// macOS: 使用 shell 脚本
+				scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_macos.sh');
+				command = ['bash', scriptPath, '--check-only'];
+			} else if (platform === 'linux') {
+				// Linux: 使用 shell 脚本
+				scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_linux.sh');
+				command = ['bash', scriptPath, '--check-only'];
+			} else {
+				return { available: false, message: `不支持的操作系统: ${platform}` };
+			}
+			
+			return new Promise((resolve) => {
+				const proc = spawn(command[0], command.slice(1), {
+					cwd: path.dirname(scriptPath),
+					timeout: 10000,
+				});
+				
+				let stdout = '';
+				let stderr = '';
+				
+				proc.stdout.on('data', (data: Buffer) => {
+					stdout += data.toString();
+				});
+				
+				proc.stderr.on('data', (data: Buffer) => {
+					stderr += data.toString();
+				});
+				
+				proc.on('close', (code: number) => {
+					const available = code === 0;
+					resolve({
+						available,
+						message: available ? '虚拟音频设备已配置' : '虚拟音频设备未配置',
+						details: stdout || stderr,
+						platform,
+					});
+				});
+				
+				proc.on('error', (error: Error) => {
+					resolve({
+						available: false,
+						message: `检查失败: ${error.message}`,
+						platform,
+					});
+				});
+			});
+		} catch (error: any) {
+			console.error('检查虚拟音频设备失败:', error);
+			return {
+				available: false,
+				message: `检查失败: ${error.message}`,
+				platform: process.platform,
+			};
+		}
+	});
+
+	// 注册 IPC 处理器：设置虚拟音频设备
+	ipcMain.handle('setup-virtual-audio-device', async () => {
+		try {
+			const { spawn } = require('child_process');
+			const platform = process.platform;
+			
+			let scriptPath: string;
+			let command: string[];
+			
+			if (platform === 'win32') {
+				scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_windows.ps1');
+				command = ['powershell', '-ExecutionPolicy', 'Bypass', '-File', scriptPath];
+			} else if (platform === 'darwin') {
+				scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_macos.sh');
+				command = ['bash', scriptPath];
+			} else if (platform === 'linux') {
+				scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_linux.sh');
+				command = ['bash', scriptPath, '--load-module'];
+			} else {
+				return { success: false, message: `不支持的操作系统: ${platform}` };
+			}
+			
+			return new Promise((resolve) => {
+				const proc = spawn(command[0], command.slice(1), {
+					cwd: path.dirname(scriptPath),
+					timeout: 30000,
+				});
+				
+				let stdout = '';
+				let stderr = '';
+				
+				proc.stdout.on('data', (data: Buffer) => {
+					stdout += data.toString();
+				});
+				
+				proc.stderr.on('data', (data: Buffer) => {
+					stderr += data.toString();
+				});
+				
+				proc.on('close', (code: number) => {
+					const success = code === 0;
+					resolve({
+						success,
+						message: success ? '虚拟音频设备配置成功' : '配置失败，请查看详细信息',
+						details: stdout || stderr,
+						platform,
+					});
+				});
+				
+				proc.on('error', (error: Error) => {
+					resolve({
+						success: false,
+						message: `配置失败: ${error.message}`,
+						platform,
+					});
+				});
+			});
+		} catch (error: any) {
+			console.error('设置虚拟音频设备失败:', error);
+			return {
+				success: false,
+				message: `设置失败: ${error.message}`,
+				platform: process.platform,
+			};
+		}
+	});
+
+	// 注册 IPC 处理器：获取系统音频流
+	// 注意：Electron 中无法在主进程直接创建 MediaStream，需要在渲染进程中使用 getUserMedia
+	// 这里返回源信息，让渲染进程使用 getUserMedia 配合 sourceId 获取流
+	ipcMain.handle('get-system-audio-stream', async (_event, sourceId?: string) => {
+		try {
+			// 获取所有可用的桌面源（包括屏幕和窗口）
+			const sources = await desktopCapturer.getSources({
+				types: ['screen', 'window'],
+				thumbnailSize: { width: 0, height: 0 }, // 不需要缩略图，提高性能
+			});
+			
+			if (sources.length === 0) {
+				throw new Error('未找到可用的系统音频源');
+			}
+			
+			// 如果没有指定源ID，优先选择屏幕源（通常包含系统音频）
+			if (!sourceId) {
+				const screenSource = sources.find(s => s.id.startsWith('screen:'));
+				sourceId = screenSource?.id || sources[0].id;
+			} else {
+				// 验证指定的源ID是否存在
+				const sourceExists = sources.some(s => s.id === sourceId);
+				if (!sourceExists) {
+					throw new Error(`指定的音频源不存在: ${sourceId}`);
+				}
+			}
+			
+			// 返回源信息，渲染进程将使用 getUserMedia 配合 sourceId 获取流
+			const selectedSource = sources.find(s => s.id === sourceId);
+			return {
+				sourceId,
+				name: selectedSource?.name || '系统音频',
+				success: true,
+			};
+		} catch (error) {
+			console.error('获取系统音频流失败:', error);
+			throw error;
+		}
+	});
+
+	// 自动检测和配置虚拟音频设备（在应用启动时）
+	async function autoSetupVirtualAudio() {
+		try {
+			// 使用 IPC 处理器检查设备状态
+			const checkHandler = ipcMain.listeners('check-virtual-audio-device');
+			if (checkHandler.length > 0) {
+				// 模拟调用 IPC 处理器
+				const mockEvent = { sender: { send: () => {} } } as any;
+				const status: any = await new Promise((resolve) => {
+					// 直接调用处理器逻辑
+					const { spawn } = require('child_process');
+					const platform = process.platform;
+					
+					let scriptPath: string;
+					let command: string[];
+					
+					if (platform === 'win32') {
+						scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_windows.ps1');
+						command = ['powershell', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, '-CheckOnly'];
+					} else if (platform === 'darwin') {
+						scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_macos.sh');
+						command = ['bash', scriptPath, '--check-only'];
+					} else if (platform === 'linux') {
+						scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_linux.sh');
+						command = ['bash', scriptPath, '--check-only'];
+					} else {
+						resolve({ available: false, message: `不支持的操作系统: ${platform}` });
+						return;
+					}
+					
+					const proc = spawn(command[0], command.slice(1), {
+						cwd: path.dirname(scriptPath),
+						timeout: 10000,
+					});
+					
+					let stdout = '';
+					let stderr = '';
+					
+					proc.stdout.on('data', (data: Buffer) => {
+						stdout += data.toString();
+					});
+					
+					proc.stderr.on('data', (data: Buffer) => {
+						stderr += data.toString();
+					});
+					
+					proc.on('close', (code: number) => {
+						const available = code === 0;
+						resolve({
+							available,
+							message: available ? '虚拟音频设备已配置' : '虚拟音频设备未配置',
+							details: stdout || stderr,
+							platform,
+						});
+					});
+					
+					proc.on('error', (error: Error) => {
+						resolve({
+							available: false,
+							message: `检查失败: ${error.message}`,
+							platform,
+						});
+					});
+				});
+				
+				if (!status.available) {
+					logToFile("虚拟音频设备未配置，尝试自动配置...");
+					// 尝试自动配置（Linux 可以自动加载模块）
+					if (process.platform === 'linux') {
+						const setupResult: any = await new Promise((resolve) => {
+							const { spawn } = require('child_process');
+							const scriptPath = path.join(__dirname, '../../scripts/audio/setup_virtual_audio_linux.sh');
+							const proc = spawn('bash', [scriptPath, '--load-module'], {
+								cwd: path.dirname(scriptPath),
+								timeout: 30000,
+							});
+							
+							let stdout = '';
+							let stderr = '';
+							
+							proc.stdout.on('data', (data: Buffer) => {
+								stdout += data.toString();
+							});
+							
+							proc.stderr.on('data', (data: Buffer) => {
+								stderr += data.toString();
+							});
+							
+							proc.on('close', (code: number) => {
+								resolve({
+									success: code === 0,
+									message: code === 0 ? '虚拟音频设备配置成功' : '配置失败',
+									details: stdout || stderr,
+								});
+							});
+							
+							proc.on('error', (error: Error) => {
+								resolve({
+									success: false,
+									message: `配置失败: ${error.message}`,
+								});
+							});
+						});
+						
+						if (setupResult.success) {
+							logToFile("✅ 虚拟音频设备自动配置成功");
+						} else {
+							logToFile(`⚠️  虚拟音频设备自动配置失败: ${setupResult.message}`);
+						}
+					} else {
+						logToFile("⚠️  Windows/macOS 需要手动安装虚拟音频设备驱动");
+						logToFile("    Windows: 请安装 VB-CABLE (https://vb-audio.com/Cable/)");
+						logToFile("    macOS: 请安装 BlackHole (brew install blackhole-2ch)");
+					}
+				} else {
+					logToFile("✅ 虚拟音频设备已配置");
+				}
+			}
+		} catch (error: any) {
+			logToFile(`检查虚拟音频设备时出错: ${error.message}`);
+		}
+	}
+
 	app.whenReady().then(async () => {
 		try {
 			logToFile("Application starting...");
+			
+			// 自动检测虚拟音频设备（异步，不阻塞启动）
+			autoSetupVirtualAudio().catch(err => {
+				logToFile(`自动配置虚拟音频设备失败: ${err.message}`);
+			});
 			logToFile(`App isPackaged: ${app.isPackaged}`);
 			logToFile(`NODE_ENV: ${process.env.NODE_ENV || "not set"}`);
 			logToFile(`isDev: ${isDev}`);
@@ -712,3 +1204,4 @@ if (gotTheLock) {
 		}
 	});
 }
+

@@ -428,3 +428,356 @@ async def stream_transcription(websocket: WebSocket):
 **最后更新**：2025-12-21  
 **维护者**：LifeTrace Team From zy
 
+完善定位、功能设计和实现方案：
+
+
+[4 tools called]
+
+
+完善定位、功能设计和实现方案：
+
+
+[1 tool called]
+
+
+## 音频模块定位（完善版）
+
+### 核心定位：智能语音工作流中心
+
+不只是会议记录，而是将语音作为输入方式，自动连接 todo、日程、笔记、知识库，形成完整工作流。
+
+### 三大核心价值
+
+1. 零负担记录：说话即记录，无需手动输入
+2. 智能提取：自动识别待办、日程、关键信息
+3. 无缝集成：与现有系统深度打通，形成闭环
+
+---
+
+## 功能设计（结合现有系统）
+
+### 1. 实时转录（基础能力）
+
+- 说话时实时显示文字（延迟 < 300ms）
+- 支持麦克风和系统音频
+- 临时结果实时更新，最终结果确认
+- 点击文字回放对应音频
+
+### 2. 智能提取（核心创新）
+
+#### 2.1 待办提取（增强）
+- 实时提取：边说边提取，无需等待
+- 智能理解：理解上下文，识别任务依赖关系
+- 自动创建：提取后自动创建 Todo，带标签和优先级
+- 关联回放：Todo 可回放原始语音
+
+#### 2.2 日程提取（增强）
+- 时间理解：理解“明天下午3点”、“下周三”等自然语言
+- 自动创建：提取后自动创建日程，同步到日历
+- 提醒设置：根据上下文自动设置提醒
+- 冲突检测：检测时间冲突并提示
+
+#### 2.3 关键信息提取（新增）
+- 联系人：自动提取姓名、电话、邮箱
+- 链接：提取提到的网址、文档链接
+- 数字：提取金额、数量、百分比等
+- 标签：自动打标签（工作、生活、学习等）
+
+### 3. 会议纪要生成（新增）
+
+- 自动总结：会议结束后自动生成纪要
+- 结构化输出：按议题、决策、行动项组织
+- 智能摘要：提取关键观点和结论
+- 一键导出：支持 Markdown、PDF 等格式
+
+### 4. 知识沉淀（创新）
+
+- 语音笔记：将重要内容转为笔记
+- 知识关联：关联相关 todo、日程、文档
+- 智能检索：通过语音内容检索历史记录
+- 上下文记忆：记住对话上下文，支持多轮对话
+
+### 5. 工作流自动化（创新）
+
+#### 5.1 语音命令
+- "创建待办：明天完成报告"
+- "添加日程：下周三下午3点开会"
+- "搜索：上个月的会议记录"
+- "总结：今天的会议要点"
+
+#### 5.2 智能关联
+- 录音时间段自动关联系统 Event
+- 提取的待办自动关联相关日程
+- 会议记录自动关联参会人员（未来）
+
+#### 5.3 自动提醒
+- 根据提取的日程自动设置提醒
+- 根据待办的截止时间智能提醒
+- 根据上下文智能建议后续行动
+
+### 6. 多场景支持（便捷）
+
+- 会议记录：实时转录 + 纪要生成
+- 电话录音：自动提取关键信息
+- 学习笔记：语音转文字 + 知识整理
+- 灵感记录：快速记录想法，后续整理
+- 待办管理：语音创建和管理待办
+
+---
+
+## 实现方案（完善版）
+
+### 架构设计：事件驱动的智能流水线
+
+```
+音频流 
+  ↓
+VAD检测（事件驱动）
+  ↓
+流式识别（300ms窗口）
+  ↓
+流式策略（智能提交）
+  ↓
+实时提取（并行处理）
+  ├─→ 待办提取 → 自动创建Todo
+  ├─→ 日程提取 → 自动创建日程
+  ├─→ 关键信息提取 → 知识库
+  └─→ 会议纪要 → 笔记系统
+  ↓
+时间轴对齐（精确时间戳）
+  ↓
+双向关联（转录 ↔ Todo/日程）
+```
+
+### 阶段1：优化流式策略（1周）
+
+#### 1.1 事件驱动的 VAD
+
+```python
+class EventDrivenVAD:
+    def __init__(self):
+        self.voice_started = False
+        self.voice_ended = False
+        self.silence_duration = 0.0
+    
+    def detect(self, audio_data):
+        has_voice = self._detect_voice(audio_data)
+        
+        if has_voice and not self.voice_started:
+            self.voice_started = True
+            self.voice_ended = False
+            return "VOICE_STARTED"  # 事件：语音开始
+        
+        if not has_voice and self.voice_started:
+            self.silence_duration += 0.1
+            if self.silence_duration > 0.5:  # 静音超过0.5秒
+                self.voice_ended = True
+                self.voice_started = False
+                return "VOICE_ENDED"  # 事件：语音结束
+        
+        return None
+```
+
+#### 1.2 智能流式策略
+
+```python
+class StreamingPolicy:
+    def __init__(self):
+        self.min_chunk = 0.3   # 最小块 300ms
+        self.max_chunk = 2.0   # 最大块 2秒
+        self.silence_threshold = 0.5
+    
+    def should_commit(self, duration, has_silence, text_length):
+        # 策略1：短句+停顿 → 立即提交最终结果
+        if duration < 1.0 and has_silence:
+            return True, True  # (should_commit, is_final)
+        
+        # 策略2：长句+停顿 → 提交最终结果
+        if has_silence and duration > 0.5:
+            return True, True
+        
+        # 策略3：连续说话 → 返回部分结果
+        if duration > 0.3:
+            return True, False  # 返回部分结果
+        
+        return False, False
+```
+
+#### 1.3 优化处理窗口
+
+```python
+# 从 600ms → 300ms，更实时
+processor = PCMAudioProcessor(
+    chunk_duration=0.3,  # 300ms（更实时）
+    overlap=0.1,         # 100ms 重叠
+    min_samples=4800,    # 300ms @ 16kHz
+)
+```
+
+### 阶段2：实时智能提取（1周）
+
+#### 2.1 并行提取架构
+
+```python
+async def process_recognition_result(text, is_final, timestamp):
+    if not is_final:
+        return  # 部分结果不提取
+    
+    # 并行提取，不阻塞
+    tasks = [
+        extract_todos(text, timestamp),
+        extract_schedules(text, timestamp),
+        extract_key_info(text, timestamp),
+    ]
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # 自动创建关联
+    todos, schedules, key_info = results
+    await create_links(todos, schedules, key_info, transcript_id)
+```
+
+#### 2.2 增强提取 Prompt
+
+```python
+EXTRACTION_PROMPT = """
+从以下文本中提取：
+1. 待办事项：[TODO: 任务名称 | deadline: 时间 | priority: 优先级]
+2. 日程安排：[SCHEDULE: 事件描述 | time: 时间]
+3. 关键信息：
+   - 联系人：[CONTACT: 姓名 | phone: 电话 | email: 邮箱]
+   - 链接：[LINK: 网址]
+   - 数字：[NUMBER: 金额/数量]
+4. 标签：[TAG: 工作/生活/学习]
+
+注意：
+- 理解上下文和依赖关系
+- 识别自然语言时间表达
+- 提取完整的任务描述
+"""
+```
+
+#### 2.3 自动创建关联
+
+```python
+async def create_links(todos, schedules, transcript_id):
+    # 创建待办
+    for todo in todos:
+        todo_id = await create_todo({
+            'name': todo['title'],
+            'deadline': todo['deadline'],
+            'priority': todo['priority'],
+            'source_type': 'voice',
+            'source_id': transcript_id,
+            'tags': ['语音提取'],
+        })
+        # 关联回放
+        await link_audio_replay(todo_id, transcript_id, todo['timestamp'])
+    
+    # 创建日程
+    for schedule in schedules:
+        schedule_id = await create_schedule({
+            'title': schedule['description'],
+            'start_time': schedule['time'],
+            'source_type': 'voice',
+            'source_id': transcript_id,
+        })
+        # 关联回放
+        await link_audio_replay(schedule_id, transcript_id, schedule['timestamp'])
+```
+
+### 阶段3：会议纪要生成（1周）
+
+#### 3.1 智能总结
+
+```python
+async def generate_meeting_summary(transcripts, duration):
+    # 收集所有转录文本
+    full_text = "\n".join([t.text for t in transcripts])
+    
+    # LLM 总结
+    summary = await llm.summarize(
+        text=full_text,
+        format="structured",  # 结构化输出
+        sections=["议题", "决策", "行动项", "关键信息"],
+    )
+    
+    # 自动提取行动项
+    action_items = extract_action_items(summary)
+    
+    # 创建关联
+    for item in action_items:
+        await create_todo_from_action_item(item, transcripts)
+    
+    return summary
+```
+
+#### 3.2 一键导出
+
+```python
+async def export_summary(summary, format="markdown"):
+    if format == "markdown":
+        return generate_markdown(summary)
+    elif format == "pdf":
+        return generate_pdf(summary)
+    elif format == "json":
+        return json.dumps(summary)
+```
+
+### 阶段4：工作流自动化（2周）
+
+#### 4.1 语音命令识别
+
+```python
+class VoiceCommandProcessor:
+    def __init__(self):
+        self.commands = {
+            "创建待办": self.create_todo,
+            "添加日程": self.create_schedule,
+            "搜索": self.search,
+            "总结": self.summarize,
+        }
+    
+    async def process(self, text):
+        for cmd, handler in self.commands.items():
+            if cmd in text:
+                return await handler(text)
+        return None
+```
+
+#### 4.2 智能关联 Event
+
+```python
+async def link_to_event(transcript, start_time, end_time):
+    # 查找对应时间段的 Event
+    events = await find_events_in_range(start_time, end_time)
+    
+    for event in events:
+        # 关联转录
+        await link_transcript_to_event(transcript.id, event.id)
+        # 关联音频
+        await link_audio_to_event(audio_segment.id, event.id)
+```
+
+---
+
+## 创新点总结
+
+1. 事件驱动：VAD 触发识别，而非固定时间
+2. 智能提交：根据语音特征决定何时提交结果
+3. 实时提取：边说边提取，无需等待
+4. 自动关联：提取后自动创建并关联 todo/日程
+5. 双向回放：todo/日程可回放原始语音
+6. 工作流自动化：语音命令直接操作系统
+7. 知识沉淀：语音内容转为可检索的知识
+
+---
+
+## 实施优先级
+
+- P0（立即）：优化流式策略、实时提取、自动创建关联
+- P1（1周内）：会议纪要生成、语音命令
+- P2（1月内）：说话人分离、实时翻译、知识图谱
+
+需要我开始实现哪个部分？建议先从 P0 的流式策略优化开始。
+

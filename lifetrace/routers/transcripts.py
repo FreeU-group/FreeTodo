@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from lifetrace.storage import AudioRecording, TranscriptSegment, get_session
 from lifetrace.util.logging_config import get_logger
 
 logger = get_logger()
@@ -44,36 +45,116 @@ async def batch_save_transcripts(request: BatchSaveRequest):
     后续可以集成到数据库或文件系统
     """
     try:
+        if not request.transcripts:
+            logger.warning("收到空的转录文本列表")
+            return BatchSaveResponse(
+                saved=0,
+                message="没有转录文本需要保存"
+            )
+        
         saved_count = 0
         
         for transcript in request.transcripts:
             try:
+                # 验证必需字段
+                if not transcript.id:
+                    logger.warning(f"转录文本缺少 id，跳过")
+                    continue
+                if not transcript.rawText or not transcript.rawText.strip():
+                    logger.warning(f"转录文本 id={transcript.id} 的 rawText 为空，跳过")
+                    continue
+                if not isinstance(transcript.audioStart, int) or not isinstance(transcript.audioEnd, int):
+                    logger.warning(f"转录文本 id={transcript.id} 的 audioStart/audioEnd 不是整数，跳过")
+                    continue
+                if transcript.audioStart < 0 or transcript.audioEnd <= transcript.audioStart:
+                    logger.warning(f"转录文本 id={transcript.id} 的音频时间范围无效: {transcript.audioStart}-{transcript.audioEnd}，跳过")
+                    continue
+                
                 # 解析时间戳
-                timestamp = datetime.fromisoformat(transcript.timestamp.replace('Z', '+00:00'))
+                try:
+                    timestamp = datetime.fromisoformat(transcript.timestamp.replace('Z', '+00:00'))
+                except Exception as e:
+                    logger.warning(f"转录文本 id={transcript.id} 的时间戳格式无效: {transcript.timestamp}, error={e}")
+                    continue
                 
-                # 记录日志（后续可以改为保存到数据库）
+                # 保存到数据库
+                with get_session() as session:
+                    # 查找关联的 AudioRecording（通过 segment_id 或 audioFileId）
+                    audio_recording_id = None
+                    if transcript.audioFileId:
+                        # 通过 audioFileId 查找 AudioRecording
+                        audio_recording = session.query(AudioRecording).filter(
+                            AudioRecording.segment_id == transcript.audioFileId
+                        ).first()
+                        if audio_recording:
+                            audio_recording_id = audio_recording.id
+                    
+                    # 检查是否已存在（通过 segment_id）
+                    existing = session.query(TranscriptSegment).filter(
+                        TranscriptSegment.segment_id == transcript.id
+                    ).first()
+                    
+                    if existing:
+                        # 更新现有记录
+                        existing.timestamp = timestamp
+                        existing.raw_text = transcript.rawText
+                        existing.optimized_text = transcript.optimizedText
+                        existing.audio_start = transcript.audioStart
+                        existing.audio_end = transcript.audioEnd
+                        existing.audio_file_id = transcript.audioFileId
+                        existing.audio_recording_id = audio_recording_id
+                        existing.updated_at = datetime.now()
+                        logger.debug(f"更新转录文本: id={transcript.id}")
+                    else:
+                        # 创建新记录
+                        transcript_segment = TranscriptSegment(
+                            segment_id=transcript.id,
+                            timestamp=timestamp,
+                            raw_text=transcript.rawText,
+                            optimized_text=transcript.optimizedText,
+                            audio_start=transcript.audioStart,
+                            audio_end=transcript.audioEnd,
+                            audio_file_id=transcript.audioFileId,
+                            audio_recording_id=audio_recording_id,
+                        )
+                        session.add(transcript_segment)
+                        logger.debug(f"创建新转录文本: id={transcript.id}")
+                    
+                    session.commit()
+                    
+                    # 如果有关联的 AudioRecording，更新其 transcript_text 和 optimized_text
+                    if audio_recording_id:
+                        audio_recording = session.query(AudioRecording).filter(
+                            AudioRecording.id == audio_recording_id
+                        ).first()
+                        if audio_recording:
+                            # 合并所有片段的文本
+                            all_segments = session.query(TranscriptSegment).filter(
+                                TranscriptSegment.audio_recording_id == audio_recording_id
+                            ).order_by(TranscriptSegment.audio_start).all()
+                            
+                            if all_segments:
+                                raw_texts = [seg.raw_text for seg in all_segments if seg.raw_text]
+                                optimized_texts = [seg.optimized_text for seg in all_segments if seg.optimized_text]
+                                
+                                audio_recording.transcript_text = "\n".join(raw_texts)
+                                if optimized_texts:
+                                    audio_recording.optimized_text = "\n".join(optimized_texts)
+                                audio_recording.updated_at = datetime.now()
+                                session.commit()
+                                logger.debug(f"更新 AudioRecording {audio_recording_id} 的转录文本")
+                
                 logger.info(
-                    f"保存转录文本: id={transcript.id}, "
+                    f"✅ 保存转录文本到数据库: id={transcript.id}, "
                     f"timestamp={timestamp}, "
-                    f"rawText={transcript.rawText[:50]}..., "
-                    f"optimizedText={transcript.optimizedText[:50] if transcript.optimizedText else None}..."
+                    f"rawText长度={len(transcript.rawText)}, "
+                    f"optimizedText长度={len(transcript.optimizedText) if transcript.optimizedText else 0}, "
+                    f"audioStart={transcript.audioStart}ms, audioEnd={transcript.audioEnd}ms"
                 )
-                
-                # TODO: 保存到数据库
-                # 例如：
-                # db.save_transcript(
-                #     id=transcript.id,
-                #     timestamp=timestamp,
-                #     raw_text=transcript.rawText,
-                #     optimized_text=transcript.optimizedText,
-                #     audio_start=transcript.audioStart,
-                #     audio_end=transcript.audioEnd,
-                #     audio_file_id=transcript.audioFileId,
-                # )
                 
                 saved_count += 1
             except Exception as e:
-                logger.error(f"保存转录文本失败: id={transcript.id}, error={e}")
+                logger.error(f"保存转录文本失败: id={transcript.id if hasattr(transcript, 'id') else 'unknown'}, error={e}", exc_info=True)
         
         return BatchSaveResponse(
             saved=saved_count,
@@ -101,13 +182,28 @@ async def query_transcripts(
         
         logger.debug(f"查询转录文本: startTime={start}, endTime={end}")
         
-        # TODO: 从数据库查询
-        # 例如：
-        # transcripts = db.query_transcripts(start, end)
-        # return {"transcripts": transcripts}
-        
-        # 当前返回空列表
-        return {"transcripts": []}
+        # 从数据库查询
+        with get_session() as session:
+            # 查询指定时间范围内的转录片段
+            segments = session.query(TranscriptSegment).filter(
+                TranscriptSegment.timestamp >= start,
+                TranscriptSegment.timestamp <= end,
+            ).order_by(TranscriptSegment.timestamp).all()
+            
+            transcripts = []
+            for seg in segments:
+                transcripts.append({
+                    "id": seg.segment_id,
+                    "timestamp": seg.timestamp.isoformat(),
+                    "rawText": seg.raw_text,
+                    "optimizedText": seg.optimized_text,
+                    "audioStart": seg.audio_start,
+                    "audioEnd": seg.audio_end,
+                    "audioFileId": seg.audio_file_id,
+                })
+            
+            logger.info(f"✅ 查询到 {len(transcripts)} 条转录文本")
+            return {"transcripts": transcripts}
     except Exception as e:
         logger.error(f"查询转录文本失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")

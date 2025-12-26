@@ -19,6 +19,7 @@
 		"electron:resolve-symlinks": "node scripts/resolve-symlinks.js",
 		"electron:copy-missing-deps": "node scripts/copy-missing-deps.js",
 		"electron:dev": "pnpm electron:build-main && electron .",
+		"electron:dev:island": "pnpm electron:build-main && electron .",
 		"electron:build": "pnpm build && pnpm backend:build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder",
 		"electron:build-win": "pnpm build && pnpm backend:build:win && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --win",
 		"electron:build-mac": "pnpm build && pnpm backend:build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --mac",

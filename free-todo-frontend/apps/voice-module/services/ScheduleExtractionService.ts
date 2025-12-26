@@ -6,12 +6,15 @@ import { TranscriptSegment, ScheduleItem } from '../types';
 export class ScheduleExtractionService {
   private queue: TranscriptSegment[] = [];
   private isProcessing: boolean = false;
-  private processingDelay: number = 300; // 处理延迟（ms）
+  private processingDelay: number = 300;
 
   // 回调函数
   private onScheduleExtracted?: (schedule: ScheduleItem) => void;
   private onError?: (error: Error) => void;
   private onStatusChange?: (status: 'idle' | 'processing' | 'error') => void;
+  
+  // 当回调未设置时，存储提取结果
+  public extractedSchedulesWithoutCallback: ScheduleItem[] = [];
 
   constructor() {}
 
@@ -32,26 +35,22 @@ export class ScheduleExtractionService {
    * 添加已优化的片段到提取队列
    */
   enqueue(segment: TranscriptSegment): void {
-    // 只处理已优化的片段（无论是否包含日程标记，都尝试提取）
-    // 因为即使 LLM 没有标记，文本中也可能包含时间信息
-    if (!segment.isOptimized) {
-      console.log(`[ScheduleExtraction] 片段 ${segment.id} 未优化，跳过`);
+    // 检查是否已优化且有优化文本
+    if (!segment.isOptimized || !segment.optimizedText) {
       return;
     }
 
-    if (!segment.optimizedText) {
-      console.log(`[ScheduleExtraction] 片段 ${segment.id} 没有优化文本，跳过`);
+    // 检查是否包含日程标记（优化服务会在文本中添加 [SCHEDULE:...] 标记）
+    const hasSchedule = segment.optimizedText.includes('[SCHEDULE:') || segment.containsSchedule;
+    if (!hasSchedule) {
       return;
     }
 
-    // 避免重复处理
     const exists = this.queue.find(s => s.id === segment.id);
     if (exists) {
-      console.log(`[ScheduleExtraction] 片段 ${segment.id} 已在队列中，跳过`);
       return;
     }
 
-    console.log(`[ScheduleExtraction] 将片段 ${segment.id} 加入队列，队列长度: ${this.queue.length}, 文本预览: ${segment.optimizedText.substring(0, 50)}...`);
     this.queue.push(segment);
     this.processQueue();
   }
@@ -82,10 +81,8 @@ export class ScheduleExtractionService {
 
       await this.extractSchedules(segment);
 
-      // 延迟后继续处理
       await new Promise(resolve => setTimeout(resolve, this.processingDelay));
 
-      // 继续处理队列
       if (this.queue.length > 0) {
         this.processQueue();
       } else {
@@ -95,7 +92,7 @@ export class ScheduleExtractionService {
         }
       }
     } catch (error) {
-      console.error('Error processing schedule extraction queue:', error);
+      console.error('[ScheduleExtraction] Error processing queue:', error);
       this.isProcessing = false;
       if (this.onStatusChange) {
         this.onStatusChange('error');
@@ -108,25 +105,19 @@ export class ScheduleExtractionService {
    */
   private async extractSchedules(segment: TranscriptSegment): Promise<void> {
     if (!segment.optimizedText) {
-      console.log(`[ScheduleExtraction] 片段 ${segment.id} 没有优化文本，跳过提取`);
       return;
     }
 
     try {
-      console.log(`[ScheduleExtraction] 开始提取日程，片段ID: ${segment.id}, 文本: ${segment.optimizedText.substring(0, 100)}...`);
       const schedules = this.parseSchedules(segment.optimizedText, segment);
-      console.log(`[ScheduleExtraction] 提取到 ${schedules.length} 个日程`);
       
       for (const schedule of schedules) {
-        console.log(`[ScheduleExtraction] 提取到日程: ${schedule.description} (时间: ${schedule.scheduleTime.toLocaleString()})`);
         if (this.onScheduleExtracted) {
           this.onScheduleExtracted(schedule);
-        } else {
-          console.warn(`[ScheduleExtraction] onScheduleExtracted 回调未设置`);
         }
       }
     } catch (error) {
-      console.error(`Schedule extraction failed for segment ${segment.id}:`, error);
+      console.error(`[ScheduleExtraction] Extraction failed for segment ${segment.id}:`, error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Schedule extraction failed');
         this.onError(err);
@@ -140,7 +131,7 @@ export class ScheduleExtractionService {
   private parseSchedules(text: string, segment: TranscriptSegment): ScheduleItem[] {
     const schedules: ScheduleItem[] = [];
     
-    // 方法1: 匹配 [SCHEDULE: ...] 格式（LLM 标记的）
+    // 匹配 [SCHEDULE: ...] 格式
     const scheduleRegex = /\[SCHEDULE:\s*([^\]]+)\]/g;
     let match;
 
@@ -159,52 +150,6 @@ export class ScheduleExtractionService {
         };
         
         schedules.push(schedule);
-      }
-    }
-
-    // 方法2: 如果没有找到 [SCHEDULE: ...] 标记，尝试从文本中直接提取时间信息
-    // 这适用于 LLM 没有正确标记但文本中确实包含时间信息的情况
-    if (schedules.length === 0) {
-      // 匹配时间模式（如 "早上7点"、"7:40"、"11:30" 等）
-      const timePatterns = [
-        /(早上|上午|中午|下午|晚上)\s*(\d{1,2}):?(\d{2})?点?/g,
-        /(\d{1,2}):(\d{2})/g,  // 如 "7:40"
-        /(\d{1,2})点/g,  // 如 "7点"
-      ];
-
-      for (const pattern of timePatterns) {
-        let timeMatch;
-        while ((timeMatch = pattern.exec(text)) !== null) {
-          // 提取包含时间的上下文（前后各20个字符）
-          const matchIndex = timeMatch.index;
-          const matchText = timeMatch[0];
-          const contextStart = Math.max(0, matchIndex - 20);
-          const contextEnd = Math.min(text.length, matchIndex + matchText.length + 20);
-          const context = text.substring(contextStart, contextEnd).trim();
-          
-          // 尝试解析时间
-          const scheduleTime = this.parseScheduleTime(context, segment.timestamp);
-          
-          if (scheduleTime) {
-            // 检查是否已存在相同时间的日程（避免重复）
-            const exists = schedules.some(s => 
-              Math.abs(s.scheduleTime.getTime() - scheduleTime.getTime()) < 60000 // 1分钟内
-            );
-            
-            if (!exists) {
-              const schedule: ScheduleItem = {
-                id: `schedule_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-                sourceSegmentId: segment.id,
-                extractedAt: new Date(),
-                scheduleTime: scheduleTime,
-                description: context, // 使用上下文作为描述
-                status: 'pending',
-              };
-              
-              schedules.push(schedule);
-            }
-          }
-        }
       }
     }
 
@@ -231,29 +176,16 @@ export class ScheduleExtractionService {
       { pattern: /后天\s*(\d{1,2})点/, offset: 2 },
       // 下周
       { pattern: /下周\s*(\d{1,2}):(\d{2})/, offset: 7 },
-      // 早上/上午/中午/下午/晚上 + 时间
-      { pattern: /早上\s*(\d{1,2}):?(\d{2})?点?/, offset: 0, hourOffset: 0 },
-      { pattern: /上午\s*(\d{1,2}):?(\d{2})?点?/, offset: 0, hourOffset: 0 },
-      { pattern: /中午\s*(\d{1,2}):?(\d{2})?点?/, offset: 0, hourOffset: 12 },
-      { pattern: /下午\s*(\d{1,2}):?(\d{2})?点?/, offset: 0, hourOffset: 12 },
-      { pattern: /晚上\s*(\d{1,2}):?(\d{2})?点?/, offset: 0, hourOffset: 12 },
-      // 纯时间格式（假设是今天，如果已过则认为是明天）
-      { pattern: /^(\d{1,2}):(\d{2})$/, offset: 0, isTimeOnly: true },
-      { pattern: /^(\d{1,2})点$/, offset: 0, isTimeOnly: true },
       // 具体日期
       { pattern: /(\d{1,2})月\s*(\d{1,2})日\s*(\d{1,2}):(\d{2})/, isAbsolute: true },
     ];
 
-    for (const patternConfig of timePatterns) {
-      const { pattern, isAbsolute, isTimeOnly } = patternConfig;
-      const offset = patternConfig.offset ?? 0;
-      const hourOffset = patternConfig.hourOffset ?? 0;
-      
+    for (const { pattern, offset, isAbsolute } of timePatterns) {
       const match = text.match(pattern);
       if (match) {
         if (isAbsolute && match.length >= 5) {
           // 绝对日期
-          const month = parseInt(match[1]) - 1; // 月份从0开始
+          const month = parseInt(match[1]) - 1;
           const day = parseInt(match[2]);
           const hour = parseInt(match[3]);
           const minute = parseInt(match[4]);
@@ -261,37 +193,15 @@ export class ScheduleExtractionService {
           const year = now.getFullYear();
           const date = new Date(year, month, day, hour, minute);
           
-          // 如果日期已过，则认为是明年
           if (date < now) {
             date.setFullYear(year + 1);
           }
           
           return date;
-        } else if (isTimeOnly && match.length >= 3) {
-          // 纯时间格式（如 "7:40" 或 "7点"）
-          let hour = parseInt(match[1]);
-          const minute = match[2] ? parseInt(match[2]) : 0;
-          
-          // 如果是下午时间（12点以后），需要加12小时
-          // 但这里假设是24小时制，如果 hour < 12 且当前时间已过，则认为是今天；否则可能是明天
-          const targetDate = new Date(today);
-          targetDate.setHours(hour, minute, 0, 0);
-          
-          // 如果时间已过，则认为是明天
-          if (targetDate < now) {
-            targetDate.setDate(targetDate.getDate() + 1);
-          }
-          
-          return targetDate;
         } else if (match.length >= 3) {
-          // 相对日期（包含"今天"、"明天"等，或"早上"、"下午"等）
-          let hour = parseInt(match[1]);
+          // 相对日期
+          const hour = parseInt(match[1]);
           const minute = match[2] ? parseInt(match[2]) : 0;
-          
-          // 处理"下午"、"晚上"等时间
-          if (hourOffset > 0 && hour < 12) {
-            hour += hourOffset;
-          }
           
           const targetDate = new Date(today);
           targetDate.setDate(targetDate.getDate() + offset);
@@ -329,4 +239,3 @@ export class ScheduleExtractionService {
     }
   }
 }
-

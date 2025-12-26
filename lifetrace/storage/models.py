@@ -354,6 +354,46 @@ class ActivityEventRelation(SQLModel, table=True):
         return f"<ActivityEventRelation(id={self.id}, activity_id={self.activity_id})>"
 
 
+class AudioRecording(TimestampMixin, table=True):
+    """音频录音记录模型"""
+
+    __tablename__ = "audio_recordings"
+
+    id: int | None = Field(default=None, primary_key=True)
+    event_id: int | None = None  # 关联 Event
+    attachment_id: int | None = None  # 关联 Attachment（音频文件）
+    start_time: datetime  # 录音开始时间
+    end_time: datetime | None = None  # 录音结束时间
+    duration_seconds: int | None = None  # 录音时长（秒）
+    transcript_text: str | None = Field(default=None, sa_column=Column(Text))  # 原始转录文本
+    optimized_text: str | None = Field(default=None, sa_column=Column(Text))  # 优化后的文本
+    summary_text: str | None = Field(default=None, sa_column=Column(Text))  # 摘要文本
+    num_speakers: int | None = None  # 说话人数量
+    segment_id: str | None = Field(default=None, max_length=200)  # 前端segment ID
+
+    def __repr__(self):
+        return f"<AudioRecording(id={self.id}, segment_id={self.segment_id}, start_time={self.start_time})>"
+
+
+class TranscriptSegment(TimestampMixin, table=True):
+    """转录片段模型"""
+
+    __tablename__ = "transcript_segments"
+
+    id: int | None = Field(default=None, primary_key=True)
+    audio_recording_id: int | None = None  # 关联 AudioRecording
+    segment_id: str = Field(max_length=200)  # 前端segment ID
+    timestamp: datetime  # 片段时间戳
+    raw_text: str = Field(sa_column=Column(Text))  # 原始转录文本
+    optimized_text: str | None = Field(default=None, sa_column=Column(Text))  # 优化后的文本
+    audio_start: int  # 相对录音开始时间（ms）
+    audio_end: int  # 相对录音结束时间（ms）
+    audio_file_id: str | None = Field(default=None, max_length=200)  # 关联的音频文件ID
+
+    def __repr__(self):
+        return f"<TranscriptSegment(id={self.id}, segment_id={self.segment_id})>"
+
+
 # 为兼容旧代码，保留 Base 引用（指向 SQLModel.metadata）
 # 这样现有的 Base.metadata.create_all() 调用仍然有效
 Base = SQLModel

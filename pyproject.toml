@@ -24,6 +24,9 @@ dependencies = [
         # 注意：使用 av 库（faster-whisper 的依赖）进行音频处理，不需要 pydub
         # Faster-Whisper 语音识别（推荐，已实现）
         "faster-whisper>=1.0.0",  # 实时语音识别，不需要 Visual C++ 构建工具（包含 av 库）
+        # WhisperLiveKit 实时语音识别（超低延迟，支持发言者区分）
+        "whisperlivekit>=0.1.0",  # 实时本地语音转文本与翻译，延迟 < 300ms
+        "websockets>=12.0",  # WebSocket 客户端（用于连接 WhisperLiveKit 服务器）
         # 繁简转换（可选，用于将繁体中文转换为简体）
         "opencc-python-reimplemented>=0.1.7",  # 繁简转换库
     # FunASR 语音识别（可选，需要 Visual C++ 构建工具）
