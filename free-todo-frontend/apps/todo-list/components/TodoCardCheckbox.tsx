@@ -10,7 +10,11 @@ interface TodoCardCheckboxProps {
 
 export function TodoCardCheckbox({ todo, onToggle }: TodoCardCheckboxProps) {
 	return (
-		<button type="button" onClick={onToggle} className="shrink-0">
+		<button
+			type="button"
+			onClick={onToggle}
+			className="shrink-0 flex items-center"
+		>
 			{todo.status === "completed" ? (
 				<div className="flex h-4 w-4 items-center justify-center rounded-md bg-[oklch(var(--primary))] border border-[oklch(var(--primary))] shadow-inner">
 					<span className="text-[8px] text-[oklch(var(--primary-foreground))] font-semibold">

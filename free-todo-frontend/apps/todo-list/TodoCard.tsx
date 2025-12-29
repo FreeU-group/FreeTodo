@@ -116,7 +116,7 @@ export function TodoCard({
 					onToggle={() => toggleTodoExpanded(todo.id)}
 				/>
 
-				<div className="pt-0.5">
+				<div className="mt-1">
 					<TodoCardCheckbox
 						todo={todo}
 						onToggle={handlers.handleToggleStatus}
