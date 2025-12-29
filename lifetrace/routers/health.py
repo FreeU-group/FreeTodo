@@ -20,6 +20,7 @@ async def health_check():
     """健康检查"""
     ocr_processor = get_ocr_processor()
     return {
+        "app": "lifetrace",  # 固定的应用标识，用于前端识别后端服务
         "status": "healthy",
         "timestamp": datetime.now(),
         "database": "connected" if db_base.engine else "disconnected",

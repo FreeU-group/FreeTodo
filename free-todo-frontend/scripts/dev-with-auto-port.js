@@ -4,7 +4,7 @@
  *
  * 功能：
  * 1. 自动探测可用的前端端口（默认从 3001 开始，避免与 Build 版冲突）
- * 2. 自动探测可用的后端端口（默认从 8001 开始）
+ * 2. 自动探测 FreeTodo 后端端口（通过 /health 端点验证是否是 FreeTodo 后端）
  * 3. 设置正确的环境变量并启动 Next.js 开发服务器
  *
  * 使用方法：
@@ -14,6 +14,7 @@
 
 const { spawn } = require("node:child_process");
 const net = require("node:net");
+const http = require("node:http");
 
 // 默认端口配置（开发版使用不同的默认端口，避免与 Build 版冲突）
 const DEFAULT_FRONTEND_PORT = 3001;
@@ -59,18 +60,44 @@ async function findAvailablePort(startPort, maxAttempts = MAX_PORT_ATTEMPTS) {
 }
 
 /**
- * 检查后端是否在指定端口运行
+ * 检查指定端口是否运行着 FreeTodo 后端
+ * 通过调用 /health 端点并验证 app 标识来确认是 FreeTodo 后端
  * @param {number} port - 后端端口
- * @returns {Promise<boolean>} - 后端是否运行
+ * @returns {Promise<boolean>} - 是否是 FreeTodo 后端
  */
-async function isBackendRunning(port) {
+async function isFreeTodoBackend(port) {
 	return new Promise((resolve) => {
-		const req = net.createConnection({ port, host: "127.0.0.1" }, () => {
-			req.end();
-			resolve(true);
-		});
+		const req = http.get(
+			{
+				hostname: "127.0.0.1",
+				port,
+				path: "/health",
+				timeout: 2000,
+			},
+			(res) => {
+				let data = "";
+				res.on("data", (chunk) => {
+					data += chunk;
+				});
+				res.on("end", () => {
+					try {
+						const json = JSON.parse(data);
+						// 验证是否是 FreeTodo/LifeTrace 后端
+						// 只检查固定的应用标识字段
+						if (json.app === "lifetrace") {
+							resolve(true);
+						} else {
+							resolve(false);
+						}
+					} catch {
+						resolve(false);
+					}
+				});
+			},
+		);
+
 		req.on("error", () => resolve(false));
-		req.setTimeout(1000, () => {
+		req.on("timeout", () => {
 			req.destroy();
 			resolve(false);
 		});
@@ -78,19 +105,20 @@ async function isBackendRunning(port) {
 }
 
 /**
- * 查找运行中的后端端口
- * @returns {Promise<number|null>} - 运行中的后端端口，或 null
+ * 查找运行中的 FreeTodo 后端端口
+ * @returns {Promise<number|null>} - 运行中的 FreeTodo 后端端口，或 null
  */
 async function findRunningBackendPort() {
-	// 先检查开发版默认端口
-	for (const port of [8001, 8000]) {
-		if (await isBackendRunning(port)) {
+	// 先检查开发版默认端口，然后是 Build 版默认端口
+	const priorityPorts = [8001, 8000];
+	for (const port of priorityPorts) {
+		if (await isFreeTodoBackend(port)) {
 			return port;
 		}
 	}
-	// 再检查其他可能的端口
+	// 再检查其他可能的端口（跳过已检查的）
 	for (let port = 8002; port < 8100; port++) {
-		if (await isBackendRunning(port)) {
+		if (await isFreeTodoBackend(port)) {
 			return port;
 		}
 	}
@@ -105,14 +133,16 @@ async function main() {
 		const frontendPort = await findAvailablePort(DEFAULT_FRONTEND_PORT);
 		console.log(`✅ 前端端口: ${frontendPort}`);
 
-		// 2. 查找运行中的后端端口
+		// 2. 查找运行中的 FreeTodo 后端端口（通过 /health 端点验证）
+		console.log(`🔍 正在查找 FreeTodo 后端...`);
 		let backendPort = await findRunningBackendPort();
 		if (backendPort) {
-			console.log(`✅ 检测到后端运行在端口: ${backendPort}`);
+			console.log(`✅ 检测到 FreeTodo 后端运行在端口: ${backendPort}`);
 		} else {
 			// 如果后端未运行，假设会使用开发版默认端口
 			backendPort = DEFAULT_BACKEND_PORT;
-			console.log(`⚠️  未检测到后端，假设后端将运行在: ${backendPort}`);
+			console.log(`⚠️  未检测到 FreeTodo 后端（通过 /health 端点验证）`);
+			console.log(`   假设后端将运行在: ${backendPort}`);
 			console.log(`   提示: 请先启动后端 - python -m lifetrace.server`);
 		}
 
