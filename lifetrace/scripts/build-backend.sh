@@ -10,17 +10,45 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LIFETRACE_DIR="$SCRIPT_DIR/.."
 DIST_DIR="$PROJECT_ROOT/dist-backend"
+VENV_DIR="$PROJECT_ROOT/.venv"
 
 echo "Building LifeTrace backend..."
 echo "Project root: $PROJECT_ROOT"
 echo "Lifetrace dir: $LIFETRACE_DIR"
 echo "Output dir: $DIST_DIR"
+echo "Using virtual environment: $VENV_DIR"
 
-# Check if PyInstaller is installed
-if ! command -v pyinstaller &> /dev/null; then
-    echo "PyInstaller is not installed. Installing..."
-    pip install pyinstaller
+# Check if .venv exists
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Error: Virtual environment not found at $VENV_DIR"
+    echo "Please run 'uv sync --group dev' first to create the virtual environment."
+    exit 1
 fi
+
+# Check if PyInstaller is installed in .venv
+VENV_PYINSTALLER="$VENV_DIR/bin/pyinstaller"
+if [ ! -f "$VENV_PYINSTALLER" ]; then
+    echo "PyInstaller not found in .venv. Installing via uv..."
+    cd "$PROJECT_ROOT"
+    uv sync --group dev
+    if [ ! -f "$VENV_PYINSTALLER" ]; then
+        echo "Error: Failed to install PyInstaller in .venv"
+        exit 1
+    fi
+fi
+
+# Use .venv Python and PyInstaller
+VENV_PYTHON="$VENV_DIR/bin/python"
+
+echo "Using Python: $VENV_PYTHON"
+echo "Using PyInstaller: $VENV_PYINSTALLER"
+
+# Verify critical dependencies are available in .venv
+echo "Verifying dependencies in .venv..."
+"$VENV_PYTHON" -c "import fastapi, uvicorn, pydantic; print('✓ All critical dependencies found')" || {
+    echo "Error: Missing dependencies in .venv. Please run 'uv sync --group dev' first."
+    exit 1
+}
 
 # Clean previous build
 if [ -d "$DIST_DIR" ]; then
@@ -34,11 +62,12 @@ mkdir -p "$DIST_DIR"
 # Change to project root directory
 cd "$PROJECT_ROOT"
 
-# Run PyInstaller
+# Run PyInstaller using .venv Python
 echo "Running PyInstaller..."
 # Change to lifetrace directory to run PyInstaller (so paths in spec file work correctly)
 cd "$LIFETRACE_DIR"
-pyinstaller --clean --noconfirm pyinstaller.spec
+# Use .venv Python explicitly to ensure all dependencies are from .venv
+"$VENV_PYTHON" -m PyInstaller --clean --noconfirm pyinstaller.spec
 
 # Copy the built executable to dist-backend
 # PyInstaller creates a directory with the same name as the spec file target

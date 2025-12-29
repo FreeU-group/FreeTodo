@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-
-export type ChatMode = "ask" | "plan" | "edit";
+import type { ChatMode } from "@/apps/chat/types";
 
 interface ChatStoreState {
 	chatMode: ChatMode;
@@ -13,7 +12,12 @@ interface ChatStoreState {
 }
 
 const isValidChatMode = (value: string | null): value is ChatMode => {
-	return value === "ask" || value === "plan" || value === "edit";
+	return (
+		value === "ask" ||
+		value === "plan" ||
+		value === "edit" ||
+		value === "difyTest"
+	);
 };
 
 export const useChatStore = create<ChatStoreState>()(
@@ -45,11 +49,8 @@ export const useChatStore = create<ChatStoreState>()(
 								? state.chatMode
 								: "ask";
 
-							// 验证 conversationId
-							const conversationId: string | null =
-								state.conversationId && typeof state.conversationId === "string"
-									? state.conversationId
-									: null;
+							// 验证 conversationId - 刷新后清空，不默认选中历史记录
+							const conversationId: string | null = null;
 
 							// 验证 historyOpen
 							const historyOpen: boolean =

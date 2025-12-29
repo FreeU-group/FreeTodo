@@ -49,6 +49,7 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "llm_": (4, "llm"),
     "server_": (7, "server"),
     "chat_": (5, "chat"),
+    "dify_": (5, "dify"),
 }
 
 # 复合任务名映射：首部分 -> 完整任务名
@@ -122,6 +123,26 @@ def snake_to_dot_notation(key: str) -> str:
     return key.replace("_", ".")
 
 
+def dot_to_snake_notation(key: str) -> str:
+    """将点分隔格式的键转换为 snake_case 格式
+
+    后端配置文件使用点分隔格式，例如: jobs.recorder.enabled
+    前端 fetcher 需要 snake_case 格式才能转换为 camelCase，例如: jobs_recorder_enabled
+
+    Args:
+        key: 点分隔格式的键，如 "jobs.recorder.enabled" 或 "llm.api_key"
+
+    Returns:
+        snake_case 格式的键，如 "jobs_recorder_enabled" 或 "llm_api_key"
+    """
+    # 如果已经是 snake_case 格式或不包含点，直接返回
+    if "." not in key:
+        return key
+
+    # 简单地将点替换为下划线
+    return key.replace(".", "_")
+
+
 def is_llm_configured() -> bool:
     """检查 LLM 是否已配置
 
@@ -157,8 +178,27 @@ class ConfigService:
             # 将 snake_case 格式转换为点分隔格式
             backend_key = snake_to_dot_notation(raw_key)
             try:
-                # 获取当前配置值
-                old_value = settings.get(backend_key)
+                # 获取当前配置值，使用安全的方式访问
+                old_value = None
+                try:
+                    # 尝试使用属性访问
+                    parts = backend_key.split(".")
+                    obj = settings
+                    for part in parts:
+                        obj = getattr(obj, part)
+                    old_value = obj
+                except AttributeError:
+                    # 如果属性访问失败，尝试使用 get 方法
+                    try:
+                        old_value = settings.get(backend_key)
+                    except (KeyError, AttributeError):
+                        # 配置项不存在，视为新增配置
+                        config_changed = True
+                        if "api_key" in backend_key.lower():
+                            changed_items.append(f"{backend_key}: (新增) {str(new_value)[:10]}...")
+                        else:
+                            changed_items.append(f"{backend_key}: (新增) {new_value}")
+                        continue
 
                 # 比对新旧值
                 if old_value != new_value:
@@ -193,12 +233,13 @@ class ConfigService:
         }
 
     def get_config_for_frontend(self) -> dict[str, Any]:
-        """获取配置（后端格式）
+        """获取配置（转换为 snake_case 格式供前端使用）
 
-        前端 fetcher 负责 snake_case 到 camelCase 的转换。
+        前端 fetcher 会将 snake_case 转换为 camelCase。
+        后端配置文件使用点分隔格式，需要转换为 snake_case 格式。
 
         Returns:
-            后端格式的配置字典
+            snake_case 格式的配置字典，前端 fetcher 会自动转换为 camelCase
         """
         # 定义需要获取的配置项（后端格式）
         backend_config_keys = [
@@ -227,16 +268,45 @@ class ConfigService:
             "chat.history_limit",
             # 自动待办检测配置
             "jobs.auto_todo_detection.enabled",
+            # Dify 配置
+            "dify.enabled",
+            "dify.api_key",
+            "dify.base_url",
         ]
 
         config_dict = {}
         for backend_key in backend_config_keys:
             try:
-                value = settings.get(backend_key)
-                config_dict[backend_key] = value
-            except KeyError:
-                # 配置项不存在，跳过或使用默认值
-                logger.debug(f"配置项 {backend_key} 不存在，跳过")
+                # Dynaconf 支持点分隔键访问
+                # 使用 try-except 安全地获取配置值
+                value = None
+                try:
+                    # 尝试使用属性访问方式（Dynaconf 支持）
+                    parts = backend_key.split(".")
+                    obj = settings
+                    for part in parts:
+                        obj = getattr(obj, part)
+                    value = obj
+                except AttributeError:
+                    # 如果属性访问失败，尝试使用 get 方法
+                    try:
+                        value = settings.get(backend_key)
+                    except (KeyError, AttributeError):
+                        # 配置项不存在
+                        logger.debug(f"配置项 {backend_key} 不存在，跳过")
+                        continue
+                
+                # 如果值为 None，跳过该配置项
+                if value is None:
+                    logger.debug(f"配置项 {backend_key} 值为 None，跳过")
+                    continue
+                
+                # 将点分隔格式转换为 snake_case 格式，以便前端 fetcher 能正确转换为 camelCase
+                frontend_key = dot_to_snake_notation(backend_key)
+                config_dict[frontend_key] = value
+            except Exception as e:
+                # 捕获所有异常，记录日志但继续处理其他配置项
+                logger.warning(f"获取配置项 {backend_key} 时出错: {e}，跳过", exc_info=True)
                 continue
 
         return config_dict

@@ -6,7 +6,7 @@ export type ChatMessage = {
 	content: string;
 };
 
-export type ChatMode = "ask" | "plan" | "edit";
+export type ChatMode = "ask" | "plan" | "edit" | "difyTest";
 
 export type ParsedTodo = Pick<
 	CreateTodoInput,

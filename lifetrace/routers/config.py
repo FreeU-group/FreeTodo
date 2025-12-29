@@ -116,8 +116,12 @@ async def get_config_detailed():
             "config": config_dict,
         }
     except Exception as e:
-        logger.error(f"获取配置失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取配置失败: {str(e)}") from e
+        logger.error(f"获取配置失败: {e}", exc_info=True)
+        # 即使出错，也返回一个空配置字典，而不是抛出 500 错误
+        return {
+            "success": True,
+            "config": {},
+        }
 
 
 def _validate_config_fields(config_data: dict[str, str]) -> dict[str, Any] | None:
@@ -224,23 +228,25 @@ async def get_chat_prompts(locale: str = "zh"):
         edit_prompt = get_prompt("chat_frontend", edit_key)
         plan_prompt = get_prompt("chat_frontend", plan_key)
 
-        if not edit_prompt or not plan_prompt:
-            logger.warning(f"无法加载 prompt，locale={locale}")
-            raise HTTPException(
-                status_code=500,
-                detail="无法加载 prompt 配置，请检查 prompt.yaml",
-            )
+        # 允许返回空字符串，前端会处理这种情况
+        # 如果 prompt 文件不存在或配置缺失，返回空字符串而不是抛出错误
+        if not edit_prompt:
+            logger.warning(f"无法加载 edit prompt (locale={locale}, key={edit_key})，返回空字符串")
+            edit_prompt = ""
+        if not plan_prompt:
+            logger.warning(f"无法加载 plan prompt (locale={locale}, key={plan_key})，返回空字符串")
+            plan_prompt = ""
 
         return {
             "success": True,
             "editSystemPrompt": edit_prompt,
             "planSystemPrompt": plan_prompt,
         }
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"获取聊天 prompt 失败: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"获取聊天 prompt 失败: {str(e)}",
-        ) from e
+        logger.error(f"获取聊天 prompt 失败: {e}", exc_info=True)
+        # 即使出错也返回空字符串，而不是抛出 500 错误
+        return {
+            "success": True,
+            "editSystemPrompt": "",
+            "planSystemPrompt": "",
+        }

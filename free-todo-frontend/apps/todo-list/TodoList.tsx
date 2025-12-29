@@ -10,7 +10,7 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { useTranslations } from "next-intl";
 import type React from "react";
 import { useCallback, useState } from "react";
-import { MultiTodoContextMenu } from "@/components/common/MultiTodoContextMenu";
+import { MultiTodoContextMenu } from "@/components/common/context-menu/MultiTodoContextMenu";
 import type { DragData } from "@/lib/dnd";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import type { ReorderTodoItem } from "@/lib/query/todos";

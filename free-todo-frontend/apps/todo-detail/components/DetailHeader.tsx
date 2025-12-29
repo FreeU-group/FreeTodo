@@ -2,7 +2,10 @@
 
 import { CheckCircle2, FileText, Trash2 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { PanelHeader } from "@/components/common/PanelHeader";
+import {
+	PanelActionButton,
+	PanelHeader,
+} from "@/components/common/layout/PanelHeader";
 
 interface DetailHeaderProps {
 	onToggleComplete: () => void;
@@ -22,22 +25,18 @@ export function DetailHeader({
 			title={t("todoDetailLabel")}
 			actions={
 				<>
-					<button
-						type="button"
+					<PanelActionButton
+						variant="default"
+						icon={CheckCircle2}
 						onClick={onToggleComplete}
-						className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted/50 transition-colors"
 						aria-label={tTodoDetail("markAsComplete")}
-					>
-						<CheckCircle2 className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-					</button>
-					<button
-						type="button"
+					/>
+					<PanelActionButton
+						variant="destructive"
+						icon={Trash2}
 						onClick={onDelete}
-						className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-destructive/10 transition-colors"
 						aria-label={tTodoDetail("delete")}
-					>
-						<Trash2 className="h-4 w-4 text-destructive" />
-					</button>
+					/>
 				</>
 			}
 		/>

@@ -3,15 +3,18 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class ChatMessage(BaseModel):
+    model_config = ConfigDict(extra="allow")  # 允许额外字段，用于传递 Dify 等服务的参数
+
     message: str
     conversation_id: str | None = None  # 会话ID
     project_id: int | None = None  # 项目ID，用于过滤上下文
     task_ids: list[int] | None = None  # 选中的任务ID列表
     use_rag: bool = True  # 是否使用RAG
+    mode: str | None = None  # 前端聊天模式（ask/plan/edit/dify_test 等）
 
 
 class ChatMessageWithContext(BaseModel):

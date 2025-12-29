@@ -12,6 +12,12 @@ let backendProcess: ChildProcess | null = null;
 let mainWindow: BrowserWindow | null = null;
 let healthCheckInterval: NodeJS.Timeout | null = null;
 let backendHealthCheckInterval: NodeJS.Timeout | null = null;
+// 保存窗口的原始位置和尺寸（用于从全屏模式恢复）
+let originalBounds: { x: number; y: number; width: number; height: number } | null = null;
+
+// 检查是否启用灵动岛模式（透明窗口）
+// 默认启用灵动岛模式，可以通过环境变量 ENABLE_DYNAMIC_ISLAND=false 禁用
+const enableDynamicIsland = process.env.ENABLE_DYNAMIC_ISLAND !== 'false';
 
 const PORT = process.env.PORT || "3000";
 const SERVER_URL = `http://localhost:${PORT}`;
@@ -50,8 +56,14 @@ if (!gotTheLock) {
 			if (mainWindow.isMinimized()) mainWindow.restore();
 			mainWindow.focus();
 		} else {
-			// 如果窗口不存在，创建新窗口
-			createWindow();
+			// 如果窗口不存在，等待应用 ready 后再创建窗口，避免在未 ready 状态下创建 BrowserWindow
+			if (app.isReady()) {
+				createWindow();
+			} else {
+				app.once("ready", () => {
+					createWindow();
+				});
+			}
 		}
 	});
 }
@@ -438,21 +450,43 @@ function createWindow(): void {
 		dialog.showErrorBox("Preload Script Error", errorMsg);
 	}
 	
-	// 检查是否启用灵动岛模式（透明窗口）
-	// 可以通过环境变量 ENABLE_DYNAMIC_ISLAND=true 启用
-	// 或者在开发模式下默认启用（可以通过设置禁用）
-	const enableDynamicIsland = process.env.ENABLE_DYNAMIC_ISLAND === 'true' 
-		|| (isDev && process.env.ENABLE_DYNAMIC_ISLAND !== 'false'); // 开发模式默认启用
+	// 获取主显示器尺寸（用于全屏模式）
+	const { screen } = require('electron');
+	const primaryDisplay = screen.getPrimaryDisplay();
+	const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+	
+	// 灵动岛模式：参考 island 的实现，窗口始终是全屏大小
+	// 然后通过 CSS 控制灵动岛的位置和大小（right: 32, bottom: 32, width: 180, height: 48）
+	// 保存原始位置和尺寸（用于从全屏模式恢复）
+	if (enableDynamicIsland && !originalBounds) {
+		// 窗口初始位置在右下角，但大小是全屏（这样灵动岛可以通过 CSS 定位）
+		originalBounds = {
+			x: 0,
+			y: 0,
+			width: screenWidth,
+			height: screenHeight,
+		};
+	} else if (!enableDynamicIsland && !originalBounds) {
+		originalBounds = {
+			x: 0,
+			y: 0,
+			width: 1200,
+			height: 800,
+		};
+	}
 	
 	mainWindow = new BrowserWindow({
-		width: 1200,
-		height: 800,
-		minWidth: 800,
-		minHeight: 600,
+		width: enableDynamicIsland ? screenWidth : 1200, // 灵动岛模式使用全屏宽度
+		height: enableDynamicIsland ? screenHeight : 800, // 灵动岛模式使用全屏高度
+		x: 0,
+		y: 0,
+		minWidth: enableDynamicIsland ? undefined : 800,
+		minHeight: enableDynamicIsland ? undefined : 600,
 		frame: enableDynamicIsland ? false : true, // 灵动岛模式无边框
 		transparent: enableDynamicIsland ? true : false, // 灵动岛模式透明
 		alwaysOnTop: enableDynamicIsland ? true : false, // 灵动岛模式置顶
 		hasShadow: enableDynamicIsland ? false : true, // 灵动岛模式无阴影
+		resizable: enableDynamicIsland ? false : true, // 灵动岛模式固定大小
 		skipTaskbar: enableDynamicIsland ? true : false, // 灵动岛模式不显示在任务栏
 		webPreferences: {
 			nodeIntegration: false,
@@ -460,10 +494,135 @@ function createWindow(): void {
 			preload: preloadPath, // 添加 preload 脚本
 		},
 		show: false, // 等待内容加载完成再显示
-		backgroundColor: enableDynamicIsland ? "transparent" : "#1a1a1a",
+		backgroundColor: enableDynamicIsland ? "#00000000" : "#1a1a1a", // 使用透明色值
 	});
 
-	mainWindow.loadURL(SERVER_URL);
+	// 方案 1: 使用 insertCSS 在页面加载前注入透明背景 CSS（最有效）
+	// 这个方法会在页面加载前就应用 CSS，避免 SSR 导致的窗口显示问题
+	// 参考 electron-with-nextjs，始终注入透明背景 CSS
+	if (enableDynamicIsland && mainWindow) {
+		// 在页面加载前注入 CSS（参考 electron-with-nextjs 的 globals.css）
+		mainWindow.webContents.insertCSS(`
+			html, body, #__next, #__next > div, #__next > div > div {
+				background-color: transparent !important;
+				background: transparent !important;
+			}
+		`);
+		logToFile("Transparent background CSS injected via insertCSS");
+		
+		// 监听页面导航，确保每次页面加载都应用透明背景
+		mainWindow.webContents.on('did-navigate', () => {
+			if (mainWindow) {
+				mainWindow.webContents.insertCSS(`
+					html, body, #__next, #__next > div, #__next > div > div {
+						background-color: transparent !important;
+						background: transparent !important;
+					}
+				`).catch(() => {});
+			}
+		});
+		
+		// 方案 2: 拦截并修改 HTML 响应（备用方案）
+		// 如果 insertCSS 不够，可以取消注释下面的代码
+		/*
+		mainWindow.webContents.session.webRequest.onBeforeRequest({
+			urls: ['http://localhost:3000/*']
+		}, (details, callback) => {
+			// 这里可以拦截并修改响应
+			callback({});
+		});
+		*/
+	}
+
+	// 在加载 URL 前，注入透明背景脚本（在 did-start-loading 时执行）
+	// 这个脚本会在页面加载的早期执行，尽可能早地设置透明背景
+	mainWindow.webContents.once('did-start-loading', () => {
+		if (!mainWindow) return;
+		// 注入脚本设置透明背景，尽可能早地执行
+		mainWindow.webContents.executeJavaScript(`
+			(function() {
+				const isElectron = navigator.userAgent.includes('Electron') || 
+					(typeof window.electronAPI !== 'undefined') || 
+					(typeof window.require !== 'undefined');
+				
+				if (isElectron) {
+					// 立即设置透明背景
+					const html = document.documentElement;
+					if (html) {
+						html.setAttribute('data-electron', 'true');
+						html.style.setProperty('background-color', 'transparent', 'important');
+						html.style.setProperty('background', 'transparent', 'important');
+					}
+					
+					// 监听 DOMContentLoaded 和 body 创建
+					const setBodyTransparent = () => {
+						const body = document.body;
+						if (body) {
+							body.style.setProperty('background-color', 'transparent', 'important');
+							body.style.setProperty('background', 'transparent', 'important');
+						}
+					};
+					
+					if (document.body) {
+						setBodyTransparent();
+					} else {
+						document.addEventListener('DOMContentLoaded', setBodyTransparent);
+						// 也监听 body 的创建
+						if (document.documentElement) {
+							const observer = new MutationObserver(() => {
+								if (document.body) {
+									setBodyTransparent();
+									observer.disconnect();
+								}
+							});
+							observer.observe(document.documentElement, { childList: true, subtree: true });
+						}
+					}
+					
+					// 设置 #__next 透明
+					const setNextTransparent = () => {
+						const next = document.getElementById('__next');
+						if (next) {
+							next.style.setProperty('background-color', 'transparent', 'important');
+							next.style.setProperty('background', 'transparent', 'important');
+						}
+					};
+					
+					// 延迟执行，确保 #__next 已创建
+					setTimeout(setNextTransparent, 100);
+					setTimeout(setNextTransparent, 500);
+					setTimeout(setNextTransparent, 1000);
+				}
+			})();
+		`).catch(() => {
+			// 忽略错误
+		});
+	});
+
+	// 确保服务器已经启动后再加载 URL
+	// 在 createWindow 被调用时，服务器应该已经就绪
+	// 但为了安全，我们再次检查
+	const loadWindow = async () => {
+		try {
+			// 确保服务器就绪
+			await waitForServer(SERVER_URL, 5000);
+			logToFile(`Loading URL: ${SERVER_URL}`);
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				mainWindow.loadURL(SERVER_URL);
+			}
+		} catch (error) {
+			logToFile(`Failed to verify server, loading URL anyway: ${error instanceof Error ? error.message : String(error)}`);
+			// 即使检查失败，也尝试加载（可能服务器刚启动）
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				mainWindow.loadURL(SERVER_URL);
+			}
+		}
+	};
+	
+	// 延迟一点加载，确保窗口完全创建
+	setTimeout(() => {
+		loadWindow();
+	}, 100);
 
 	// 监听页面加载完成，检查 preload 脚本是否正确加载
 	mainWindow.webContents.once("did-finish-load", () => {
@@ -507,14 +666,132 @@ function createWindow(): void {
 		});
 	});
 
+	// 监听透明背景设置完成事件
+	let transparentBackgroundReady = false;
+	ipcMain.on('transparent-background-ready', () => {
+		transparentBackgroundReady = true;
+		logToFile("Transparent background ready signal received");
+	});
+
 	mainWindow.once("ready-to-show", () => {
-		mainWindow?.show();
-		logToFile("Window is ready to show");
-		
-		// 如果启用灵动岛模式，默认设置点击穿透
+		// 如果启用灵动岛模式，窗口始终显示但是透明和点击穿透
+		// 这样只有悬浮按钮可见，不影响其他工作
 		if (enableDynamicIsland && mainWindow) {
-			mainWindow.setIgnoreMouseEvents(true, { forward: true });
-			logToFile("Dynamic Island mode enabled: click-through active");
+			// 等待透明背景设置完成后再显示窗口
+			// 这样可以避免 Next.js SSR 导致的窗口显示问题
+			const showWindow = () => {
+				if (mainWindow) {
+					mainWindow.show();
+					// 默认设置点击穿透，直到鼠标悬停在灵动岛上
+					mainWindow.setIgnoreMouseEvents(true, { forward: true });
+					logToFile("Dynamic Island mode enabled: window shown, click-through active");
+				}
+			};
+
+			// 等待透明背景设置完成后再显示窗口
+			// 优先等待 IPC 信号，如果没有收到信号则延迟显示
+			const showWindowDelayed = () => {
+				if (!mainWindow) return;
+				
+				// 如果已经收到透明背景就绪信号，直接显示
+				if (transparentBackgroundReady) {
+					showWindow();
+					return;
+				}
+
+				// 等待页面加载完成
+				if (mainWindow.webContents.isLoading()) {
+					mainWindow.webContents.once("did-finish-load", () => {
+						// 等待透明背景设置完成（preload 脚本会发送信号）
+						// 增加延迟时间，确保 Next.js 的客户端脚本完全执行
+						// 在显示窗口前，再次注入脚本强制设置透明背景
+						if (!mainWindow) return;
+						mainWindow.webContents.executeJavaScript(`
+							(function() {
+								const html = document.documentElement;
+								const body = document.body;
+								const next = document.getElementById('__next');
+								
+								if (html) {
+									html.setAttribute('data-electron', 'true');
+									html.style.setProperty('background-color', 'transparent', 'important');
+									html.style.setProperty('background', 'transparent', 'important');
+								}
+								
+								if (body) {
+									body.style.setProperty('background-color', 'transparent', 'important');
+									body.style.setProperty('background', 'transparent', 'important');
+								}
+								
+								if (next) {
+									next.style.setProperty('background-color', 'transparent', 'important');
+									next.style.setProperty('background', 'transparent', 'important');
+								}
+							})();
+						`).catch(() => {
+							// 忽略错误
+						});
+						
+						setTimeout(() => {
+							const checkTransparent = () => {
+								if (transparentBackgroundReady) {
+									showWindow();
+								} else {
+									// 如果 2 秒后还没收到信号，也显示窗口（避免无限等待）
+									setTimeout(() => {
+										if (!transparentBackgroundReady) {
+											logToFile("Warning: Transparent background ready signal not received, showing window anyway");
+											showWindow();
+										}
+									}, 2000);
+									// 继续等待信号
+									setTimeout(checkTransparent, 100);
+								}
+							};
+							checkTransparent();
+						}, 1000); // 延迟 1 秒，确保 Next.js 客户端脚本完全执行
+					});
+				} else {
+					// 页面已加载，等待透明背景设置完成
+					// 增加延迟时间，确保 Next.js 的客户端脚本完全执行
+					setTimeout(() => {
+						const checkTransparent = () => {
+							if (transparentBackgroundReady) {
+								showWindow();
+							} else {
+								setTimeout(() => {
+									if (!transparentBackgroundReady) {
+										logToFile("Warning: Transparent background ready signal not received, showing window anyway");
+										showWindow();
+									}
+								}, 2000);
+								setTimeout(checkTransparent, 100);
+							}
+						};
+						checkTransparent();
+					}, 500); // 额外延迟 500ms，确保 Next.js 客户端脚本执行
+				}
+			};
+
+			showWindowDelayed();
+		} else {
+			mainWindow?.show();
+			logToFile("Window is ready to show");
+		}
+	});
+
+	// 拦截导航，防止加载到错误的 URL（如 DevTools URL）
+	mainWindow.webContents.on("will-navigate", (event, navigationUrl) => {
+		const parsedUrl = new URL(navigationUrl);
+		// 只允许加载 localhost:PORT 的 URL
+		if (parsedUrl.hostname !== "localhost" && parsedUrl.hostname !== "127.0.0.1") {
+			event.preventDefault();
+			logToFile(`Navigation blocked to: ${navigationUrl}`);
+		}
+		// 阻止加载 DevTools URL
+		if (navigationUrl.startsWith("devtools://")) {
+			event.preventDefault();
+			logToFile(`DevTools URL blocked: ${navigationUrl}`);
 		}
 	});
 
@@ -565,10 +842,11 @@ function createWindow(): void {
 		logToFile("Window became responsive again");
 	});
 
-	// 开发模式下打开开发者工具
-	if (isDev) {
-		mainWindow.webContents.openDevTools();
-	}
+	// 开发模式下可选打开开发者工具（默认关闭，避免干扰）
+	// 如果需要调试，可以手动按 F12 或通过菜单打开
+	// if (isDev) {
+	// 	mainWindow.webContents.openDevTools();
+	// }
 }
 
 /**
@@ -617,16 +895,18 @@ function startBackendServer(): void {
 	// 获取后端可执行文件路径
 	let backendPath: string;
 	let backendDir: string;
+	// Windows 平台需要 .exe 扩展名，其他平台不需要
+	const execName = process.platform === "win32" ? "lifetrace.exe" : "lifetrace";
 
 	if (app.isPackaged) {
 		// 打包环境：后端在 Resources/backend/lifetrace
 		backendDir = path.join(process.resourcesPath, "backend");
-		backendPath = path.join(backendDir, "lifetrace");
+		backendPath = path.join(backendDir, execName);
 	} else {
 		// 开发环境：使用 dist-backend
 		const projectRoot = path.resolve(__dirname, "../..");
 		backendDir = path.join(projectRoot, "..", "dist-backend");
-		backendPath = path.join(backendDir, "lifetrace");
+		backendPath = path.join(backendDir, execName);
 	}
 
 	// 检查后端可执行文件是否存在
@@ -814,6 +1094,92 @@ if (gotTheLock) {
 		if (win) {
 			win.setIgnoreMouseEvents(ignore, options || {});
 		}
+	});
+
+	// 注册 IPC 处理器：显示窗口（用于全屏模式）
+	ipcMain.on('show-window', (event) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (win) {
+			win.show();
+			// 全屏模式下，取消点击穿透，确保可以交互
+			win.setIgnoreMouseEvents(false);
+			// 确保窗口在最前面
+			win.focus();
+			logToFile("Window shown (fullscreen mode)");
+		}
+	});
+
+	// 注册 IPC 处理器：隐藏窗口（用于退出全屏模式）
+	ipcMain.on('hide-window', (event) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (win) {
+			// 隐藏窗口前，重新启用点击穿透（如果启用灵动岛模式）
+			if (enableDynamicIsland) {
+				win.setIgnoreMouseEvents(true, { forward: true });
+			}
+			win.hide();
+			logToFile("Window hidden (exit fullscreen mode)");
+		}
+	});
+
+	// 注册 IPC 处理器：移动窗口到指定位置（用于拖拽）
+	ipcMain.on('move-window', (event, x: number, y: number) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (win && enableDynamicIsland) {
+			win.setPosition(Math.round(x), Math.round(y));
+		}
+	});
+
+	// 注册 IPC 处理器：获取窗口当前位置
+	ipcMain.handle('get-window-position', (event) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (win) {
+			const [x, y] = win.getPosition();
+			return { x, y };
+		}
+		return { x: 0, y: 0 };
+	});
+
+	// IPC: 展开窗口到全屏（完全展开）
+	// 完全按照 electron-with-nextjs 的实现
+	ipcMain.handle("expand-window-full", () => {
+		if (!mainWindow || !enableDynamicIsland) return;
+
+		const { screen } = require('electron');
+		const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+
+		const margin = 24;
+
+		mainWindow.setBounds({
+			x: margin,
+			y: margin,
+			width: screenWidth - margin * 2,
+			height: screenHeight - margin * 2,
+		});
+		
+		// 取消点击穿透，确保可以交互
+		mainWindow.setIgnoreMouseEvents(false);
+		mainWindow.show();
+		mainWindow.focus();
+		
+		// 确保窗口背景色正确（全屏模式下不透明）
+		mainWindow.setBackgroundColor('#ffffff'); // 默认白色，会被 CSS 覆盖
+		mainWindow.setOpacity(1.0); // 确保窗口完全不透明
+	});
+
+	// IPC: 恢复窗口到原始大小
+	// 完全按照 electron-with-nextjs 的实现
+	ipcMain.handle("collapse-window", () => {
+		if (!mainWindow || !enableDynamicIsland || !originalBounds) return;
+		mainWindow.setBounds(originalBounds);
+		
+		// 重新启用点击穿透
+		mainWindow.setIgnoreMouseEvents(true, { forward: true });
+		
+		// 恢复窗口背景色为透明（参考 electron-with-nextjs）
+		mainWindow.setBackgroundColor("#00000000");
+		// 确保窗口透明（如果之前设置了不透明）
+		mainWindow.setOpacity(1.0);
 	});
 
 	// 注册 IPC 处理器：获取系统音频源
@@ -1149,20 +1515,43 @@ if (gotTheLock) {
 			logToFile(`isDev: ${isDev}`);
 			logToFile(`Will start built-in server: ${!isDev || app.isPackaged}`);
 
-			// 1. 启动后端服务器
+		// 1. 启动后端服务器（仅在非开发模式或已打包时）
+		// 开发模式下，后端服务器可能单独启动，不阻塞窗口显示
+		if (!isDev || app.isPackaged) {
 			startBackendServer();
 
 			// 2. 等待后端就绪（最多等待 180 秒）
 			const waitBackendMsg = "Waiting for backend server to be ready...";
 			console.log(waitBackendMsg);
 			logToFile(waitBackendMsg);
-			await waitForBackend(BACKEND_URL, 180000); // 3 分钟超时
-			const backendReadyMsg = "Backend server is ready!";
-			console.log(backendReadyMsg);
-			logToFile(backendReadyMsg);
+			try {
+				await waitForBackend(BACKEND_URL, 180000); // 3 分钟超时
+				const backendReadyMsg = "Backend server is ready!";
+				console.log(backendReadyMsg);
+				logToFile(backendReadyMsg);
 
-			// 3. 启动后端健康检查
-			startBackendHealthCheck();
+				// 3. 启动后端健康检查
+				startBackendHealthCheck();
+			} catch (error) {
+				const errorMsg = `Backend server not available: ${error instanceof Error ? error.message : String(error)}`;
+				logToFile(`WARNING: ${errorMsg}`);
+				console.warn(`⚠️  ${errorMsg}`);
+				// 开发模式下，后端服务器不可用时不阻塞，继续启动窗口
+				if (!isDev) {
+					throw error; // 生产模式下必须要有后端
+				}
+			}
+		} else {
+			// 开发模式：尝试连接后端，但不阻塞
+			logToFile("Development mode: Backend server check skipped (may be started separately)");
+			// 异步检查后端是否可用，但不阻塞启动
+			waitForBackend(BACKEND_URL, 5000).then(() => {
+				logToFile("Backend server is available");
+				startBackendHealthCheck();
+			}).catch(() => {
+				logToFile("Backend server not available (will continue without it)");
+			});
+		}
 
 			// 4. 启动 Next.js 服务器
 			await startNextServer();

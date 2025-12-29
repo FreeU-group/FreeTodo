@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
-import { PanelHeader } from "@/components/common/PanelHeader";
+import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { useCostStats } from "@/lib/query";
 
 const DEFAULT_DAYS = 30;

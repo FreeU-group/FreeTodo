@@ -84,7 +84,7 @@ export function TodoDetail() {
 
 	if (!todo) {
 		return (
-			<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+			<div className="flex h-full items-center justify-center text-sm text-muted-foreground bg-background">
 				{t("selectTodoPrompt")}
 			</div>
 		);
@@ -218,9 +218,7 @@ export function TodoDetail() {
 					todo={todo}
 					onStatusChange={(status) => updateTodo(todo.id, { status })}
 					onPriorityChange={(priority) => updateTodo(todo.id, { priority })}
-					onDeadlineChange={(deadline) =>
-						updateTodo(todo.id, { deadline: deadline ?? undefined })
-					}
+					onDeadlineChange={(deadline) => updateTodo(todo.id, { deadline })}
 					onTagsChange={(tags) => updateTodo(todo.id, { tags })}
 				/>
 

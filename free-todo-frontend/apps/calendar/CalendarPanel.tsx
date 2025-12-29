@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
-import { PanelHeader } from "@/components/common/PanelHeader";
+import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { useCreateTodo, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { Todo } from "@/lib/types";

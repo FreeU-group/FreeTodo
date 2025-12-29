@@ -1,0 +1,24 @@
+{
+  "name": "nextjs-electron-test",
+  "version": "1.0.0",
+  "description": "Test Next.js + Electron transparent window",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"next dev\" \"node scripts/wait-and-run-electron.js\"",
+    "electron:dev": "pnpm electron:build && electron .",
+    "electron:build": "node scripts/build-electron.js",
+    "build": "next build",
+    "start": "next start"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.7",
+    "concurrently": "^8.2.2",
+    "electron": "^39.2.7",
+    "esbuild": "^0.19.0",
+    "next": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "typescript": "5.9.3",
+    "wait-on": "^7.2.0"
+  }
+}

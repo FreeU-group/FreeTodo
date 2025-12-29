@@ -199,15 +199,17 @@ except Exception as e:
 if __name__ == "__main__":
     server_host = settings.server.host
     server_port = settings.server.port
-    server_debug = settings.server.debug
+    # 强制启用开发模式和热重载
+    server_debug = True  # 强制启用，确保热重载工作
 
     logger.info(f"启动服务器: http://{server_host}:{server_port}")
-    logger.info(f"调试模式: {'开启' if server_debug else '关闭'}")
+    logger.info(f"调试模式: 开启 (强制启用)")
+    logger.info(f"热重载: 已启用")
     uvicorn.run(
         "lifetrace.server:app",
         host=server_host,
         port=server_port,
-        reload=server_debug,
-        access_log=server_debug,
-        log_level="debug" if server_debug else "info",
+        reload=True,  # 强制启用热重载
+        access_log=True,  # 启用访问日志
+        log_level="debug",  # 使用 debug 日志级别
     )

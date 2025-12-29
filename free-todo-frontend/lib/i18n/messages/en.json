@@ -82,6 +82,10 @@
 			"panelEnabled": "Enabled",
 			"panelDisabled": "Disabled",
 			"llmConfig": "LLM Configuration",
+			"difyConfigTitle": "Dify Test Configuration",
+			"difyEnabledLabel": "Enable Dify test mode",
+			"difyEnabledDescription": "When enabled, the Dify Test mode in chat will use Dify API for responses.",
+			"difySaveSuccess": "Dify configuration saved",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",
 			"model": "Model",
@@ -137,6 +141,8 @@
 				"task_summary": "Task Summary (Manual)",
 				"activity_summary": "Activity Summary",
 				"vision_assistant": "Auto Todo Detection",
+				"workspace_assistant": "Workspace Assistant",
+				"plan_assistant": "Plan Assistant",
 				"unknown": "Unknown Feature"
 			}
 		}
@@ -204,18 +210,40 @@
 	},
 	"chat": {
 		"planModeInputPlaceholder": "e.g. Help me plan the todos for moving this weekend",
+		"difyTest": {
+			"inputPlaceholder": "Prompt for Dify test channel..."
+		},
 		"aiThinking": "AI is thinking...",
 		"generatingQuestions": "AI is generating questions...",
 		"generateQuestionsFailed": "Failed to generate questions, please try again",
 		"generateSummaryFailed": "Failed to generate summary, please try again",
 		"loading": "Loading",
 		"initialMessage": "Hi! I'm your task assistant. I can break down work, plan the day, or just chat.",
+		"suggestions": {
+			"breakdown": "Break Down Task",
+			"breakdownPrompt": "Help me break down this task",
+			"plan": "Create Plan",
+			"planPrompt": "Help me create a detailed plan",
+			"priority": "Prioritize",
+			"priorityPrompt": "Help me prioritize these tasks",
+			"time": "Time Management",
+			"timePrompt": "Give me some time management advice",
+			"review": "Task Review",
+			"reviewPrompt": "Help me review recent task completion",
+			"optimize": "Optimize Workflow",
+			"optimizePrompt": "How can I optimize my workflow?",
+			"goal": "Set Goals",
+			"goalPrompt": "Help me set some goals",
+			"advice": "Get Advice",
+			"advicePrompt": "Give me some suggestions for the current to-do"
+		},
 		"assistant": "Assistant",
 		"user": "You",
 		"chatMode": "Chat mode",
 		"toggleMode": "Toggle Ask/Plan/Edit mode",
 		"mentionFileOrTodo": "Mention a file or todo",
 		"send": "Send",
+		"stop": "Stop",
 		"linkedTodos": "Linked todos ({count})",
 		"linkedTodosEn": "Linked todos ({count})",
 		"collapse": "Collapse",
@@ -237,6 +265,11 @@
 		"userInput": "User input",
 		"loadHistoryFailed": "Failed to load history",
 		"noTodosAvailable": "No todos available; chat context is empty.",
+		"noTodosFound": "No todos found",
+		"extractModalDescription": "Please select the todos to add:",
+		"selectedCount": "Selected {count} items",
+		"confirmAdd": "Confirm Add ({count})",
+		"applying": "Applying...",
 		"selectedTodo": "[Selected Todo]",
 		"rootParentTodo": "[Root Parent Todo]",
 		"allSubTodos": "[All Sub-todos] (total {count})",
@@ -249,6 +282,16 @@
 		"noResponseReceived": "No response received, please try again.",
 		"addedTodos": "Added {count} todos to the list.",
 		"errorOccurred": "Something went wrong. Please try again.",
+		"promptNotLoaded": "Prompt is loading, please wait...",
+		"breakdownSummary": {
+			"title": "Task Breakdown Result",
+			"description": "Based on your answers, we have broken down the task into the following subtasks:",
+			"taskSummary": "Task Summary",
+			"subtaskList": "Subtask List",
+			"noSubtasks": "No subtasks",
+			"applying": "Applying...",
+			"acceptAndApply": "Accept and Apply"
+		},
 		"planSummary": {
 			"title": "Todo Planning Result",
 			"description": "Please review the AI-generated todo summary and subtask list, then click Accept to confirm",
@@ -283,6 +326,10 @@
 			"edit": {
 				"label": "Edit",
 				"description": "Generate and append to notes"
+			},
+			"difyTest": {
+				"label": "Dify Test",
+				"description": "Use Dify API test channel for replies"
 			},
 			"active": "Active"
 		},
@@ -328,6 +375,11 @@
 			"sunday": "Sun"
 		},
 		"weekPrefix": ""
+	},
+	"datePicker": {
+		"time": "Time",
+		"clear": "Clear",
+		"confirm": "Confirm"
 	},
 	"layoutSelector": {
 		"label": "Layout",
@@ -529,6 +581,8 @@
 		"delete": "Delete",
 		"childNamePlaceholder": "Enter child todo name...",
 		"cancelButton": "Cancel",
-		"addButton": "Add"
+		"addButton": "Add",
+		"extractButton": "Extract Todos",
+		"extracting": "Extracting todos..."
 	}
 }

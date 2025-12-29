@@ -13,6 +13,7 @@ interface DateSelectorProps {
   selectedDate: Date;
   onDateChange: (date: Date) => void;
   availableDates?: Date[]; // 有录音的日期列表
+  audioCounts?: Map<string, number>; // 每个日期的音频数量
   onExport?: () => void;
   onEdit?: () => void;
 }
@@ -21,6 +22,7 @@ export function DateSelector({
   selectedDate,
   onDateChange,
   availableDates = [],
+  audioCounts,
   onExport,
   onEdit,
 }: DateSelectorProps) {
@@ -224,6 +226,8 @@ export function DateSelector({
               setIsCalendarOpen(false);
               setPopupPosition(null);
             }}
+            audioDates={availableDates}
+            audioCounts={audioCounts}
           />
         </div>,
         document.body

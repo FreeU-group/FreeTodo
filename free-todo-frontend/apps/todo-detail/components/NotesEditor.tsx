@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { type ChangeEvent, useState } from "react";
-import { SectionHeader } from "@/components/common/SectionHeader";
+import { SectionHeader } from "@/components/common/layout/SectionHeader";
 
 interface NotesEditorProps {
 	value: string;

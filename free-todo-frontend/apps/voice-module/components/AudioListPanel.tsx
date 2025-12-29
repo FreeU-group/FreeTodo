@@ -43,9 +43,7 @@ export function AudioListPanel({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  if (audioSegments.length === 0) {
-    return null;
-  }
+  // 即使没有音频也显示面板，显示空状态
 
   return (
     <div className="overflow-hidden">
@@ -82,7 +80,7 @@ export function AudioListPanel({
         <div className="pt-1 space-y-3 max-h-[400px] overflow-y-auto">
           {audioSegments.length === 0 ? (
             <div className="text-center py-6 text-sm text-muted-foreground">
-              暂无音频文件
+              当天暂无音频文件
             </div>
           ) : (
             <div className="space-y-2">

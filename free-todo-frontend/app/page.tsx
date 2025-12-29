@@ -3,13 +3,14 @@
 import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LanguageToggle } from "@/components/common/LanguageToggle";
-import { LayoutSelector } from "@/components/common/LayoutSelector";
-import { ThemeToggle } from "@/components/common/ThemeToggle";
-import { UserAvatar } from "@/components/common/UserAvatar";
+import { LayoutSelector } from "@/components/common/layout/LayoutSelector";
+import { ThemeToggle } from "@/components/common/theme/ThemeToggle";
+import { LanguageToggle } from "@/components/common/ui/LanguageToggle";
+import { UserAvatar } from "@/components/common/ui/UserAvatar";
 import { BottomDock } from "@/components/layout/BottomDock";
 import { PanelContainer } from "@/components/layout/PanelContainer";
 import { PanelContent } from "@/components/layout/PanelContent";
+import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { DynamicIsland } from "@/components/notification/DynamicIsland";
 import { GlobalDndProvider } from "@/lib/dnd";
@@ -18,8 +19,14 @@ import { useConfig } from "@/lib/query";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
+import { useDynamicIslandStore } from "@/lib/store/dynamic-island-store";
+import { IslandMode } from "@/components/DynamicIsland/types";
 
 export default function HomePage() {
+	// 所有 hooks 必须在条件返回之前调用（React Hooks 规则）
+	const { mode } = useDynamicIslandStore();
+	const isFullscreen = mode === IslandMode.FULLSCREEN;
+	
 	const {
 		isPanelAOpen,
 		isPanelBOpen,
@@ -320,22 +327,36 @@ export default function HomePage() {
 		window.addEventListener("pointerup", handlePointerUp);
 	};
 
+	// 如果不是全屏模式，只显示透明背景（DynamicIsland 会通过 DynamicIslandProvider 显示）
+	// 注意：必须在所有 hooks 调用之后才能条件返回
+	if (!isFullscreen) {
+		return (
+			<div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: 'transparent', background: 'transparent' }}>
+				{/* 透明背景，只显示 DynamicIsland */}
+				{/* 在悬浮模式下也渲染 VoiceModulePanel（隐藏），确保录音服务初始化和事件监听器注册 */}
+				<div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
+					<VoiceModulePanel />
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<GlobalDndProvider>
-			<main className="relative flex h-screen flex-col overflow-hidden text-foreground">
+			<main className="relative flex h-screen flex-col overflow-hidden text-foreground bg-background">
 				<div className="relative z-10 flex h-full flex-col text-foreground">
-					<header className="relative flex h-12 shrink-0 items-center bg-primary-foreground dark:bg-accent px-4 text-foreground overflow-visible">
+					<header className="relative flex h-15 shrink-0 items-center bg-primary-foreground dark:bg-accent px-4 text-foreground overflow-visible">
 						{/* 左侧：Logo */}
 						<div className="flex items-center gap-2 shrink-0">
 							<Image
 								src="/logo.png"
 								alt="Free Todo Logo"
-								width={24}
-								height={24}
+								width={32}
+								height={32}
 								className="shrink-0"
 							/>
-							<h1 className="text-sm font-semibold tracking-tight text-foreground">
-								Free Todo
+							<h1 className="text-lg font-semibold tracking-tight text-foreground">
+								Free Todo: Your AI Secretary
 							</h1>
 						</div>
 
@@ -360,7 +381,7 @@ export default function HomePage() {
 
 					<div
 						ref={containerRef}
-						className="relative bg-primary-foreground dark:bg-accent flex min-h-0 flex-1 overflow-hidden px-3 pb-3"
+						className="relative bg-primary-foreground dark:bg-accent flex min-h-0 flex-1 overflow-hidden px-3 pb-7"
 					>
 						{/* 始终渲染所有面板和 ResizeHandle，通过 isVisible 控制动画，避免 DOM 移除导致的布局跳跃 */}
 						<PanelContainer

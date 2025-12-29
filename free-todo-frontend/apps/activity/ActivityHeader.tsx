@@ -3,7 +3,12 @@
 import { Activity, Search } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { PanelHeader } from "@/components/common/PanelHeader";
+import {
+	PanelActionButton,
+	PanelHeader,
+	usePanelIconStyle,
+} from "@/components/common/layout/PanelHeader";
+import { cn } from "@/lib/utils";
 
 interface ActivityHeaderProps {
 	searchValue: string;
@@ -18,6 +23,7 @@ export function ActivityHeader({
 	const [isSearchOpen, setIsSearchOpen] = useState(false);
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const searchContainerRef = useRef<HTMLDivElement>(null);
+	const actionIconStyle = usePanelIconStyle("action");
 
 	useEffect(() => {
 		if (isSearchOpen && searchInputRef.current) {
@@ -52,7 +58,12 @@ export function ActivityHeader({
 				<div ref={searchContainerRef} className="relative">
 					{isSearchOpen ? (
 						<div className="relative">
-							<Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+							<Search
+								className={cn(
+									"absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground",
+									actionIconStyle,
+								)}
+							/>
 							<input
 								ref={searchInputRef}
 								value={searchValue}
@@ -62,14 +73,14 @@ export function ActivityHeader({
 							/>
 						</div>
 					) : (
-						<button
-							type="button"
+						<PanelActionButton
+							variant="default"
+							icon={Search}
 							onClick={() => setIsSearchOpen(true)}
-							className="flex items-center justify-center h-7 w-7 rounded-md hover:bg-muted/50 transition-colors"
+							iconOverrides={{ color: "text-muted-foreground" }}
+							buttonOverrides={{ hoverTextColor: "hover:text-foreground" }}
 							aria-label="Find activities..."
-						>
-							<Search className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-						</button>
+						/>
 					)}
 				</div>
 			}

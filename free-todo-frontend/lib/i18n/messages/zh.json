@@ -82,6 +82,10 @@
 			"panelEnabled": "已启用",
 			"panelDisabled": "已禁用",
 			"llmConfig": "LLM 配置",
+			"difyConfigTitle": "Dify 测试配置",
+			"difyEnabledLabel": "启用 Dify 测试模式",
+			"difyEnabledDescription": "开启后，聊天面板中的 Dify Test 模式将通过 Dify API 返回回复。",
+			"difySaveSuccess": "Dify 配置已保存",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",
 			"model": "模型",
@@ -137,6 +141,8 @@
 				"task_summary": "任务摘要生成（手动）",
 				"activity_summary": "活动总结",
 				"vision_assistant": "自动待办检测",
+				"workspace_assistant": "工作区助手",
+				"plan_assistant": "计划助手",
 				"unknown": "未知功能"
 			}
 		}
@@ -204,18 +210,40 @@
 	},
 	"chat": {
 		"planModeInputPlaceholder": "例如：帮我规划周末搬家需要做的事",
+		"difyTest": {
+			"inputPlaceholder": "这里是 Dify 测试通道的提示词..."
+		},
 		"aiThinking": "AI 正在思考...",
 		"generatingQuestions": "AI正在拆解待办...",
 		"generateQuestionsFailed": "拆解待办失败，请重试",
 		"generateSummaryFailed": "生成总结失败，请重试",
 		"loading": "加载中",
 		"initialMessage": "你好，我是你的待办助手，可以帮你拆解任务、制定计划，也能聊聊生活。",
+		"suggestions": {
+			"breakdown": "拆解任务",
+			"breakdownPrompt": "帮我拆解一下这个任务",
+			"plan": "制定计划",
+			"planPrompt": "帮我制定一个详细的计划",
+			"priority": "优先级排序",
+			"priorityPrompt": "帮我按优先级排序这些任务",
+			"time": "时间管理",
+			"timePrompt": "给我一些时间管理的建议",
+			"review": "任务回顾",
+			"reviewPrompt": "帮我回顾一下最近的任务完成情况",
+			"optimize": "优化工作流",
+			"optimizePrompt": "如何优化我的工作流程？",
+			"goal": "目标设定",
+			"goalPrompt": "帮我设定一些目标",
+			"advice": "获取建议",
+			"advicePrompt": "针对目前的待办，给我一些建议"
+		},
 		"assistant": "助理",
 		"user": "我",
 		"chatMode": "对话模式",
 		"toggleMode": "切换 Ask/Plan/Edit 模式",
 		"mentionFileOrTodo": "提及文件或任务",
 		"send": "发送",
+		"stop": "停止",
 		"linkedTodos": "关联待办（{count}）",
 		"linkedTodosEn": "Linked todos ({count})",
 		"collapse": "收起",
@@ -237,6 +265,11 @@
 		"userInput": "用户输入",
 		"loadHistoryFailed": "加载历史记录失败",
 		"noTodosAvailable": "当前没有待办，聊天上下文为空。",
+		"noTodosFound": "未发现待办事项",
+		"extractModalDescription": "请选择要添加的待办事项：",
+		"selectedCount": "已选择 {count} 项",
+		"confirmAdd": "确认添加 ({count})",
+		"applying": "正在应用...",
 		"selectedTodo": "【当前选中待办】",
 		"rootParentTodo": "【最高级父待办】",
 		"allSubTodos": "【该父待办下的所有子待办】（共 {count} 条）",
@@ -249,6 +282,16 @@
 		"noResponseReceived": "没有收到回复，请稍后再试。",
 		"addedTodos": "已添加 {count} 条待办到列表。",
 		"errorOccurred": "出错了，请稍后再试。",
+		"promptNotLoaded": "提示词正在加载中，请稍候...",
+		"breakdownSummary": {
+			"title": "任务拆分结果",
+			"description": "根据您的回答，我们已将任务拆分为以下子任务：",
+			"taskSummary": "任务总结",
+			"subtaskList": "子任务列表",
+			"noSubtasks": "暂无子任务",
+			"applying": "正在应用...",
+			"acceptAndApply": "接受并应用"
+		},
 		"planSummary": {
 			"title": "待办规划结果",
 			"description": "请查看AI生成的待办总结和子待办列表，确认后点击接收",
@@ -283,6 +326,10 @@
 			"edit": {
 				"label": "Edit 模式",
 				"description": "生成内容追加到待办备注"
+			},
+			"difyTest": {
+				"label": "Dify Test 模式",
+				"description": "通过 Dify 测试通道返回回复"
 			},
 			"active": "当前"
 		},
@@ -328,6 +375,11 @@
 			"sunday": "日"
 		},
 		"weekPrefix": "周"
+	},
+	"datePicker": {
+		"time": "时间",
+		"clear": "清除",
+		"confirm": "确定"
 	},
 	"layoutSelector": {
 		"label": "布局",
@@ -529,6 +581,8 @@
 		"delete": "删除",
 		"childNamePlaceholder": "输入子待办名称...",
 		"cancelButton": "取消",
-		"addButton": "添加"
+		"addButton": "添加",
+		"extractButton": "提取待办",
+		"extracting": "正在提取待办事项..."
 	}
 }

@@ -3,7 +3,7 @@ name = "lifetrace"
 version = "0.1.0"
 description = "LifeTrace - A cross-platform screen recording and activity tracking application"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     # Core dependencies
     "fastapi>=0.100.0",
@@ -19,8 +19,8 @@ dependencies = [
     "imagehash>=4.3.0",
     # OCR processing (rapidocr requires numpy)
     "rapidocr-onnxruntime",
-    "numpy>=1.21.0",
-        # Audio processing (for ASR WebSocket stream)
+    "numpy>=1.21.0,<2.0.0",  # 限制到 1.x 版本以确保 PyInstaller 兼容性
+            # Audio processing (for ASR WebSocket stream)
         # 注意：使用 av 库（faster-whisper 的依赖）进行音频处理，不需要 pydub
         # Faster-Whisper 语音识别（推荐，已实现）
         "faster-whisper>=1.0.0",  # 实时语音识别，不需要 Visual C++ 构建工具（包含 av 库）
@@ -37,6 +37,10 @@ dependencies = [
     # "funasr>=1.0.0",  # 注释掉，作为可选依赖
     # Data processing
     "pyyaml>=6.0",
+    "sentence-transformers>=2.2.0",  # 文本嵌入模型
+    "chromadb>=0.4.0",               # 向量数据库
+    "scipy>=1.9.0",                  # 科学计算（用于余弦距离）
+    "hdbscan>=0.8.0",                # 文本聚类算法
     # Scheduler
     "apscheduler>=3.10.0",
     # Utils
@@ -132,14 +136,4 @@ dev = [
     "pre-commit>=4.4.0",
     "ruff>=0.14.4",
     "pyinstaller>=6.0.0",
-]
-
-# 向量数据库和语义搜索功能（可选）
-# 用于：事件摘要聚类、语义搜索、OCR 文本向量化
-# 安装方式：uv sync --group vector
-vector = [
-    "sentence-transformers>=2.2.0",  # 文本嵌入模型
-    "chromadb>=0.4.0",               # 向量数据库
-    "scipy>=1.9.0",                  # 科学计算（用于余弦距离）
-    "hdbscan>=0.8.0",                # 文本聚类算法
 ]

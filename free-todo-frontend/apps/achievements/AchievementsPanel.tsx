@@ -2,7 +2,7 @@
 
 import { Award, Star, Target, Trophy } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { PanelHeader } from "@/components/common/PanelHeader";
+import { PanelHeader } from "@/components/common/layout/PanelHeader";
 
 /**
  * 成就面板组件

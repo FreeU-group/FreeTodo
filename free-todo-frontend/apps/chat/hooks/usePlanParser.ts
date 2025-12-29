@@ -64,7 +64,7 @@ export const usePlanParser = (locale: string, t: TranslationFunction) => {
 			if (!jsonText) {
 				return {
 					todos: [],
-					error: t("chat.noPlanJsonFound"),
+					error: t("noPlanJsonFound"),
 				};
 			}
 
@@ -132,7 +132,7 @@ export const usePlanParser = (locale: string, t: TranslationFunction) => {
 				if (!todos.length) {
 					return {
 						todos: [],
-						error: t("chat.parsedNoValidTodos"),
+						error: t("parsedNoValidTodos"),
 					};
 				}
 
@@ -141,7 +141,7 @@ export const usePlanParser = (locale: string, t: TranslationFunction) => {
 				console.error(err);
 				return {
 					todos: [],
-					error: t("chat.parsePlanJsonFailed"),
+					error: t("parsePlanJsonFailed"),
 				};
 			}
 		},

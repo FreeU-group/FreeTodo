@@ -148,12 +148,30 @@ export class RecordingService {
    */
   pause(): void {
     if (!this.isRecording || this.isPaused) {
+      console.warn('[RecordingService] ⚠️ 无法暂停：录音未开始或已暂停', {
+        isRecording: this.isRecording,
+        isPaused: this.isPaused,
+        state: this.mediaRecorder?.state
+      });
       return;
     }
 
     if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      console.log('[RecordingService] ⏸️ 暂停录音，MediaRecorder状态:', this.mediaRecorder.state);
       this.mediaRecorder.pause();
       this.isPaused = true;
+      
+      // 验证暂停是否成功
+      setTimeout(() => {
+        if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
+          console.log('[RecordingService] ✅ 暂停成功，MediaRecorder状态:', this.mediaRecorder.state);
+        } else {
+          console.error('[RecordingService] ❌ 暂停失败，MediaRecorder状态:', this.mediaRecorder?.state);
+          this.isPaused = false; // 恢复状态
+        }
+      }, 100);
+    } else {
+      console.warn('[RecordingService] ⚠️ MediaRecorder状态不正确，无法暂停:', this.mediaRecorder?.state);
     }
   }
 
@@ -162,12 +180,30 @@ export class RecordingService {
    */
   resume(): void {
     if (!this.isRecording || !this.isPaused) {
+      console.warn('[RecordingService] ⚠️ 无法恢复：录音未开始或未暂停', {
+        isRecording: this.isRecording,
+        isPaused: this.isPaused,
+        state: this.mediaRecorder?.state
+      });
       return;
     }
 
     if (this.mediaRecorder && this.mediaRecorder.state === 'paused') {
+      console.log('[RecordingService] ▶️ 恢复录音，MediaRecorder状态:', this.mediaRecorder.state);
       this.mediaRecorder.resume();
       this.isPaused = false;
+      
+      // 验证恢复是否成功
+      setTimeout(() => {
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+          console.log('[RecordingService] ✅ 恢复成功，MediaRecorder状态:', this.mediaRecorder.state);
+        } else {
+          console.error('[RecordingService] ❌ 恢复失败，MediaRecorder状态:', this.mediaRecorder?.state);
+          this.isPaused = true; // 恢复状态
+        }
+      }, 100);
+    } else {
+      console.warn('[RecordingService] ⚠️ MediaRecorder状态不正确，无法恢复:', this.mediaRecorder?.state);
     }
   }
 

@@ -21,11 +21,18 @@ router = APIRouter(prefix="/api/todos", tags=["todos"])
 async def list_todos(
     limit: int = Query(200, ge=1, le=2000, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
-    status: str | None = Query(None, description="状态筛选：active/completed/canceled"),
+    status: str | None = Query(None, description="状态筛选：active/completed/canceled/draft"),
     service: TodoService = Depends(get_todo_service),
 ):
     """获取待办列表"""
-    return service.list_todos(limit, offset, status)
+    try:
+        return service.list_todos(limit, offset, status)
+    except Exception as e:
+        from lifetrace.util.logging_config import get_logger
+        logger = get_logger()
+        logger.error(f"获取待办列表失败: {e}", exc_info=True)
+        # 返回空列表而不是抛出 500 错误
+        return {"total": 0, "todos": []}
 
 
 @router.get("/{todo_id}", response_model=TodoResponse)

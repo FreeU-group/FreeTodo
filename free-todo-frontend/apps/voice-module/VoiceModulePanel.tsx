@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Mic, Play, Upload } from 'lucide-react';
 import { DateSelector } from './components/DateSelector';
 import { OriginalTextView } from './components/OriginalTextView';
@@ -98,6 +98,7 @@ export function VoiceModulePanel() {
   const [currentSpeaker, setCurrentSpeaker] = useState<string>('发言人1');
   const [meetingTitle, setMeetingTitle] = useState<string>(''); // 会议标题
   const [nowTime, setNowTime] = useState<Date>(new Date()); // 当前时间
+  const [dayAudioSegments, setDayAudioSegments] = useState<AudioSegment[]>([]); // 当前日期的音频列表（从后端查询）
 
   // 播放器状态
   const [isPlaying, setIsPlaying] = useState(false);
@@ -665,6 +666,16 @@ export function VoiceModulePanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 组件挂载时加载当天音频列表
+  useEffect(() => {
+    if (persistenceServiceRef.current) {
+      console.log('[VoiceModulePanel] 📅 组件挂载，加载当天音频列表');
+      handleDateChange(selectedDate).catch(err => {
+        console.error('[VoiceModulePanel] ❌ 加载当天音频列表失败:', err);
+      });
+    }
+  }, []); // 只在挂载时执行一次
+
   // 更新当前时间
   useEffect(() => {
     const interval = setInterval(() => {
@@ -855,10 +866,16 @@ export function VoiceModulePanel() {
     storeStopRecording();
     setViewMode('playback');
     
+    // 停止播放（如果正在播放）
+    if (audioPlayerRef.current && !audioPlayerRef.current.paused) {
+      audioPlayerRef.current.pause();
+      setIsPlaying(false);
+    }
+    
     // 等待音频段准备好（finalizeSegment会在onstop事件中调用）
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // 获取最新的音频段（刚录完的）
+    // 获取最新的音频段（刚录完的），但不自动播放
     const currentAudioSegments = useAppStore.getState().audioSegments;
     if (currentAudioSegments.length > 0) {
       // 找到最新的音频段（按结束时间排序）
@@ -866,26 +883,27 @@ export function VoiceModulePanel() {
         .sort((a, b) => b.endTime.getTime() - a.endTime.getTime())[0];
       
       if (latestSegment && latestSegment.fileUrl) {
-        console.log('[VoiceModulePanel] 🎵 找到最新音频段，准备播放:', {
+        console.log('[VoiceModulePanel] 🎵 找到最新音频段:', {
           segmentId: latestSegment.id,
           fileUrl: latestSegment.fileUrl,
           duration: latestSegment.duration,
           fileSize: latestSegment.fileSize,
         });
         
-        // 设置当前播放URL
+        // 设置当前播放URL（但不自动播放）
         setCurrentAudioUrl(latestSegment.fileUrl);
+        setSelectedAudioId(latestSegment.id);
         
-        // 加载并播放音频
+        // 加载音频但不播放
         if (audioPlayerRef.current) {
           audioPlayerRef.current.src = latestSegment.fileUrl;
           audioPlayerRef.current.load();
-          audioPlayerRef.current.play().catch(() => {
-            // 忽略自动播放失败（浏览器策略）
-          });
+          if (latestSegment.duration > 0) {
+            setDuration(latestSegment.duration / 1000);
+          }
         }
       } else {
-        console.warn('[VoiceModulePanel] ⚠️ 最新音频段没有fileUrl，无法播放');
+        console.warn('[VoiceModulePanel] ⚠️ 最新音频段没有fileUrl');
       }
     } else {
       console.warn('[VoiceModulePanel] ⚠️ 没有找到音频段');
@@ -963,8 +981,15 @@ export function VoiceModulePanel() {
 
   // 监听灵动岛的录音控制事件（完全同步录音功能）
   useEffect(() => {
-    const handleDynamicIslandToggleRecording = (event: CustomEvent) => {
-      const { action } = event.detail;
+    const handleDynamicIslandToggleRecording = (event: Event) => {
+      const customEvent = event as CustomEvent<{ action: 'start' | 'stop' | 'pause' | 'resume' }>;
+      const { action } = customEvent.detail || {};
+      
+      if (!action) {
+        console.warn('[VoiceModulePanel] ⚠️ 收到灵动岛录音控制事件，但 action 为空');
+        return;
+      }
+      
       console.log('[VoiceModulePanel] 📱 收到灵动岛录音控制事件:', action);
       
       if (action === 'start') {
@@ -973,17 +998,23 @@ export function VoiceModulePanel() {
           handleStartRecording().catch(err => {
             console.error('[VoiceModulePanel] ❌ 灵动岛启动录音失败:', err);
           });
+        } else {
+          console.log('[VoiceModulePanel] ⚠️ 已在录音中，忽略开始请求');
         }
       } else if (action === 'pause') {
         if (isRecording) {
           console.log('[VoiceModulePanel] ⏸️ 灵动岛触发：暂停录音');
           handlePauseRecording();
+        } else {
+          console.log('[VoiceModulePanel] ⚠️ 未在录音，忽略暂停请求');
         }
       } else if (action === 'resume') {
         const currentStatus = useAppStore.getState().processStatus.recording;
         if (currentStatus === 'paused') {
           console.log('[VoiceModulePanel] ▶️ 灵动岛触发：恢复录音');
           handleResumeRecording();
+        } else {
+          console.log('[VoiceModulePanel] ⚠️ 录音未暂停，忽略恢复请求');
         }
       } else if (action === 'stop') {
         if (isRecording) {
@@ -991,15 +1022,20 @@ export function VoiceModulePanel() {
           handleStopRecording().catch(err => {
             console.error('[VoiceModulePanel] ❌ 灵动岛停止录音失败:', err);
           });
+        } else {
+          console.log('[VoiceModulePanel] ⚠️ 未在录音，忽略停止请求');
         }
       }
     };
 
+    // 在 window 和 document 上都注册监听器
     window.addEventListener('dynamic-island-toggle-recording', handleDynamicIslandToggleRecording as EventListener);
-    console.log('[VoiceModulePanel] ✅ 已注册灵动岛录音控制事件监听器');
+    document.addEventListener('dynamic-island-toggle-recording', handleDynamicIslandToggleRecording as EventListener);
+    console.log('[VoiceModulePanel] ✅ 已注册灵动岛录音控制事件监听器 (window & document)');
     
     return () => {
       window.removeEventListener('dynamic-island-toggle-recording', handleDynamicIslandToggleRecording as EventListener);
+      document.removeEventListener('dynamic-island-toggle-recording', handleDynamicIslandToggleRecording as EventListener);
       console.log('[VoiceModulePanel] 🧹 已移除灵动岛录音控制事件监听器');
     };
   }, [isRecording, handleStartRecording, handlePauseRecording, handleResumeRecording, handleStopRecording]);
@@ -1014,13 +1050,14 @@ export function VoiceModulePanel() {
     }
 
     try {
-      // 计算该日期的开始和结束时间
+      // 计算该日期的开始和结束时间（使用本地时间，避免时区问题）
       const startTime = new Date(date);
       startTime.setHours(0, 0, 0, 0);
       const endTime = new Date(date);
       endTime.setHours(23, 59, 59, 999);
 
       console.log(`[VoiceModulePanel] 📅 加载日期数据: ${date.toDateString()}, 时间范围: ${startTime.toISOString()} - ${endTime.toISOString()}`);
+      console.log(`[VoiceModulePanel] 📅 本地时间范围: ${startTime.toLocaleString('zh-CN')} - ${endTime.toLocaleString('zh-CN')}`);
 
       // 1. 加载转录文本
       const loadedTranscripts = await persistenceServiceRef.current.queryTranscripts(startTime, endTime);
@@ -1046,20 +1083,98 @@ export function VoiceModulePanel() {
         }
       });
 
-      // 3. 加载音频文件信息
+      // 3. 加载音频文件信息（直接从后端查询，不依赖 store）
       const recordings = await persistenceServiceRef.current.queryAudioRecordings(startTime, endTime);
       console.log(`[VoiceModulePanel] ✅ 加载了 ${recordings.length} 条音频录音记录`);
 
-      // 更新当前音频URL（使用该日期第一个音频文件）
-      const dayAudioSegments = audioSegments.filter(s => {
-        const segmentDate = new Date(s.startTime);
-        return segmentDate.toDateString() === date.toDateString();
+      // 将查询到的音频记录转换为 AudioSegment（直接从后端查询，不依赖 store）
+      const loadedAudioSegments: AudioSegment[] = [];
+      for (const recording of recordings) {
+        // 获取音频文件URL
+        let fileUrl: string | undefined;
+        if (recording.file_url) {
+          fileUrl = recording.file_url;
+        } else if (recording.id) {
+          // 如果没有 file_url，尝试通过 ID 获取
+          const url = await persistenceServiceRef.current.getAudioUrl(recording.id);
+          if (url) fileUrl = url;
+        }
+
+        // 解析时间戳，确保正确转换
+        let startTime: Date;
+        let endTime: Date;
+        
+        try {
+          // 尝试解析 ISO 字符串或时间戳
+          if (typeof recording.start_time === 'string') {
+            startTime = new Date(recording.start_time);
+          } else if (typeof recording.start_time === 'number') {
+            startTime = new Date(recording.start_time);
+          } else {
+            startTime = new Date();
+          }
+          
+          if (recording.end_time) {
+            if (typeof recording.end_time === 'string') {
+              endTime = new Date(recording.end_time);
+            } else if (typeof recording.end_time === 'number') {
+              endTime = new Date(recording.end_time);
+            } else {
+              endTime = new Date(startTime.getTime() + (recording.duration_seconds || 0) * 1000);
+            }
+          } else {
+            endTime = new Date(startTime.getTime() + (recording.duration_seconds || 0) * 1000);
+          }
+        } catch (e) {
+          console.error('[VoiceModulePanel] ❌ 时间解析失败:', e, recording);
+          startTime = new Date();
+          endTime = new Date();
+        }
+
+        const audioSegment: AudioSegment = {
+          id: recording.segment_id || recording.id,
+          startTime,
+          endTime,
+          duration: recording.duration_seconds ? recording.duration_seconds * 1000 : (endTime.getTime() - startTime.getTime()),
+          fileSize: recording.file_size || 0,
+          fileUrl: fileUrl,
+          audioSource: 'microphone',
+          uploadStatus: fileUrl ? 'uploaded' : 'failed',
+        };
+        
+        loadedAudioSegments.push(audioSegment);
+        console.log(`[VoiceModulePanel] ✅ 加载音频段:`, {
+          id: audioSegment.id,
+          startTime: audioSegment.startTime.toISOString(),
+          startTimeLocal: audioSegment.startTime.toLocaleString('zh-CN'),
+          endTime: audioSegment.endTime.toISOString(),
+          duration: audioSegment.duration,
+          fileUrl: audioSegment.fileUrl,
+        });
+      }
+
+      // 按开始时间排序
+      loadedAudioSegments.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+      
+      // 过滤出真正属于当前日期的音频（考虑时区问题）
+      // 使用本地时间的年月日来匹配，而不是UTC时间
+      const filteredSegments = loadedAudioSegments.filter(segment => {
+        const segmentDate = new Date(segment.startTime);
+        const selectedDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const segmentDateStr = `${segmentDate.getFullYear()}-${String(segmentDate.getMonth() + 1).padStart(2, '0')}-${String(segmentDate.getDate()).padStart(2, '0')}`;
+        return segmentDateStr === selectedDateStr;
       });
       
-      if (dayAudioSegments.length > 0 && dayAudioSegments[0].fileUrl) {
-        setCurrentAudioUrl(dayAudioSegments[0].fileUrl);
+      console.log(`[VoiceModulePanel] 📊 过滤后的音频段数量: ${filteredSegments.length} / ${loadedAudioSegments.length} (选择日期: ${date.toDateString()})`);
+      
+      // 更新当前日期的音频列表（直接从后端查询）
+      setDayAudioSegments(filteredSegments);
+
+      // 更新当前音频URL（使用该日期第一个音频文件）
+      if (filteredSegments.length > 0 && filteredSegments[0].fileUrl) {
+        setCurrentAudioUrl(filteredSegments[0].fileUrl);
         if (audioPlayerRef.current) {
-          audioPlayerRef.current.src = dayAudioSegments[0].fileUrl;
+          audioPlayerRef.current.src = filteredSegments[0].fileUrl;
           audioPlayerRef.current.load();
         }
       } else {
@@ -1158,14 +1273,53 @@ export function VoiceModulePanel() {
 
   // 处理模式切换
   const handleModeChange = useCallback((mode: ViewMode) => {
+    // 切换到录音模式时，停止播放
     if (mode === 'recording' && isPlaying) {
       handlePause();
+      setIsPlaying(false);
     }
+    // 切换到回看模式时，如果正在录音则停止录音
     if (mode === 'playback' && isRecording) {
       handleStopRecording();
     }
     setViewMode(mode);
   }, [isPlaying, isRecording, handlePause, handleStopRecording]);
+
+  // 监听全屏模式切换，停止播放并加载当天音频列表
+  useEffect(() => {
+    const { useDynamicIslandStore } = require('@/lib/store/dynamic-island-store');
+    const { IslandMode } = require('@/components/DynamicIsland/types');
+    
+    let previousMode = useDynamicIslandStore.getState().mode;
+    
+    // 检查当前模式并停止播放（如果不在全屏模式）
+    const checkAndStop = () => {
+      const currentMode = useDynamicIslandStore.getState().mode;
+      
+      // 如果切换到全屏模式，加载当天音频列表
+      if (currentMode === IslandMode.FULLSCREEN && previousMode !== IslandMode.FULLSCREEN) {
+        console.log('[VoiceModulePanel] 📱 切换到全屏模式，加载当天音频列表');
+        handleDateChange(selectedDate).catch(err => {
+          console.error('[VoiceModulePanel] ❌ 加载当天音频列表失败:', err);
+        });
+      }
+      
+      // 如果不在全屏模式，停止播放
+      if (currentMode !== IslandMode.FULLSCREEN && isPlaying && audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        setIsPlaying(false);
+      }
+      
+      previousMode = currentMode;
+    };
+    
+    // 立即检查一次
+    checkAndStop();
+    
+    // 使用定时器定期检查模式变化（因为 zustand 没有直接的 subscribe 方法）
+    const interval = setInterval(checkAndStop, 500);
+    return () => clearInterval(interval);
+  }, [isPlaying, selectedDate, handleDateChange]);
 
   // 处理片段点击（协同功能）- 参考代码实现
   const handleSegmentClick = useCallback((segment: TranscriptSegment) => {
@@ -1354,21 +1508,17 @@ export function VoiceModulePanel() {
     return null;
   }, [filteredTranscripts, formatTime]);
 
-  // 获取当前日期的音频URL
+  // 获取当前日期的音频URL（使用从后端查询的音频列表）
   useEffect(() => {
-    const daySegments = audioSegments.filter((s) => {
-      const segmentDate = new Date(s.startTime);
-      return segmentDate.toDateString() === selectedDate.toDateString();
-    });
-    if (daySegments.length > 0) {
+    if (dayAudioSegments.length > 0) {
       // 如果还没有选中，或者选中的不在当前日期的列表中，选择第一个
-      const currentSelected = daySegments.find(s => s.id === selectedAudioId);
+      const currentSelected = dayAudioSegments.find(s => s.id === selectedAudioId);
       if (!currentSelected) {
-        setSelectedAudioId(daySegments[0].id);
-        if (daySegments[0].fileUrl) {
-          setCurrentAudioUrl(daySegments[0].fileUrl);
+        setSelectedAudioId(dayAudioSegments[0].id);
+        if (dayAudioSegments[0].fileUrl) {
+          setCurrentAudioUrl(dayAudioSegments[0].fileUrl);
           if (audioPlayerRef.current) {
-            audioPlayerRef.current.src = daySegments[0].fileUrl;
+            audioPlayerRef.current.src = dayAudioSegments[0].fileUrl;
             audioPlayerRef.current.load();
           }
         }
@@ -1383,7 +1533,7 @@ export function VoiceModulePanel() {
       setCurrentAudioUrl(null);
       setSelectedAudioId(undefined);
     }
-  }, [selectedDate, audioSegments, selectedAudioId]);
+  }, [selectedDate, dayAudioSegments, selectedAudioId]);
 
   // 计算总时长：优先使用音频实际时长，否则使用转录文本计算的总时长
   const totalDuration = duration > 0 
@@ -1423,6 +1573,25 @@ export function VoiceModulePanel() {
                   onDateChange={handleDateChange}
                   onExport={handleExport}
                   onEdit={handleEdit}
+                  availableDates={useMemo(() => {
+                    // 从当前日期的音频列表计算（暂时只显示当前日期，后续可以从后端查询所有日期）
+                    const dates = new Set<string>();
+                    dayAudioSegments.forEach(segment => {
+                      const date = new Date(segment.startTime);
+                      dates.add(date.toDateString());
+                    });
+                    return Array.from(dates).map(dateStr => new Date(dateStr));
+                  }, [dayAudioSegments])}
+                  audioCounts={useMemo(() => {
+                    // 计算每个日期的音频数量（从当前日期的音频列表）
+                    const counts = new Map<string, number>();
+                    dayAudioSegments.forEach(segment => {
+                      const date = new Date(segment.startTime);
+                      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+                      counts.set(dateKey, (counts.get(dateKey) || 0) + 1);
+                    });
+                    return counts;
+                  }, [dayAudioSegments])}
                 />
                 
                 {/* 当前时间 */}
@@ -2033,28 +2202,19 @@ export function VoiceModulePanel() {
         <div className="flex-1 flex flex-col overflow-hidden bg-muted/20">
           {/* 右侧内容：音频列表、智能提取和智能纪要上下排列 */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* 音频列表面板 */}
-            {viewMode === 'playback' && (() => {
-              const dayAudioSegments = audioSegments.filter(s => {
-                const segmentDate = new Date(s.startTime);
-                return segmentDate.toDateString() === selectedDate.toDateString();
-              });
-              
-              if (dayAudioSegments.length > 0) {
-                return (
-                  <>
-                    <AudioListPanel
-                      audioSegments={dayAudioSegments}
-                      selectedAudioId={selectedAudioId}
-                      onSelectAudio={handleSelectAudio}
-                    />
-                    {/* 分割线 */}
-                    <div className="border-t border-border/50 my-2" />
-                  </>
-                );
-              }
-              return null;
-            })()}
+            {/* 音频列表面板 - 始终显示当天的音频列表（直接从后端查询） */}
+            {viewMode === 'playback' && (
+              <>
+                <AudioListPanel
+                  audioSegments={dayAudioSegments}
+                  selectedAudioId={selectedAudioId}
+                  onSelectAudio={handleSelectAudio}
+                />
+                {dayAudioSegments.length > 0 && (
+                  <div className="border-t border-border/50 my-2" />
+                )}
+              </>
+            )}
             
             {/* 智能提取面板 */}
             {(pendingTodos.length > 0 || pendingSchedules.length > 0) && (

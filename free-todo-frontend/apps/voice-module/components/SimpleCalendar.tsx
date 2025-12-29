@@ -9,10 +9,12 @@ import { cn } from "@/lib/utils";
 interface SimpleCalendarProps {
   selectedDate: Date;
   onDateSelect: (date: Date) => void;
-  onClose: () => void;
+  onClose?: () => void;
+  audioDates?: Date[];
+  audioCounts?: Map<string, number>;
 }
 
-export function SimpleCalendar({ selectedDate, onDateSelect, onClose }: SimpleCalendarProps) {
+export function SimpleCalendar({ selectedDate, onDateSelect, onClose, audioDates = [], audioCounts }: SimpleCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
 
   const monthDays = useMemo(() => {
@@ -67,6 +69,21 @@ export function SimpleCalendar({ selectedDate, onDateSelect, onClose }: SimpleCa
            date.getFullYear() === selectedDate.getFullYear();
   };
 
+  const hasAudio = (date: Date | null): boolean => {
+    if (!date || !audioDates) return false;
+    return audioDates.some((d: Date) => 
+      d.getDate() === date.getDate() &&
+      d.getMonth() === date.getMonth() &&
+      d.getFullYear() === date.getFullYear()
+    );
+  };
+
+  const getAudioCount = (date: Date | null): number => {
+    if (!date) return 0;
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return audioCounts?.get(dateKey) || 0;
+  };
+
   const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
   const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -111,20 +128,30 @@ export function SimpleCalendar({ selectedDate, onDateSelect, onClose }: SimpleCa
           
           const isTodayDate = isToday(date);
           const isSelectedDate = isSelected(date);
+          const hasAudioDate = hasAudio(date);
+          const audioCount = getAudioCount(date);
           
           return (
             <button
               key={date.toISOString()}
               onClick={() => onDateSelect(date)}
               className={cn(
-                "aspect-square rounded-md text-sm transition-colors",
+                "aspect-square rounded-md text-sm transition-colors relative",
                 "hover:bg-muted",
                 isTodayDate && "bg-primary/10 text-primary font-medium",
                 isSelectedDate && "bg-primary text-primary-foreground font-medium",
                 !isTodayDate && !isSelectedDate && "text-foreground"
               )}
             >
-              {date.getDate()}
+              <span>{date.getDate()}</span>
+              {hasAudioDate && audioCount > 0 && (
+                <span className={cn(
+                  "absolute top-0.5 right-0.5 text-[8px] font-bold leading-none px-0.5 py-0 rounded-full min-w-[12px] text-center",
+                  isSelectedDate ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground"
+                )}>
+                  {audioCount}
+                </span>
+              )}
             </button>
           );
         })}

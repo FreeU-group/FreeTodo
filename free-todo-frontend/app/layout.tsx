@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
-import { ScrollbarController } from "@/components/common/ScrollbarController";
-import { ThemeProvider } from "@/components/common/ThemeProvider";
+import { ThemeProvider } from "@/components/common/theme/ThemeProvider";
+import { ScrollbarController } from "@/components/common/ui/ScrollbarController";
 import { DynamicIslandProvider } from "@/components/DynamicIsland/DynamicIslandProvider";
 import { QueryProvider } from "@/lib/query/provider";
+import { TransparentBody } from "@/components/DynamicIsland/TransparentBody";
+import { ElectronTransparentScript } from "@/components/DynamicIsland/ElectronTransparentScript";
 import "./globals.css";
 
 interface RootLayoutProps {
@@ -21,11 +23,18 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 	const messages = await getMessages();
 
 	return (
-		<html lang={locale} suppressHydrationWarning>
+		<html 
+			lang={locale} 
+			suppressHydrationWarning
+			style={{ backgroundColor: 'transparent', background: 'transparent' }}
+		>
 			<body
 				className="min-h-screen bg-background text-foreground antialiased"
 				suppressHydrationWarning
+				style={{ backgroundColor: 'transparent', background: 'transparent' }}
 			>
+				<ElectronTransparentScript />
+				<TransparentBody />
 				<ScrollbarController />
 				<QueryProvider>
 					<NextIntlClientProvider messages={messages}>

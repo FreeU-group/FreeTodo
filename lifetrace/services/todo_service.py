@@ -29,9 +29,22 @@ class TodoService:
 
     def list_todos(self, limit: int, offset: int, status: str | None) -> dict[str, Any]:
         """获取 Todo 列表"""
-        todos = self.repository.list_todos(limit, offset, status)
-        total = self.repository.count(status)
-        return {"total": total, "todos": [TodoResponse(**t) for t in todos]}
+        try:
+            todos = self.repository.list_todos(limit, offset, status)
+            total = self.repository.count(status)
+            # 安全地转换为 TodoResponse，捕获验证错误
+            todo_responses = []
+            for t in todos:
+                try:
+                    todo_responses.append(TodoResponse(**t))
+                except Exception as e:
+                    logger.error(f"转换 todo 为响应模型失败: {e}, todo数据: {t}")
+                    # 跳过无效的 todo，继续处理其他项
+                    continue
+            return {"total": total, "todos": todo_responses}
+        except Exception as e:
+            logger.error(f"获取 todo 列表失败: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"获取待办列表失败: {str(e)}") from e
 
     def create_todo(self, data: TodoCreate) -> TodoResponse:
         """创建 Todo"""

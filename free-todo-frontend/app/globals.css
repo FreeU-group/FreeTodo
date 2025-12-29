@@ -8,6 +8,9 @@
  * 而不需要在每个地方手写 bg-[oklch(var(--xxx)/0.xx)] 这种“细节色”。
  */
 @theme {
+	/* 全局无衬线字体，使用 next/font 注入的 CSS 变量 */
+	--font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
 	--color-background: oklch(var(--background));
 	--color-foreground: oklch(var(--foreground));
 
@@ -56,7 +59,7 @@
 @layer base {
 	:root,
 	:root[data-color-theme="blue"] {
-		--radius: 0.65rem;
+		--radius: 1rem;
 		/* 说明：
 		 * 这里的 CSS 变量只保存 OKLCH 的参数（可选包含 / alpha），
 		 * 使用时统一写成 oklch(var(--xxx))，避免出现 oklch(oklch(...)) 导致样式失效。
@@ -100,22 +103,22 @@
 
 	.dark,
 	.dark[data-color-theme="blue"] {
-		--background: 0.141 0.005 285.823;
+		--background: 0.2667 0.011 254.03;
 		--foreground: 0.985 0 0;
 		--card: 0.21 0.006 285.885;
 		--card-foreground: 0.985 0 0;
 		--popover: 0.21 0.006 285.885;
 		--popover-foreground: 0.985 0 0;
-		--primary: 0.488 0.243 264.376;
+		--primary: 0.788 0.243 264.376;
 		--primary-foreground: 0.97 0.014 254.604;
-		--primary-weak: 0.488 0.243 264.376 / 0.1;
-		--primary-weak-hover: 0.488 0.243 264.376 / 0.28;
-		--primary-border: 0.488 0.243 264.376;
+		--primary-weak: 0.788 0.243 264.376 / 0.1;
+		--primary-weak-hover: 0.788 0.243 264.376 / 0.28;
+		--primary-border: 0.788 0.243 264.376;
 		--secondary: 0.274 0.006 286.033;
 		--secondary-foreground: 0.985 0 0;
 		--muted: 0.274 0.006 286.033;
 		--muted-foreground: 0.705 0.015 286.067;
-		--accent: 0.2 0.006 286.033;
+		--accent: 0.3408 0.0054 271.26;
 		--accent-foreground: 0.985 0 0;
 		--destructive: 0.704 0.191 22.216;
 		--border: 1 0 0 / 10%;
@@ -124,7 +127,7 @@
 		--chart-1: 0.809 0.105 251.813;
 		--chart-2: 0.623 0.214 259.815;
 		--chart-3: 0.546 0.245 262.881;
-		--chart-4: 0.488 0.243 264.376;
+		--chart-4: 0.688 0.243 264.376;
 		--chart-5: 0.424 0.199 265.638;
 		--sidebar: 0.21 0.006 285.885;
 		--sidebar-foreground: 0.985 0 0;
@@ -224,6 +227,32 @@
 	body {
 		background-color: oklch(var(--background));
 		color: oklch(var(--foreground));
+	}
+
+	/* Electron 环境：完全透明背景，只显示灵动岛 */
+	/* 类似 island 项目的实现，直接在 CSS 中设置透明 */
+	/* 使用 !important 确保覆盖所有样式 */
+	/* 注意：这个规则会在 preload 脚本设置 data-electron 属性后生效 */
+	html[data-electron="true"],
+	html[data-electron="true"] body,
+	html[data-electron="true"] #__next,
+	html[data-electron="true"] #__next > div,
+	html[data-electron="true"] #__next > div > div {
+		background-color: transparent !important;
+		background: transparent !important;
+	}
+
+	/* 默认情况下，如果检测到 Electron user agent，也设置透明 */
+	/* 这样可以避免 SSR 导致的窗口显示问题 */
+	/* 注意：这个规则在 SSR 时不会生效，但可以在客户端立即应用 */
+	@media (prefers-color-scheme: no-preference) {
+		/* 这个媒体查询不会匹配，但可以用来标记 Electron 环境 */
+	}
+
+	/* 默认情况下，如果检测到 Electron user agent，也设置透明 */
+	/* 这样可以避免 SSR 导致的窗口显示问题 */
+	@media (prefers-color-scheme: no-preference) {
+		/* 这个媒体查询不会匹配，但可以用来标记 Electron 环境 */
 	}
 
 	/* Webkit 浏览器 (Chrome, Safari, Edge) 滚动条样式 */

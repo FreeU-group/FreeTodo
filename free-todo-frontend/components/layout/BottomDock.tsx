@@ -209,6 +209,16 @@ export function BottomDock({ className }: BottomDockProps) {
 	const dockRef = useRef<HTMLDivElement | null>(null);
 	const [dockHeight, setDockHeight] = useState(52); // 默认高度估算值
 
+	const [menuState, setMenuState] = useState<{
+		isOpen: boolean;
+		position: PanelPosition | null;
+		anchorElement: HTMLElement | null;
+	}>({
+		isOpen: false,
+		position: null,
+		anchorElement: null,
+	});
+
 	useEffect(() => {
 		setMounted(true);
 	}, []);
@@ -228,6 +238,17 @@ export function BottomDock({ className }: BottomDockProps) {
 		if (!mounted) return;
 
 		const handleMouseMove = (e: MouseEvent) => {
+			// 如果右键菜单打开，保持 dock 展开，不执行隐藏逻辑
+			if (menuState.isOpen) {
+				// 清除可能存在的隐藏定时器
+				if (hideTimeoutRef.current) {
+					clearTimeout(hideTimeoutRef.current);
+					hideTimeoutRef.current = null;
+				}
+				setIsExpanded(true);
+				return;
+			}
+
 			const windowHeight = window.innerHeight;
 			const mouseY = e.clientY;
 			const distanceFromBottom = windowHeight - mouseY;
@@ -259,21 +280,11 @@ export function BottomDock({ className }: BottomDockProps) {
 				clearTimeout(hideTimeoutRef.current);
 			}
 		};
-	}, [mounted]);
+	}, [mounted, menuState.isOpen]);
 
 	// 计算收起时的 translateY 值
 	// 收起时，dock 完全隐藏到屏幕底部外
 	const hiddenTranslateY = dockHeight + DOCK_BOTTOM_OFFSET;
-
-	const [menuState, setMenuState] = useState<{
-		isOpen: boolean;
-		position: PanelPosition | null;
-		anchorElement: HTMLElement | null;
-	}>({
-		isOpen: false,
-		position: null,
-		anchorElement: null,
-	});
 
 	const itemRefs = useRef<Record<PanelPosition, HTMLButtonElement | null>>({
 		panelA: null,
@@ -372,12 +383,12 @@ export function BottomDock({ className }: BottomDockProps) {
 				ref={dockRef}
 				className={cn(
 					"flex items-center gap-2",
-					"bg-[oklch(var(--card))]/80",
+					"bg-[oklch(var(--card))]/80 dark:bg-background",
 					"backdrop-blur-md",
 					"border border-[oklch(var(--border))]",
 					"shadow-lg",
 					"px-2 py-1.5",
-					"rounded-(--radius)",
+					"rounded-xl",
 				)}
 			>
 				{groupEntries.map(([groupName, groupItems], groupIndex) => (

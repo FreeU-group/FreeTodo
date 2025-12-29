@@ -65,21 +65,19 @@ export function PanelSelectorMenu({
 		};
 	}, [isOpen, onClose, anchorElement]);
 
-	// 计算菜单位置
+	// 计算菜单位置：使用 bottom 锚定，让菜单「底部」紧贴按钮「顶部」
 	const getMenuPosition = () => {
 		if (!anchorElement) {
-			return { top: 0, left: 0 };
+			return { top: 0, left: 0 } as const;
 		}
 
 		const rect = anchorElement.getBoundingClientRect();
-		const itemHeight = 40; // 每个菜单项的高度（包括padding）
-		const menuHeight = availableFeatures.length * itemHeight;
-		const spacing = 8; // 菜单与按钮之间的间距
+		const windowHeight = window.innerHeight;
 
 		return {
-			top: rect.top - menuHeight - spacing, // 向上展开
+			bottom: windowHeight - rect.top, // 菜单底部贴在按钮顶部
 			left: rect.left,
-		};
+		} as const;
 	};
 
 	if (availableFeatures.length === 0) {
@@ -118,7 +116,15 @@ export function PanelSelectorMenu({
 							"min-w-[110px]",
 						)}
 						style={{
-							top: `${menuPosition.top}px`,
+							// 仅设置其中一个：我们现在通过 bottom 来对齐
+							...(Object.hasOwn(menuPosition, "top")
+								? { top: `${(menuPosition as { top: number }).top}px` }
+								: {}),
+							...(Object.hasOwn(menuPosition, "bottom")
+								? {
+										bottom: `${(menuPosition as { bottom: number }).bottom}px`,
+									}
+								: {}),
 							left: `${menuPosition.left}px`,
 						}}
 					>

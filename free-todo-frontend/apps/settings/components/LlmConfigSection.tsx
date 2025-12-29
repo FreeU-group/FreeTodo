@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	useSaveAndInitLlmApiSaveAndInitLlmPost,
 	useTestLlmConfigApiTestLlmConfigPost,
@@ -58,6 +58,40 @@ export function LlmConfigSection({
 		saveConfigMutation.isPending ||
 		testLlmMutation.isPending ||
 		saveAndInitLlmMutation.isPending;
+
+	// 当配置加载完成后，同步本地状态
+	useEffect(() => {
+		if (config) {
+			// 只在配置值存在时更新，避免覆盖用户正在编辑的值
+			if (config.llmApiKey !== undefined) {
+				setLlmApiKey((config.llmApiKey as string) || "");
+			}
+			if (config.llmBaseUrl !== undefined) {
+				setLlmBaseUrl((config.llmBaseUrl as string) || "");
+			}
+			if (config.llmModel !== undefined) {
+				setLlmModel((config.llmModel as string) || "qwen-plus");
+			}
+			if (config.llmTemperature !== undefined) {
+				setLlmTemperature((config.llmTemperature as number) ?? 0.7);
+			}
+			if (config.llmMaxTokens !== undefined) {
+				setLlmMaxTokens((config.llmMaxTokens as number) ?? 2048);
+			}
+			// 更新初始配置（用于检测变更）
+			if (
+				config.llmApiKey !== undefined ||
+				config.llmBaseUrl !== undefined ||
+				config.llmModel !== undefined
+			) {
+				setInitialLlmConfig({
+					llmApiKey: (config.llmApiKey as string) || "",
+					llmBaseUrl: (config.llmBaseUrl as string) || "",
+					llmModel: (config.llmModel as string) || "qwen-plus",
+				});
+			}
+		}
+	}, [config]);
 
 	// 测试 LLM 连接
 	const handleTestLlm = async () => {

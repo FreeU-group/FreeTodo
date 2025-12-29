@@ -10,7 +10,6 @@ import time
 
 import yaml
 
-from lifetrace.llm.vector_service import create_vector_service
 from lifetrace.storage import get_session, ocr_mgr, screenshot_mgr
 from lifetrace.storage.models import OCRResult, Screenshot
 from lifetrace.util.logging_config import get_logger
@@ -565,12 +564,19 @@ def _ensure_ocr_initialized():  # noqa: C901
                 raise
 
     if _vector_service is None:
-        logger.info("正在初始化向量数据库服务...")
-        _vector_service = create_vector_service()
-        if _vector_service.is_enabled():
-            logger.info("向量数据库服务已启用")
-        else:
-            logger.info("向量数据库服务未启用或不可用")
+        try:
+            # 统一通过 lazy_services 获取向量服务，确保真正延迟加载
+            from lifetrace.core.lazy_services import get_vector_service as lazy_get_vector_service
+
+            logger.info("正在通过 lazy_services 初始化向量数据库服务...")
+            _vector_service = lazy_get_vector_service()
+            if _vector_service and _vector_service.is_enabled():
+                logger.info("向量数据库服务已启用")
+            else:
+                logger.info("向量数据库服务未启用或不可用")
+        except Exception as e:
+            logger.error(f"初始化向量数据库服务失败: {e}")
+            _vector_service = None
 
     return _ocr_engine, _vector_service
 
@@ -615,63 +621,18 @@ def ocr_service():
     """主函数 - 基于数据库驱动的OCR处理（传统模式，独立运行）"""
     logger.info("LifeTrace 简化OCR处理器启动...")
 
-    # 检查配置
-    if not get_database_path().exists():
-        raise Exception("数据库未初始化，无法启动OCR服务")
+    _ensure_database_initialized()
 
-    # 检查间隔配置
     check_interval = settings.get("jobs.ocr.interval")
+    ocr, vector_service = _initialize_ocr_and_vector_service()
 
-    # 初始化RapidOCR
-    logger.info("正在初始化RapidOCR引擎...")
-    try:
-        ocr = _create_rapidocr_instance()
-        logger.info("RapidOCR引擎初始化成功")
-    except Exception as e:
-        logger.error(f"RapidOCR初始化失败: {e}")
-        raise Exception(e) from e
-
-    # 初始化向量数据库服务
-    logger.info("正在初始化向量数据库服务...")
-    vector_service = create_vector_service()
-    if vector_service.is_enabled():
-        logger.info("向量数据库服务已启用")
-    else:
-        logger.info("向量数据库服务未启用或不可用")
-
-    # 获取检查间隔配置
     logger.info(f"数据库检查间隔: {check_interval}秒")
-
     logger.info("开始基于数据库的OCR处理...")
     logger.info("按 Ctrl+C 停止服务")
     logger.info(f"OCR服务启动完成，检查间隔: {check_interval}秒")
 
-    processed_count = 0
-
     try:
-        while True:
-            start_time = time.time()  # noqa: F841
-
-            # 从数据库获取未处理的截图
-            unprocessed_screenshots = get_unprocessed_screenshots(logger)
-
-            if unprocessed_screenshots:
-                logger.info(f"发现 {len(unprocessed_screenshots)} 个未处理的截图")
-
-                # 数据库查询已经按创建时间降序排列，无需再次排序
-                # 直接处理，优先处理最新的截图
-
-                # 处理每个未处理的截图
-                for screenshot_info in unprocessed_screenshots:
-                    success = process_screenshot_ocr(screenshot_info, ocr, vector_service)
-                    if success:
-                        processed_count += 1
-                        # 处理成功后稍作停顿，避免过度占用资源
-                        time.sleep(DEFAULT_PROCESSING_DELAY)
-            else:
-                # 没有未处理的截图，等待一段时间再检查
-                time.sleep(check_interval)
-
+        _run_ocr_loop(check_interval, ocr, vector_service)
     except KeyboardInterrupt:
         logger.error("收到停止信号，结束OCR处理")
     except Exception as e:
@@ -679,6 +640,60 @@ def ocr_service():
         raise Exception(e) from e
     finally:
         logger.error("OCR服务已停止")
+
+
+def _ensure_database_initialized() -> None:
+    """确保数据库已初始化，否则抛出异常。"""
+    if not get_database_path().exists():
+        raise Exception("数据库未初始化，无法启动OCR服务")
+
+
+def _initialize_ocr_and_vector_service():
+    """初始化 RapidOCR 引擎和向量数据库服务。"""
+
+    try:
+        logger.info("正在初始化RapidOCR引擎...")
+        ocr = _create_rapidocr_instance()
+        logger.info("RapidOCR引擎初始化成功")
+    except Exception as e:
+        logger.error(f"RapidOCR初始化失败: {e}")
+        raise Exception(e) from e
+
+    try:
+        from lifetrace.core.lazy_services import get_vector_service as lazy_get_vector_service
+
+        logger.info("正在通过 lazy_services 初始化向量数据库服务...")
+        vector_service = lazy_get_vector_service()
+        if vector_service and vector_service.is_enabled():
+            logger.info("向量数据库服务已启用")
+        else:
+            logger.info("向量数据库服务未启用或不可用")
+    except Exception as e:
+        logger.error(f"初始化向量数据库服务失败: {e}")
+        vector_service = None
+
+    return ocr, vector_service
+
+
+def _run_ocr_loop(check_interval: float, ocr, vector_service) -> None:
+    """主循环：持续从数据库读取未处理截图并执行 OCR。"""
+    processed_count = 0
+
+    while True:
+        start_time = time.time()  # noqa: F841
+
+        unprocessed_screenshots = get_unprocessed_screenshots(logger)
+
+        if unprocessed_screenshots:
+            logger.info(f"发现 {len(unprocessed_screenshots)} 个未处理的截图")
+
+            for screenshot_info in unprocessed_screenshots:
+                success = process_screenshot_ocr(screenshot_info, ocr, vector_service)
+                if success:
+                    processed_count += 1
+                    time.sleep(DEFAULT_PROCESSING_DELAY)
+        else:
+            time.sleep(check_interval)
 
 
 if __name__ == "__main__":

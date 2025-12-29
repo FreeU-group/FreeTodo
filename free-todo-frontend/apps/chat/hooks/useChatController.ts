@@ -111,6 +111,8 @@ export const useChatController = ({
 	const prevConversationIdRef = useRef<string | null>(null);
 	// 跟踪是否是主动加载历史记录（点击历史记录）vs 发送消息后的被动更新
 	const isLoadingSessionRef = useRef<boolean>(false);
+	// 用于取消流式请求的 AbortController
+	const abortControllerRef = useRef<AbortController | null>(null);
 
 	const historyError = sessionsError ? t("loadHistoryFailed") : null;
 
@@ -125,6 +127,11 @@ export const useChatController = ({
 	const hasSelection = selectedTodoIds.length > 0;
 
 	const handleNewChat = useCallback(() => {
+		// 如果正在流式输出，先停止
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
+			abortControllerRef.current = null;
+		}
 		setIsStreaming(false);
 		setConversationId(null);
 		setMessages([buildInitialAssistantMessage()]);
@@ -132,6 +139,14 @@ export const useChatController = ({
 		setError(null);
 		setHistoryOpen(false);
 	}, [buildInitialAssistantMessage, setConversationId, setHistoryOpen]);
+
+	const handleStop = useCallback(() => {
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
+			abortControllerRef.current = null;
+			setIsStreaming(false);
+		}
+	}, []);
 
 	const handleSuggestionClick = useCallback((suggestion: string) => {
 		setInputValue(suggestion);
@@ -255,6 +270,9 @@ export const useChatController = ({
 			} else if (chatMode === "edit") {
 				// Edit mode: combine todo context with edit system prompt
 				payloadMessage = `${editSystemPrompt}\n\n${todoContext}\n\n${userLabel}: ${text}`;
+			}  else if (chatMode === "difyTest") {
+				// Dify 测试模式：直接把用户输入作为消息，避免额外的前置 system prompt 干扰
+				payloadMessage = text;
 			} else {
 				// Ask mode: just todo context
 				payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
@@ -274,9 +292,15 @@ export const useChatController = ({
 		]);
 		setIsStreaming(true);
 
+		// 创建新的 AbortController
+		const abortController = new AbortController();
+		abortControllerRef.current = abortController;
+
 		let assistantContent = "";
 
 		try {
+			const modeForBackend = chatMode === "difyTest" ? "dify_test" : chatMode;
+
 			await sendChatMessageStream(
 				{
 					message: payloadMessage,
@@ -284,8 +308,13 @@ export const useChatController = ({
 					// 当发送格式化消息（包含todo上下文）时，设置useRag=false
 					// 因为前端已经构建了完整的prompt，后端只需要解析并保存用户输入部分
 					useRag: false,
+					mode: modeForBackend,
 				},
 				(chunk) => {
+					// 检查是否已取消
+					if (abortController.signal.aborted) {
+						return;
+					}
 					assistantContent += chunk;
 					// 使用 flushSync 强制同步更新，确保流式输出效果
 					flushSync(() => {
@@ -301,6 +330,7 @@ export const useChatController = ({
 				(sessionId) => {
 					setConversationId(conversationId || sessionId);
 				},
+				abortController.signal,
 			);
 
 			if (!assistantContent) {
@@ -361,15 +391,32 @@ export const useChatController = ({
 				}
 			}
 		} catch (err) {
-			console.error(err);
-			const fallback = t("errorOccurred");
-			setMessages((prev) =>
-				prev.map((msg) =>
-					msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
-				),
-			);
-			setError(fallback);
+			// 如果是用户主动取消，不显示错误
+			if (
+				abortController.signal.aborted ||
+				(err instanceof Error && err.name === "AbortError")
+			) {
+				// 如果已收到部分内容，保留它
+				if (assistantContent) {
+					// 内容已更新，不需要额外操作
+				} else {
+					// 如果没有内容，移除空的助手消息
+					setMessages((prev) =>
+						prev.filter((msg) => msg.id !== assistantMessageId),
+					);
+				}
+			} else {
+				console.error(err);
+				const fallback = t("errorOccurred");
+				setMessages((prev) =>
+					prev.map((msg) =>
+						msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
+					),
+				);
+				setError(fallback);
+			}
 		} finally {
+			abortControllerRef.current = null;
 			setIsStreaming(false);
 		}
 	}, [
@@ -409,11 +456,15 @@ export const useChatController = ({
 		chatMode,
 		setChatMode,
 		messages,
+		setMessages,
 		inputValue,
 		setInputValue,
 		conversationId,
+		setConversationId,
 		isStreaming,
+		setIsStreaming,
 		error,
+		setError,
 		historyOpen,
 		setHistoryOpen,
 		historyLoading,
@@ -422,11 +473,17 @@ export const useChatController = ({
 		isComposing,
 		setIsComposing,
 		handleSend,
+		handleStop,
 		handleNewChat,
 		handleLoadSession,
 		handleSuggestionClick,
 		handleKeyDown,
 		effectiveTodos,
 		hasSelection,
+		editSystemPrompt,
+		planSystemPrompt,
+		parsePlanTodos,
+		buildTodoPayloads,
+		todos,
 	};
 };

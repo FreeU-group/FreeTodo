@@ -5,7 +5,7 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { useMemo } from "react";
-import { TodoContextMenu } from "@/components/common/TodoContextMenu";
+import { TodoContextMenu } from "@/components/common/context-menu/TodoContextMenu";
 import { type DragData, usePendingUpdate } from "@/lib/dnd";
 import type { Todo } from "@/lib/types";
 import { cn } from "@/lib/utils";

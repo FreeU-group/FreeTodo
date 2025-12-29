@@ -16,11 +16,7 @@ export function DynamicIslandProvider() {
       mode={mode}
       onModeChange={setMode}
       onClose={() => {
-        if (mode === IslandMode.FULLSCREEN) {
-          setMode(IslandMode.SIDEBAR);
-        } else {
-          setMode(IslandMode.FLOAT);
-        }
+        setMode(IslandMode.FLOAT);
       }}
     />
   );

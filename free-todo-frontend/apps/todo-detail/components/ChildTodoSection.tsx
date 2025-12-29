@@ -3,8 +3,8 @@
 import { Calendar, Plus, Tag as TagIcon, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { SectionHeader } from "@/components/common/SectionHeader";
-import { TodoContextMenu } from "@/components/common/TodoContextMenu";
+import { TodoContextMenu } from "@/components/common/context-menu/TodoContextMenu";
+import { SectionHeader } from "@/components/common/layout/SectionHeader";
 import type { Todo, TodoStatus, UpdateTodoInput } from "@/lib/types";
 import { cn, sortTodosByOrder } from "@/lib/utils";
 import {

@@ -14,7 +14,7 @@ import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import {
 	PanelHeader,
 	PanelPositionProvider,
-} from "@/components/common/PanelHeader";
+} from "@/components/common/layout/PanelHeader";
 import type { PanelPosition } from "@/lib/config/panel-config";
 import {
 	FEATURE_ICON_MAP,

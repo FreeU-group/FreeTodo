@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSaveConfig } from "@/lib/query";
 import { toastError } from "@/lib/toast";
 import { SettingsSection } from "./SettingsSection";
@@ -45,6 +45,36 @@ export function RecorderConfigSection({
 	const [blacklistInput, setBlacklistInput] = useState("");
 
 	const isLoading = loading || saveConfigMutation.isPending;
+
+	// 当配置加载完成后，同步本地状态
+	useEffect(() => {
+		if (config) {
+			// 只在配置值存在时更新，避免覆盖用户正在编辑的值
+			if (config.jobsRecorderParamsBlacklistEnabled !== undefined) {
+				setBlacklistEnabled(
+					(config.jobsRecorderParamsBlacklistEnabled as boolean) ?? false,
+				);
+			}
+			if (config.jobsRecorderParamsBlacklistApps !== undefined) {
+				const apps = config.jobsRecorderParamsBlacklistApps;
+				if (Array.isArray(apps)) {
+					setBlacklistApps(apps as string[]);
+				} else {
+					const appsStr = String(apps || "");
+					if (appsStr) {
+						setBlacklistApps(
+							appsStr
+								.split(",")
+								.map((s: string) => s.trim())
+								.filter((s: string) => s),
+						);
+					} else {
+						setBlacklistApps([]);
+					}
+				}
+			}
+		}
+	}, [config]);
 
 	// 黑名单处理
 	const handleAddBlacklistApp = async (app: string) => {

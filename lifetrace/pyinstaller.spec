@@ -109,6 +109,12 @@ hiddenimports = [
     "imagehash",
     "cv2",  # rapidocr 依赖
     "numpy",
+    "numpy._core",
+    "numpy._core._multiarray_umath",
+    "numpy._core.multiarray",
+    "numpy._core.umath",
+    "numpy._globals",
+    "numpy._core._globals",
     # OCR processing (rapidocr-onnxruntime)
     "rapidocr_onnxruntime",
     "rapidocr_onnxruntime.main",
@@ -239,6 +245,14 @@ datas.extend(alembic_datas)
 # Collect imagehash submodules (图像哈希)
 imagehash_submodules = collect_submodules("imagehash")
 hiddenimports.extend(imagehash_submodules)
+
+# Collect numpy submodules (NumPy 2.x 需要显式收集子模块)
+# NumPy 2.4+ 与 PyInstaller 的兼容性问题，需要确保所有核心模块都被包含
+numpy_submodules = collect_submodules("numpy")
+hiddenimports.extend(numpy_submodules)
+# 特别添加 numpy._core 和 numpy._globals 相关模块
+numpy_core_submodules = collect_submodules("numpy._core")
+hiddenimports.extend(numpy_core_submodules)
 
 a = Analysis(
     ["scripts/start_backend.py"],

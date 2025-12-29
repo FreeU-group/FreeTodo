@@ -16,7 +16,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TodoExtractionModal } from "@/apps/todo-list/TodoExtractionModal";
-import { PanelHeader } from "@/components/common/PanelHeader";
+import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import type { ExtractedTodo, TodoExtractionResponse } from "@/lib/api";
 import { getScreenshotImage } from "@/lib/api";
 import { useCreateActivityManualApiActivitiesManualPost } from "@/lib/generated/activity/activity";

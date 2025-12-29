@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types";
 import { cn, getPriorityLabel, getStatusLabel } from "@/lib/utils";
 import {
-	formatDateTime,
+	formatDeadline,
 	getPriorityClassNames,
 	getStatusClassNames,
 	priorityOptions,
@@ -111,7 +111,7 @@ export function MetaSection({
 						{getStatusLabel(todo.status, tCommon)}
 					</button>
 					{isStatusMenuOpen && (
-						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
+						<div className="pointer-events-auto absolute left-0 top-full z-120 mt-2 min-w-[170px] rounded-md border border-border bg-background shadow-lg">
 							<div className="py-1" role="listbox">
 								{statusOptions.map((status) => (
 									<button
@@ -124,10 +124,10 @@ export function MetaSection({
 											setIsStatusMenuOpen(false);
 										}}
 										className={cn(
-											"flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors",
+											"flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors",
 											status === todo.status
 												? "bg-muted/60 text-foreground"
-												: "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+												: "text-foreground hover:bg-muted/70",
 										)}
 										role="option"
 										aria-selected={status === todo.status}
@@ -162,7 +162,7 @@ export function MetaSection({
 						{getPriorityLabel(todo.priority ?? "none", tCommon)}
 					</button>
 					{isPriorityMenuOpen && (
-						<div className="pointer-events-auto absolute z-120 mt-2 min-w-[170px] rounded-md border border-border bg-popover text-foreground shadow-lg">
+						<div className="pointer-events-auto absolute left-0 top-full z-120 mt-2 min-w-[170px] rounded-md border border-border bg-background shadow-lg">
 							<div className="py-1" role="listbox">
 								{priorityOptions.map((priority) => (
 									<button
@@ -175,10 +175,10 @@ export function MetaSection({
 											setIsPriorityMenuOpen(false);
 										}}
 										className={cn(
-											"flex w-full items-center justify-between px-3 py-2 text-left text-xs transition-colors",
+											"flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors",
 											priority === (todo.priority ?? "none")
 												? "bg-muted/60 text-foreground"
-												: "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+												: "text-foreground hover:bg-muted/70",
 										)}
 										role="option"
 										aria-selected={priority === (todo.priority ?? "none")}
@@ -212,7 +212,7 @@ export function MetaSection({
 						<Calendar className="h-3 w-3" />
 						<span className="truncate">
 							{todo.deadline
-								? formatDateTime(todo.deadline)
+								? formatDeadline(todo.deadline)
 								: tTodoDetail("addDeadline")}
 						</span>
 					</button>

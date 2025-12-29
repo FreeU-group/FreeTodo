@@ -15,6 +15,7 @@ export interface SendChatParams {
 	message: string;
 	conversationId?: string;
 	useRag?: boolean;
+	mode?: string;
 }
 
 /**
@@ -24,20 +25,36 @@ export async function sendChatMessageStream(
 	params: SendChatParams,
 	onChunk: (chunk: string) => void,
 	onSessionId?: (sessionId: string) => void,
+	signal?: AbortSignal,
 ): Promise<void> {
 	// 流式请求直接调用后端 API，绕过 Next.js 代理
 	const baseUrl = getStreamApiBaseUrl();
-	const response = await fetch(`${baseUrl}/api/chat/stream`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-		},
-		body: JSON.stringify({
-			message: params.message,
-			conversation_id: params.conversationId,
-			use_rag: params.useRag,
-		}),
-	});
+
+	let response: Response;
+	try {
+		response = await fetch(`${baseUrl}/api/chat/stream`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				message: params.message,
+				conversation_id: params.conversationId,
+				use_rag: params.useRag,
+				mode: params.mode,
+			}),
+			signal,
+		});
+	} catch (error) {
+		// 如果是取消操作，静默返回
+		if (
+			signal?.aborted ||
+			(error instanceof Error && error.name === "AbortError")
+		) {
+			return;
+		}
+		throw error;
+	}
 
 	if (!response.ok) {
 		throw new Error(`Request failed with status ${response.status}`);
@@ -56,16 +73,34 @@ export async function sendChatMessageStream(
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
 
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) break;
+	try {
+		while (true) {
+			// 检查是否已取消
+			if (signal?.aborted) {
+				await reader.cancel();
+				break;
+			}
 
-		if (value) {
-			const chunk = decoder.decode(value, { stream: true });
-			if (chunk) {
-				onChunk(chunk);
+			const { done, value } = await reader.read();
+			if (done) break;
+
+			if (value) {
+				const chunk = decoder.decode(value, { stream: true });
+				if (chunk) {
+					onChunk(chunk);
+				}
 			}
 		}
+	} catch (error) {
+		// 如果是取消操作，不抛出错误
+		if (
+			signal?.aborted ||
+			(error instanceof Error && error.name === "AbortError")
+		) {
+			await reader.cancel();
+			return;
+		}
+		throw error;
 	}
 }
 

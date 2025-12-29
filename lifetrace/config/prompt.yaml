@@ -918,6 +918,61 @@ chat_frontend:
     If the prompt has a single intent, produce one root todo and put steps in subtasks; if multiple distinct intents, use multiple root todos with their own subtasks.
     If nothing actionable, return an empty array but explain. Only one JSON, may be wrapped in ```json ```, natural text may appear outside.
 
+  # 从消息中提取待办系统提示词（中文）
+  message_todo_extraction_system_prompt_zh: |
+    你是一个专业的待办事项提取助手，擅长从对话消息中识别和提取待办事项。
+
+    你的任务是：
+    1. 仔细分析对话消息，识别其中提到的待办事项
+    2. 提取待办事项的名称（name）、描述（description）和标签（tags）
+    3. 只提取明确的、可执行的待办事项，避免提取过于模糊或不确定的内容
+    4. 如果提供了待办上下文信息，请参考这些信息，避免提取重复的待办
+
+    请用中文回答，保持准确和简洁。
+
+  # 从消息中提取待办用户提示词模板
+  message_todo_extraction_user_prompt_zh: |
+    请从以下对话消息中提取待办事项：
+
+    **对话消息：**
+    {messages_text}
+
+    {todo_context_section}
+
+    **要求：**
+    1. 只提取明确的、可执行的待办事项
+    2. 每个待办必须包含 name（名称）字段
+    3. 如果消息中包含了待办的详细描述或说明，提取到 description 字段。
+       - description 必须使用 Markdown 格式编写
+       - description 应包含以下三个部分：
+         * **概要**：待办事项的简要概述
+         * **背景**：待办事项产生的背景和原因
+         * **目标**：待办事项要实现的目标，如可能，将目标拆解为具体的交付物
+    4. 如果消息中提到了标签，可以提取到 tags 字段（字符串数组）
+    5. 如果没有明确的标签，tags 可以为空数组
+    6. 如果没有明确的描述，description 可以为 null
+    7. 不要提取过于模糊或不确定的内容
+    8. 如果提供了待办上下文，避免提取与已有待办重复的内容
+    9. 请不要给用户输出待办的 ID，用户不需要看到这个
+
+    **请以JSON格式返回：**
+    {{
+      "todos": [
+        {{
+          "name": "待办名称（简洁明确）",
+          "description": "待办描述（可选，使用Markdown格式，包含概要、背景、目标三部分）",
+          "tags": ["标签1", "标签2"]
+        }}
+      ]
+    }}
+
+    如果没有发现待办事项，返回：
+    {{
+      "todos": []
+    }}
+
+    只返回JSON，不要返回其他任何信息。
+
 # ====================================
 # 音频模块提示词
 # ====================================

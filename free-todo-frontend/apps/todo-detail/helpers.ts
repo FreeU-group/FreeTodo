@@ -87,6 +87,29 @@ export const formatDateTime = (value?: string) => {
 	return date.toLocaleString();
 };
 
+/**
+ * 格式化 deadline，如果时间为 0:00:00 则只显示日期，否则显示完整的日期时间
+ */
+export const formatDeadline = (value?: string) => {
+	if (!value) return "";
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return "";
+
+	// 检查本地时间是否为 0:00:00（用户只设置日期时，DatePickerPopover 会设置本地时间为 0:00:00）
+	const hours = date.getHours();
+	const minutes = date.getMinutes();
+	const seconds = date.getSeconds();
+	const milliseconds = date.getMilliseconds();
+
+	// 如果本地时间为 0:00:00.000，只显示日期
+	if (hours === 0 && minutes === 0 && seconds === 0 && milliseconds === 0) {
+		return date.toLocaleDateString();
+	}
+
+	// 否则显示完整的日期时间
+	return date.toLocaleString();
+};
+
 export const getChildProgress = (todos: Todo[], parentId: number) => {
 	const children = todos.filter((item) => item.parentTodoId === parentId);
 	const completed = children.filter(
