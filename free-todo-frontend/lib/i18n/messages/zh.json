@@ -215,7 +215,6 @@
 		"generateQuestionsFailed": "拆解待办失败，请重试",
 		"generateSummaryFailed": "生成总结失败，请重试",
 		"loading": "加载中",
-		"initialMessage": "你好，我是你的待办助手，可以帮你拆解任务、制定计划，也能聊聊生活。",
 		"suggestions": {
 			"breakdown": "拆解任务",
 			"breakdownPrompt": "帮我拆解一下这个任务",

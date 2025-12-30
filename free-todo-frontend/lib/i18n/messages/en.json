@@ -215,7 +215,6 @@
 		"generateQuestionsFailed": "Failed to generate questions, please try again",
 		"generateSummaryFailed": "Failed to generate summary, please try again",
 		"loading": "Loading",
-		"initialMessage": "Hi! I'm your task assistant. I can break down work, plan the day, or just chat.",
 		"suggestions": {
 			"breakdown": "Break Down Task",
 			"breakdownPrompt": "Help me break down this task",
