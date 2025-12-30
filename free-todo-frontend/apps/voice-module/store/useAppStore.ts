@@ -119,9 +119,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addTranscript: (segment: TranscriptSegment) => {
-    set(state => ({
-      transcripts: [...state.transcripts, segment],
-    }));
+    set(state => {
+      // 检查是否已存在相同 id 的 segment，避免重复添加
+      const existingIndex = state.transcripts.findIndex(t => t.id === segment.id);
+      if (existingIndex >= 0) {
+        // 如果已存在，更新而不是添加
+        return {
+          transcripts: state.transcripts.map((t, index) => 
+            index === existingIndex ? { ...t, ...segment } : t
+          ),
+        };
+      }
+      return {
+        transcripts: [...state.transcripts, segment],
+      };
+    });
   },
 
   updateTranscript: (id: string, updates: Partial<TranscriptSegment>) => {

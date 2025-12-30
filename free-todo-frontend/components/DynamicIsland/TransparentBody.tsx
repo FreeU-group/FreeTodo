@@ -58,7 +58,7 @@ export function TransparentBody() {
       
       // 确保有背景色类
       if (!body.classList.contains('bg-background')) {
-        body.classList.add('bg-background');
+      body.classList.add('bg-background');
       }
       
       // 延迟检查，确保 CSS 变量已加载

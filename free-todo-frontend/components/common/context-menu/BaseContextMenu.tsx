@@ -3,6 +3,7 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface MenuItem {
@@ -43,11 +44,10 @@ export function BaseContextMenu({
 	position,
 	onClose,
 	header,
-	minWidth = 170,
 }: BaseContextMenuProps) {
 	const menuRef = useRef<HTMLDivElement | null>(null);
 
-	// 点击外部、滚动或按下 ESC 时关闭
+	// 点击外部、滚动、按下 ESC 或鼠标移出菜单区域时关闭
 	useEffect(() => {
 		if (!open) return;
 
@@ -65,14 +65,32 @@ export function BaseContextMenu({
 			}
 		};
 
+		const handleMouseLeave = (event: MouseEvent) => {
+			if (!menuRef.current) return;
+			const rect = menuRef.current.getBoundingClientRect();
+			const { clientX, clientY } = event;
+			
+			// 如果鼠标移出菜单区域，关闭菜单
+			if (
+				clientX < rect.left ||
+				clientX > rect.right ||
+				clientY < rect.top ||
+				clientY > rect.bottom
+			) {
+				onClose();
+			}
+		};
+
 		document.addEventListener("mousedown", handleClickOutside);
 		document.addEventListener("keydown", handleEscape);
 		document.addEventListener("scroll", onClose, true);
+		document.addEventListener("mousemove", handleMouseLeave);
 
 		return () => {
 			document.removeEventListener("mousedown", handleClickOutside);
 			document.removeEventListener("keydown", handleEscape);
 			document.removeEventListener("scroll", onClose, true);
+			document.removeEventListener("mousemove", handleMouseLeave);
 		};
 	}, [open, onClose]);
 
@@ -82,43 +100,56 @@ export function BaseContextMenu({
 
 	return createPortal(
 		<div className="fixed inset-0 z-120 pointer-events-none">
-			<div
+			<motion.div
 				ref={menuRef}
-				className="pointer-events-auto rounded-md border border-border bg-background shadow-lg"
+				initial={{ opacity: 0, scale: 0.8, y: -10 }}
+				animate={{ opacity: 1, scale: 1, y: 0 }}
+				exit={{ opacity: 0, scale: 0.8, y: -10 }}
+				transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+				className="pointer-events-auto rounded-2xl border border-cyan-400/20 bg-[#0a0a0a]/95 backdrop-blur-[80px] shadow-2xl"
 				style={{
 					top: position.y,
 					left: position.x,
 					position: "absolute",
-					minWidth: `${minWidth}px`,
+					boxShadow: '0px 20px 50px -10px rgba(0, 0, 0, 0.5), 0px 10px 20px -10px rgba(0,0,0,0.3), 0 0 20px rgba(34,211,238,0.1), inset 0 0 20px rgba(255,255,255,0.03)',
 				}}
 			>
 				{header && (
-					<div className="px-3 py-2 text-xs text-muted-foreground border-b border-border">
+					<div className="px-3 py-2 text-xs text-white/50 border-b border-white/10">
 						{header}
 					</div>
 				)}
-				{items.map((item) => {
-					const Icon = item.icon;
-					return (
-						<button
-							key={item.label}
-							type="button"
-							className={cn(
-								"flex w-full items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-muted/70 transition-colors",
-								item.isFirst && "first:rounded-t-md",
-								item.isLast && "last:rounded-b-md",
-							)}
-							onClick={() => {
-								item.onClick();
-								onClose();
-							}}
-						>
-							{Icon && <Icon className="h-4 w-4" />}
-							<span>{item.label}</span>
-						</button>
-					);
-				})}
-			</div>
+				<div className="flex items-center gap-2 p-2">
+					{items.map((item) => {
+						const Icon = item.icon;
+						return (
+							<button
+								key={item.label}
+								type="button"
+								className={cn(
+									"relative flex items-center justify-center w-10 h-10",
+									"bg-[#0a0a0a]/80 hover:bg-[#0a0a0a]",
+									"border border-cyan-400/20 hover:border-cyan-400/60",
+									"transition-all duration-300 hover:scale-110",
+									"text-cyan-400/70 hover:text-cyan-400",
+									"shadow-[0_0_8px_rgba(34,211,238,0.2)] hover:shadow-[0_0_12px_rgba(34,211,238,0.4)]",
+									"before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-cyan-400/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
+								)}
+								style={{
+									clipPath: 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)',
+								}}
+								onClick={() => {
+									item.onClick();
+									onClose(); // 点击后自动关闭
+								}}
+								title={item.label}
+							>
+								{Icon && <Icon className="h-4.5 w-4.5 relative z-10" />}
+							</button>
+						);
+					})}
+				</div>
+			</motion.div>
 		</div>,
 		document.body,
 	);

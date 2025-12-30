@@ -43,7 +43,11 @@ export class RecognitionService {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
-      const error = new Error('您的浏览器不支持 Web Speech API');
+      // 检查是否在 Electron 环境中
+      const isElectron = (window as any).require || (window as any).electronAPI;
+      const error = isElectron 
+        ? new Error('Electron 环境不支持 Web Speech API，请使用系统音频模式或浏览器模式')
+        : new Error('您的浏览器不支持 Web Speech API');
       console.error('[RecognitionService] ❌', error);
       if (this.onError) {
         this.onError(error);

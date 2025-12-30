@@ -2,8 +2,9 @@
 
 import os
 from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from fastapi.responses import FileResponse
 
 from lifetrace.schemas.screenshot import ScreenshotResponse
@@ -131,3 +132,66 @@ async def get_screenshot_path(screenshot_id: int):
         raise HTTPException(status_code=404, detail="图片文件不存在")
 
     return {"screenshot_id": screenshot_id, "file_path": file_path, "exists": True}
+
+
+@router.post("/capture")
+async def capture_screenshot(request: Optional[dict] = Body(None)):
+    """手动触发截屏
+    
+    请求体（可选）:
+        {"screen_id": 0} - 屏幕ID，默认为0（主屏幕）
+    
+    Returns:
+        截屏结果，包含截图ID和文件路径
+    """
+    try:
+        from lifetrace.jobs.recorder import get_recorder_instance
+        
+        # 解析请求体
+        screen_id = 0
+        if request and isinstance(request, dict):
+            screen_id = request.get("screen_id", 0)
+        
+        logger.info(f"📸 手动触发截屏，屏幕ID: {screen_id}")
+        
+        recorder = get_recorder_instance()
+        file_path, status = recorder._capture_screen(screen_id)
+        
+        logger.info(f"📸 截屏结果: file_path={file_path}, status={status}")
+        
+        if status == "failed":
+            raise HTTPException(status_code=500, detail="截屏失败")
+        elif status == "skipped":
+            # 跳过重复截图也返回成功，但标记为 skipped
+            return {
+                "success": True,
+                "status": "skipped",
+                "message": "跳过重复截图"
+            }
+        
+        if not file_path:
+            raise HTTPException(status_code=500, detail="截屏失败：未返回文件路径")
+        
+        # 从文件路径获取截图ID
+        screenshot = screenshot_mgr.get_screenshot_by_path(file_path)
+        if not screenshot:
+            # 如果找不到记录，等待一下再试（可能数据库还没保存）
+            import time
+            time.sleep(0.5)
+            screenshot = screenshot_mgr.get_screenshot_by_path(file_path)
+            if not screenshot:
+                raise HTTPException(status_code=500, detail=f"无法找到截屏记录: {file_path}")
+        
+        logger.info(f"✅ 截屏成功，截图ID: {screenshot['id']}")
+        
+        return {
+            "success": True,
+            "screenshot_id": screenshot["id"],
+            "file_path": file_path,
+            "status": status
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"手动截屏失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"截屏失败: {str(e)}") from e

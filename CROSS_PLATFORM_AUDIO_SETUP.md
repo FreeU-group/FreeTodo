@@ -270,3 +270,7 @@ pactl load-module module-loopback source=<default_output>.monitor sink=virtual_a
 
 
 
+
+
+
+

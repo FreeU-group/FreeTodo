@@ -2,7 +2,7 @@ import { type ChildProcess, fork, spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { app, BrowserWindow, dialog, desktopCapturer, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, desktopCapturer, ipcMain, screen, Menu } from "electron";
 
 // 强制生产模式：如果应用已打包，必须使用生产模式
 // 即使 NODE_ENV 被设置为 development，打包的应用也应该运行生产服务器
@@ -475,19 +475,20 @@ function createWindow(): void {
 		};
 	}
 	
-	mainWindow = new BrowserWindow({
-		width: enableDynamicIsland ? screenWidth : 1200, // 灵动岛模式使用全屏宽度
-		height: enableDynamicIsland ? screenHeight : 800, // 灵动岛模式使用全屏高度
-		x: 0,
-		y: 0,
-		minWidth: enableDynamicIsland ? undefined : 800,
-		minHeight: enableDynamicIsland ? undefined : 600,
-		frame: enableDynamicIsland ? false : true, // 灵动岛模式无边框
-		transparent: enableDynamicIsland ? true : false, // 灵动岛模式透明
-		alwaysOnTop: enableDynamicIsland ? true : false, // 灵动岛模式置顶
-		hasShadow: enableDynamicIsland ? false : true, // 灵动岛模式无阴影
-		resizable: enableDynamicIsland ? false : true, // 灵动岛模式固定大小
-		skipTaskbar: enableDynamicIsland ? true : false, // 灵动岛模式不显示在任务栏
+		mainWindow = new BrowserWindow({
+			width: enableDynamicIsland ? screenWidth : 1200, // 灵动岛模式使用全屏宽度（初始）
+			height: enableDynamicIsland ? screenHeight : 800, // 灵动岛模式使用全屏高度（初始）
+			x: 0,
+			y: 0,
+			minWidth: enableDynamicIsland ? undefined : 800,
+			minHeight: enableDynamicIsland ? undefined : 600,
+			frame: enableDynamicIsland ? false : true, // 灵动岛模式无边框
+			transparent: enableDynamicIsland ? true : false, // 灵动岛模式透明
+			alwaysOnTop: enableDynamicIsland ? true : false, // 灵动岛模式置顶
+			hasShadow: enableDynamicIsland ? false : true, // 灵动岛模式无阴影
+			resizable: enableDynamicIsland ? false : true, // 灵动岛模式初始不可调整（expand-window 时会设置为可调整）
+			movable: enableDynamicIsland ? false : true, // 灵动岛模式初始不可移动（expand-window 时会设置为可移动）
+			skipTaskbar: enableDynamicIsland ? true : false, // 灵动岛模式不显示在任务栏
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
@@ -847,6 +848,17 @@ function createWindow(): void {
 	// if (isDev) {
 	// 	mainWindow.webContents.openDevTools();
 	// }
+
+	// 创建右键菜单（完全照搬 island 实现）
+	if (enableDynamicIsland && mainWindow) {
+		mainWindow.webContents.on('context-menu', (e, params) => {
+			// Only show context menu if we are interacting with the UI
+			const contextMenu = Menu.buildFromTemplate([
+				{ label: '退出应用', click: () => app.quit() }
+			]);
+			contextMenu.popup();
+		});
+	}
 }
 
 /**
@@ -1140,15 +1152,16 @@ if (gotTheLock) {
 		return { x: 0, y: 0 };
 	});
 
-	// IPC: 展开窗口到全屏（完全展开）
-	// 完全按照 electron-with-nextjs 的实现
+	// IPC: 展开窗口到全屏（完全照抄 electron-with-nextjs）
 	ipcMain.handle("expand-window-full", () => {
 		if (!mainWindow || !enableDynamicIsland) return;
 
-		const { screen } = require('electron');
 		const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-
 		const margin = 24;
+
+		// 必须设置可调整和可移动（因为创建时是 false）
+		mainWindow.setResizable(true);
+		mainWindow.setMovable(true);
 
 		mainWindow.setBounds({
 			x: margin,
@@ -1156,30 +1169,66 @@ if (gotTheLock) {
 			width: screenWidth - margin * 2,
 			height: screenHeight - margin * 2,
 		});
-		
-		// 取消点击穿透，确保可以交互
-		mainWindow.setIgnoreMouseEvents(false);
-		mainWindow.show();
-		mainWindow.focus();
-		
-		// 确保窗口背景色正确（全屏模式下不透明）
-		mainWindow.setBackgroundColor('#ffffff'); // 默认白色，会被 CSS 覆盖
-		mainWindow.setOpacity(1.0); // 确保窗口完全不透明
+	});
+
+	// IPC: 展开窗口到窗口化模式（完全照抄 electron-with-nextjs）
+	ipcMain.handle("expand-window", () => {
+		if (!mainWindow || !enableDynamicIsland) return;
+
+		const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+		const expandedWidth = 500;
+		const margin = 24;
+
+		// 必须设置可调整和可移动（因为创建时是 false）
+		mainWindow.setResizable(true);
+		mainWindow.setMovable(true);
+
+		mainWindow.setBounds({
+			x: screenWidth - expandedWidth - margin,
+			y: margin,
+			width: expandedWidth,
+			height: screenHeight - margin * 2,
+		});
+	});
+
+	// IPC: 在指定位置展开窗口（完全照抄 electron-with-nextjs 的方式，但使用传入的位置）
+	ipcMain.handle("expand-window-at-position", (_event, x: number, y: number, width: number, height: number) => {
+		if (!mainWindow || !enableDynamicIsland) return;
+
+		// 必须设置可调整和可移动（因为创建时是 false）
+		mainWindow.setResizable(true);
+		mainWindow.setMovable(true);
+
+		// 直接使用传入的位置和尺寸，不做任何限制
+		mainWindow.setBounds({
+			x,
+			y,
+			width,
+			height,
+		});
 	});
 
 	// IPC: 恢复窗口到原始大小
-	// 完全按照 electron-with-nextjs 的实现
 	ipcMain.handle("collapse-window", () => {
 		if (!mainWindow || !enableDynamicIsland || !originalBounds) return;
+		
+		// 恢复为不可调整大小和不可移动
+		mainWindow.setResizable(false);
+		mainWindow.setMovable(false);
+		
 		mainWindow.setBounds(originalBounds);
-		
-		// 重新启用点击穿透
-		mainWindow.setIgnoreMouseEvents(true, { forward: true });
-		
-		// 恢复窗口背景色为透明（参考 electron-with-nextjs）
-		mainWindow.setBackgroundColor("#00000000");
-		// 确保窗口透明（如果之前设置了不透明）
-		mainWindow.setOpacity(1.0);
+	});
+
+	// IPC: 获取屏幕信息（完全照抄 electron-with-nextjs）
+	ipcMain.handle("get-screen-info", () => {
+		const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+		return { screenWidth: width, screenHeight: height };
+	});
+
+	// IPC: 退出应用
+	ipcMain.on('app-quit', () => {
+		console.log('[main] 收到退出应用请求');
+		app.quit();
 	});
 
 	// 注册 IPC 处理器：获取系统音频源

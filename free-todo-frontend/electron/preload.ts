@@ -124,9 +124,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   expandWindowFull: () => ipcRenderer.invoke("expand-window-full"),
 
   /**
+   * 展开窗口到窗口化模式（可调整大小）
+   */
+  expandWindow: () => ipcRenderer.invoke("expand-window"),
+
+  /**
+   * 在指定位置展开窗口（Panel模式 - 从灵动岛上方展开）
+   */
+  expandWindowAtPosition: (x: number, y: number, width: number, height: number) => 
+    ipcRenderer.invoke("expand-window-at-position", x, y, width, height),
+
+  /**
    * 恢复窗口到原始大小（完全按照 electron-with-nextjs）
    */
   collapseWindow: () => ipcRenderer.invoke("collapse-window"),
+
+  /**
+   * 获取屏幕信息（完全照抄 electron-with-nextjs）
+   */
+  getScreenInfo: () => ipcRenderer.invoke("get-screen-info"),
 
   /**
    * 通知主进程透明背景已设置完成
@@ -147,6 +163,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   getWindowPosition: async () => {
     return await ipcRenderer.invoke('get-window-position');
+  },
+
+  /**
+   * 退出应用
+   */
+  quit: () => {
+    ipcRenderer.send('app-quit');
   },
 });
 

@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Minimize2 } from 'lucide-react';
+import { Minimize2, X } from 'lucide-react';
 import { IslandMode } from './types';
 import { 
   FloatContent
 } from './IslandContent';
+import { PanelContent } from './PanelContent';
 import { useAppStore } from '@/apps/voice-module/store/useAppStore';
+import { useConfig, useSaveConfig } from '@/lib/query';
 
 interface DynamicIslandProps {
   mode: IslandMode;
@@ -15,7 +17,6 @@ interface DynamicIslandProps {
   onClose?: () => void; // 保留以保持接口兼容性，但使用 handleClose 代替
 }
 
-type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 export const DynamicIsland: React.FC<DynamicIslandProps> = ({ 
   mode, 
@@ -26,9 +27,16 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   const recordingStatus = useAppStore(state => state.processStatus.recording);
   const isPaused = recordingStatus === 'paused';
   
-  // 拖拽状态（完全手动实现，不使用 framer-motion 的 drag）
-  const [corner, setCorner] = useState<Corner>('bottom-right');
+  
+  // 配置管理
+  const { data: config } = useConfig();
+  const saveConfigMutation = useSaveConfig();
+  const recorderEnabled = config?.jobsRecorderEnabled ?? false;
+  
+  // 拖拽状态（完全手动实现，支持任意位置放置，吸附到最近的边缘）
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false); // 鼠标悬停状态
   const dragStartPos = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
   const islandRef = useRef<HTMLDivElement>(null);
   
@@ -43,49 +51,61 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
     } else if (isPaused) {
       action = 'resume';
     } else {
-      action = 'pause'; // 第一次点击暂停，再次点击停止
+      action = 'pause'; // 单击暂停
     }
     
     console.log('[DynamicIsland] Dispatching recording action:', action);
     
     // 发送自定义事件，让 VoiceModulePanel 监听并处理
-    // 使用原生 DOM 事件，确保能被正确接收
-    const event = new CustomEvent('dynamic-island-toggle-recording', {
-      detail: { action },
-      bubbles: true,
-      cancelable: true
-    });
-    
-    // 同时在 window 和 document 上发送事件
-    window.dispatchEvent(event);
-    document.dispatchEvent(event);
-    
-    // 也尝试直接调用 document 上的监听器
-    const listeners = (document as any).__dynamicIslandListeners || [];
-    listeners.forEach((listener: (action: string) => void) => {
-      try {
-        listener(action);
-      } catch (e) {
-        console.error('[DynamicIsland] Error calling listener:', e);
-      }
-    });
-    
-    console.log('[DynamicIsland] Event dispatched to window, document, and listeners');
-  }, [isRecording, isPaused]);
-  
-  // 处理停止录音（长按或右键）
-  const handleStopRecording = (e?: React.MouseEvent) => {
-    if (e) {
-      e.stopPropagation();
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('dynamic-island-toggle-recording', {
+        detail: { action },
+        bubbles: true,
+        cancelable: true
+      });
+      
+      window.dispatchEvent(event);
+      document.dispatchEvent(event);
     }
-    const event = new CustomEvent('dynamic-island-toggle-recording', {
-      detail: { action: 'stop' }
-    });
-    window.dispatchEvent(event);
-  };
+    
+    console.log('[DynamicIsland] Event dispatched');
+  }, [isRecording, isPaused]);
+
+  // 处理停止录音
+  const handleStopRecording = useCallback(() => {
+    console.log('[DynamicIsland] handleStopRecording called');
+    
+    if (typeof window !== 'undefined') {
+      const event = new CustomEvent('dynamic-island-toggle-recording', {
+        detail: { action: 'stop' },
+        bubbles: true,
+        cancelable: true
+      });
+      
+      window.dispatchEvent(event);
+      document.dispatchEvent(event);
+      
+      console.log('[DynamicIsland] Stop recording event dispatched');
+    }
+  }, []);
+
+  // 处理截屏开关切换
+  const handleToggleScreenshot = useCallback(async () => {
+    console.log('[DynamicIsland] 📸 切换截屏开关:', !recorderEnabled);
+    try {
+      await saveConfigMutation.mutateAsync({
+        data: {
+          jobsRecorderEnabled: !recorderEnabled,
+        },
+      });
+      console.log('[DynamicIsland] ✅ 截屏开关已切换:', !recorderEnabled);
+    } catch (error) {
+      console.error('[DynamicIsland] ❌ 切换截屏开关失败:', error);
+    }
+  }, [recorderEnabled, saveConfigMutation]);
   
-  // LOGIC: Electron Click-Through Handling
-  // Initialize click-through on mount
+  
+  // LOGIC: Electron Click-Through Handling - 完全照搬 island 实现
   useEffect(() => {
     // Helper to safely call Electron API
     const setIgnoreMouse = (ignore: boolean) => {
@@ -99,41 +119,6 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           } else {
             ipcRenderer.send('set-ignore-mouse-events', false);
           }
-        } catch (e) {
-          console.error("Electron IPC failed", e);
-        }
-      } else if ((window as any).electronAPI) {
-        try {
-          (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, { forward: true });
-        } catch (e) {
-          console.error("Electron IPC failed", e);
-        }
-      }
-    };
-
-    // Immediately set click-through on mount (for FLOAT mode)
-    if (mode !== IslandMode.FULLSCREEN) {
-      setIgnoreMouse(true);
-    }
-  }, []); // Run once on mount
-
-  // Update click-through when mode changes
-  useEffect(() => {
-    const setIgnoreMouse = (ignore: boolean) => {
-      if ((window as any).require) {
-        try {
-          const { ipcRenderer } = (window as any).require('electron');
-          if (ignore) {
-            ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
-          } else {
-            ipcRenderer.send('set-ignore-mouse-events', false);
-          }
-        } catch (e) {
-          console.error("Electron IPC failed", e);
-        }
-      } else if ((window as any).electronAPI) {
-        try {
-          (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, { forward: true });
         } catch (e) {
           console.error("Electron IPC failed", e);
         }
@@ -151,62 +136,106 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   }, [mode]);
 
 
+  // 全局鼠标移动监听器：检测鼠标是否在灵动岛区域内
+  useEffect(() => {
+    if (mode === IslandMode.FULLSCREEN || typeof window === 'undefined') return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!islandRef.current) return;
+
+      const rect = islandRef.current.getBoundingClientRect();
+      const { clientX, clientY } = e;
+
+      // 检查鼠标是否在灵动岛区域内（包括一些容差，避免边缘抖动）
+      const padding = 10; // 容差：10px
+      const isInside = 
+        clientX >= rect.left - padding &&
+        clientX <= rect.right + padding &&
+        clientY >= rect.top - padding &&
+        clientY <= rect.bottom + padding;
+
+      if (isInside && !isHovered) {
+        // 鼠标进入区域，展开
+        setIsHovered(true);
+        const setIgnoreMouse = (ignore: boolean) => {
+          if ((window as any).require) {
+            try {
+              const { ipcRenderer } = (window as any).require('electron');
+              ipcRenderer.send('set-ignore-mouse-events', ignore, ignore ? { forward: true } : {});
+            } catch (e) {
+              console.error("Electron IPC failed", e);
+            }
+          } else if ((window as any).electronAPI) {
+            try {
+              (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, ignore ? { forward: true } : {});
+            } catch (e) {
+              console.error("Electron IPC failed", e);
+            }
+          }
+        };
+        setIgnoreMouse(false); // 取消点击穿透，允许交互
+        console.log('[DynamicIsland] Mouse entered (global), click-through disabled');
+      } else if (!isInside && isHovered) {
+        // 鼠标移出区域，折叠
+        setIsHovered(false);
+        const setIgnoreMouse = (ignore: boolean) => {
+          if ((window as any).require) {
+            try {
+              const { ipcRenderer } = (window as any).require('electron');
+              ipcRenderer.send('set-ignore-mouse-events', ignore, { forward: true });
+            } catch (e) {
+              console.error("Electron IPC failed", e);
+            }
+          } else if ((window as any).electronAPI) {
+            try {
+              (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, { forward: true });
+            } catch (e) {
+              console.error("Electron IPC failed", e);
+            }
+          }
+        };
+        setIgnoreMouse(true); // 恢复点击穿透
+        console.log('[DynamicIsland] Mouse left (global), click-through enabled');
+      }
+    };
+
+    // 使用 requestAnimationFrame 优化性能
+    let rafId: number | null = null;
+    const throttledHandleMouseMove = (e: MouseEvent) => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        handleGlobalMouseMove(e);
+        rafId = null;
+      });
+    };
+
+    window.addEventListener('mousemove', throttledHandleMouseMove, { passive: true });
+
+    return () => {
+      window.removeEventListener('mousemove', throttledHandleMouseMove);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+    };
+  }, [mode, isHovered]);
+
   const handleMouseEnter = () => {
-    if (mode !== IslandMode.FULLSCREEN) {
-      // 鼠标进入时，立即取消点击穿透，允许交互和拖拽
-      const setIgnoreMouse = (ignore: boolean) => {
-        if ((window as any).require) {
-          try {
-            const { ipcRenderer } = (window as any).require('electron');
-            ipcRenderer.send('set-ignore-mouse-events', ignore, ignore ? { forward: true } : {});
-          } catch (e) {
-            console.error("Electron IPC failed", e);
-          }
-        } else if ((window as any).electronAPI) {
-          try {
-            (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, ignore ? { forward: true } : {});
-          } catch (e) {
-            console.error("Electron IPC failed", e);
-          }
-        }
-      };
-      setIgnoreMouse(false); // 取消点击穿透，允许交互
-      console.log('[DynamicIsland] Mouse entered, click-through disabled');
+    if (mode !== IslandMode.FULLSCREEN && (window as any).require) {
+      setIsHovered(true);
+      const { ipcRenderer } = (window as any).require('electron');
+      ipcRenderer.send('set-ignore-mouse-events', false);
     }
   };
 
   const handleMouseLeave = () => {
-    if (mode !== IslandMode.FULLSCREEN) {
-      // 鼠标离开时，恢复点击穿透
-      const setIgnoreMouse = (ignore: boolean) => {
-        if ((window as any).require) {
-          try {
-            const { ipcRenderer } = (window as any).require('electron');
-            ipcRenderer.send('set-ignore-mouse-events', ignore, { forward: true });
-          } catch (e) {
-            console.error("Electron IPC failed", e);
-          }
-        } else if ((window as any).electronAPI) {
-          try {
-            (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, { forward: true });
-          } catch (e) {
-            console.error("Electron IPC failed", e);
-          }
-        }
-      };
-      setIgnoreMouse(true); // 恢复点击穿透
-      console.log('[DynamicIsland] Mouse left, click-through enabled');
+    if (mode !== IslandMode.FULLSCREEN && (window as any).require) {
+      setIsHovered(false);
+      const { ipcRenderer } = (window as any).require('electron');
+      ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
     }
   };
 
-  // 处理展开到全屏（完全按照 electron-with-nextjs 的方式）
-  const handleExpandFull = async () => {
-    const electronAPI = (window as any).electronAPI;
-    if (electronAPI) {
-      await electronAPI.expandWindowFull?.();
-    }
-    onModeChange?.(IslandMode.FULLSCREEN);
-  };
+  // 处理展开到窗口化模式（可调整大小）- 通过键盘快捷键触发
 
   // 处理关闭/恢复（完全按照 electron-with-nextjs 的方式）
   const handleClose = async () => {
@@ -231,16 +260,25 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           onModeChange?.(IslandMode.FLOAT); 
           break;
         case '4': 
-          // 切换到全屏模式
+          // 切换到Panel模式（使用默认位置，简单可靠）
           const electronAPI2 = (window as any).electronAPI;
           if (electronAPI2) {
-            await electronAPI2.expandWindowFull?.();
+            // 直接使用默认位置，不计算相对位置，避免位置错误
+            await electronAPI2.expandWindow?.();
+          }
+          onModeChange?.(IslandMode.PANEL); 
+          break;
+        case '5':
+          // 切换到全屏模式
+          const electronAPI4 = (window as any).electronAPI;
+          if (electronAPI4) {
+            await electronAPI4.expandWindowFull?.();
           }
           onModeChange?.(IslandMode.FULLSCREEN); 
           break;
         case 'Escape': 
-          // Escape 键：从全屏模式返回悬浮模式
-          if (mode === IslandMode.FULLSCREEN) {
+          // Escape 键：从全屏/Panel模式返回悬浮模式
+          if (mode === IslandMode.FULLSCREEN || mode === IslandMode.PANEL) {
             const electronAPI3 = (window as any).electronAPI;
             if (electronAPI3) {
               await electronAPI3.collapseWindow?.();
@@ -253,38 +291,51 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
   }, [mode, onModeChange]);
 
-  // 计算最近的角落（参考 BottomDock 的实现）
-  const calculateNearestCorner = useCallback((x: number, y: number): Corner => {
+  // 计算吸附位置（支持任意位置，吸附到最近的边缘或角落）
+  const calculateSnapPosition = useCallback((x: number, y: number): { x: number; y: number } => {
+    if (typeof window === 'undefined') {
+      return { x, y };
+    }
+    
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
     const islandWidth = 180;
     const islandHeight = 48;
     const margin = 32;
+    const snapThreshold = 50; // 吸附阈值：50px
     
-    // 计算到各个角落的距离
-    const distances = {
-      'top-left': Math.sqrt(Math.pow(x - margin - islandWidth / 2, 2) + Math.pow(y - margin - islandHeight / 2, 2)),
-      'top-right': Math.sqrt(Math.pow(windowWidth - x - margin - islandWidth / 2, 2) + Math.pow(y - margin - islandHeight / 2, 2)),
-      'bottom-left': Math.sqrt(Math.pow(x - margin - islandWidth / 2, 2) + Math.pow(windowHeight - y - margin - islandHeight / 2, 2)),
-      'bottom-right': Math.sqrt(Math.pow(windowWidth - x - margin - islandWidth / 2, 2) + Math.pow(windowHeight - y - margin - islandHeight / 2, 2)),
-    };
+    let snapX = x;
+    let snapY = y;
     
-    // 找到最近的角落
-    let nearestCorner: Corner = 'bottom-right';
-    let minDistance = Infinity;
-    
-    for (const [corner, distance] of Object.entries(distances)) {
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestCorner = corner as Corner;
-      }
+    // 检查是否靠近左边缘
+    if (x <= margin + snapThreshold) {
+      snapX = margin;
+    }
+    // 检查是否靠近右边缘
+    else if (x >= windowWidth - islandWidth - margin - snapThreshold) {
+      snapX = windowWidth - islandWidth - margin;
     }
     
-    return nearestCorner;
+    // 检查是否靠近上边缘
+    if (y <= margin + snapThreshold) {
+      snapY = margin;
+    }
+    // 检查是否靠近下边缘
+    else if (y >= windowHeight - islandHeight - margin - snapThreshold) {
+      snapY = windowHeight - islandHeight - margin;
+    }
+    
+    // 限制在屏幕范围内
+    snapX = Math.max(margin, Math.min(snapX, windowWidth - islandWidth - margin));
+    snapY = Math.max(margin, Math.min(snapY, windowHeight - islandHeight - margin));
+    
+    return { x: snapX, y: snapY };
   }, []);
 
   // 手动拖拽实现（完全控制位置，防止飞出屏幕）
@@ -314,6 +365,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
   // 处理鼠标移动
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (!isDragging || !dragStartPos.current) return;
 
     const handleMouseMove = (e: MouseEvent) => {
@@ -346,14 +398,14 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       if (!islandRef.current || !dragStartPos.current) return;
       
       const rect = islandRef.current.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
+      const currentX = rect.left;
+      const currentY = rect.top;
       
-      // 计算最近的角落
-      const nearestCorner = calculateNearestCorner(centerX, centerY);
+      // 计算吸附位置
+      const snapPos = calculateSnapPosition(currentX, currentY);
       
-      // 更新角落状态，framer-motion 会自动平滑移动到新位置
-      setCorner(nearestCorner);
+      // 更新位置状态，framer-motion 会自动平滑移动到新位置
+      setPosition(snapPos);
       setIsDragging(false);
       dragStartPos.current = null;
     };
@@ -365,31 +417,57 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, calculateNearestCorner]);
+  }, [isDragging, calculateSnapPosition]);
 
   const getLayoutState = (mode: IslandMode) => {
     const margin = 32;
     
     switch (mode) {
       case IslandMode.FLOAT:
-        // 根据角落位置返回不同的布局
-        const baseLayout = { 
+        // 默认收起状态：只显示小图标（32x32）
+        // 鼠标悬停时展开：显示完整内容（180x48）
+        const collapsedLayout = { 
+          width: 32, 
+          height: 32, 
+          borderRadius: 16
+        };
+        const expandedLayout = { 
           width: 180, 
           height: 48, 
           borderRadius: 24
         };
         
-        switch (corner) {
-          case 'top-left':
-            return { ...baseLayout, left: margin, top: margin, right: 'auto', bottom: 'auto' };
-          case 'top-right':
-            return { ...baseLayout, right: margin, top: margin, left: 'auto', bottom: 'auto' };
-          case 'bottom-left':
-            return { ...baseLayout, left: margin, bottom: margin, right: 'auto', top: 'auto' };
-          case 'bottom-right':
-          default:
-            return { ...baseLayout, right: margin, bottom: margin, left: 'auto', top: 'auto' };
+        const baseLayout = isHovered ? expandedLayout : collapsedLayout;
+        
+        if (position) {
+          return { 
+            ...baseLayout, 
+            left: position.x, 
+            top: position.y, 
+            right: 'auto', 
+            bottom: 'auto' 
+          };
+        } else {
+          // 默认位置：右下角
+          return { 
+            ...baseLayout, 
+            right: margin, 
+            bottom: margin, 
+            left: 'auto', 
+            top: 'auto' 
+          };
         }
+      case IslandMode.PANEL:
+        // Panel模式：窗口化显示，由Electron控制大小和位置
+        return { 
+          width: '100%',  
+          height: '100%', 
+          borderRadius: 0,
+          right: 0,        
+          bottom: 0,
+          left: 0,
+          top: 0
+        };
       case IslandMode.FULLSCREEN:
         return { 
           width: '100vw',  
@@ -415,88 +493,173 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
   const layoutState = getLayoutState(mode);
   const isFullscreen = mode === IslandMode.FULLSCREEN;
+  const isPanel = mode === IslandMode.PANEL;
 
+  // FULLSCREEN 模式：不再包裹前端，只在右上角展示简洁的控制按钮
+  if (isFullscreen) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
+          className="fixed top-8 right-8 z-[30] pointer-events-auto"
+        >
+          <div className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60">
+            <button
+              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+              title="退出全屏"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const electronAPI = (window as any).electronAPI;
+                  if (electronAPI?.expandWindow) {
+                    await electronAPI.expandWindow();
+                  }
+                  onModeChange?.(IslandMode.PANEL);
+                } catch (error) {
+                  console.error('[DynamicIsland] 退出全屏失败:', error);
+                }
+              }}
+            >
+              <Minimize2 size={15} />
+            </button>
+            <button
+              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+              title="折叠到灵动岛"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  const electronAPI = (window as any).electronAPI;
+                  if (electronAPI?.collapseWindow) {
+                    await electronAPI.collapseWindow();
+                  }
+                  onModeChange?.(IslandMode.FLOAT);
+                  onClose?.();
+                } catch (error) {
+                  console.error('[DynamicIsland] 关闭面板失败:', error);
+                  onModeChange?.(IslandMode.FLOAT);
+                  onClose?.();
+                }
+              }}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  // Panel 模式：白色窗口化面板，内部滚动
+  if (isPanel) {
+    return (
+      <div className="fixed inset-0 z-[30] pointer-events-none overflow-hidden">
+        <motion.div
+          layout
+          initial={false}
+          animate={layoutState}
+          transition={{
+            type: "spring",
+            stiffness: 340,
+            damping: 28,
+            mass: 0.6,
+            restDelta: 0.001,
+          }}
+          className="absolute pointer-events-auto origin-bottom-right bg-background rounded-2xl shadow-2xl border border-[oklch(var(--border))]/40 overflow-hidden"
+        >
+          <div className="flex flex-col w-full h-full text-[oklch(var(--foreground))]">
+            <div className="h-8 px-4 flex items-center justify-between bg-background/95">
+              <div className="text-xs text-[oklch(var(--foreground))]/70 select-none">
+                LifeTrace · AI 聊天
+              </div>
+              {/* 右上角：和全屏模式保持一致的“全屏 / 折叠”按钮 */}
+              <div className="flex items-center gap-1.5 text-[oklch(var(--foreground))]/60">
+                <button
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+                  title="展开为全屏"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const electronAPI = (window as any).electronAPI;
+                      if (electronAPI?.expandWindowFull) {
+                        await electronAPI.expandWindowFull();
+                      }
+                      onModeChange?.(IslandMode.FULLSCREEN);
+                    } catch (error) {
+                      console.error("[DynamicIsland] 切换全屏失败:", error);
+                    }
+                  }}
+                >
+                  <Minimize2 size={14} />
+                </button>
+                <button
+                  className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+                  title="折叠到灵动岛"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const electronAPI = (window as any).electronAPI;
+                      if (electronAPI?.collapseWindow) {
+                        await electronAPI.collapseWindow();
+                      }
+                    } finally {
+                      onModeChange?.(IslandMode.FLOAT);
+                      onClose?.();
+                    }
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <PanelContent />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // FLOAT 模式：保持原有实现
   return (
     <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
-      {/* 全屏模式下，灵动岛容器应该完全透明且不拦截点击事件 */}
       <motion.div
         ref={islandRef}
         layout
         initial={false}
-        animate={isFullscreen ? {
-          width: '100vw',
-          height: '100vh',
-          borderRadius: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-          top: 0
-        } : layoutState}
+        animate={layoutState}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onMouseDown={handleMouseDown} // 手动拖拽开始
-        onDoubleClick={(e) => {
-          // 双击全屏（参考 island，在外层处理）
-          // 如果点击的是可交互元素，不触发全屏
-          const target = e.target as HTMLElement;
-          if (!target.closest('button, a, input, select, textarea, [role="button"]')) {
-            if (!isFullscreen) {
-              handleExpandFull();
-            }
-          }
-        }}
+        onMouseDown={handleMouseDown}
         transition={{
           type: "spring",
-          stiffness: 350, // 参考 BottomDock 的配置
-          damping: 30,    // 参考 BottomDock 的配置
-          mass: 0.8,      // 参考 BottomDock 的配置
+          stiffness: 350,
+          damping: 30,
+          mass: 0.8,
           restDelta: 0.001
         }}
-        className={`absolute overflow-hidden ${
-          isFullscreen ? 'pointer-events-none' : 'pointer-events-auto'
-        } ${
-          isFullscreen ? 'bg-transparent' : 'bg-[#0a0a0a]'
-        } ${!isFullscreen ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        className="absolute cursor-grab active:cursor-grabbing overflow-hidden pointer-events-auto bg-[#0a0a0a]"
         style={{
-            boxShadow: isFullscreen ? 'none' : '0px 20px 50px -10px rgba(0, 0, 0, 0.5), 0px 10px 20px -10px rgba(0,0,0,0.3)',
-            borderRadius: layoutState.borderRadius ? `${layoutState.borderRadius}px` : undefined,
-            // 移除 WebkitAppRegion，使用自定义拖拽
-            userSelect: 'none' as any,
+          boxShadow: '0px 20px 50px -10px rgba(0, 0, 0, 0.5), 0px 10px 20px -10px rgba(0,0,0,0.3)',
+          borderRadius: layoutState.borderRadius ? `${layoutState.borderRadius}px` : undefined,
+          userSelect: 'none' as any,
         } as React.CSSProperties}
       >
-        {/* 非全屏模式下的背景 */}
-        {!isFullscreen && (
-          <>
-            <div className="absolute inset-0 bg-[#080808]/90 backdrop-blur-[80px] transition-colors duration-700 ease-out"></div>
-            <div className={`absolute inset-0 transition-opacity duration-1000 ${mode === IslandMode.FLOAT ? 'opacity-0' : 'opacity-100'}`}>
-                <div className="absolute top-[-50%] left-[-20%] w-[100%] h-[100%] rounded-full bg-indigo-500/10 blur-[120px] mix-blend-screen"></div>
-                <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] rounded-full bg-purple-500/10 blur-[120px] mix-blend-screen"></div>
-            </div>
-            <div className="absolute inset-0 rounded-[inherit] border border-white/10 pointer-events-none shadow-[inset_0_0_20px_rgba(255,255,255,0.03)] transition-opacity duration-500"></div>
-          </>
-        )}
-
-        {/* 关闭按钮（参考 island 的实现，在全屏模式下显示，需要 pointer-events-auto） */}
-        <AnimatePresence>
-          {isFullscreen && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
-              animate={{ opacity: 1, scale: 1, rotate: 0 }}
-              exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
-              className="absolute z-[60] top-8 right-8 w-10 h-10 rounded-full bg-blue-500/80 hover:bg-blue-500 flex items-center justify-center text-white transition-all backdrop-blur-md cursor-pointer border border-blue-400/50 shadow-lg pointer-events-auto"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleClose();
-              }}
-            >
-              <Minimize2 size={18} />
-            </motion.button>
-          )}
-        </AnimatePresence>
+        {/* 背景 */}
+        <>
+          <div className="absolute inset-0 backdrop-blur-[80px] transition-colors duration-700 ease-out bg-[#080808]/90"></div>
+          <div className={`absolute inset-0 transition-opacity duration-1000 ${isFullscreen ? 'opacity-100' : 'opacity-0'}`}>
+            <div className="absolute top-[-50%] left-[-20%] w-[100%] h-[100%] rounded-full bg-indigo-500/10 blur-[120px] mix-blend-screen"></div>
+            <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] rounded-full bg-purple-500/10 blur-[120px] mix-blend-screen"></div>
+          </div>
+          <div className="absolute inset-0 rounded-[inherit] border border-white/10 pointer-events-none shadow-[inset_0_0_20px_rgba(255,255,255,0.03)] transition-opacity duration-500"></div>
+        </>
 
         {/* 内容区域 */}
         <div className="absolute inset-0 w-full h-full text-white font-sans antialiased overflow-hidden">
-          {!isFullscreen && (
+          {mode === IslandMode.FLOAT ? (
             <motion.div 
               key="float" 
               className="absolute inset-0 w-full h-full"
@@ -510,14 +673,27 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                 }
               }}
             >
-              <FloatContent 
-                onToggleRecording={handleToggleRecording}
-                onStopRecording={handleStopRecording}
-              />
+              <div
+                className="w-full h-full"
+              >
+                <FloatContent 
+                  onToggleRecording={handleToggleRecording}
+                  onStopRecording={handleStopRecording}
+                  onScreenshot={handleToggleScreenshot}
+                  screenshotEnabled={recorderEnabled}
+                  isCollapsed={!isHovered}
+                />
+              </div>
             </motion.div>
+          ) : (
+            // 全屏模式下，显示完整内容（VoiceModulePanel 会在 page.tsx 中渲染）
+            <div className="w-full h-full">
+              {/* 内容由 page.tsx 渲染 */}
+            </div>
           )}
         </div>
       </motion.div>
+      
     </div>
   );
 };

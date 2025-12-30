@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { 
   Mic, 
   Hexagon,
+  Camera,
 } from 'lucide-react';
 import { useAppStore } from '@/apps/voice-module/store/useAppStore';
 
@@ -27,12 +28,30 @@ const fadeVariants = {
 // --- 1. FLOAT STATE: 录音控制 + Logo ---
 export const FloatContent: React.FC<{ 
   onToggleRecording?: () => void;
-  onStopRecording?: (e?: React.MouseEvent) => void;
-}> = ({ onToggleRecording, onStopRecording }) => {
+  onStopRecording?: () => void;
+  onScreenshot?: () => void; // 切换截屏开关
+  screenshotEnabled?: boolean; // 截屏开关状态
+  isCollapsed?: boolean; // 是否收起状态
+}> = ({ onToggleRecording, onStopRecording, onScreenshot, screenshotEnabled = false, isCollapsed = false }) => {
   const { isRecording } = useAppStore();
   const recordingStatus = useAppStore(state => state.processStatus.recording);
   const isPaused = recordingStatus === 'paused';
   
+  // 收起状态：只显示六边形图标
+  if (isCollapsed) {
+    return (
+      <motion.div 
+        variants={fadeVariants}
+        initial="initial" animate="animate" exit="exit"
+        className="w-full h-full flex items-center justify-center"
+        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      >
+        <Hexagon size={20} strokeWidth={2.5} className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
+      </motion.div>
+    );
+  }
+  
+  // 展开状态：显示完整内容
   return (
     <motion.div 
       variants={fadeVariants}
@@ -40,33 +59,24 @@ export const FloatContent: React.FC<{
       className="w-full h-full flex items-center justify-between px-5 relative group"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} // 录音按钮区域不允许拖拽
     >
-      {/* Left: Recording Status - 可点击区域（参考 island，只在左侧区域可点击） */}
+      {/* Left: Recording Status - 可点击区域 */}
       <div 
         className="flex items-center gap-2 group/rec cursor-pointer flex-shrink-0"
         onClick={(e) => {
-          // 防止双击触发两次录音或向上冒泡
-          if (e.detail > 1) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
           e.stopPropagation();
-          // 单击即可开始/暂停/恢复录音（参考 island 的简洁交互）
+          // 单击开始/暂停/恢复录音
           onToggleRecording?.();
         }}
         onDoubleClick={(e) => {
-          // 阻止双击冒泡到容器触发全屏
-          e.preventDefault();
           e.stopPropagation();
-        }}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onStopRecording?.(e);
+          // 双击停止录音
+          if (isRecording && onStopRecording) {
+            onStopRecording();
+          }
         }}
         title={isRecording 
-          ? (isPaused ? '点击恢复录音 | 右键停止' : '点击暂停录音 | 右键停止')
-          : '点击开始录音'}
+          ? (isPaused ? '单击恢复录音 | 双击停止' : '单击暂停录音 | 双击停止')
+          : '单击开始录音'}
       >
         <div className="relative flex items-center justify-center">
           {isRecording ? (
@@ -85,8 +95,8 @@ export const FloatContent: React.FC<{
         <div className="w-0 overflow-hidden group-hover/rec:w-auto transition-all duration-300">
           <span className="text-[10px] font-medium text-white/50 pl-1 whitespace-nowrap">
             {isRecording 
-              ? (isPaused ? 'PAUSED' : 'REC') 
-              : 'Click to Record'}
+              ? (isPaused ? '已暂停' : '录音中') 
+              : ''}
           </span>
         </div>
       </div>
@@ -115,9 +125,23 @@ export const FloatContent: React.FC<{
       {/* Divider - 不可点击 */}
       <div className="w-[1px] h-3 bg-white/10 pointer-events-none flex-shrink-0"></div>
 
-      {/* Right: Logo - 仅展示（参考 island，不处理点击） */}
-      <div className="flex items-center justify-center text-white/80 flex-shrink-0 pointer-events-none">
-        <Hexagon size={18} strokeWidth={2.5} className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" />
+      {/* Right: Logo + 截屏开关按钮 - 统一使用六边形图标 */}
+      <div className="flex items-center justify-center gap-2 text-white/80 flex-shrink-0">
+        {/* 截屏开关按钮 - 单击切换截屏开关 */}
+        <div 
+          className="relative cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={(e) => {
+            e.stopPropagation();
+            onScreenshot?.();
+          }}
+          title={screenshotEnabled ? '截屏已开启，单击关闭' : '截屏已关闭，单击开启'}
+        >
+          <Camera size={12} className={screenshotEnabled ? 'text-green-400' : 'text-gray-500'} />
+          {screenshotEnabled && (
+            <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+          )}
+        </div>
+        <Hexagon size={18} strokeWidth={2.5} className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] pointer-events-none" />
       </div>
     </motion.div>
   );

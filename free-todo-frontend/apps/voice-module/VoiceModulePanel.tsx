@@ -66,7 +66,8 @@ export function VoiceModulePanel() {
 
   // 服务引用
   const recordingServiceRef = useRef<RecordingService | null>(null);
-  const recognitionServiceRef = useRef<RecognitionService | null>(null);
+  const recognitionServiceRef = useRef<RecognitionService | WebSocketRecognitionService | null>(null);
+  const [recognitionServiceType, setRecognitionServiceType] = useState<'web-speech' | 'websocket'>('web-speech');
   const optimizationServiceRef = useRef<OptimizationService | null>(null);
   const scheduleExtractionServiceRef = useRef<ScheduleExtractionService | null>(null);
   const todoExtractionServiceRef = useRef<TodoExtractionService | null>(null);
@@ -556,19 +557,48 @@ export function VoiceModulePanel() {
     });
     recordingServiceRef.current = recordingService;
 
-    const recognitionService = new RecognitionService();
-    recognitionService.setCallbacks({
-      onResult: handleRecognitionResult,
-      onError: (err) => {
-        console.error('Recognition error:', err);
-        setError(err.message);
-        setProcessStatus('recognition', 'error');
-      },
-      onStatusChange: (status) => {
-        setProcessStatus('recognition', status);
-      },
-    });
-    recognitionServiceRef.current = recognitionService;
+    // 检查 Web Speech API 是否支持
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const isElectron = (window as any).require || (window as any).electronAPI;
+    
+    if (!SpeechRecognition || isElectron) {
+      // 不支持 Web Speech API 或在 Electron 环境中，使用 WebSocket + Faster-Whisper
+      console.log('[VoiceModulePanel] 🔄 使用 WebSocket + Faster-Whisper 识别服务');
+      const wsRecognitionService = new WebSocketRecognitionService();
+      wsRecognitionService.setCallbacks({
+        onResult: (text: string, isFinal: boolean, startTime?: number, endTime?: number) => {
+          // WebSocket 服务的回调格式略有不同，需要适配
+          handleRecognitionResult(text, isFinal);
+        },
+        onError: (err) => {
+          console.error('WebSocket Recognition error:', err);
+          setError(err.message);
+          setProcessStatus('recognition', 'error');
+        },
+        onStatusChange: (status) => {
+          setProcessStatus('recognition', status);
+        },
+      });
+      recognitionServiceRef.current = wsRecognitionService;
+      setRecognitionServiceType('websocket');
+    } else {
+      // 支持 Web Speech API，使用浏览器原生识别
+      console.log('[VoiceModulePanel] ✅ 使用 Web Speech API 识别服务');
+      const recognitionService = new RecognitionService();
+      recognitionService.setCallbacks({
+        onResult: handleRecognitionResult,
+        onError: (err) => {
+          console.error('Recognition error:', err);
+          setError(err.message);
+          setProcessStatus('recognition', 'error');
+        },
+        onStatusChange: (status) => {
+          setProcessStatus('recognition', status);
+        },
+      });
+      recognitionServiceRef.current = recognitionService;
+      setRecognitionServiceType('web-speech');
+    }
 
     const optimizationService = new OptimizationService();
     optimizationService.setCallbacks({
@@ -771,30 +801,68 @@ export function VoiceModulePanel() {
       setRecordingDuration(0);
       console.log('[VoiceModulePanel] ✅ 录音状态已更新');
       
-      // 启动识别服务（Web Speech API会自动使用麦克风）
+      // 启动识别服务
       if (recognitionServiceRef.current) {
         // 重新设置回调（因为可能在清理时被清空）
-        recognitionServiceRef.current.setCallbacks({
-          onResult: handleRecognitionResult,
-          onError: (err) => {
-            console.error('[VoiceModulePanel] Recognition error:', err);
-            setError(err.message);
-            setProcessStatus('recognition', 'error');
-          },
-          onStatusChange: (status) => {
-            setProcessStatus('recognition', status);
-          },
-        });
-        // 延迟启动识别，确保录音服务已完全启动
-        setTimeout(() => {
-          try {
-            recognitionServiceRef.current?.start();
-            console.log('[VoiceModulePanel] ✅ 识别服务已启动');
-          } catch (recognitionError) {
-            console.error('[VoiceModulePanel] ❌ Recognition start error:', recognitionError);
-            setError('识别服务启动失败，请检查浏览器是否支持语音识别');
+        if (recognitionServiceType === 'websocket') {
+          // WebSocket 服务需要传入 MediaStream
+          const wsService = recognitionServiceRef.current as WebSocketRecognitionService;
+          wsService.setCallbacks({
+            onResult: (text: string, isFinal: boolean, startTime?: number, endTime?: number) => {
+              handleRecognitionResult(text, isFinal);
+            },
+            onError: (err) => {
+              console.error('[VoiceModulePanel] WebSocket Recognition error:', err);
+              setError(err.message);
+              setProcessStatus('recognition', 'error');
+            },
+            onStatusChange: (status) => {
+              setProcessStatus('recognition', status);
+            },
+          });
+          // WebSocket 服务需要传入录音服务的 MediaStream
+          if (recordingServiceRef.current) {
+            const stream = recordingServiceRef.current.getStream?.();
+            if (stream) {
+              setTimeout(() => {
+                try {
+                  wsService.start(stream);
+                  console.log('[VoiceModulePanel] ✅ WebSocket 识别服务已启动');
+                } catch (recognitionError) {
+                  console.error('[VoiceModulePanel] ❌ WebSocket Recognition start error:', recognitionError);
+                  setError('识别服务启动失败，请检查后端服务是否运行');
+                }
+              }, 500);
+            } else {
+              console.error('[VoiceModulePanel] ❌ 无法获取音频流');
+              setError('无法获取音频流');
+            }
           }
-        }, 500);
+        } else {
+          // Web Speech API 服务
+          const webSpeechService = recognitionServiceRef.current as RecognitionService;
+          webSpeechService.setCallbacks({
+            onResult: handleRecognitionResult,
+            onError: (err) => {
+              console.error('[VoiceModulePanel] Recognition error:', err);
+              setError(err.message);
+              setProcessStatus('recognition', 'error');
+            },
+            onStatusChange: (status) => {
+              setProcessStatus('recognition', status);
+            },
+          });
+          // 延迟启动识别，确保录音服务已完全启动
+          setTimeout(() => {
+            try {
+              webSpeechService.start();
+              console.log('[VoiceModulePanel] ✅ Web Speech API 识别服务已启动');
+            } catch (recognitionError) {
+              console.error('[VoiceModulePanel] ❌ Recognition start error:', recognitionError);
+              setError('识别服务启动失败，请检查浏览器是否支持语音识别');
+            }
+          }, 500);
+        }
       } else {
         console.error('[VoiceModulePanel] 识别服务未初始化');
         setError('识别服务未初始化');
@@ -819,7 +887,11 @@ export function VoiceModulePanel() {
     
     // 暂停识别服务（停止转录）
     if (recognitionServiceRef.current) {
-      recognitionServiceRef.current.stop();
+      if (recognitionServiceType === 'websocket') {
+        (recognitionServiceRef.current as WebSocketRecognitionService).stop();
+      } else {
+        (recognitionServiceRef.current as RecognitionService).stop();
+      }
     }
     
     // 暂停录音服务（暂停MediaRecorder，保留音频流）
@@ -845,7 +917,14 @@ export function VoiceModulePanel() {
     
     // 恢复识别服务
     if (recognitionServiceRef.current) {
-      recognitionServiceRef.current.start();
+      if (recognitionServiceType === 'websocket') {
+        const stream = recordingServiceRef.current?.getStream();
+        if (stream) {
+          (recognitionServiceRef.current as WebSocketRecognitionService).start(stream);
+        }
+      } else {
+        (recognitionServiceRef.current as RecognitionService).start();
+      }
     }
     
     // 更新状态为运行中
@@ -860,7 +939,11 @@ export function VoiceModulePanel() {
     }
 
     if (recognitionServiceRef.current) {
-      recognitionServiceRef.current.stop();
+      if (recognitionServiceType === 'websocket') {
+        (recognitionServiceRef.current as WebSocketRecognitionService).stop();
+      } else {
+        (recognitionServiceRef.current as RecognitionService).stop();
+      }
     }
 
     storeStopRecording();
