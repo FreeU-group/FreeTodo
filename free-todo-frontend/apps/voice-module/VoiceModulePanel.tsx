@@ -98,7 +98,7 @@ export function VoiceModulePanel() {
   const [recordingDuration, setRecordingDuration] = useState(0); // 录音时长（秒）
   const [currentSpeaker, setCurrentSpeaker] = useState<string>('发言人1');
   const [meetingTitle, setMeetingTitle] = useState<string>(''); // 会议标题
-  const [nowTime, setNowTime] = useState<Date>(new Date()); // 当前时间
+  const [nowTime, setNowTime] = useState<Date | null>(null); // 当前时间（初始为 null，避免 SSR 不一致）
   const [dayAudioSegments, setDayAudioSegments] = useState<AudioSegment[]>([]); // 当前日期的音频列表（从后端查询）
 
   // 播放器状态
@@ -1189,25 +1189,68 @@ export function VoiceModulePanel() {
         
         try {
           // 尝试解析 ISO 字符串或时间戳
+          // 注意：后端返回的时间字符串可能没有时区信息（如 '2025-12-30T07:30:06.201000'）
+          // 这种情况下，JavaScript 会把它当作本地时间解析，这是正确的
           if (typeof recording.start_time === 'string') {
-            startTime = new Date(recording.start_time);
+            // 如果字符串没有时区信息（没有 Z 或 +/-），说明已经是本地时间
+            const timeStr = recording.start_time.trim();
+            if (timeStr.endsWith('Z') || timeStr.includes('+') || timeStr.includes('-', 10)) {
+              // 有时区信息，按 UTC 或指定时区解析
+              startTime = new Date(timeStr);
+            } else {
+              // 没有时区信息，当作本地时间解析（后端返回的已经是本地时间）
+              // 直接解析，JavaScript 会把它当作本地时间
+              startTime = new Date(timeStr);
+            }
+            // 验证时间是否有效
+            if (isNaN(startTime.getTime())) {
+              console.warn('[VoiceModulePanel] ⚠️ 时间解析失败，使用当前时间:', recording.start_time);
+              startTime = new Date();
+            }
           } else if (typeof recording.start_time === 'number') {
+            // 如果是时间戳（毫秒），直接创建 Date 对象
             startTime = new Date(recording.start_time);
+            if (isNaN(startTime.getTime())) {
+              console.warn('[VoiceModulePanel] ⚠️ 时间戳无效，使用当前时间:', recording.start_time);
+              startTime = new Date();
+            }
           } else {
+            console.warn('[VoiceModulePanel] ⚠️ start_time 格式未知，使用当前时间:', recording.start_time);
             startTime = new Date();
           }
           
           if (recording.end_time) {
             if (typeof recording.end_time === 'string') {
-              endTime = new Date(recording.end_time);
+              const endTimeStr = recording.end_time.trim();
+              if (endTimeStr.endsWith('Z') || endTimeStr.includes('+') || endTimeStr.includes('-', 10)) {
+                endTime = new Date(endTimeStr);
+              } else {
+                endTime = new Date(endTimeStr);
+              }
+              if (isNaN(endTime.getTime())) {
+                endTime = new Date(startTime.getTime() + (recording.duration_seconds || 0) * 1000);
+              }
             } else if (typeof recording.end_time === 'number') {
               endTime = new Date(recording.end_time);
+              if (isNaN(endTime.getTime())) {
+                endTime = new Date(startTime.getTime() + (recording.duration_seconds || 0) * 1000);
+              }
             } else {
               endTime = new Date(startTime.getTime() + (recording.duration_seconds || 0) * 1000);
             }
           } else {
             endTime = new Date(startTime.getTime() + (recording.duration_seconds || 0) * 1000);
           }
+          
+          // 添加调试日志，确认时间解析正确
+          console.log(`[VoiceModulePanel] 🕐 解析时间:`, {
+            original: recording.start_time,
+            parsed: startTime.toISOString(),
+            local: startTime.toLocaleString('zh-CN'),
+            hours: startTime.getHours(),
+            minutes: startTime.getMinutes(),
+            hasTimezone: typeof recording.start_time === 'string' ? (recording.start_time.includes('Z') || recording.start_time.includes('+') || recording.start_time.includes('-', 10)) : 'N/A',
+          });
         } catch (e) {
           console.error('[VoiceModulePanel] ❌ 时间解析失败:', e, recording);
           startTime = new Date();
@@ -1625,8 +1668,10 @@ export function VoiceModulePanel() {
         ? Math.max(...filteredTranscripts.map(s => (s.audioEnd || 0) / 1000))
         : 0);
 
-  // 更新当前时间
+  // 更新当前时间（仅在客户端）
   useEffect(() => {
+    // 立即设置一次，避免初始渲染时显示 null
+    setNowTime(new Date());
     const timer = setInterval(() => {
       setNowTime(new Date());
     }, 1000);
@@ -1677,10 +1722,12 @@ export function VoiceModulePanel() {
                   }, [dayAudioSegments])}
                 />
                 
-                {/* 当前时间 */}
-                <div className="text-sm text-muted-foreground font-mono">
-                  {nowTime.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                </div>
+                {/* 当前时间（仅在客户端渲染，避免 SSR 不一致） */}
+                {nowTime && (
+                  <div className="text-sm text-muted-foreground font-mono" suppressHydrationWarning>
+                    {nowTime.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </div>
+                )}
                 
                 {/* 标题输入框 */}
                 <input

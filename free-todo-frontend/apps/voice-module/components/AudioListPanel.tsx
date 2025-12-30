@@ -21,8 +21,13 @@ export function AudioListPanel({
 }: AudioListPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // 格式化时间显示
+  // 格式化时间显示（确保使用本地时间）
   const formatTime = (date: Date): string => {
+    // 确保日期对象有效
+    if (!date || isNaN(date.getTime())) {
+      return "00:00";
+    }
+    // 使用本地时间（getHours 和 getMinutes 已经是本地时间）
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;

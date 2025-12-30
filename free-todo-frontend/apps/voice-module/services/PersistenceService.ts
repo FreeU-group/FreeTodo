@@ -247,6 +247,12 @@ export class PersistenceService {
         uploadStatus: 'uploaded' as const,
       }));
     } catch (error) {
+      // 网络连接错误（后端未运行）是预期的，只记录警告，不触发错误回调
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.warn('[PersistenceService] ⚠️ 无法连接到后端服务，请确保后端服务正在运行 (http://localhost:8000)');
+        return [];
+      }
+      // 其他错误才记录和触发回调
       console.error('[PersistenceService] Query transcripts failed:', error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Query transcripts failed');
@@ -283,6 +289,12 @@ export class PersistenceService {
         status: s.status as 'pending' | 'confirmed' | 'cancelled',
       }));
     } catch (error) {
+      // 网络连接错误（后端未运行）是预期的，只记录警告，不触发错误回调
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.warn('[PersistenceService] ⚠️ 无法连接到后端服务，请确保后端服务正在运行 (http://localhost:8000)');
+        return [];
+      }
+      // 其他错误才记录和触发回调
       console.error('[PersistenceService] Query schedules failed:', error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Query schedules failed');
@@ -320,6 +332,12 @@ export class PersistenceService {
       const data = await response.json();
       return data.recordings || [];
     } catch (error) {
+      // 网络连接错误（后端未运行）是预期的，只记录警告，不触发错误回调
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.warn('[PersistenceService] ⚠️ 无法连接到后端服务，请确保后端服务正在运行 (http://localhost:8000)');
+        return [];
+      }
+      // 其他错误才记录和触发回调
       console.error('[PersistenceService] Query audio recordings failed:', error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Query audio recordings failed');

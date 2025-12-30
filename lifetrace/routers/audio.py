@@ -2,7 +2,7 @@
 
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Query
@@ -30,9 +30,27 @@ async def upload_audio(
 ):
     """上传音频文件并保存到数据库"""
     try:
-        # 解析时间
+        # 解析时间（前端发送的是 UTC 时间）
         start_dt = datetime.fromisoformat(startTime.replace("Z", "+00:00"))
         end_dt = datetime.fromisoformat(endTime.replace("Z", "+00:00"))
+        
+        # 确保时间有 UTC 时区信息
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        else:
+            # 转换为 UTC 时间
+            start_dt = start_dt.astimezone(timezone.utc)
+        
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+        else:
+            # 转换为 UTC 时间
+            end_dt = end_dt.astimezone(timezone.utc)
+        
+        # 存储到数据库时，如果数据库字段是 naive datetime，需要转换为 naive UTC
+        # SQLAlchemy 会自动处理，但为了确保正确，我们使用 UTC 时间
+        start_dt_naive = start_dt.replace(tzinfo=None) if start_dt.tzinfo else start_dt
+        end_dt_naive = end_dt.replace(tzinfo=None) if end_dt.tzinfo else end_dt
 
         # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -71,8 +89,8 @@ async def upload_audio(
             duration_seconds = int((end_dt - start_dt).total_seconds())
             audio_recording = AudioRecording(
                 attachment_id=attachment.id,
-                start_time=start_dt,
-                end_time=end_dt,
+                start_time=start_dt_naive,  # 存储为 naive UTC 时间
+                end_time=end_dt_naive,      # 存储为 naive UTC 时间
                 duration_seconds=duration_seconds,
                 segment_id=segmentId,
             )
@@ -145,11 +163,23 @@ async def query_audio_recordings(
                     filename = os.path.basename(attachment.file_path)
                     file_url = f"/api/audio/file/{filename}"
                 
+                # 确保返回的时间包含时区信息
+                # 如果数据库存储的是 naive datetime，假设它是 UTC 时间
+                start_time = rec.start_time
+                if start_time.tzinfo is None:
+                    # 如果是 naive datetime，假设它是 UTC 时间
+                    start_time = start_time.replace(tzinfo=timezone.utc)
+                
+                end_time = rec.end_time
+                if end_time and end_time.tzinfo is None:
+                    # 如果是 naive datetime，假设它是 UTC 时间
+                    end_time = end_time.replace(tzinfo=timezone.utc)
+                
                 results.append({
                     "id": rec.segment_id or str(rec.id),
                     "segment_id": rec.segment_id,
-                    "start_time": rec.start_time.isoformat(),
-                    "end_time": rec.end_time.isoformat() if rec.end_time else None,
+                    "start_time": start_time.isoformat(),
+                    "end_time": end_time.isoformat() if end_time else None,
                     "duration_seconds": rec.duration_seconds,
                     "file_url": file_url,
                     "filename": os.path.basename(attachment.file_path) if attachment else None,

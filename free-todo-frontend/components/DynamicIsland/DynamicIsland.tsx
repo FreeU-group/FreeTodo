@@ -180,7 +180,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
   // 全局鼠标移动监听器：检测鼠标是否在灵动岛区域内
   useEffect(() => {
-    if (mode === IslandMode.FULLSCREEN || typeof window === 'undefined') return;
+    // 只在 FLOAT 模式下运行，PANEL 和 FULLSCREEN 模式都不需要
+    if (mode === IslandMode.FULLSCREEN || mode === IslandMode.PANEL || typeof window === 'undefined') return;
 
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!islandRef.current) return;
@@ -262,18 +263,55 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   }, [mode, isHovered]);
 
   const handleMouseEnter = () => {
-    if (mode !== IslandMode.FULLSCREEN && (window as any).require) {
+    if (mode !== IslandMode.FULLSCREEN && mode !== IslandMode.PANEL) {
       setIsHovered(true);
-      const { ipcRenderer } = (window as any).require('electron');
-      ipcRenderer.send('set-ignore-mouse-events', false);
+      const setIgnoreMouse = (ignore: boolean) => {
+        if ((window as any).require) {
+          try {
+            const { ipcRenderer } = (window as any).require('electron');
+            ipcRenderer.send('set-ignore-mouse-events', ignore, ignore ? { forward: true } : {});
+          } catch (e) {
+            console.error("Electron IPC failed", e);
+          }
+        } else if ((window as any).electronAPI) {
+          try {
+            (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, ignore ? { forward: true } : {});
+          } catch (e) {
+            console.error("Electron API failed", e);
+          }
+        }
+      };
+      setIgnoreMouse(false); // 取消点击穿透，允许交互
+      console.log('[DynamicIsland] Mouse entered (onMouseEnter), click-through disabled');
     }
   };
 
   const handleMouseLeave = () => {
-    if (mode !== IslandMode.FULLSCREEN && (window as any).require) {
+    // 如果正在拖拽，不要恢复点击穿透，否则会中断拖拽
+    if (isDragging) {
+      return;
+    }
+    
+    if (mode !== IslandMode.FULLSCREEN && mode !== IslandMode.PANEL) {
       setIsHovered(false);
-      const { ipcRenderer } = (window as any).require('electron');
-      ipcRenderer.send('set-ignore-mouse-events', true, { forward: true });
+      const setIgnoreMouse = (ignore: boolean) => {
+        if ((window as any).require) {
+          try {
+            const { ipcRenderer } = (window as any).require('electron');
+            ipcRenderer.send('set-ignore-mouse-events', ignore, { forward: true });
+          } catch (e) {
+            console.error("Electron IPC failed", e);
+          }
+        } else if ((window as any).electronAPI) {
+          try {
+            (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, { forward: true });
+          } catch (e) {
+            console.error("Electron API failed", e);
+          }
+        }
+      };
+      setIgnoreMouse(true); // 恢复点击穿透
+      console.log('[DynamicIsland] Mouse left (onMouseLeave), click-through enabled');
     }
   };
 
@@ -386,7 +424,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
   // 手动拖拽实现（完全控制位置，防止飞出屏幕）
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (mode === IslandMode.FULLSCREEN) return;
+    if (mode === IslandMode.FULLSCREEN || mode === IslandMode.PANEL) return;
     
     // 如果点击的是按钮或可交互元素，不拖拽
     const target = e.target as HTMLElement;
@@ -395,6 +433,28 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
     }
     
     if (e.button === 0) { // 左键
+      // 立即取消点击穿透，确保可以捕获鼠标事件
+      setIsHovered(true);
+      const setIgnoreMouse = (ignore: boolean) => {
+        if ((window as any).require) {
+          try {
+            const { ipcRenderer } = (window as any).require('electron');
+            ipcRenderer.send('set-ignore-mouse-events', ignore, ignore ? { forward: true } : {});
+          } catch (e) {
+            console.error("Electron IPC failed", e);
+          }
+        } else if ((window as any).electronAPI) {
+          try {
+            (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, ignore ? { forward: true } : {});
+          } catch (e) {
+            console.error("Electron API failed", e);
+          }
+        }
+      };
+      setIgnoreMouse(false); // 立即取消点击穿透，允许交互和拖拽
+      console.log('[DynamicIsland] Mouse down for drag, click-through disabled');
+      
+      // 开始拖拽
       setIsDragging(true);
       const rect = islandRef.current?.getBoundingClientRect();
       if (rect) {
@@ -405,7 +465,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           startY: rect.top,
         };
       }
-      e.preventDefault();
+      // 不要 preventDefault，让拖拽可以正常工作
+      e.stopPropagation(); // 阻止事件冒泡到内容区域
     }
   }, [mode]);
 
@@ -413,6 +474,25 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!isDragging || !dragStartPos.current) return;
+
+    // 确保在拖拽过程中点击穿透保持被取消状态
+    const setIgnoreMouse = (ignore: boolean) => {
+      if ((window as any).require) {
+        try {
+          const { ipcRenderer } = (window as any).require('electron');
+          ipcRenderer.send('set-ignore-mouse-events', ignore, ignore ? { forward: true } : {});
+        } catch (e) {
+          console.error("Electron IPC failed", e);
+        }
+      } else if ((window as any).electronAPI) {
+        try {
+          (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, ignore ? { forward: true } : {});
+        } catch (e) {
+          console.error("Electron API failed", e);
+        }
+      }
+    };
+    setIgnoreMouse(false); // 确保拖拽过程中点击穿透被取消
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!islandRef.current || !dragStartPos.current) return;
@@ -454,6 +534,43 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       setPosition(snapPos);
       setIsDragging(false);
       dragStartPos.current = null;
+      
+      // 拖拽结束后，检查鼠标是否还在灵动岛区域内
+      // 如果不在，恢复点击穿透；如果在，保持可交互状态
+      setTimeout(() => {
+        if (!islandRef.current) return;
+        const finalRect = islandRef.current.getBoundingClientRect();
+        const mouseX = _e.clientX;
+        const mouseY = _e.clientY;
+        const padding = 10;
+        const isInside = 
+          mouseX >= finalRect.left - padding &&
+          mouseX <= finalRect.right + padding &&
+          mouseY >= finalRect.top - padding &&
+          mouseY <= finalRect.bottom + padding;
+        
+        if (!isInside && mode === IslandMode.FLOAT) {
+          setIsHovered(false);
+          const setIgnoreMouse = (ignore: boolean) => {
+            if ((window as any).require) {
+              try {
+                const { ipcRenderer } = (window as any).require('electron');
+                ipcRenderer.send('set-ignore-mouse-events', ignore, { forward: true });
+              } catch (e) {
+                console.error("Electron IPC failed", e);
+              }
+            } else if ((window as any).electronAPI) {
+              try {
+                (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, { forward: true });
+              } catch (e) {
+                console.error("Electron API failed", e);
+              }
+            }
+          };
+          setIgnoreMouse(true); // 恢复点击穿透
+          console.log('[DynamicIsland] Drag ended, mouse outside, click-through enabled');
+        }
+      }, 100);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -641,7 +758,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
             mass: 0.6,
             restDelta: 0.001,
           }}
-          className="absolute pointer-events-auto origin-bottom-right bg-background rounded-2xl shadow-2xl border border-[oklch(var(--border))]/40 overflow-hidden"
+          className="absolute pointer-events-auto origin-bottom-right bg-background rounded-2xl shadow-2xl border-2 border-[oklch(var(--border))]/80 overflow-hidden"
         >
           {/* Panel 模式的缩放把手 */}
           <ResizeHandle position="top" onResize={handleResize} />
@@ -715,6 +832,11 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   }
 
   // FLOAT 模式：保持原有实现
+  // 注意：在 PANEL 模式下不应该执行到这里，但如果执行到了，也要确保不显示
+  if (isPanel) {
+    return null;
+  }
+  
   return (
     <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
       <motion.div
@@ -762,11 +884,14 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
               onMouseEnter={handleMouseEnter} // 确保鼠标进入时取消点击穿透
               onMouseLeave={handleMouseLeave} // 鼠标离开时恢复点击穿透
               onMouseDown={(e) => {
-                // 如果点击的是按钮，阻止拖拽
+                // 如果点击的是按钮，阻止拖拽和事件冒泡
                 const target = e.target as HTMLElement;
                 if (target.closest('button, a, input, select, textarea, [role="button"]')) {
                   e.stopPropagation();
+                  return;
                 }
+                // 如果不是按钮，让事件继续冒泡到外层的 handleMouseDown
+                // 不要阻止默认行为，让拖拽可以正常工作
               }}
             >
               <div

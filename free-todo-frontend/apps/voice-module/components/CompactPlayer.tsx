@@ -61,6 +61,11 @@ export function CompactPlayer({
 
   // 格式化时间显示
   const formatTime = (seconds: number): string => {
+    // 检查是否为有效数字
+    if (!Number.isFinite(seconds) || isNaN(seconds) || seconds < 0) {
+      return "0:00";
+    }
+    
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);

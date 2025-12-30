@@ -36,6 +36,10 @@ export function AudioPlayer({
 
   // 格式化时间显示
   const formatTime = (seconds: number): string => {
+    // 检查是否为有效数字
+    if (!Number.isFinite(seconds) || isNaN(seconds) || seconds < 0) {
+      return "0:00";
+    }
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
