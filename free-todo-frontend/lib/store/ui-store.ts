@@ -22,14 +22,14 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
 		name: "待办模式",
 		panelFeatureMap: {
 			panelA: "todos",
-			panelB: "todoDetail",
-			panelC: "chat",
+			panelB: "chat",
+			panelC: "todoDetail",
 		},
 		isPanelAOpen: true,
 		isPanelBOpen: true,
 		isPanelCOpen: true,
-		panelAWidth: 0.5,
-		panelCWidth: 0.3,
+		panelAWidth: 1 / 3, // panelA 占左边 1/4，panelC 占右边 1/4，所以 panelA 占剩余空间的 1/3 (即 0.25/0.75)
+		panelCWidth: 0.25, // panelC 占右边 1/4
 	},
 ];
 
@@ -112,13 +112,13 @@ const DEFAULT_PANEL_STATE = {
 	isPanelAOpen: true,
 	isPanelBOpen: true,
 	isPanelCOpen: true,
-	panelAWidth: 0.5,
-	panelCWidth: 0.3,
+	panelAWidth: 1 / 3, // panelA 占左边 1/4，panelC 占右边 1/4，所以 panelA 占剩余空间的 1/3 (即 0.25/0.75)
+	panelCWidth: 0.25, // panelC 占右边 1/4
 	disabledFeatures: [] as PanelFeature[],
 	panelFeatureMap: {
 		panelA: "todos" as PanelFeature,
-		panelB: "todoDetail" as PanelFeature,
-		panelC: "chat" as PanelFeature,
+		panelB: "chat" as PanelFeature,
+		panelC: "todoDetail" as PanelFeature,
 	},
 	autoClosedPanels: [] as PanelPosition[],
 };
