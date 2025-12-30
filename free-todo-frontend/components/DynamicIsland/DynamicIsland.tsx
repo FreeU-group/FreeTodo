@@ -7,7 +7,9 @@ import { IslandMode } from './types';
 import { 
   FloatContent
 } from './IslandContent';
+import { ContextMenu } from './ContextMenu';
 import { PanelContent } from './PanelContent';
+import { ResizeHandle } from './ResizeHandle';
 import { useAppStore } from '@/apps/voice-module/store/useAppStore';
 import { useConfig, useSaveConfig } from '@/lib/query';
 
@@ -39,6 +41,25 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   const [isHovered, setIsHovered] = useState(false); // 鼠标悬停状态
   const dragStartPos = useRef<{ x: number; y: number; startX: number; startY: number } | null>(null);
   const islandRef = useRef<HTMLDivElement>(null);
+
+  // 右键菜单状态（仅 FLOAT 模式下使用）
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handleOpenContextMenu = useCallback((event: React.MouseEvent) => {
+    if (mode !== IslandMode.FLOAT) return;
+    event.preventDefault();
+    // 在鼠标位置稍微上移一点，让菜单悬浮在灵动岛上方
+    setContextMenuPosition({
+      x: event.clientX,
+      y: event.clientY - 8,
+    });
+    setContextMenuOpen(true);
+  }, [mode]);
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenuOpen(false);
+  }, []);
   
   // 处理录音控制 - 通过事件系统触发 VoiceModulePanel 的录音
   const handleToggleRecording = useCallback(() => {
@@ -103,6 +124,17 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       console.error('[DynamicIsland] ❌ 切换截屏开关失败:', error);
     }
   }, [recorderEnabled, saveConfigMutation]);
+
+  // 处理窗口缩放（用于自定义缩放把手）
+  const handleResize = useCallback((deltaX: number, deltaY: number, position: string) => {
+    const electronAPI = (window as any).electronAPI;
+    if (electronAPI?.resizeWindow) {
+      console.log('[DynamicIsland] 缩放窗口:', { deltaX, deltaY, position });
+      electronAPI.resizeWindow(deltaX, deltaY, position);
+    } else {
+      console.warn('[DynamicIsland] electronAPI.resizeWindow 不存在');
+    }
+  }, []);
   
   
   // LOGIC: Electron Click-Through Handling - 完全照搬 island 实现
@@ -122,6 +154,12 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
         } catch (e) {
           console.error("Electron IPC failed", e);
         }
+      } else if ((window as any).electronAPI) {
+        try {
+          (window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, ignore ? { forward: true } : {});
+        } catch (e) {
+          console.error("Electron API failed", e);
+        }
       }
     };
 
@@ -129,7 +167,11 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
     if (mode === IslandMode.FULLSCREEN) {
       setIgnoreMouse(false);
     } 
-    // Otherwise, we default to ignore, and let the hover events below handle the toggle
+    // Panel 模式：窗口可交互，不忽略鼠标
+    else if (mode === IslandMode.PANEL) {
+      setIgnoreMouse(false);
+    }
+    // FLOAT 模式：默认忽略鼠标（点击穿透），hover 时会取消忽略
     else {
       setIgnoreMouse(true);
     }
@@ -256,6 +298,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           const electronAPI = (window as any).electronAPI;
           if (electronAPI) {
             await electronAPI.collapseWindow?.();
+            // 折叠回灵动岛时，重新开启点击穿透
+            electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
           }
           onModeChange?.(IslandMode.FLOAT); 
           break;
@@ -282,6 +326,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
             const electronAPI3 = (window as any).electronAPI;
             if (electronAPI3) {
               await electronAPI3.collapseWindow?.();
+              // 折叠回灵动岛时，重新开启点击穿透
+              electronAPI3?.setIgnoreMouseEvents?.(true, { forward: true });
             }
             onModeChange?.(IslandMode.FLOAT);
           }
@@ -432,7 +478,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           borderRadius: 16
         };
         const expandedLayout = { 
-          width: 180, 
+          // 稍微缩窄一点，减小中间空隙
+          width: 160, 
           height: 48, 
           borderRadius: 24
         };
@@ -459,6 +506,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
         }
       case IslandMode.PANEL:
         // Panel模式：窗口化显示，由Electron控制大小和位置
+        // 为避免四角露出灰底，这里让内容铺满整个窗口，改成矩形（无圆角）
         return { 
           width: '100%',  
           height: '100%', 
@@ -495,59 +543,86 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   const isFullscreen = mode === IslandMode.FULLSCREEN;
   const isPanel = mode === IslandMode.PANEL;
 
-  // FULLSCREEN 模式：不再包裹前端，只在右上角展示简洁的控制按钮
+  // FULLSCREEN 模式：不再包裹前端，只在顶部悬浮一条控制条，可拖动窗口
   if (isFullscreen) {
     return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
-          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-          exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
-          className="fixed top-8 right-8 z-[30] pointer-events-auto"
-        >
-          <div className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60">
-            <button
-              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
-              title="退出全屏"
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  const electronAPI = (window as any).electronAPI;
-                  if (electronAPI?.expandWindow) {
-                    await electronAPI.expandWindow();
-                  }
-                  onModeChange?.(IslandMode.PANEL);
-                } catch (error) {
-                  console.error('[DynamicIsland] 退出全屏失败:', error);
-                }
-              }}
+      <>
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+            exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
+            className="fixed inset-x-0 top-0 z-[30] pointer-events-none"
+          >
+            <div
+              className="flex items-center justify-end px-4 pt-2 h-10"
+              style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
             >
-              <Minimize2 size={15} />
-            </button>
-            <button
-              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
-              title="折叠到灵动岛"
-              onClick={async (e) => {
-                e.stopPropagation();
-                try {
-                  const electronAPI = (window as any).electronAPI;
-                  if (electronAPI?.collapseWindow) {
-                    await electronAPI.collapseWindow();
+              <div
+                className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60 pointer-events-auto"
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              >
+              <button
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+                title="退出全屏"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const electronAPI = (window as any).electronAPI;
+                    if (electronAPI?.expandWindow) {
+                      await electronAPI.expandWindow();
+                    }
+                    // 全屏切回 Panel 后，仍然保持可交互（不忽略鼠标）
+                    electronAPI?.setIgnoreMouseEvents?.(false);
+                    onModeChange?.(IslandMode.PANEL);
+                  } catch (error) {
+                    console.error('[DynamicIsland] 退出全屏失败:', error);
                   }
-                  onModeChange?.(IslandMode.FLOAT);
-                  onClose?.();
-                } catch (error) {
-                  console.error('[DynamicIsland] 关闭面板失败:', error);
-                  onModeChange?.(IslandMode.FLOAT);
-                  onClose?.();
-                }
-              }}
-            >
-              <X size={15} />
-            </button>
+                }}
+              >
+                <Minimize2 size={15} />
+              </button>
+              <button
+                className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+                title="折叠到灵动岛"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const electronAPI = (window as any).electronAPI;
+                    if (electronAPI?.collapseWindow) {
+                      await electronAPI.collapseWindow();
+                    }
+                    // 折叠回灵动岛时，重新开启点击穿透，避免挡住桌面
+                    electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
+                    onModeChange?.(IslandMode.FLOAT);
+                    onClose?.();
+                  } catch (error) {
+                    console.error('[DynamicIsland] 关闭面板失败:', error);
+                    onModeChange?.(IslandMode.FLOAT);
+                    onClose?.();
+                  }
+                }}
+              >
+                <X size={15} />
+              </button>
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+        {/* Fullscreen 模式的缩放把手 - 覆盖整个窗口 */}
+        <div className="fixed inset-0 z-[100] pointer-events-none">
+          <div className="pointer-events-auto">
+            <ResizeHandle position="top" onResize={handleResize} />
+            <ResizeHandle position="bottom" onResize={handleResize} />
+            <ResizeHandle position="left" onResize={handleResize} />
+            <ResizeHandle position="right" onResize={handleResize} />
+            <ResizeHandle position="top-left" onResize={handleResize} />
+            <ResizeHandle position="top-right" onResize={handleResize} />
+            <ResizeHandle position="bottom-left" onResize={handleResize} />
+            <ResizeHandle position="bottom-right" onResize={handleResize} />
           </div>
-        </motion.div>
-      </AnimatePresence>
+        </div>
+      </>
     );
   }
 
@@ -568,13 +643,28 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           }}
           className="absolute pointer-events-auto origin-bottom-right bg-background rounded-2xl shadow-2xl border border-[oklch(var(--border))]/40 overflow-hidden"
         >
+          {/* Panel 模式的缩放把手 */}
+          <ResizeHandle position="top" onResize={handleResize} />
+          <ResizeHandle position="bottom" onResize={handleResize} />
+          <ResizeHandle position="left" onResize={handleResize} />
+          <ResizeHandle position="right" onResize={handleResize} />
+          <ResizeHandle position="top-left" onResize={handleResize} />
+          <ResizeHandle position="top-right" onResize={handleResize} />
+          <ResizeHandle position="bottom-left" onResize={handleResize} />
+          <ResizeHandle position="bottom-right" onResize={handleResize} />
           <div className="flex flex-col w-full h-full text-[oklch(var(--foreground))]">
-            <div className="h-8 px-4 flex items-center justify-between bg-background/95">
+            <div
+              className="h-8 px-4 flex items-center justify-between bg-background/95"
+              style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+            >
               <div className="text-xs text-[oklch(var(--foreground))]/70 select-none">
                 LifeTrace · AI 聊天
               </div>
               {/* 右上角：和全屏模式保持一致的“全屏 / 折叠”按钮 */}
-              <div className="flex items-center gap-1.5 text-[oklch(var(--foreground))]/60">
+              <div
+                className="flex items-center gap-1.5 text-[oklch(var(--foreground))]/60"
+                style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+              >
                 <button
                   className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
                   title="展开为全屏"
@@ -603,6 +693,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                       if (electronAPI?.collapseWindow) {
                         await electronAPI.collapseWindow();
                       }
+                      // 折叠回灵动岛时，重新开启点击穿透，避免挡住桌面
+                      electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
                     } finally {
                       onModeChange?.(IslandMode.FLOAT);
                       onClose?.();
@@ -658,7 +750,11 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
         </>
 
         {/* 内容区域 */}
-        <div className="absolute inset-0 w-full h-full text-white font-sans antialiased overflow-hidden">
+        <div
+          className="absolute inset-0 w-full h-full text-white font-sans antialiased overflow-hidden"
+          // 右键打开自定义菜单，屏蔽浏览器/系统默认菜单（包括“退出应用”等文字）
+          onContextMenu={handleOpenContextMenu}
+        >
           {mode === IslandMode.FLOAT ? (
             <motion.div 
               key="float" 
@@ -682,6 +778,15 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                   onScreenshot={handleToggleScreenshot}
                   screenshotEnabled={recorderEnabled}
                   isCollapsed={!isHovered}
+                  onOpenPanel={async () => {
+                    // 完全按照"4键"的逻辑：切换到Panel模式（使用默认位置，简单可靠）
+                    const electronAPI2 = (window as any).electronAPI;
+                    if (electronAPI2) {
+                      // 直接使用默认位置，不计算相对位置，避免位置错误
+                      await electronAPI2.expandWindow?.();
+                    }
+                    onModeChange?.(IslandMode.PANEL);
+                  }}
                 />
               </div>
             </motion.div>
@@ -693,7 +798,17 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           )}
         </div>
       </motion.div>
-      
+
+      {/* 灵动岛右键菜单：只在 FLOAT 模式下使用，小电源图标，无文字 */}
+      <ContextMenu
+        open={contextMenuOpen}
+        position={contextMenuPosition}
+        onClose={handleCloseContextMenu}
+        onQuit={() => {
+          const electronAPI = (window as any).electronAPI;
+          electronAPI?.quit?.();
+        }}
+      />
     </div>
   );
 };

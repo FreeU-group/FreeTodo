@@ -32,7 +32,15 @@ export const FloatContent: React.FC<{
   onScreenshot?: () => void; // 切换截屏开关
   screenshotEnabled?: boolean; // 截屏开关状态
   isCollapsed?: boolean; // 是否收起状态
-}> = ({ onToggleRecording, onStopRecording, onScreenshot, screenshotEnabled = false, isCollapsed = false }) => {
+  onOpenPanel?: () => void; // 点击最右侧图标展开 Panel
+}> = ({ 
+  onToggleRecording, 
+  onStopRecording, 
+  onScreenshot, 
+  screenshotEnabled = false, 
+  isCollapsed = false,
+  onOpenPanel,
+}) => {
   const { isRecording } = useAppStore();
   const recordingStatus = useAppStore(state => state.processStatus.recording);
   const isPaused = recordingStatus === 'paused';
@@ -125,9 +133,9 @@ export const FloatContent: React.FC<{
       {/* Divider - 不可点击 */}
       <div className="w-[1px] h-3 bg-white/10 pointer-events-none flex-shrink-0"></div>
 
-      {/* Right: Logo + 截屏开关按钮 - 统一使用六边形图标 */}
-      <div className="flex items-center justify-center gap-2 text-white/80 flex-shrink-0">
-        {/* 截屏开关按钮 - 单击切换截屏开关 */}
+      {/* Right: 左侧是截屏图标，最右侧是“展开 Panel”图标 */}
+      <div className="flex items-center justify-center gap-3 text-white/80 flex-shrink-0">
+        {/* 截屏开关按钮 - 单击切换截屏开关（稍微往左一点，通过 gap 与右侧图标区分） */}
         <div 
           className="relative cursor-pointer hover:opacity-80 transition-opacity"
           onClick={(e) => {
@@ -136,12 +144,27 @@ export const FloatContent: React.FC<{
           }}
           title={screenshotEnabled ? '截屏已开启，单击关闭' : '截屏已关闭，单击开启'}
         >
-          <Camera size={12} className={screenshotEnabled ? 'text-green-400' : 'text-gray-500'} />
+          <Camera size={18} className={screenshotEnabled ? 'text-green-400' : 'text-gray-500'} />
           {screenshotEnabled && (
             <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
           )}
         </div>
-        <Hexagon size={18} strokeWidth={2.5} className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] pointer-events-none" />
+        {/* 最右：纯 Logo 图标，点击切换到 Panel 模式 */}
+        <button
+          type="button"
+          className="flex items-center justify-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenPanel?.();
+          }}
+          title="展开为 Panel"
+        >
+          <Hexagon
+            size={18}
+            strokeWidth={2.5}
+            className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]"
+          />
+        </button>
       </div>
     </motion.div>
   );

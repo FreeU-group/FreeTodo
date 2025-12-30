@@ -166,6 +166,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   /**
+   * 调整窗口大小（用于自定义缩放把手）
+   */
+  resizeWindow: (deltaX: number, deltaY: number, position: string) => {
+    ipcRenderer.send('resize-window', deltaX, deltaY, position);
+  },
+
+  /**
    * 退出应用
    */
   quit: () => {

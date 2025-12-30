@@ -22,6 +22,11 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   useEffect(() => {
     if (!open) return;
 
+    // 像系统 tooltip 一样：短暂显示后自动消失
+    const autoHideTimer = window.setTimeout(() => {
+      onClose();
+    }, 2000);
+
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         onClose();
@@ -38,6 +43,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     document.addEventListener('keydown', handleEscape);
 
     return () => {
+      window.clearTimeout(autoHideTimer);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
@@ -67,9 +73,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               onClose();
             }}
             className="flex items-center justify-center w-8 h-8 rounded-full bg-[#0a0a0a]/95 border border-white/15 text-red-300 hover:text-red-200 hover:bg-red-500/20 shadow-lg transition-all duration-150"
-            title="退出应用"
+            aria-label=""
           >
-            <Power className="w-4 h-4" />
+            <Power className="w-4 h-4" aria-hidden="true" />
           </button>
         </motion.div>
       )}

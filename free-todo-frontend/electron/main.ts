@@ -1177,7 +1177,9 @@ if (gotTheLock) {
 
 		const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 		const expandedWidth = 500;
+		const expandedHeight = Math.round(screenHeight * 0.8);
 		const margin = 24;
+		const top = Math.round((screenHeight - expandedHeight) / 2);
 
 		// 必须设置可调整和可移动（因为创建时是 false）
 		mainWindow.setResizable(true);
@@ -1185,9 +1187,9 @@ if (gotTheLock) {
 
 		mainWindow.setBounds({
 			x: screenWidth - expandedWidth - margin,
-			y: margin,
+			y: top,
 			width: expandedWidth,
-			height: screenHeight - margin * 2,
+			height: expandedHeight,
 		});
 	});
 
@@ -1223,6 +1225,64 @@ if (gotTheLock) {
 	ipcMain.handle("get-screen-info", () => {
 		const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 		return { screenWidth: width, screenHeight: height };
+	});
+
+	// IPC: 调整窗口大小（用于自定义缩放把手）
+	ipcMain.on('resize-window', (event, deltaX: number, deltaY: number, position: string) => {
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (!win || !enableDynamicIsland) return;
+
+		const bounds = win.getBounds();
+		let newWidth = bounds.width;
+		let newHeight = bounds.height;
+		let newX = bounds.x;
+		let newY = bounds.y;
+
+		// 根据位置和 delta 计算新尺寸和位置
+		switch (position) {
+			case 'right':
+				newWidth = Math.max(200, bounds.width + deltaX);
+				break;
+			case 'left':
+				newWidth = Math.max(200, bounds.width - deltaX);
+				newX = bounds.x + deltaX;
+				break;
+			case 'bottom':
+				newHeight = Math.max(200, bounds.height + deltaY);
+				break;
+			case 'top':
+				newHeight = Math.max(200, bounds.height - deltaY);
+				newY = bounds.y + deltaY;
+				break;
+			case 'top-right':
+				newWidth = Math.max(200, bounds.width + deltaX);
+				newHeight = Math.max(200, bounds.height - deltaY);
+				newY = bounds.y + deltaY;
+				break;
+			case 'top-left':
+				newWidth = Math.max(200, bounds.width - deltaX);
+				newHeight = Math.max(200, bounds.height - deltaY);
+				newX = bounds.x + deltaX;
+				newY = bounds.y + deltaY;
+				break;
+			case 'bottom-right':
+				newWidth = Math.max(200, bounds.width + deltaX);
+				newHeight = Math.max(200, bounds.height + deltaY);
+				break;
+			case 'bottom-left':
+				newWidth = Math.max(200, bounds.width - deltaX);
+				newHeight = Math.max(200, bounds.height + deltaY);
+				newX = bounds.x + deltaX;
+				break;
+		}
+
+		console.log('[main] 调整窗口大小:', { position, deltaX, deltaY, oldBounds: bounds, newBounds: { x: newX, y: newY, width: newWidth, height: newHeight } });
+		win.setBounds({
+			x: newX,
+			y: newY,
+			width: newWidth,
+			height: newHeight,
+		});
 	});
 
 	// IPC: 退出应用
