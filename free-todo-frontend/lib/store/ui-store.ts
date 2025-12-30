@@ -6,6 +6,9 @@ import {
 	IS_DEV_FEATURE_ENABLED,
 } from "@/lib/config/panel-config";
 
+// Dock 显示模式类型
+export type DockDisplayMode = "fixed" | "auto-hide";
+
 // 布局预设类型
 export interface LayoutPreset {
 	id: string;
@@ -73,6 +76,8 @@ interface UiStoreState {
 	disabledFeatures: PanelFeature[];
 	// 自动关闭的panel栈（记录因窗口缩小而自动关闭的panel，从右到左的顺序）
 	autoClosedPanels: PanelPosition[];
+	// Dock 显示模式：固定显示或鼠标离开时自动隐藏
+	dockDisplayMode: DockDisplayMode;
 	// 位置槽位 toggle 方法
 	togglePanelA: () => void;
 	togglePanelB: () => void;
@@ -104,6 +109,8 @@ interface UiStoreState {
 	setAutoClosePanel: (position: PanelPosition) => void;
 	restoreAutoClosedPanel: () => void;
 	clearAutoClosedPanels: () => void;
+	// Dock 显示模式设置方法
+	setDockDisplayMode: (mode: DockDisplayMode) => void;
 }
 
 const MIN_PANEL_WIDTH = 0.2;
@@ -146,6 +153,7 @@ const DEFAULT_PANEL_STATE = {
 		panelC: "todoDetail" as PanelFeature,
 	},
 	autoClosedPanels: [] as PanelPosition[],
+	dockDisplayMode: "auto-hide" as DockDisplayMode,
 };
 
 // 验证 panelFeatureMap 的有效性
@@ -194,6 +202,8 @@ export const useUiStore = create<UiStoreState>()(
 			disabledFeatures: DEFAULT_PANEL_STATE.disabledFeatures,
 			// 自动关闭的panel栈
 			autoClosedPanels: DEFAULT_PANEL_STATE.autoClosedPanels,
+			// Dock 显示模式
+			dockDisplayMode: DEFAULT_PANEL_STATE.dockDisplayMode,
 
 			// 位置槽位 toggle 方法
 			togglePanelA: () =>
@@ -493,6 +503,12 @@ export const useUiStore = create<UiStoreState>()(
 				set(() => ({
 					autoClosedPanels: [],
 				})),
+
+			// Dock 显示模式设置方法
+			setDockDisplayMode: (mode) =>
+				set(() => ({
+					dockDisplayMode: mode,
+				})),
 		}),
 		{
 			name: "ui-panel-config",
@@ -569,6 +585,15 @@ export const useUiStore = create<UiStoreState>()(
 								);
 							} else {
 								state.autoClosedPanels = DEFAULT_PANEL_STATE.autoClosedPanels;
+							}
+
+							// 校验 dock 显示模式
+							const validDockModes: DockDisplayMode[] = ["fixed", "auto-hide"];
+							if (
+								!state.dockDisplayMode ||
+								!validDockModes.includes(state.dockDisplayMode)
+							) {
+								state.dockDisplayMode = DEFAULT_PANEL_STATE.dockDisplayMode;
 							}
 
 							// 如果有功能被禁用，确保对应位置不再保留

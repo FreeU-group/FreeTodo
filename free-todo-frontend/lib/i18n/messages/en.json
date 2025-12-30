@@ -103,7 +103,13 @@
 			"enableBlacklistDesc": "Enable to set apps that do not need screenshots",
 			"appBlacklist": "App Blacklist",
 			"blacklistPlaceholder": "Enter app name and press Enter to add",
-			"blacklistDesc": "Windows of these apps will not be recorded"
+			"blacklistDesc": "Windows of these apps will not be recorded",
+			"dockDisplayModeTitle": "Dock Display Mode",
+			"dockDisplayModeDescription": "Control the display behavior of the bottom dock",
+			"dockDisplayModeLabel": "Display Mode",
+			"dockDisplayModeFixed": "Always Visible",
+			"dockDisplayModeAutoHide": "Auto Hide",
+			"dockDisplayModeChanged": "Dock display mode changed"
 		},
 		"costTracking": {
 			"title": "Cost Tracking",
