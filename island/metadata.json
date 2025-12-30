@@ -1,5 +1,0 @@
-{
-  "name": "Dynamic Island React",
-  "description": "A fully interactive replica of the Apple Dynamic Island using React, Tailwind CSS, and Framer Motion for high-fidelity animations.",
-  "requestFramePermissions": []
-}
