@@ -284,7 +284,7 @@ export function MessageList({
 									"relative max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm",
 									msg.role === "assistant"
 										? "bg-muted text-foreground"
-										: "bg-primary text-primary-foreground",
+										: "bg-primary/10 dark:bg-primary/20 text-foreground",
 								)}
 								onMouseEnter={() => {
 									if (isAssistantMessageWithContent) {

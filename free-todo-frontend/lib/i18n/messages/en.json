@@ -103,7 +103,13 @@
 			"enableBlacklistDesc": "Enable to set apps that do not need screenshots",
 			"appBlacklist": "App Blacklist",
 			"blacklistPlaceholder": "Enter app name and press Enter to add",
-			"blacklistDesc": "Windows of these apps will not be recorded"
+			"blacklistDesc": "Windows of these apps will not be recorded",
+			"dockDisplayModeTitle": "Dock Display Mode",
+			"dockDisplayModeDescription": "Control the display behavior of the bottom dock",
+			"dockDisplayModeLabel": "Display Mode",
+			"dockDisplayModeFixed": "Always Visible",
+			"dockDisplayModeAutoHide": "Auto Hide",
+			"dockDisplayModeChanged": "Dock display mode changed"
 		},
 		"costTracking": {
 			"title": "Cost Tracking",
@@ -215,7 +221,6 @@
 		"generateQuestionsFailed": "Failed to generate questions, please try again",
 		"generateSummaryFailed": "Failed to generate summary, please try again",
 		"loading": "Loading",
-		"initialMessage": "Hi! I'm your task assistant. I can break down work, plan the day, or just chat.",
 		"suggestions": {
 			"breakdown": "Break Down Task",
 			"breakdownPrompt": "Help me break down this task",
@@ -381,7 +386,8 @@
 		"label": "Layout",
 		"selectLayout": "Select layout",
 		"layouts": {
-			"default": "Todo Mode"
+			"default": "Todo Mode",
+			"lifetrace-dev": "LifeTrace Mode"
 		}
 	},
 	"scheduler": {

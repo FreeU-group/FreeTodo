@@ -90,18 +90,7 @@ export const useChatController = ({
 	// 使用 TanStack Query 获取当前会话的历史记录
 	const { data: sessionHistory = [] } = useChatHistory(conversationId);
 
-	const buildInitialAssistantMessage = useCallback(
-		(): ChatMessage => ({
-			id: createId(),
-			role: "assistant",
-			content: t("initialMessage"),
-		}),
-		[t],
-	);
-
-	const [messages, setMessages] = useState<ChatMessage[]>(() => [
-		buildInitialAssistantMessage(),
-	]);
+	const [messages, setMessages] = useState<ChatMessage[]>(() => []);
 	const [inputValue, setInputValue] = useState("");
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -133,11 +122,11 @@ export const useChatController = ({
 		}
 		setIsStreaming(false);
 		setConversationId(null);
-		setMessages([buildInitialAssistantMessage()]);
+		setMessages([]);
 		setInputValue("");
 		setError(null);
 		setHistoryOpen(false);
-	}, [buildInitialAssistantMessage, setConversationId, setHistoryOpen]);
+	}, [setConversationId, setHistoryOpen]);
 
 	const handleStop = useCallback(() => {
 		if (abortControllerRef.current) {
@@ -189,17 +178,12 @@ export const useChatController = ({
 				role: item.role,
 				content: item.content,
 			}));
-			setMessages(mapped.length ? mapped : [buildInitialAssistantMessage()]);
+			setMessages(mapped);
 			// 加载完成，重置标志
 			isLoadingSessionRef.current = false;
 		}
 		// 如果conversationId存在但历史记录为空，可能是正在加载，保持标志为true等待数据
-	}, [
-		sessionHistory,
-		conversationId,
-		buildInitialAssistantMessage,
-		isStreaming,
-	]);
+	}, [sessionHistory, conversationId, isStreaming]);
 
 	const handleSend = useCallback(async () => {
 		const text = inputValue.trim();

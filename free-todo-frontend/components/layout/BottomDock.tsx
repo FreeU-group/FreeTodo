@@ -197,6 +197,7 @@ export function BottomDock({ className }: BottomDockProps) {
 		togglePanelC,
 		getFeatureByPosition,
 		setPanelFeature,
+		dockDisplayMode,
 	} = useUiStore();
 	const { locale: _ } = useLocaleStore();
 	const t = useTranslations("bottomDock");
@@ -232,9 +233,20 @@ export function BottomDock({ className }: BottomDockProps) {
 		}
 	}, []);
 
-	// 全局鼠标位置监听 - 当鼠标接近屏幕底部时展开 dock
+	// 全局鼠标位置监听 - 当鼠标接近屏幕底部时展开 dock（仅在自动隐藏模式下生效）
 	useEffect(() => {
 		if (!mounted) return;
+
+		// 固定模式：始终展开，不需要监听鼠标事件
+		if (dockDisplayMode === "fixed") {
+			setIsExpanded(true);
+			// 清除可能存在的隐藏定时器
+			if (hideTimeoutRef.current) {
+				clearTimeout(hideTimeoutRef.current);
+				hideTimeoutRef.current = null;
+			}
+			return;
+		}
 
 		const handleMouseMove = (e: MouseEvent) => {
 			// 如果右键菜单打开，保持 dock 展开，不执行隐藏逻辑
@@ -279,7 +291,7 @@ export function BottomDock({ className }: BottomDockProps) {
 				clearTimeout(hideTimeoutRef.current);
 			}
 		};
-	}, [mounted, menuState.isOpen]);
+	}, [mounted, menuState.isOpen, dockDisplayMode]);
 
 	// 计算收起时的 translateY 值
 	// 收起时，dock 完全隐藏到屏幕底部外

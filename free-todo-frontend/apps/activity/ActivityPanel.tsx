@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { ActivityDetail } from "@/apps/activity/ActivityDetail";
 import { ActivityHeader } from "@/apps/activity/ActivityHeader";
 import { ActivitySidebar } from "@/apps/activity/ActivitySidebar";
@@ -34,7 +34,7 @@ export function ActivityPanel() {
 	}, [search, activities]);
 
 	// 自动选中第一个 activity
-	useMemo(() => {
+	useEffect(() => {
 		if (
 			filteredActivities.length > 0 &&
 			selectedActivityId === null &&
