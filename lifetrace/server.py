@@ -14,6 +14,7 @@ from lifetrace.routers import (
     health,
     journal,
     logs,
+    notification,
     ocr,
     project,
     rag,
@@ -136,6 +137,7 @@ app.include_router(cost_tracking.router)
 app.include_router(time_allocation.router)
 app.include_router(todo_extraction.router)
 app.include_router(vision.router)
+app.include_router(notification.router)
 
 
 def find_available_port(host: str, start_port: int, max_attempts: int = 100) -> int:

@@ -11,6 +11,7 @@ from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
 from lifetrace.util.query_parser import QueryConditions, QueryParser
 from lifetrace.util.settings import settings
+from lifetrace.util.time_utils import get_utc_now
 
 logger = get_logger()
 
@@ -39,7 +40,7 @@ class RAGService:
         else:
             response_text = self._fallback_direct_response(user_query, intent_result)
 
-        processing_time = (datetime.now() - start_time).total_seconds()
+        processing_time = (get_utc_now() - start_time).total_seconds()
         return {
             "success": True,
             "response": response_text,
@@ -85,7 +86,7 @@ class RAGService:
 
     async def process_query(self, user_query: str, max_results: int = 50) -> dict[str, Any]:
         """处理用户查询的完整RAG流水线"""
-        start_time = datetime.now()
+        start_time = get_utc_now()
 
         try:
             logger.info(f"开始处理查询: {user_query}")
@@ -116,7 +117,7 @@ class RAGService:
             else:
                 response_text = self._fallback_response(user_query, retrieved_data, stats)
 
-            processing_time = (datetime.now() - start_time).total_seconds()
+            processing_time = (get_utc_now() - start_time).total_seconds()
             logger.info(f"查询处理完成，耗时 {processing_time:.2f} 秒")
 
             return {
@@ -477,7 +478,7 @@ class RAGService:
                 "context_builder": "ready",
                 "query_parser": "ready",
             },
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": get_utc_now().isoformat(),
         }
 
     def _generate_direct_response(self, user_query: str, intent_result: dict[str, Any]) -> str:

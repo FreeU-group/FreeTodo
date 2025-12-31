@@ -95,6 +95,18 @@ export default function HomePage() {
 			`[DraftTodo轮询] 自动待办检测配置: ${autoTodoDetectionEnabled ? "已启用" : "已禁用"}`,
 		);
 
+		// 注册 DDL 提醒轮询端点
+		const ddlReminderEndpoint = store.getEndpoint("ddl-reminder");
+		if (!ddlReminderEndpoint) {
+			store.registerEndpoint({
+				id: "ddl-reminder",
+				url: "/api/notifications",
+				interval: 10000, // 10秒轮询一次，显著短于后端检查间隔（30秒）
+				enabled: true, // 默认启用
+			});
+			console.log("[DDL提醒轮询] 已注册，间隔: 10秒");
+		}
+
 		// 初始同步
 		syncEndpoints();
 

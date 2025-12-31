@@ -443,7 +443,8 @@
 			"task_context_mapper_job": "任务上下文关联",
 			"task_summary_job": "任务总结",
 			"clean_data_job": "数据清理",
-			"activity_aggregator_job": "活动聚合"
+			"activity_aggregator_job": "活动聚合",
+			"deadline_reminder_job": "DDL提醒"
 		},
 		"jobDescriptions": {
 			"recorder_job": "定时截取屏幕截图",
@@ -451,7 +452,8 @@
 			"task_context_mapper_job": "（旧版）关联截图与任务上下文",
 			"task_summary_job": "（旧版）生成任务执行总结",
 			"clean_data_job": "清理过期的截图和数据",
-			"activity_aggregator_job": "聚合用户活动事件"
+			"activity_aggregator_job": "聚合用户活动事件",
+			"deadline_reminder_job": "检查待办事项的截止日期，在 DDL 前 5 分钟发送提醒通知"
 		}
 	},
 	"common": {

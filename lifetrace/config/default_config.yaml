@@ -94,6 +94,13 @@ jobs:
       max_screenshots: 10000 # 最大截图数量限制
       max_days: 30 # 数据保留天数（按日期清理旧数据）
       delete_file_only: true # 只删除文件（true），还是同时删除记录（false）
+  deadline_reminder:
+    id: deadline_reminder # 任务ID
+    name: DDL提醒 # 任务显示名称（中文）
+    enabled: true # 是否启用 DDL 提醒任务（默认开启）
+    interval: 30 # 检查间隔（秒），默认30秒检查一次
+    params:
+      reminder_window_minutes: 5 # 提醒时间窗口（分钟），在 DDL 前多少分钟提醒
 
 # 向量数据库配置
 vector_db:

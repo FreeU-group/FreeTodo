@@ -4,12 +4,12 @@
  */
 
 const esbuild = require("esbuild");
-const path = require("path");
+const path = require("node:path");
 
 const isWatch = process.argv.includes("--watch");
 
 async function build() {
-	const options = {
+	const mainOptions = {
 		entryPoints: [path.join(__dirname, "..", "electron", "main.ts")],
 		bundle: true,
 		platform: "node",
@@ -20,13 +20,28 @@ async function build() {
 		minify: process.env.NODE_ENV === "production",
 	};
 
+	const preloadOptions = {
+		entryPoints: [path.join(__dirname, "..", "electron", "preload.ts")],
+		bundle: true,
+		platform: "node",
+		target: "node18",
+		outfile: path.join(__dirname, "..", "dist-electron", "preload.js"),
+		external: ["electron"],
+		sourcemap: true,
+		minify: process.env.NODE_ENV === "production",
+	};
+
 	if (isWatch) {
-		const ctx = await esbuild.context(options);
-		await ctx.watch();
+		const mainCtx = await esbuild.context(mainOptions);
+		const preloadCtx = await esbuild.context(preloadOptions);
+		await Promise.all([mainCtx.watch(), preloadCtx.watch()]);
 		console.log("Watching for changes...");
 	} else {
-		await esbuild.build(options);
-		console.log("Electron main process built successfully!");
+		await Promise.all([
+			esbuild.build(mainOptions),
+			esbuild.build(preloadOptions),
+		]);
+		console.log("Electron main process and preload script built successfully!");
 	}
 }
 

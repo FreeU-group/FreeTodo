@@ -7,10 +7,12 @@ from datetime import datetime
 
 from sqlmodel import Column, Field, SQLModel, Text
 
+from lifetrace.util.time_utils import get_utc_now
 
-def get_local_time():
-    """获取本地时间"""
-    return datetime.now()
+
+def get_utc_time():
+    """获取 UTC 时间（timezone-aware）"""
+    return get_utc_now()
 
 
 # ========== 混入类 ==========
@@ -19,8 +21,8 @@ def get_local_time():
 class TimestampMixin(SQLModel):
     """时间戳混入类"""
 
-    created_at: datetime = Field(default_factory=get_local_time)
-    updated_at: datetime = Field(default_factory=get_local_time)
+    created_at: datetime = Field(default_factory=get_utc_time)
+    updated_at: datetime = Field(default_factory=get_utc_time)
     deleted_at: datetime | None = None
 
 
@@ -74,7 +76,7 @@ class Event(TimestampMixin, table=True):
     id: int | None = Field(default=None, primary_key=True)
     app_name: str | None = Field(default=None, max_length=200)  # 前台应用名称
     window_title: str | None = Field(default=None, max_length=500)  # 首个或最近的窗口标题
-    start_time: datetime = Field(default_factory=get_local_time)  # 事件开始时间
+    start_time: datetime = Field(default_factory=get_utc_time)  # 事件开始时间
     end_time: datetime | None = None  # 事件结束时间
     status: str = Field(default="new", max_length=20)  # 事件状态：new, processing, done
     ai_title: str | None = Field(default=None, max_length=50)  # LLM生成的事件标题
@@ -146,7 +148,7 @@ class TaskProgress(TimestampMixin, table=True):
     task_id: int  # 关联的任务ID
     summary: str = Field(sa_column=Column(Text))  # 进展摘要内容
     context_count: int = 0  # 基于多少个上下文生成
-    generated_at: datetime = Field(default_factory=get_local_time)  # 生成时间
+    generated_at: datetime = Field(default_factory=get_utc_time)  # 生成时间
 
     def __repr__(self):
         return f"<TaskProgress(id={self.id}, task_id={self.task_id})>"
@@ -199,7 +201,7 @@ class TodoAttachmentRelation(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     todo_id: int  # 关联的待办ID
     attachment_id: int  # 关联的附件ID
-    created_at: datetime = Field(default_factory=get_local_time)
+    created_at: datetime = Field(default_factory=get_utc_time)
     deleted_at: datetime | None = None
 
     def __repr__(self):
@@ -213,7 +215,7 @@ class Tag(SQLModel, table=True):
 
     id: int | None = Field(default=None, primary_key=True)
     tag_name: str = Field(max_length=50, unique=True)  # 标签名称
-    created_at: datetime = Field(default_factory=get_local_time)
+    created_at: datetime = Field(default_factory=get_utc_time)
     deleted_at: datetime | None = None
 
     def __repr__(self):
@@ -228,7 +230,7 @@ class TodoTagRelation(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     todo_id: int  # 关联的待办ID
     tag_id: int  # 关联的标签ID
-    created_at: datetime = Field(default_factory=get_local_time)
+    created_at: datetime = Field(default_factory=get_utc_time)
     deleted_at: datetime | None = None
 
     def __repr__(self):
@@ -258,7 +260,7 @@ class JournalTagRelation(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     journal_id: int  # 关联的日记ID
     tag_id: int  # 关联的标签ID
-    created_at: datetime = Field(default_factory=get_local_time)
+    created_at: datetime = Field(default_factory=get_utc_time)
     deleted_at: datetime | None = None
 
     def __repr__(self):
@@ -347,7 +349,7 @@ class ActivityEventRelation(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     activity_id: int  # 关联的活动ID
     event_id: int  # 关联的事件ID
-    created_at: datetime = Field(default_factory=get_local_time)
+    created_at: datetime = Field(default_factory=get_utc_time)
     deleted_at: datetime | None = None  # 软删除时间戳
 
     def __repr__(self):

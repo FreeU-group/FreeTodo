@@ -308,3 +308,40 @@ export async function fetchNotification(
 		return null;
 	}
 }
+
+/**
+ * 删除通知
+ * @param notificationId 通知ID
+ * @returns 删除是否成功
+ */
+export async function deleteNotification(
+	notificationId: string,
+): Promise<boolean> {
+	const baseUrl = getStreamApiBaseUrl();
+
+	try {
+		const response = await fetch(
+			`${baseUrl}/api/notifications/${notificationId}`,
+			{
+				method: "DELETE",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			},
+		);
+
+		if (!response.ok) {
+			if (response.status === 404) {
+				// 通知不存在，视为成功（幂等性）
+				return true;
+			}
+			throw new Error(`Request failed with status ${response.status}`);
+		}
+
+		const data = await response.json();
+		return data.success === true;
+	} catch (error) {
+		console.error("Failed to delete notification:", error);
+		throw error;
+	}
+}

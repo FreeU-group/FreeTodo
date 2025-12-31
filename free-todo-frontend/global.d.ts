@@ -28,5 +28,17 @@ declare global {
 
 	interface Window {
 		cookieStore?: CookieStoreApi;
+		electronAPI?: {
+			/**
+			 * 显示系统通知
+			 * @param data 通知数据
+			 */
+			showNotification: (data: {
+				id: string;
+				title: string;
+				content: string;
+				timestamp: string;
+			}) => Promise<void>;
+		};
 	}
 }
