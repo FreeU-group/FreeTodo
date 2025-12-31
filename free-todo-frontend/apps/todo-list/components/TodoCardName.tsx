@@ -52,23 +52,27 @@ export function TodoCardName({
 
 	return (
 		<div
-			role="button"
-			tabIndex={0}
-			onClick={onStartEdit}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
-					onStartEdit(e as unknown as React.MouseEvent);
-				}
-			}}
 			className={cn(
 				"text-sm text-foreground leading-5 m-0 wrap-break-word line-clamp-3",
-				"cursor-text hover:bg-muted/30 rounded-md px-1 py-0.5 transition-colors",
+				"rounded-md px-1 py-0.5",
 				todo.status === "completed" && "line-through text-muted-foreground",
 				todo.status === "canceled" && "line-through text-muted-foreground",
 			)}
 		>
-			{todo.name}
+			<span
+				role="button"
+				tabIndex={0}
+				onClick={onStartEdit}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onStartEdit(e as unknown as React.MouseEvent);
+					}
+				}}
+				className="cursor-text hover:bg-muted/30 rounded transition-colors"
+			>
+				{todo.name}
+			</span>
 		</div>
 	);
 }
