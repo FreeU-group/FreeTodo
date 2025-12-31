@@ -375,3 +375,22 @@ class ITaskRepository(ABC):
     def create_progress(self, task_id: int, summary: str, context_count: int) -> int | None:
         """创建任务进展记录"""
         pass
+
+
+class IUserPersonaRepository(ABC):
+    """UserPersona 仓库接口（单例模式）"""
+
+    @abstractmethod
+    def get(self) -> dict[str, Any] | None:
+        """获取用户画像（不存在则返回 None）"""
+        pass
+
+    @abstractmethod
+    def get_or_create(self) -> dict[str, Any]:
+        """获取用户画像，不存在则自动创建默认记录"""
+        pass
+
+    @abstractmethod
+    def update(self, **kwargs) -> bool:
+        """更新用户画像"""
+        pass

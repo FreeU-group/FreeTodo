@@ -354,6 +354,23 @@ class ActivityEventRelation(SQLModel, table=True):
         return f"<ActivityEventRelation(id={self.id}, activity_id={self.activity_id})>"
 
 
+# ========== 用户配置模型 ==========
+
+
+class UserPersona(SQLModel, table=True):
+    """用户画像模型（单例）"""
+
+    __tablename__ = "user_persona"
+
+    id: int = Field(default=1, primary_key=True)  # 固定为1，单例模式
+    nickname: str = Field(max_length=50)  # 用户昵称
+    description: str | None = Field(default=None, sa_column=Column(Text))  # 用户描述/简介
+    last_updated: datetime = Field(default_factory=get_local_time)  # 最后更新时间
+
+    def __repr__(self):
+        return f"<UserPersona(id={self.id}, nickname={self.nickname})>"
+
+
 # 为兼容旧代码，保留 Base 引用（指向 SQLModel.metadata）
 # 这样现有的 Base.metadata.create_all() 调用仍然有效
 Base = SQLModel

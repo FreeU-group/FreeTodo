@@ -17,6 +17,7 @@ from lifetrace.repositories.interfaces import (
     IProjectRepository,
     ITaskRepository,
     ITodoRepository,
+    IUserPersonaRepository,
 )
 from lifetrace.repositories.sql_activity_repository import SqlActivityRepository
 from lifetrace.repositories.sql_chat_repository import SqlChatRepository
@@ -25,6 +26,7 @@ from lifetrace.repositories.sql_journal_repository import SqlJournalRepository
 from lifetrace.repositories.sql_project_repository import SqlProjectRepository
 from lifetrace.repositories.sql_task_repository import SqlTaskRepository
 from lifetrace.repositories.sql_todo_repository import SqlTodoRepository
+from lifetrace.repositories.sql_user_persona_repository import SqlUserPersonaRepository
 from lifetrace.services.activity_service import ActivityService
 from lifetrace.services.chat_service import ChatService
 from lifetrace.services.event_service import EventService
@@ -32,6 +34,7 @@ from lifetrace.services.journal_service import JournalService
 from lifetrace.services.project_service import ProjectService
 from lifetrace.services.task_service import TaskService
 from lifetrace.services.todo_service import TodoService
+from lifetrace.services.user_persona_service import UserPersonaService
 from lifetrace.storage.database import db_base
 from lifetrace.storage.database_base import DatabaseBase
 
@@ -223,3 +226,20 @@ def get_settings():
     from lifetrace.util.settings import settings
 
     return settings
+
+
+# ========== UserPersona 模块依赖注入 ==========
+
+
+def get_user_persona_repository(
+    db_base: DatabaseBase = Depends(get_db_base),
+) -> IUserPersonaRepository:
+    """获取 UserPersona 仓库实例"""
+    return SqlUserPersonaRepository(db_base)
+
+
+def get_user_persona_service(
+    repo: IUserPersonaRepository = Depends(get_user_persona_repository),
+) -> UserPersonaService:
+    """获取 UserPersona 服务实例"""
+    return UserPersonaService(repo)
