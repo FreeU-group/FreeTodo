@@ -240,10 +240,15 @@ export class PersistenceService {
         rawText: t.rawText,
         optimizedText: t.optimizedText,
         isOptimized: !!t.optimizedText,
+        isInterim: false, // 导入的转录都是最终结果
         containsSchedule: t.containsSchedule || false,
-        audioStart: t.audioStart,
-        audioEnd: t.audioEnd,
+        containsTodo: t.containsTodo || false, // 添加待办标记
+        audioStart: t.audioStart || 0,
+        audioEnd: t.audioEnd || (t.audioStart || 0) + 5000,
         audioFileId: t.audioFileId,
+        segmentId: t.segmentId, // 添加segmentId支持
+        absoluteStart: t.absoluteStart ? new Date(t.absoluteStart) : undefined, // 添加绝对时间支持
+        absoluteEnd: t.absoluteEnd ? new Date(t.absoluteEnd) : undefined,
         uploadStatus: 'uploaded' as const,
       }));
     } catch (error) {
@@ -348,34 +353,67 @@ export class PersistenceService {
   }
 
   /**
+   * 删除音频文件
+   */
+  async deleteAudio(audioId: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/audio/${audioId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Delete audio failed: ${response.statusText}`);
+      }
+      
+      console.log('[PersistenceService] ✅ 音频删除成功:', audioId);
+      return true;
+    } catch (error) {
+      console.error('[PersistenceService] ❌ 删除音频失败:', error);
+      if (this.onError) {
+        const err = error instanceof Error ? error : new Error('Delete audio failed');
+        this.onError(err);
+      }
+      return false;
+    }
+  }
+
+  /**
    * 获取音频文件URL
    */
   async getAudioUrl(audioFileId: string): Promise<string | null> {
     try {
+      console.log('[PersistenceService] 获取音频URL，audioFileId:', audioFileId);
       const response = await fetch(`${API_BASE_URL}/audio/${audioFileId}`);
       
       if (!response.ok) {
+        console.error('[PersistenceService] Get audio URL failed:', response.status, response.statusText);
         throw new Error(`Get audio URL failed: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log('[PersistenceService] getAudioUrl返回数据:', data);
+      
       if (data.url) {
         if (data.url.startsWith('http://') || data.url.startsWith('https://')) {
+          console.log('[PersistenceService] 返回完整URL:', data.url);
           return data.url;
         }
         
+        // 处理相对路径
         const baseUrl = API_BASE_URL.replace(/\/api$/, '');
         const urlPath = data.url.startsWith('/') ? data.url : `/${data.url}`;
         const fullUrl = `${baseUrl}${urlPath}`;
         
         try {
           new URL(fullUrl);
+          console.log('[PersistenceService] 返回规范化URL:', fullUrl);
           return fullUrl;
         } catch (urlError) {
-          console.error('[PersistenceService] Invalid URL format:', fullUrl);
+          console.error('[PersistenceService] Invalid URL format:', fullUrl, urlError);
           return null;
         }
       }
+      console.warn('[PersistenceService] getAudioUrl返回数据中没有url字段');
       return null;
     } catch (error) {
       console.error('[PersistenceService] Get audio URL failed:', error);

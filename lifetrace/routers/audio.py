@@ -272,3 +272,59 @@ async def get_audio_file(filename: str):
         logger.error(f"获取音频文件内容失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取失败: {str(e)}") from e
 
+
+@router.delete("/{audio_id}")
+async def delete_audio(audio_id: str):
+    """删除音频文件和相关记录"""
+    try:
+        with get_session() as session:
+            # 查找音频记录
+            audio_recording = session.query(AudioRecording).filter(
+                AudioRecording.segment_id == audio_id
+            ).first()
+            
+            if not audio_recording:
+                raise HTTPException(status_code=404, detail="音频记录不存在")
+            
+            # 查找关联的附件
+            attachment = None
+            if audio_recording.attachment_id:
+                attachment = session.query(Attachment).filter(
+                    Attachment.id == audio_recording.attachment_id
+                ).first()
+            
+            # 删除文件
+            if attachment and attachment.file_path:
+                file_path = Path(attachment.file_path)
+                if file_path.exists():
+                    try:
+                        file_path.unlink()
+                        logger.info(f"✅ 已删除音频文件: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"删除音频文件失败: {file_path}, 错误: {e}")
+            
+            # 删除数据库记录
+            # 先删除关联的转录片段
+            from lifetrace.storage import TranscriptSegment
+            session.query(TranscriptSegment).filter(
+                TranscriptSegment.audio_recording_id == audio_recording.id
+            ).delete()
+            
+            # 删除音频记录
+            session.delete(audio_recording)
+            
+            # 删除附件记录
+            if attachment:
+                session.delete(attachment)
+            
+            session.commit()
+            
+            logger.info(f"✅ 已删除音频记录: segment_id={audio_id}")
+            return JSONResponse(content={"message": "音频已删除", "audio_id": audio_id})
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除音频失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}") from e
+

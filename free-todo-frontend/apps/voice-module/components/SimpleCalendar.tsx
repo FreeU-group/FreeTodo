@@ -128,7 +128,6 @@ export function SimpleCalendar({ selectedDate, onDateSelect, onClose, audioDates
           
           const isTodayDate = isToday(date);
           const isSelectedDate = isSelected(date);
-          const hasAudioDate = hasAudio(date);
           const audioCount = getAudioCount(date);
           
           return (
@@ -144,10 +143,12 @@ export function SimpleCalendar({ selectedDate, onDateSelect, onClose, audioDates
               )}
             >
               <span>{date.getDate()}</span>
-              {hasAudioDate && audioCount > 0 && (
+              {audioCount > 0 && (
                 <span className={cn(
-                  "absolute top-0.5 right-0.5 text-[8px] font-bold leading-none px-0.5 py-0 rounded-full min-w-[12px] text-center",
-                  isSelectedDate ? "bg-primary-foreground text-primary" : "bg-primary text-primary-foreground"
+                  "absolute top-0.5 right-0.5 text-[10px] font-bold leading-none px-1 py-0.5 rounded-full min-w-[16px] text-center",
+                  isSelectedDate 
+                    ? "bg-white text-primary border border-primary/30" 
+                    : "bg-primary text-white border border-primary/50"
                 )}>
                   {audioCount}
                 </span>

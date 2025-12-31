@@ -1169,6 +1169,50 @@ if (gotTheLock) {
 			width: screenWidth - margin * 2,
 			height: screenHeight - margin * 2,
 		});
+
+		// 全屏模式也添加圆角（16px），使用 clip-path 实现完美圆角
+		// 立即注入，并在页面加载完成后再次注入确保生效
+		const injectRoundedCorners = () => {
+			mainWindow?.webContents.insertCSS(`
+				html {
+					border-radius: 16px !important;
+					overflow: hidden !important;
+					clip-path: inset(0 round 16px) !important;
+				}
+				body {
+					border-radius: 16px !important;
+					overflow: hidden !important;
+					clip-path: inset(0 round 16px) !important;
+					background-color: transparent !important;
+				}
+				#__next {
+					border-radius: 16px !important;
+					overflow: hidden !important;
+					clip-path: inset(0 round 16px) !important;
+					background-color: transparent !important;
+				}
+				#__next > div {
+					border-radius: 16px !important;
+					overflow: hidden !important;
+					clip-path: inset(0 round 16px) !important;
+				}
+			`).catch(() => {});
+		};
+		
+		// 立即注入
+		injectRoundedCorners();
+		
+		// 延迟再次注入确保生效
+		setTimeout(() => {
+			injectRoundedCorners();
+		}, 200);
+		
+		// 监听页面加载完成，再次注入
+		mainWindow.webContents.once('did-finish-load', () => {
+			setTimeout(() => {
+				injectRoundedCorners();
+			}, 100);
+		});
 	});
 
 	// IPC: 展开窗口到窗口化模式（完全照抄 electron-with-nextjs）
@@ -1191,6 +1235,32 @@ if (gotTheLock) {
 			width: expandedWidth,
 			height: expandedHeight,
 		});
+
+		// 注入窗口圆角 CSS（Panel 模式，增大到16px），使用 clip-path 实现完美圆角
+		mainWindow.webContents.insertCSS(`
+			html {
+				border-radius: 16px !important;
+				overflow: hidden !important;
+				clip-path: inset(0 round 16px) !important;
+			}
+			body {
+				border-radius: 16px !important;
+				overflow: hidden !important;
+				clip-path: inset(0 round 16px) !important;
+				background-color: transparent !important;
+			}
+			#__next {
+				border-radius: 16px !important;
+				overflow: hidden !important;
+				clip-path: inset(0 round 16px) !important;
+				background-color: transparent !important;
+			}
+			#__next > div {
+				border-radius: 16px !important;
+				overflow: hidden !important;
+				clip-path: inset(0 round 16px) !important;
+			}
+		`).catch(() => {});
 	});
 
 	// IPC: 在指定位置展开窗口（完全照抄 electron-with-nextjs 的方式，但使用传入的位置）
@@ -1219,6 +1289,29 @@ if (gotTheLock) {
 		mainWindow.setMovable(false);
 		
 		mainWindow.setBounds(originalBounds);
+		
+		// 移除圆角 CSS 和 clip-path（折叠回灵动岛时不需要圆角）
+		mainWindow.webContents.insertCSS(`
+			html {
+				border-radius: 0 !important;
+				clip-path: none !important;
+			}
+			body {
+				border-radius: 0 !important;
+				clip-path: none !important;
+			}
+			#__next {
+				border-radius: 0 !important;
+				clip-path: none !important;
+			}
+			#__next > div {
+				border-radius: 0 !important;
+				clip-path: none !important;
+			}
+		`).catch(() => {});
+		
+		// 重新启用点击穿透（FLOAT 模式需要）
+		mainWindow.setIgnoreMouseEvents(true, { forward: true });
 	});
 
 	// IPC: 获取屏幕信息（完全照抄 electron-with-nextjs）

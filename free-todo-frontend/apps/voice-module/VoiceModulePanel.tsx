@@ -40,6 +40,37 @@ const API_BASE_URL = typeof window !== 'undefined'
   ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api')
   : 'http://localhost:8000/api';
 
+// 辅助函数：将相对路径URL转换为完整URL
+function normalizeAudioUrl(fileUrl: string | undefined): string | null {
+  if (!fileUrl) return null;
+  
+  // 如果已经是完整URL（http/https/blob），直接返回
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://') || fileUrl.startsWith('blob:')) {
+    return fileUrl;
+  }
+  
+  // 处理相对路径（如 /api/audio/file/...）
+  if (fileUrl.startsWith('/')) {
+    // 如果以/api开头，需要拼接base URL
+    if (fileUrl.startsWith('/api/')) {
+      const baseUrl = API_BASE_URL.replace('/api', ''); // 移除/api后缀，因为fileUrl已经包含/api
+      return `${baseUrl}${fileUrl}`;
+    } else {
+      // 其他相对路径，直接使用当前域名
+      return `${window.location.origin}${fileUrl}`;
+    }
+  }
+  
+  // 处理以api/开头的路径（没有前导斜杠）
+  if (fileUrl.startsWith('api/')) {
+    const baseUrl = API_BASE_URL.replace('/api', '');
+    return `${baseUrl}/${fileUrl}`;
+  }
+  
+  // 其他情况，直接拼接API_BASE_URL
+  return `${API_BASE_URL}/${fileUrl}`;
+}
+
 export function VoiceModulePanel() {
   // 从store获取状态
   const {
@@ -98,8 +129,24 @@ export function VoiceModulePanel() {
   const [recordingDuration, setRecordingDuration] = useState(0); // 录音时长（秒）
   const [currentSpeaker, setCurrentSpeaker] = useState<string>('发言人1');
   const [meetingTitle, setMeetingTitle] = useState<string>(''); // 会议标题
+  const [isEditingTitle, setIsEditingTitle] = useState(false); // 是否正在编辑标题
+  const [editTitleValue, setEditTitleValue] = useState<string>(''); // 编辑中的标题值
+  const titleInputRef = useRef<HTMLInputElement>(null); // 标题输入框引用
+
+  // 当进入编辑模式时，聚焦输入框
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
   const [nowTime, setNowTime] = useState<Date | null>(null); // 当前时间（初始为 null，避免 SSR 不一致）
   const [dayAudioSegments, setDayAudioSegments] = useState<AudioSegment[]>([]); // 当前日期的音频列表（从后端查询）
+
+  // 加载状态
+  const [isTranscribing, setIsTranscribing] = useState(false); // 转录中
+  const [isExtracting, setIsExtracting] = useState(false); // 提取中
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false); // 加载音频中
 
   // 播放器状态
   const [isPlaying, setIsPlaying] = useState(false);
@@ -232,6 +279,14 @@ export function VoiceModulePanel() {
 
   // 处理待办提取 - 先加入到待确认列表，不自动加入
   const handleTodoExtracted = useCallback(async (todo: ExtractedTodo) => {
+    // 检查是否已经存在于extractedTodos中（避免重复添加）
+    const currentTodos = useAppStore.getState().extractedTodos;
+    const existingTodo = currentTodos.find(t => t.id === todo.id);
+    if (existingTodo) {
+      console.log('[handleTodoExtracted] 待办已存在，跳过重复添加:', todo.id);
+      return;
+    }
+    
     // 先加入到待确认列表（智能提取区域）
     setPendingTodos(prev => {
       // 避免重复添加
@@ -252,12 +307,21 @@ export function VoiceModulePanel() {
   
   // 用户点击"加入待办"后调用
   const handleAddTodo = useCallback(async (todo: ExtractedTodo) => {
+    // 检查是否已经创建过（通过userNotes中的VOICE_SOURCE_SEGMENT_ID判断）
+    const userNotes = `VOICE_SOURCE_SEGMENT_ID:${todo.sourceSegmentId}`;
+    
+    // 检查是否已经存在于extractedTodos中（避免重复添加）
+    const existingTodo = extractedTodos.find(t => t.id === todo.id);
+    if (existingTodo) {
+      console.log('[handleAddTodo] 待办已存在，跳过重复添加:', todo.id);
+      return;
+    }
+    
     // 加入到全局状态（待办事项区域）
     addExtractedTodo(todo);
     
     // 自动创建Todo（与系统待办列表、日历等联动）
     try {
-      const userNotes = `VOICE_SOURCE_SEGMENT_ID:${todo.sourceSegmentId}`;
       await createTodoMutation.mutateAsync({
         name: todo.title,
         description: todo.description,
@@ -270,7 +334,7 @@ export function VoiceModulePanel() {
     } catch (error) {
       console.warn('[handleAddTodo] 自动创建 Todo 失败:', error);
     }
-  }, [addExtractedTodo, createTodoMutation]);
+  }, [addExtractedTodo, createTodoMutation, extractedTodos]);
 
   // 处理识别结果（支持自动分段）
   const handleRecognitionResult = useCallback((text: string, isFinal: boolean) => {
@@ -1023,19 +1087,29 @@ export function VoiceModulePanel() {
                 messages: [
                   {
                     role: 'system',
-                    content: `你是一个智能会议纪要生成助手。请根据以下转录文本，生成一份简洁、清晰的会议纪要。
+                    content: `你是一个专业的智能会议纪要生成助手。你的任务是根据录音转录文本，生成一份结构清晰、重点突出的会议纪要。
 
-要求：
-1. 总结核心内容和要点
-2. 提取关键决策和行动项
-3. 使用自然流畅的中文，不要使用任何标记符号（如 [SCHEDULE:...] 或 [TODO:...]）
-4. 保持逻辑清晰，结构合理
-5. 如果内容较少，可以生成简短的总结；如果内容较多，可以分段总结
-6. 输出纯文本，不要使用任何特殊标记`,
+**重要要求：**
+1. **必须生成新的内容**：不要直接复制原文，而是基于原文进行总结、提炼和重组
+2. **提取核心要点**：识别并总结会议的核心议题、关键讨论点和重要结论
+3. **结构化输出**：使用清晰的段落结构，可以按主题或时间顺序组织
+4. **突出关键信息**：重点突出决策、行动项、时间节点等重要信息
+5. **语言优化**：使用简洁、专业的中文表达，去除口语化、重复和无关内容
+6. **去除标记**：不要包含任何技术标记符号（如 [SCHEDULE:...] 或 [TODO:...]）
+7. **保持完整性**：确保纪要能够独立理解，不依赖原文
+
+**输出格式：**
+- 使用自然的中文段落
+- 可以适当使用标题或分段来组织内容
+- 纯文本格式，不要使用特殊标记`,
                   },
                   {
                     role: 'user',
-                    content: `请为以下转录内容生成智能纪要：\n\n${allText}`,
+                    content: `请基于以下录音转录内容，生成一份智能会议纪要。要求对内容进行总结提炼，而不是直接复制原文：
+
+${allText}
+
+请生成结构化的会议纪要：`,
                   },
                 ],
                 temperature: 0.7,
@@ -1126,6 +1200,11 @@ export function VoiceModulePanel() {
   // 处理日期切换 - 从后端加载该日期的数据
   const handleDateChange = useCallback(async (date: Date) => {
     setSelectedDate(date);
+    // 更新标题
+    const newTitle = `${date.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`;
+    setMeetingTitle(newTitle);
+    // 立即清空dayAudioSegments，避免显示旧数据
+    setDayAudioSegments([]);
     
     if (!persistenceServiceRef.current) {
       console.warn('[VoiceModulePanel] PersistenceService未初始化，无法加载历史数据');
@@ -1173,14 +1252,36 @@ export function VoiceModulePanel() {
       // 将查询到的音频记录转换为 AudioSegment（直接从后端查询，不依赖 store）
       const loadedAudioSegments: AudioSegment[] = [];
       for (const recording of recordings) {
-        // 获取音频文件URL
+        // 获取音频文件URL - 优先使用getAudioUrl获取正确的URL
+        // 注意：后端返回的id是segment_id，应该使用segment_id来获取音频URL
         let fileUrl: string | undefined;
-        if (recording.file_url) {
+        const audioId = recording.segment_id || recording.id;
+        if (audioId) {
+          // 优先通过 segment_id 获取正确的URL（后端会返回正确的URL格式）
+          try {
+            const url = await persistenceServiceRef.current.getAudioUrl(audioId);
+            if (url) {
+              fileUrl = url;
+              console.log(`[VoiceModulePanel] 通过getAudioUrl获取URL:`, url, 'for segment_id:', audioId);
+            } else {
+              console.warn(`[VoiceModulePanel] getAudioUrl返回null for segment_id:`, audioId);
+            }
+          } catch (error) {
+            console.warn(`[VoiceModulePanel] getAudioUrl失败 for segment_id:`, audioId, error);
+          }
+        }
+        // 如果getAudioUrl失败，尝试使用file_url（从数据库查询结果中获取）
+        if (!fileUrl && recording.file_url) {
           fileUrl = recording.file_url;
-        } else if (recording.id) {
-          // 如果没有 file_url，尝试通过 ID 获取
-          const url = await persistenceServiceRef.current.getAudioUrl(recording.id);
-          if (url) fileUrl = url;
+          console.log(`[VoiceModulePanel] 使用file_url:`, fileUrl);
+        }
+        // 如果还是没有URL，记录警告
+        if (!fileUrl) {
+          console.warn(`[VoiceModulePanel] 无法获取音频URL for recording:`, {
+            id: recording.id,
+            segment_id: recording.segment_id,
+            filename: recording.filename,
+          });
         }
 
         // 解析时间戳，确保正确转换
@@ -1363,27 +1464,578 @@ export function VoiceModulePanel() {
   }, [setError]);
 
   // 处理选择音频文件
-  const handleSelectAudio = useCallback((audio: AudioSegment) => {
+  const handleSelectAudio = useCallback(async (audio: AudioSegment) => {
     setSelectedAudioId(audio.id);
-    if (audio.fileUrl) {
-      setCurrentAudioUrl(audio.fileUrl);
+    
+    // 加载该音频对应的转录、纪要、待办等数据
+    if (audio.startTime && persistenceServiceRef.current) {
+      try {
+        // 计算该音频的时间范围（前后各扩展1秒，确保覆盖）
+        const startTime = new Date(audio.startTime.getTime() - 1000);
+        const endTime = new Date(audio.endTime.getTime() + 1000);
+        
+        // 加载该时间范围内的转录文本
+        const loadedTranscripts = await persistenceServiceRef.current.queryTranscripts(startTime, endTime);
+        loadedTranscripts.forEach(t => {
+          const exists = transcripts.find(tr => tr.id === t.id);
+          if (!exists) {
+            addTranscript(t);
+          }
+        });
+        
+        // 加载该时间范围内的日程
+        const loadedSchedules = await persistenceServiceRef.current.querySchedules(startTime, endTime);
+        console.log(`[VoiceModulePanel] 加载了 ${loadedSchedules.length} 条日程 for audio:`, audio.id);
+        loadedSchedules.forEach(s => {
+          const exists = schedules.find(sch => sch.id === s.id);
+          if (!exists) {
+            addSchedule(s);
+          }
+        });
+        
+        // 如果该音频没有转录内容，自动进行转录（类似测试音频功能）
+        if (loadedTranscripts.length === 0 && audio.fileUrl) {
+          console.log('[VoiceModulePanel] 音频没有转录内容，开始自动转录:', audio.id);
+          setIsTranscribing(true);
+          setIsExtracting(true);
+          try {
+            // 获取音频文件
+            const normalizedUrl = normalizeAudioUrl(audio.fileUrl);
+            if (normalizedUrl) {
+              const response = await fetch(normalizedUrl);
+              if (response.ok) {
+                const blob = await response.blob();
+                
+                // 使用转录API
+                const formData = new FormData();
+                formData.append("file", blob, `${audio.id}.webm`);
+                formData.append("optimize", "true");
+                formData.append("extract_todos", "true");
+                formData.append("extract_schedules", "true");
+                
+                const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+                const transcribeResponse = await fetch(`${apiUrl}/audio/transcribe-file`, {
+                  method: 'POST',
+                  body: formData,
+                });
+                
+                if (transcribeResponse.ok) {
+                  const result = await transcribeResponse.json();
+                  console.log('[VoiceModulePanel] 转录完成:', result);
+                  console.log('[VoiceModulePanel] 优化文本:', result.optimized_text);
+                  setIsTranscribing(false);
+                  
+                  // 处理转录结果（类似测试音频的处理逻辑）
+                  if (result.transcript) {
+                    const text = result.transcript;
+                    const optimizedText = result.optimized_text || undefined;
+                    console.log('[VoiceModulePanel] 原始文本长度:', text.length, '优化文本:', optimizedText ? optimizedText.length : '无');
+                    
+                    // 按段落分割（使用与测试音频相同的逻辑）
+                    const paragraphRegex = /([。！？\n]+)/g;
+                    const paragraphs: string[] = [];
+                    let lastIndex = 0;
+                    let match;
+                    
+                    while ((match = paragraphRegex.exec(text)) !== null) {
+                      const paragraphText = text.substring(lastIndex, match.index).trim();
+                      if (paragraphText) {
+                        paragraphs.push(paragraphText);
+                      }
+                      lastIndex = match.index + match[0].length;
+                    }
+                    
+                    if (lastIndex < text.length) {
+                      const remainingText = text.substring(lastIndex).trim();
+                      if (remainingText) {
+                        paragraphs.push(remainingText);
+                      }
+                    }
+                    
+                    // 如果没有找到段落分隔符，按时间点或长空格分段
+                    if (paragraphs.length === 0 || (paragraphs.length === 1 && paragraphs[0] === text)) {
+                      const timePointRegex = /(早上|上午|中午|下午|晚上|凌晨)?\s*(\d{1,2})[点:](\d{0,2})[分]?|(\d{1,2})点(\d{0,2})分?/g;
+                      const timeMatches: Array<{ index: number; text: string }> = [];
+                      let timeMatch;
+                      
+                      while ((timeMatch = timePointRegex.exec(text)) !== null) {
+                        timeMatches.push({
+                          index: timeMatch.index,
+                          text: timeMatch[0],
+                        });
+                      }
+                      
+                      if (timeMatches.length > 1) {
+                        paragraphs.length = 0;
+                        for (let i = 0; i < timeMatches.length; i++) {
+                          const startIndex = i === 0 ? 0 : timeMatches[i].index;
+                          const endIndex = i < timeMatches.length - 1 ? timeMatches[i + 1].index : text.length;
+                          const paragraphText = text.substring(startIndex, endIndex).trim();
+                          if (paragraphText) {
+                            paragraphs.push(paragraphText);
+                          }
+                        }
+                      } else {
+                        const longSpaceRegex = /\s{2,}/g;
+                        const spaceMatches: number[] = [0];
+                        let spaceMatch;
+                        
+                        while ((spaceMatch = longSpaceRegex.exec(text)) !== null) {
+                          spaceMatches.push(spaceMatch.index);
+                        }
+                        spaceMatches.push(text.length);
+                        
+                        if (spaceMatches.length > 2) {
+                          paragraphs.length = 0;
+                          for (let i = 0; i < spaceMatches.length - 1; i++) {
+                            const paragraphText = text.substring(spaceMatches[i], spaceMatches[i + 1]).trim();
+                            if (paragraphText) {
+                              paragraphs.push(paragraphText);
+                            }
+                          }
+                        } else {
+                          paragraphs.length = 0;
+                          const chunkSize = 50;
+                          for (let i = 0; i < text.length; i += chunkSize) {
+                            const chunk = text.substring(i, i + chunkSize).trim();
+                            if (chunk) {
+                              paragraphs.push(chunk);
+                            }
+                          }
+                          if (paragraphs.length === 0) {
+                            paragraphs.push(text);
+                          }
+                        }
+                      }
+                    }
+                    
+                    // 处理优化文本（如果优化文本只有一个段落，直接使用；否则按段落分割）
+                    const optimizedParagraphs: string[] = [];
+                    if (optimizedText) {
+                      // 如果优化文本只有一个段落，且原始文本被分割成多个段落，则优化文本应该应用到所有段落
+                      const optimizedLines = optimizedText.split(/\n+/).filter((line: string) => line.trim());
+                      if (optimizedLines.length > 0) {
+                        // 如果优化文本的行数与原始段落数相同，则一一对应
+                        if (optimizedLines.length === paragraphs.length) {
+                          optimizedParagraphs.push(...optimizedLines.map((line: string) => line.trim()));
+                        } else if (optimizedLines.length === 1 && paragraphs.length > 1) {
+                          // 如果优化文本只有一个段落，但原始文本被分割成多个段落，则优化文本应用到所有段落
+                          optimizedParagraphs.push(...Array(paragraphs.length).fill(optimizedLines[0].trim()));
+                        } else {
+                          // 否则，将优化文本合并为一个段落，应用到所有原始段落
+                          const mergedOptimizedText = optimizedLines.join(' ').trim();
+                          optimizedParagraphs.push(...Array(paragraphs.length).fill(mergedOptimizedText));
+                        }
+                      } else {
+                        // 尝试按段落分隔符分割
+                        let optLastIndex = 0;
+                        paragraphRegex.lastIndex = 0;
+                        while ((match = paragraphRegex.exec(optimizedText)) !== null) {
+                          const paragraphText = optimizedText.substring(optLastIndex, match.index).trim();
+                          if (paragraphText) {
+                            optimizedParagraphs.push(paragraphText);
+                          }
+                          optLastIndex = match.index + match[0].length;
+                        }
+                        if (optLastIndex < optimizedText.length) {
+                          const remainingText = optimizedText.substring(optLastIndex).trim();
+                          if (remainingText) {
+                            optimizedParagraphs.push(remainingText);
+                          }
+                        }
+                        // 如果优化段落数与原始段落数不匹配，则使用整个优化文本
+                        if (optimizedParagraphs.length === 0 || optimizedParagraphs.length !== paragraphs.length) {
+                          optimizedParagraphs.length = 0;
+                          const mergedOptimizedText = optimizedText.trim();
+                          optimizedParagraphs.push(...Array(paragraphs.length).fill(mergedOptimizedText));
+                        }
+                      }
+                    }
+                    
+                    // 创建转录片段（关键：确保sourceSegmentId正确关联）
+                    const audioDuration = audio.duration || (audio.endTime.getTime() - audio.startTime.getTime());
+                    const baseTimestamp = audio.startTime;
+                    const createdSegments: TranscriptSegment[] = [];
+                    
+                    // 计算每个段落的时间（基于文本长度比例，而不是平均分配）
+                    const totalTextLength = paragraphs.reduce((sum, p) => sum + p.length, 0);
+                    let currentTimeOffset = 0; // 当前累计的时间偏移（毫秒）
+                    
+                    paragraphs.forEach((paragraph, index) => {
+                      const segmentId = `${audio.id}_${index}_${Date.now()}`;
+                      const optimizedPara = optimizedParagraphs[index];
+                      
+                      // 根据文本长度比例计算该段落的时间
+                      const textRatio = totalTextLength > 0 ? paragraph.length / totalTextLength : 1 / paragraphs.length;
+                      const segmentDuration = audioDuration * textRatio;
+                      const segmentStart = currentTimeOffset;
+                      const segmentEnd = currentTimeOffset + segmentDuration;
+                      
+                      // 计算绝对时间戳（基于音频开始时间 + 段落开始时间）
+                      const absoluteTimestamp = new Date(baseTimestamp.getTime() + segmentStart);
+                      
+                      const segment: TranscriptSegment = {
+                        id: segmentId,
+                        timestamp: absoluteTimestamp, // 使用计算出的绝对时间戳
+                        rawText: paragraph,
+                        optimizedText: optimizedPara && optimizedPara.trim() ? optimizedPara : undefined,
+                        isOptimized: !!(optimizedText && optimizedPara && optimizedPara.trim()),
+                        isInterim: false,
+                        containsSchedule: false,
+                        containsTodo: false,
+                        audioStart: segmentStart, // 相对于音频开始的时间（毫秒）
+                        audioEnd: segmentEnd, // 相对于音频结束的时间（毫秒）
+                        absoluteStart: absoluteTimestamp, // 绝对开始时间
+                        absoluteEnd: new Date(baseTimestamp.getTime() + segmentEnd), // 绝对结束时间
+                        segmentId: audio.id, // 关联到音频ID
+                        uploadStatus: 'uploaded',
+                      };
+                      console.log(`[VoiceModulePanel] 创建片段 ${index}:`, {
+                        id: segment.id,
+                        rawText: segment.rawText.substring(0, 50) + '...',
+                        optimizedText: segment.optimizedText ? segment.optimizedText.substring(0, 50) + '...' : '无',
+                        isOptimized: segment.isOptimized,
+                      });
+                      addTranscript(segment);
+                      createdSegments.push(segment);
+                      
+                      // 更新累计时间偏移
+                      currentTimeOffset = segmentEnd;
+                    });
+                    
+                    // 处理提取的日程和待办（关键：确保sourceSegmentId正确关联到segment.id）
+                    // 后端返回的日程和待办，添加到待确认列表
+                    const backendSchedules: ScheduleItem[] = [];
+                    const backendTodos: ExtractedTodo[] = [];
+                    
+                    if (result.schedules && Array.isArray(result.schedules)) {
+                      result.schedules.forEach((schedule: any, scheduleIndex: number) => {
+                        // 找到对应的segment（通过textStartIndex或使用第一个segment）
+                        const targetSegment = createdSegments.find((seg) => {
+                          if (schedule.text_start_index !== undefined) {
+                            // 使用segment的audioStart和audioEnd来判断
+                            const segmentTextStart = seg.audioStart;
+                            const segmentTextEnd = seg.audioEnd;
+                            return schedule.text_start_index >= segmentTextStart && schedule.text_start_index < segmentTextEnd;
+                          }
+                          return true; // 如果没有索引，使用第一个匹配的segment
+                        }) || createdSegments[0];
+                        
+                        const scheduleItem: ScheduleItem = {
+                          id: `schedule_${audio.id}_${scheduleIndex}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                          scheduleTime: new Date(schedule.schedule_time),
+                          description: schedule.description || '',
+                          sourceSegmentId: targetSegment.id, // 关键：关联到segment.id
+                          sourceText: schedule.source_text || '',
+                          textStartIndex: schedule.text_start_index,
+                          textEndIndex: schedule.text_end_index,
+                          extractedAt: new Date(),
+                          status: 'pending',
+                        };
+                        const exists = schedules.find(sch => sch.id === scheduleItem.id);
+                        if (!exists) {
+                          addSchedule(scheduleItem);
+                          backendSchedules.push(scheduleItem);
+                        }
+                      });
+                    }
+                    
+                    if (result.todos && Array.isArray(result.todos)) {
+                      result.todos.forEach((todo: any, todoIndex: number) => {
+                        // 找到对应的segment（通过textStartIndex或使用第一个segment）
+                        const targetSegment = createdSegments.find((seg) => {
+                          if (todo.text_start_index !== undefined) {
+                            // 使用segment的audioStart和audioEnd来判断
+                            const segmentTextStart = seg.audioStart;
+                            const segmentTextEnd = seg.audioEnd;
+                            return todo.text_start_index >= segmentTextStart && todo.text_start_index < segmentTextEnd;
+                          }
+                          return true; // 如果没有索引，使用第一个匹配的segment
+                        }) || createdSegments[0];
+                        
+                        const todoItem: ExtractedTodo = {
+                          id: `todo_${audio.id}_${todoIndex}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                          title: todo.title || todo.name || '待办事项',
+                          description: todo.description || todo.content || '',
+                          deadline: todo.deadline ? new Date(todo.deadline) : undefined,
+                          priority: todo.priority || 'medium',
+                          sourceSegmentId: targetSegment.id, // 关键：关联到segment.id
+                          sourceText: todo.source_text || '',
+                          textStartIndex: todo.text_start_index,
+                          textEndIndex: todo.text_end_index,
+                          extractedAt: new Date(),
+                        };
+                        const exists = extractedTodos.find(t => t.id === todoItem.id);
+                        if (!exists) {
+                          addExtractedTodo(todoItem);
+                          backendTodos.push(todoItem);
+                        }
+                      });
+                    }
+                    
+                    // 将后端返回的日程和待办添加到待确认列表
+                    if (backendSchedules.length > 0) {
+                      console.log('[VoiceModulePanel] 后端返回了', backendSchedules.length, '个日程，添加到待确认列表');
+                      setPendingSchedules(prev => [...prev, ...backendSchedules]);
+                    }
+                    
+                    if (backendTodos.length > 0) {
+                      console.log('[VoiceModulePanel] 后端返回了', backendTodos.length, '个待办，添加到待确认列表');
+                      setPendingTodos(prev => [...prev, ...backendTodos]);
+                    }
+                    
+                    // 触发智能提取服务（确保提取的日程和待办能正确关联）
+                    if (todoExtractionServiceRef.current && createdSegments.length > 0) {
+                      todoExtractionServiceRef.current.extractedTodosWithoutCallback = [];
+                      todoExtractionServiceRef.current.setCallbacks({
+                        onError: (err) => console.error('Todo extraction error:', err),
+                        onStatusChange: () => {},
+                      });
+                      createdSegments.forEach((seg) => {
+                        const textForExtraction = seg.optimizedText || seg.rawText;
+                        if (textForExtraction) {
+                          const segmentForExtraction = textForExtraction === seg.optimizedText 
+                            ? seg 
+                            : { ...seg, optimizedText: seg.rawText, isOptimized: true };
+                          todoExtractionServiceRef.current?.enqueue(segmentForExtraction);
+                        }
+                      });
+                      
+                      // 等待提取完成，收集结果
+                      setTimeout(() => {
+                        const storedTodos = todoExtractionServiceRef.current?.extractedTodosWithoutCallback || [];
+                        if (storedTodos.length > 0) {
+                          console.log('[VoiceModulePanel] 智能提取服务发现了', storedTodos.length, '个待确认的待办');
+                          setPendingTodos(prev => {
+                            // 避免重复添加
+                            const newTodos = storedTodos.filter(t => !prev.find(p => p.id === t.id));
+                            return [...prev, ...newTodos];
+                          });
+                          if (todoExtractionServiceRef.current) {
+                            todoExtractionServiceRef.current.extractedTodosWithoutCallback = [];
+                          }
+                        }
+                      }, 2000);
+                    }
+                    
+                    if (scheduleExtractionServiceRef.current && createdSegments.length > 0) {
+                      scheduleExtractionServiceRef.current.extractedSchedulesWithoutCallback = [];
+                      scheduleExtractionServiceRef.current.setCallbacks({
+                        onError: (err) => console.error('Schedule extraction error:', err),
+                        onStatusChange: () => {},
+                      });
+                      createdSegments.forEach((seg) => {
+                        const textForExtraction = seg.optimizedText || seg.rawText;
+                        if (textForExtraction) {
+                          const segmentForExtraction = textForExtraction === seg.optimizedText 
+                            ? seg 
+                            : { ...seg, optimizedText: seg.rawText, isOptimized: true };
+                          scheduleExtractionServiceRef.current?.enqueue(segmentForExtraction);
+                        }
+                      });
+                      
+                      // 等待提取完成，收集结果
+                      setTimeout(() => {
+                        const storedSchedules = scheduleExtractionServiceRef.current?.extractedSchedulesWithoutCallback || [];
+                        if (storedSchedules.length > 0) {
+                          console.log('[VoiceModulePanel] 智能提取服务发现了', storedSchedules.length, '个待确认的日程');
+                          setPendingSchedules(prev => {
+                            // 避免重复添加
+                            const newSchedules = storedSchedules.filter(s => !prev.find(p => p.id === s.id));
+                            return [...prev, ...newSchedules];
+                          });
+                          if (scheduleExtractionServiceRef.current) {
+                            scheduleExtractionServiceRef.current.extractedSchedulesWithoutCallback = [];
+                          }
+                        }
+                      }, 2000);
+                    }
+                    
+                    // 保存转录结果到后端
+                    if (persistenceServiceRef.current) {
+                      const segmentsToSave = createdSegments.map(seg => ({
+                        id: seg.id,
+                        segmentId: seg.id,
+                        timestamp: seg.timestamp,
+                        rawText: seg.rawText,
+                        optimizedText: seg.optimizedText,
+                        audioStart: seg.audioStart,
+                        audioEnd: seg.audioEnd,
+                        containsTodo: seg.containsTodo || false,
+                        containsSchedule: seg.containsSchedule || false,
+                        isOptimized: seg.isOptimized,
+                        isInterim: false,
+                        uploadStatus: 'uploaded' as const,
+                      }));
+                      await persistenceServiceRef.current.saveTranscripts(segmentsToSave);
+                      
+                      if (result.schedules && Array.isArray(result.schedules)) {
+                        const schedulesToSave = result.schedules.map((s: any, idx: number) => {
+                          const targetSegment = createdSegments[idx] || createdSegments[0];
+                          return {
+                            scheduleTime: new Date(s.schedule_time),
+                            description: s.description || '',
+                            sourceSegmentId: targetSegment.id,
+                            sourceText: s.source_text || '',
+                            textStartIndex: s.text_start_index,
+                            textEndIndex: s.text_end_index,
+                          };
+                        });
+                        await persistenceServiceRef.current.saveSchedules(schedulesToSave);
+                      }
+                    }
+                    
+                    console.log('[VoiceModulePanel] ✅ 音频转录完成，已添加', paragraphs.length, '个转录片段');
+                    
+                    // 等待提取完成
+                    setTimeout(() => {
+                      setIsExtracting(false);
+                    }, 3000);
+                  }
+                } else {
+                  console.warn('[VoiceModulePanel] 转录失败:', transcribeResponse.status, transcribeResponse.statusText);
+                  setIsTranscribing(false);
+                  setIsExtracting(false);
+                }
+              } else {
+                console.warn('[VoiceModulePanel] 无法获取音频文件:', response.status);
+                setIsTranscribing(false);
+                setIsExtracting(false);
+              }
+            }
+          } catch (error) {
+            console.error('[VoiceModulePanel] 自动转录失败:', error);
+            setIsTranscribing(false);
+            setIsExtracting(false);
+          }
+        }
+      } catch (error) {
+        console.error('[VoiceModulePanel] 加载音频关联数据失败:', error);
+      }
+    }
+    
+    // 规范化音频URL
+    const normalizedUrl = normalizeAudioUrl(audio.fileUrl);
+    if (!normalizedUrl) {
+      setError('音频文件URL不存在');
+      return;
+    }
+    
+    // 验证URL是否有效
+    try {
+      const url = new URL(normalizedUrl);
+      if (!url.protocol.startsWith('http') && !url.protocol.startsWith('blob')) {
+        console.error('[VoiceModulePanel] 无效的音频URL:', normalizedUrl);
+        setError('音频文件URL无效');
+        return;
+      }
+    } catch (e) {
+      console.error('[VoiceModulePanel] 音频URL格式错误:', normalizedUrl, e);
+      setError('音频文件URL格式错误');
+      return;
+    }
+    
+    console.log('[VoiceModulePanel] 使用音频URL:', normalizedUrl, '(原始:', audio.fileUrl, ')');
+    
+    if (!audioPlayerRef.current) {
+      console.error('[VoiceModulePanel] audioPlayerRef.current 为空');
+      return;
+    }
+    
+    const audioElement = audioPlayerRef.current;
+    
+    // 先移除所有旧的事件监听器（通过克隆节点来移除所有监听器）
+    const newAudio = audioElement.cloneNode() as HTMLAudioElement;
+    audioElement.parentNode?.replaceChild(newAudio, audioElement);
+    audioPlayerRef.current = newAudio;
+    
+    // 先暂停并清空
+    newAudio.pause();
+    newAudio.src = '';
+    newAudio.load();
+    
+    // 等待清空完成
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 设置新的src
+    newAudio.src = normalizedUrl;
+    newAudio.load();
+    
+    console.log('[VoiceModulePanel] 已设置audio.src:', normalizedUrl, 'readyState:', newAudio.readyState, 'src:', newAudio.src);
+    
+    // 更新状态
+    setCurrentAudioUrl(normalizedUrl);
+    
+    // 监听loadedmetadata事件，获取实际duration
+    const handleLoadedMetadata = () => {
       if (audioPlayerRef.current) {
-        audioPlayerRef.current.src = audio.fileUrl;
-        audioPlayerRef.current.load();
+        const actualDuration = audioPlayerRef.current.duration;
+        if (actualDuration && isFinite(actualDuration) && actualDuration > 0) {
+          console.log('[VoiceModulePanel] 音频实际时长:', actualDuration, '秒');
+          setDuration(actualDuration);
+        } else if (audio.duration > 0) {
+          setDuration(audio.duration / 1000);
+        }
+      }
+    };
+    
+    // 监听错误事件
+    const handleError = (e: Event) => {
+      const target = e.target as HTMLAudioElement;
+      const error = target.error;
+      let errorMessage = '音频文件无法播放';
+      if (error) {
+        switch (error.code) {
+          case error.MEDIA_ERR_ABORTED:
+            errorMessage = '音频加载被中止';
+            break;
+          case error.MEDIA_ERR_NETWORK:
+            errorMessage = '网络错误，无法加载音频';
+            break;
+          case error.MEDIA_ERR_DECODE:
+            errorMessage = '音频解码失败，请检查文件格式';
+            break;
+          case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            errorMessage = '音频格式不支持或URL无效';
+            break;
+          default:
+            errorMessage = `音频加载失败 (错误代码: ${error.code})`;
+        }
+      }
+      console.error('[VoiceModulePanel] 音频加载失败:', {
+        error,
+        errorCode: error?.code,
+        errorMessage: error?.message,
+        url: normalizedUrl,
+        readyState: target.readyState,
+        networkState: target.networkState,
+        src: target.src,
+      });
+      setError(errorMessage);
+    };
+    
+    // 监听loadstart事件
+    const handleLoadStart = () => {
+      console.log('[VoiceModulePanel] 开始加载音频:', normalizedUrl, 'src:', newAudio.src);
+    };
+    
+    newAudio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    newAudio.addEventListener('error', handleError);
+    newAudio.addEventListener('loadstart', handleLoadStart);
+    
         // 重置播放位置
         setCurrentTime(0);
         if (isPlaying) {
-          audioPlayerRef.current.play().catch(() => {
-            // 忽略自动播放失败
+      newAudio.play().catch((err) => {
+        console.warn('[VoiceModulePanel] 自动播放失败:', err);
           });
         }
-      }
-      // 更新总时长
+    
+    // 更新总时长（临时值，实际值从loadedmetadata获取）
       if (audio.duration > 0) {
         setDuration(audio.duration / 1000);
       }
-    }
-  }, [isPlaying]);
+  }, [isPlaying, addTranscript, addSchedule, transcripts, schedules, setError, setCurrentAudioUrl, setCurrentTime, setDuration, setIsPlaying]);
 
   // 处理视图切换（原文/智能优化版）
   const handleViewChange = useCallback((view: 'original' | 'optimized') => {
@@ -1449,87 +2101,174 @@ export function VoiceModulePanel() {
 
   // 处理片段点击（协同功能）- 参考代码实现
   const handleSegmentClick = useCallback((segment: TranscriptSegment) => {
+    console.log('[VoiceModulePanel] 点击文本片段:', segment.id, segment);
+    console.log('[VoiceModulePanel] segment.segmentId:', segment.segmentId);
+    console.log('[VoiceModulePanel] dayAudioSegments:', dayAudioSegments.map(s => ({ id: s.id, startTime: s.startTime })));
+    console.log('[VoiceModulePanel] audioSegments:', audioSegments.map(s => ({ id: s.id, startTime: s.startTime })));
     setHighlightedSegmentId(segment.id);
     
-    if (isRecording || !recordingStartTime) {
+    // 如果正在录音，不允许跳转
+    if (isRecording) {
+      console.log('[VoiceModulePanel] 正在录音，不允许跳转');
       return;
     }
     
-    // 优先使用segmentId匹配audioSegment
-    let targetSegment = segment.segmentId
-      ? audioSegments.find(s => s.id === segment.segmentId)
-      : undefined;
+    // 优先在dayAudioSegments中查找（当前日期的音频列表）
+    let targetSegment: AudioSegment | undefined = undefined;
     
-    // 如果没有segmentId，使用绝对时间匹配
+    // 1. 优先使用segmentId匹配（先在dayAudioSegments中查找）
+    if (segment.segmentId) {
+      targetSegment = dayAudioSegments.find(s => s.id === segment.segmentId);
+      if (!targetSegment) {
+        // 如果dayAudioSegments中没找到，再在全局audioSegments中查找
+        targetSegment = audioSegments.find(s => s.id === segment.segmentId);
+      }
+      console.log('[VoiceModulePanel] 通过segmentId查找:', segment.segmentId, targetSegment ? '找到' : '未找到');
+    }
+    
+    // 2. 如果没有segmentId，使用绝对时间匹配（先在dayAudioSegments中查找）
     if (!targetSegment && segment.absoluteStart) {
       const abs = segment.absoluteStart.getTime();
+      targetSegment = dayAudioSegments.find(
+        s => s.startTime.getTime() <= abs && s.endTime.getTime() >= abs
+      );
+      if (!targetSegment) {
+        // 如果dayAudioSegments中没找到，再在全局audioSegments中查找
       targetSegment = audioSegments.find(
         s => s.startTime.getTime() <= abs && s.endTime.getTime() >= abs
       );
+      }
+      console.log('[VoiceModulePanel] 通过绝对时间查找:', abs, targetSegment ? '找到' : '未找到');
     }
     
-    // 如果仍未找到，使用录音开始时间计算
-    if (!targetSegment && segment.audioStart !== undefined) {
+    // 3. 如果仍未找到，使用timestamp匹配（先在dayAudioSegments中查找）
+    if (!targetSegment && segment.timestamp) {
+      const timestamp = segment.timestamp.getTime();
+      targetSegment = dayAudioSegments.find(
+        s => s.startTime.getTime() <= timestamp && s.endTime.getTime() >= timestamp
+      );
+      if (!targetSegment) {
+        // 如果dayAudioSegments中没找到，再在全局audioSegments中查找
+        targetSegment = audioSegments.find(
+          s => s.startTime.getTime() <= timestamp && s.endTime.getTime() >= timestamp
+        );
+      }
+      console.log('[VoiceModulePanel] 通过timestamp查找:', timestamp, targetSegment ? '找到' : '未找到');
+    }
+    
+    // 4. 如果仍未找到，使用录音开始时间计算
+    if (!targetSegment && segment.audioStart !== undefined && recordingStartTime) {
       const startTime = new Date(recordingStartTime.getTime() + segment.audioStart);
+      targetSegment = dayAudioSegments.find(
+        s => s.startTime.getTime() <= startTime.getTime() && s.endTime.getTime() >= startTime.getTime()
+      );
+      if (!targetSegment) {
       targetSegment = audioSegments.find(
         s => s.startTime.getTime() <= startTime.getTime() && s.endTime.getTime() >= startTime.getTime()
       );
+      }
+      console.log('[VoiceModulePanel] 通过录音开始时间查找:', startTime.getTime(), targetSegment ? '找到' : '未找到');
     }
     
-    if (!targetSegment && audioSegments.length > 0) {
-      // 最后兜底：使用最新的音频文件
+    // 5. 如果仍未找到，尝试使用当前日期的音频文件
+    if (!targetSegment && dayAudioSegments.length > 0) {
+      // 使用当前日期最新的音频文件
+      targetSegment = dayAudioSegments.sort((a, b) => b.endTime.getTime() - a.endTime.getTime())[0];
+      console.log('[VoiceModulePanel] 使用当前日期最新的音频文件:', targetSegment.id);
+    } else if (!targetSegment && audioSegments.length > 0) {
+      // 否则使用所有音频中最新的
       targetSegment = audioSegments.sort((a, b) => b.endTime.getTime() - a.endTime.getTime())[0];
+      console.log('[VoiceModulePanel] 使用全局最新的音频文件:', targetSegment.id);
     }
     
-    if (audioPlayerRef.current && targetSegment?.fileUrl) {
-      audioPlayerRef.current.src = targetSegment.fileUrl;
+    if (!targetSegment) {
+      console.warn('[VoiceModulePanel] 未找到对应的音频文件', {
+        segmentId: segment.segmentId,
+        absoluteStart: segment.absoluteStart,
+        timestamp: segment.timestamp,
+        audioStart: segment.audioStart,
+        dayAudioSegmentsCount: dayAudioSegments.length,
+        audioSegmentsCount: audioSegments.length,
+      });
+      return;
+    }
+    
+    console.log('[VoiceModulePanel] 找到音频文件:', targetSegment.fileUrl);
+    
+    if (!audioPlayerRef.current) {
+      console.warn('[VoiceModulePanel] 音频播放器未初始化');
+      return;
+    }
       
       // 计算在该分段内的偏移（秒）
       let seekSeconds = 0;
-      if (segment.absoluteStart) {
+    if (segment.absoluteStart && targetSegment.startTime) {
         // 优先使用绝对时间
         seekSeconds = Math.max(
           0,
           (segment.absoluteStart.getTime() - targetSegment.startTime.getTime()) / 1000
         );
-      } else if (segment.audioStart !== undefined && recordingStartTime) {
-        // 使用相对录音开始时间计算
+    } else if (segment.audioStart !== undefined) {
+      // 如果没有绝对时间，直接使用audioStart（相对于录音开始的时间，单位：毫秒）
+      // 如果targetSegment有startTime，需要计算偏移
+      if (targetSegment.startTime && recordingStartTime) {
+        // 计算segment的绝对时间
         const segmentAbsoluteTime = recordingStartTime.getTime() + segment.audioStart;
         seekSeconds = Math.max(
           0,
           (segmentAbsoluteTime - targetSegment.startTime.getTime()) / 1000
         );
+      } else {
+        // 如果没有recordingStartTime，直接使用audioStart（假设它是相对于音频文件开始的时间）
+        seekSeconds = Math.max(0, segment.audioStart / 1000);
       }
+    } else if (segment.timestamp && targetSegment.startTime) {
+      // 最后兜底：使用timestamp
+      seekSeconds = Math.max(
+        0,
+        (segment.timestamp.getTime() - targetSegment.startTime.getTime()) / 1000
+      );
+    }
+    
+    console.log('[VoiceModulePanel] 跳转到时间:', seekSeconds, '秒');
+    
+    // 设置当前音频URL
+    if (targetSegment.fileUrl) {
+      setCurrentAudioUrl(targetSegment.fileUrl);
       
       // 确保音频已加载
       if (audioPlayerRef.current.src !== targetSegment.fileUrl) {
+        console.log('[VoiceModulePanel] 加载新音频文件:', targetSegment.fileUrl);
+        audioPlayerRef.current.src = targetSegment.fileUrl;
         audioPlayerRef.current.load();
         audioPlayerRef.current.addEventListener('loadedmetadata', () => {
           if (audioPlayerRef.current) {
             const targetTime = Math.min(seekSeconds, audioPlayerRef.current.duration || 0);
+            console.log('[VoiceModulePanel] 设置播放时间:', targetTime);
             audioPlayerRef.current.currentTime = targetTime;
             setCurrentTime(targetTime);
-            audioPlayerRef.current.play().catch(() => {
-              // 忽略播放错误
+            audioPlayerRef.current.play().catch((error) => {
+              console.warn('[VoiceModulePanel] 播放失败:', error);
             });
           }
         }, { once: true });
       } else {
         // 如果URL相同，直接设置时间并播放
+        console.log('[VoiceModulePanel] 使用现有音频文件，跳转到:', seekSeconds);
         audioPlayerRef.current.pause();
         const targetTime = Math.min(seekSeconds, audioPlayerRef.current.duration || 0);
         audioPlayerRef.current.currentTime = targetTime;
         setCurrentTime(targetTime);
         Promise.resolve().then(() => {
           if (audioPlayerRef.current) {
-            audioPlayerRef.current.play().catch(() => {
-              // 忽略播放错误
+            audioPlayerRef.current.play().catch((error) => {
+              console.warn('[VoiceModulePanel] 播放失败:', error);
             });
           }
         });
       }
     }
-  }, [isRecording, recordingStartTime, audioSegments, setCurrentTime]);
+  }, [isRecording, recordingStartTime, audioSegments, setCurrentTime, selectedDate, setCurrentAudioUrl]);
 
   const handlePlay = useCallback(() => {
     if (audioPlayerRef.current && currentAudioUrl) {
@@ -1539,10 +2278,16 @@ export function VoiceModulePanel() {
 
   const handleSeek = useCallback((time: number) => {
     if (audioPlayerRef.current) {
-      audioPlayerRef.current.currentTime = time;
-      setCurrentTime(time);
+      // 确保time不超过duration
+      const maxTime = audioPlayerRef.current.duration && isFinite(audioPlayerRef.current.duration) 
+        ? audioPlayerRef.current.duration 
+        : duration || Infinity;
+      const clampedTime = Math.max(0, Math.min(time, maxTime));
+      audioPlayerRef.current.currentTime = clampedTime;
+      setCurrentTime(clampedTime);
+      console.log('[VoiceModulePanel] 跳转到时间:', clampedTime, '秒 (duration:', maxTime, ')');
     }
-  }, []);
+  }, [duration]);
 
   const handleSkip = useCallback((seconds: number) => {
     if (audioPlayerRef.current) {
@@ -1569,41 +2314,83 @@ export function VoiceModulePanel() {
   }, []);
 
   // 过滤当前日期的转录内容
+  // 过滤转录片段：如果选中了音频，只显示该音频的片段；否则显示选中日期的所有片段
   const filteredTranscripts = transcripts.filter((t) => {
     const transcriptDate = new Date(t.timestamp);
-    return transcriptDate.toDateString() === selectedDate.toDateString();
+    const dateMatch = transcriptDate.toDateString() === selectedDate.toDateString();
+    
+    // 如果选中了音频，进一步过滤：只显示该音频的片段（通过segmentId匹配）
+    if (selectedAudioId) {
+      // 检查segmentId是否匹配音频ID，或者通过时间范围判断
+      const audio = audioSegments.find(a => a.id === selectedAudioId);
+      if (audio && audio.startTime && audio.endTime) {
+        const segmentTime = new Date(t.timestamp);
+        // 检查片段时间是否在音频时间范围内（允许一些容差）
+        const isInAudioRange = segmentTime >= audio.startTime && segmentTime <= audio.endTime;
+        // 或者通过segmentId匹配
+        const segmentIdMatch = t.segmentId === selectedAudioId;
+        return dateMatch && (isInAudioRange || segmentIdMatch);
+      }
+      // 如果没有音频时间信息，通过segmentId匹配
+      return dateMatch && (t.segmentId === selectedAudioId);
+    }
+    
+    return dateMatch;
   });
 
   // 获取当前播放位置对应的小节信息
   const getCurrentSegmentInfo = useCallback(() => {
-    if (!currentTime) return null;
-    const timeInMs = currentTime * 1000;
+    if (!currentTime || !currentAudioUrl) return null;
+    
+    // 如果当前有选中的音频文件，需要计算相对于该音频文件的偏移
+    let baseTimeOffset = 0;
+    if (selectedAudioId && dayAudioSegments.length > 0) {
+      const selectedAudio = dayAudioSegments.find(s => s.id === selectedAudioId);
+      if (selectedAudio && recordingStartTime) {
+        // 计算音频文件开始时间相对于录音开始时间的偏移
+        baseTimeOffset = selectedAudio.startTime.getTime() - recordingStartTime.getTime();
+      }
+    }
+    
+    const timeInMs = currentTime * 1000 + baseTimeOffset;
     const segment = filteredTranscripts.find(s => {
       const start = s.audioStart || 0;
-      const end = s.audioEnd || start + 5000;
+      const end = s.audioEnd || (start + 5000);
       return timeInMs >= start && timeInMs <= end;
     });
     if (segment) {
       const timeInSeconds = segment.audioStart ? segment.audioStart / 1000 : 0;
       return {
         time: formatTime(timeInSeconds),
-        text: (segment.optimizedText || segment.rawText || "").substring(0, 50) + "...",
+        text: (segment.optimizedText || segment.rawText || "").substring(0, 80),
       };
     }
     return null;
-  }, [currentTime, filteredTranscripts, formatTime]);
+  }, [currentTime, currentAudioUrl, filteredTranscripts, formatTime, selectedAudioId, dayAudioSegments, recordingStartTime]);
 
   // 根据时间获取对应的小节信息（用于悬停显示）
   const getSegmentAtTime = useCallback((time: number) => {
     // time 是播放时间（秒），需要转换为毫秒
     const timeInMs = time * 1000;
     
+    // 如果当前有选中的音频文件，需要计算相对于该音频文件的偏移
+    let baseTimeOffset = 0;
+    if (selectedAudioId && dayAudioSegments.length > 0) {
+      const selectedAudio = dayAudioSegments.find(s => s.id === selectedAudioId);
+      if (selectedAudio && recordingStartTime) {
+        // 计算音频文件开始时间相对于录音开始时间的偏移
+        // time是相对于音频文件开始的时间，需要加上音频文件的偏移
+        baseTimeOffset = selectedAudio.startTime.getTime() - recordingStartTime.getTime();
+      }
+    }
+    
     // 找到包含该时间点的转录片段
     // 需要找到 audioStart <= timeInMs <= audioEnd 的片段
+    const adjustedTime = timeInMs + baseTimeOffset;
     const segment = filteredTranscripts.find(s => {
       const start = s.audioStart || 0;
       const end = s.audioEnd || (start + 5000); // 如果没有结束时间，默认5秒
-      return timeInMs >= start && timeInMs <= end;
+      return adjustedTime >= start && adjustedTime <= end;
     });
     
     if (segment) {
@@ -1619,8 +2406,8 @@ export function VoiceModulePanel() {
     if (filteredTranscripts.length > 0) {
       // 找到最接近的片段（按开始时间）
       const closestSegment = filteredTranscripts.reduce((prev, curr) => {
-        const prevDist = Math.abs((prev.audioStart || 0) - timeInMs);
-        const currDist = Math.abs((curr.audioStart || 0) - timeInMs);
+        const prevDist = Math.abs((prev.audioStart || 0) - adjustedTime);
+        const currDist = Math.abs((curr.audioStart || 0) - adjustedTime);
         return currDist < prevDist ? curr : prev;
       });
       
@@ -1632,41 +2419,174 @@ export function VoiceModulePanel() {
     }
     
     return null;
-  }, [filteredTranscripts, formatTime]);
+  }, [filteredTranscripts, formatTime, selectedAudioId, dayAudioSegments, recordingStartTime]);
+
+  // 同步音频播放时间（从audio元素获取实际currentTime和duration）
+  useEffect(() => {
+    if (!audioPlayerRef.current || !currentAudioUrl) {
+      // 如果没有音频URL，重置时间和duration
+      setCurrentTime(0);
+      setDuration(0);
+      return;
+    }
+    
+    const audio = audioPlayerRef.current;
+    
+    // 定期检查并同步duration（因为useMemo可能不会及时更新）
+    const syncDuration = () => {
+      if (audio && isFinite(audio.duration) && audio.duration > 0) {
+        const currentDuration = duration;
+        if (Math.abs(audio.duration - currentDuration) > 0.1) {
+          console.log('[VoiceModulePanel] 同步duration:', audio.duration, '秒 (之前:', currentDuration, ')');
+          setDuration(audio.duration);
+        }
+      }
+    };
+    
+    // 监听timeupdate事件，同步currentTime
+    const handleTimeUpdate = () => {
+      if (audio && isFinite(audio.currentTime) && audio.currentTime >= 0) {
+        // 确保currentTime不超过duration
+        const audioDuration = audio.duration && isFinite(audio.duration) && audio.duration > 0 
+          ? audio.duration 
+          : duration || Infinity;
+        
+        // 如果currentTime达到或超过duration，停止播放
+        if (audio.currentTime >= audioDuration - 0.1) {
+          console.log('[VoiceModulePanel] 音频播放完成，停止播放:', {
+            currentTime: audio.currentTime,
+            duration: audioDuration,
+          });
+          audio.pause();
+          audio.currentTime = audioDuration;
+          setCurrentTime(audioDuration);
+          setIsPlaying(false);
+          // 触发ended事件
+          audio.dispatchEvent(new Event('ended'));
+        } else {
+          const clampedTime = Math.min(audio.currentTime, audioDuration);
+          setCurrentTime(clampedTime);
+        }
+        
+        // 同时同步duration
+        syncDuration();
+      }
+    };
+    
+    // 监听loadedmetadata事件，同步duration
+    const handleLoadedMetadata = () => {
+      if (audio && isFinite(audio.duration) && audio.duration > 0) {
+        console.log('[VoiceModulePanel] 从audio元素获取duration:', audio.duration, '秒');
+        setDuration(audio.duration);
+        // 如果currentTime超过了duration，重置为0
+        if (audio.currentTime > audio.duration) {
+          audio.currentTime = 0;
+          setCurrentTime(0);
+        }
+      }
+    };
+    
+    // 监听canplay事件，确保音频可以播放
+    const handleCanPlay = () => {
+      if (audio && isFinite(audio.duration) && audio.duration > 0) {
+        console.log('[VoiceModulePanel] 音频可以播放，duration:', audio.duration, '秒');
+        setDuration(audio.duration);
+      }
+    };
+    
+    // 监听播放状态变化
+    const handlePlay = () => {
+      // 检查是否已经播放完成
+      if (audio && audio.duration && audio.currentTime >= audio.duration - 0.1) {
+        console.log('[VoiceModulePanel] 尝试播放已完成的音频，重置到开始');
+        audio.currentTime = 0;
+        setCurrentTime(0);
+      }
+      setIsPlaying(true);
+    };
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      console.log('[VoiceModulePanel] 音频播放结束');
+      setIsPlaying(false);
+      // 不重置currentTime，保持在最后位置
+      if (audio && audio.duration) {
+        setCurrentTime(audio.duration);
+      }
+    };
+    
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+    
+    // 如果音频已经加载了metadata，立即获取duration
+    if (audio.readyState >= 1) {
+      if (isFinite(audio.duration) && audio.duration > 0) {
+        console.log('[VoiceModulePanel] 音频已加载，立即获取duration:', audio.duration, '秒');
+        setDuration(audio.duration);
+      } else {
+        console.log('[VoiceModulePanel] 音频readyState:', audio.readyState, '但duration未就绪，等待loadedmetadata事件');
+      }
+    }
+    
+    // 定期同步duration（每500ms检查一次）
+    const durationSyncInterval = setInterval(syncDuration, 500);
+    
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+      clearInterval(durationSyncInterval);
+    };
+  }, [currentAudioUrl, duration]);
 
   // 获取当前日期的音频URL（使用从后端查询的音频列表）
+  // 切换日期时，自动选择并加载第一个音频
   useEffect(() => {
     if (dayAudioSegments.length > 0) {
-      // 如果还没有选中，或者选中的不在当前日期的列表中，选择第一个
+      // 如果还没有选中，或者选中的不在当前日期的列表中，选择第一个并自动加载
       const currentSelected = dayAudioSegments.find(s => s.id === selectedAudioId);
       if (!currentSelected) {
-        setSelectedAudioId(dayAudioSegments[0].id);
-        if (dayAudioSegments[0].fileUrl) {
-          setCurrentAudioUrl(dayAudioSegments[0].fileUrl);
-          if (audioPlayerRef.current) {
-            audioPlayerRef.current.src = dayAudioSegments[0].fileUrl;
-            audioPlayerRef.current.load();
-          }
-        }
-      } else if (currentSelected.fileUrl) {
-        setCurrentAudioUrl(currentSelected.fileUrl);
-        if (audioPlayerRef.current) {
-          audioPlayerRef.current.src = currentSelected.fileUrl;
-          audioPlayerRef.current.load();
-        }
+        // 自动选择第一个音频并加载
+        const firstAudio = dayAudioSegments[0];
+        console.log('[VoiceModulePanel] 切换日期，自动选择第一个音频:', firstAudio.id);
+        handleSelectAudio(firstAudio).catch(err => {
+          console.error('[VoiceModulePanel] 自动加载第一个音频失败:', err);
+        });
       }
     } else {
       setCurrentAudioUrl(null);
       setSelectedAudioId(undefined);
     }
-  }, [selectedDate, dayAudioSegments, selectedAudioId]);
+  }, [selectedDate, dayAudioSegments]); // 移除selectedAudioId依赖，避免循环
 
   // 计算总时长：优先使用音频实际时长，否则使用转录文本计算的总时长
-  const totalDuration = duration > 0 
-    ? duration 
-    : (filteredTranscripts.length > 0
-        ? Math.max(...filteredTranscripts.map(s => (s.audioEnd || 0) / 1000))
-        : 0);
+  const totalDuration = useMemo(() => {
+    // 优先从audio元素获取实际duration（实时检查）
+    if (audioPlayerRef.current) {
+      const audioDuration = audioPlayerRef.current.duration;
+      if (audioDuration && isFinite(audioDuration) && audioDuration > 0) {
+        return audioDuration;
+      }
+    }
+    // 其次使用state中的duration
+    if (duration > 0) {
+      return duration;
+    }
+    // 最后使用转录文本计算的总时长
+    if (filteredTranscripts.length > 0) {
+      const maxEnd = Math.max(...filteredTranscripts.map(s => (s.audioEnd || 0) / 1000));
+      if (maxEnd > 0) {
+        return maxEnd;
+      }
+    }
+    return 0;
+  }, [duration, filteredTranscripts, currentAudioUrl]); // 添加currentAudioUrl作为依赖，确保URL变化时重新计算
 
   // 更新当前时间（仅在客户端）
   useEffect(() => {
@@ -1678,12 +2598,14 @@ export function VoiceModulePanel() {
     return () => clearInterval(timer);
   }, []);
 
-  // 更新标题（如果没有设置，使用默认值）
+  // 更新标题（切换日期时自动更新，或当有转录内容时更新）
   useEffect(() => {
-    if (!meetingTitle && filteredTranscripts.length > 0) {
-      setMeetingTitle(`${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`);
+    const newTitle = `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`;
+    // 如果标题为空，或者标题不匹配当前日期，则更新
+    if (!meetingTitle || !meetingTitle.includes(selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" }))) {
+      setMeetingTitle(newTitle);
     }
-  }, [filteredTranscripts.length, selectedDate, meetingTitle]);
+  }, [selectedDate, meetingTitle]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
@@ -1702,24 +2624,24 @@ export function VoiceModulePanel() {
                   onExport={handleExport}
                   onEdit={handleEdit}
                   availableDates={useMemo(() => {
-                    // 从当前日期的音频列表计算（暂时只显示当前日期，后续可以从后端查询所有日期）
+                    // 从全局音频列表计算所有有音频的日期
                     const dates = new Set<string>();
-                    dayAudioSegments.forEach(segment => {
+                    audioSegments.forEach(segment => {
                       const date = new Date(segment.startTime);
                       dates.add(date.toDateString());
                     });
                     return Array.from(dates).map(dateStr => new Date(dateStr));
-                  }, [dayAudioSegments])}
+                  }, [audioSegments])}
                   audioCounts={useMemo(() => {
-                    // 计算每个日期的音频数量（从当前日期的音频列表）
+                    // 计算每个日期的音频数量（从全局音频列表）
                     const counts = new Map<string, number>();
-                    dayAudioSegments.forEach(segment => {
+                    audioSegments.forEach(segment => {
                       const date = new Date(segment.startTime);
                       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                       counts.set(dateKey, (counts.get(dateKey) || 0) + 1);
                     });
                     return counts;
-                  }, [dayAudioSegments])}
+                  }, [audioSegments])}
                 />
                 
                 {/* 当前时间（仅在客户端渲染，避免 SSR 不一致） */}
@@ -1729,14 +2651,57 @@ export function VoiceModulePanel() {
                   </div>
                 )}
                 
-                {/* 标题输入框 */}
+                {/* 标题输入框 - 支持点击编辑和右键菜单 */}
+                {isEditingTitle ? (
                 <input
+                    ref={titleInputRef}
                   type="text"
-                  value={meetingTitle || `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`}
-                  onChange={(e) => setMeetingTitle(e.target.value)}
+                    value={editTitleValue}
+                    onChange={(e) => setEditTitleValue(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = editTitleValue.trim();
+                      if (trimmed && trimmed !== meetingTitle) {
+                        setMeetingTitle(trimmed);
+                      } else {
+                        setEditTitleValue(meetingTitle || `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`);
+                      }
+                      setIsEditingTitle(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const trimmed = editTitleValue.trim();
+                        if (trimmed && trimmed !== meetingTitle) {
+                          setMeetingTitle(trimmed);
+                        }
+                        setIsEditingTitle(false);
+                      } else if (e.key === 'Escape') {
+                        setEditTitleValue(meetingTitle || `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`);
+                        setIsEditingTitle(false);
+                      }
+                    }}
                   placeholder="输入标题..."
-                  className="flex-1 px-3 py-1.5 text-sm font-medium bg-transparent border-b border-border/50 focus:border-primary focus:outline-none"
-                />
+                    className="flex-1 px-3 py-1.5 text-sm font-medium bg-transparent border-b-2 border-primary focus:outline-none"
+                    autoFocus
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditTitleValue(meetingTitle || `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`);
+                      setIsEditingTitle(true);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setEditTitleValue(meetingTitle || `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`);
+                      setIsEditingTitle(true);
+                    }}
+                    className="flex-1 px-3 py-1.5 text-sm font-medium bg-transparent border-b border-border/50 hover:border-primary focus:outline-none text-left cursor-pointer transition-colors"
+                    title="点击或右键编辑标题"
+                  >
+                    {meetingTitle || `${selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })} 录音`}
+                  </button>
+                )}
               </div>
 
               {/* 录音模式时显示设备选择器 */}
@@ -2258,11 +3223,37 @@ export function VoiceModulePanel() {
           ) : (
             <>
               {/* 左侧中间：内容视图（回看模式） */}
-              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0 relative">
+                {/* 加载状态提示 */}
+                {(isTranscribing || isExtracting || isLoadingAudio) && (
+                  <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                      {isTranscribing && (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                          <p className="text-sm text-muted-foreground">正在转录音频...</p>
+                        </div>
+                      )}
+                      {isExtracting && !isTranscribing && (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                          <p className="text-sm text-muted-foreground">正在提取日程和待办...</p>
+                        </div>
+                      )}
+                      {isLoadingAudio && !isTranscribing && !isExtracting && (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                          <p className="text-sm text-muted-foreground">正在加载音频...</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {currentView === 'original' && (
                   <OriginalTextView
                     segments={filteredTranscripts}
                     onSegmentClick={handleSegmentClick}
+                    onSegmentUpdate={updateTranscript}
                     highlightedSegmentId={highlightedSegmentId}
                     schedules={schedules.filter(s => {
                       const scheduleDate = new Date(s.scheduleTime);
@@ -2278,6 +3269,7 @@ export function VoiceModulePanel() {
                   <OptimizedTextView
                     segments={filteredTranscripts}
                     onSegmentClick={handleSegmentClick}
+                    onSegmentUpdate={updateTranscript}
                     highlightedSegmentId={highlightedSegmentId}
                     schedules={schedules.filter(s => {
                       const scheduleDate = new Date(s.scheduleTime);
@@ -2307,10 +3299,21 @@ export function VoiceModulePanel() {
                   })}
                   selectedAudioId={selectedAudioId}
                   onSelectAudio={handleSelectAudio}
-                  hoveredSegment={hoveredSegment ? {
+                  hoveredSegment={(() => {
+                    // 优先使用当前播放时间对应的文本
+                    const currentSegment = getCurrentSegmentInfo();
+                    if (currentSegment) {
+                      return currentSegment;
+                    }
+                    // 如果没有，使用悬停的片段
+                    if (hoveredSegment) {
+                      return {
                     time: hoveredSegment.audioStart ? formatTime(hoveredSegment.audioStart / 1000) : "00:00",
-                    text: (hoveredSegment.optimizedText || hoveredSegment.rawText || "").substring(0, 50) + "...",
-                  } : getCurrentSegmentInfo()}
+                        text: (hoveredSegment.optimizedText || hoveredSegment.rawText || "").substring(0, 80),
+                      };
+                    }
+                    return null;
+                  })()}
                   onPlay={handlePlay}
                   onPause={handlePause}
                   onSeek={handleSeek}
@@ -2339,6 +3342,38 @@ export function VoiceModulePanel() {
                   audioSegments={dayAudioSegments}
                   selectedAudioId={selectedAudioId}
                   onSelectAudio={handleSelectAudio}
+                  onEditTitle={(audioId) => {
+                    // 这个回调现在由AudioListPanel内部处理
+                  }}
+                  onUpdateAudio={(audioId, updates) => {
+                    // 更新音频标题
+                    updateAudioSegment(audioId, updates);
+                    // 同时更新dayAudioSegments中的对应项
+                    setDayAudioSegments(prev => 
+                      prev.map(a => a.id === audioId ? { ...a, ...updates } : a)
+                    );
+                  }}
+                  onDeleteAudio={async (audioId) => {
+                    // 删除音频
+                    if (persistenceServiceRef.current) {
+                      const success = await persistenceServiceRef.current.deleteAudio(audioId);
+                      if (success) {
+                        // 从列表中移除
+                        setDayAudioSegments(prev => prev.filter(a => a.id !== audioId));
+                        // 如果删除的是当前选中的音频，清空选择
+                        if (selectedAudioId === audioId) {
+                          setSelectedAudioId(undefined);
+                          setCurrentAudioUrl(null);
+                          if (audioPlayerRef.current) {
+                            audioPlayerRef.current.src = '';
+                            audioPlayerRef.current.load();
+                          }
+                        }
+                        // 重新加载当天的音频列表
+                        await handleDateChange(selectedDate);
+                      }
+                    }
+                  }}
                 />
                 {dayAudioSegments.length > 0 && (
                   <div className="border-t border-border/50 my-2" />
@@ -2346,12 +3381,34 @@ export function VoiceModulePanel() {
               </>
             )}
             
-            {/* 智能提取面板 */}
-            {(pendingTodos.length > 0 || pendingSchedules.length > 0) && (
+            {/* 智能提取面板 - 显示当前日期的待办和日程 */}
+            {(() => {
+              // 过滤出当前日期的待办和日程
+              const filteredPendingTodos = pendingTodos.filter(todo => {
+                // 如果待办有截止时间，检查是否匹配当前日期
+                if (todo.deadline) {
+                  const todoDate = new Date(todo.deadline);
+                  return todoDate.toDateString() === selectedDate.toDateString();
+                }
+                // 如果没有截止时间，检查sourceSegmentId是否属于当前日期的转录
+                if (todo.sourceSegmentId) {
+                  const segment = filteredTranscripts.find(s => s.id === todo.sourceSegmentId);
+                  return !!segment;
+                }
+                return true; // 如果没有关联信息，默认显示
+              });
+              
+              const filteredPendingSchedules = pendingSchedules.filter(schedule => {
+                const scheduleDate = new Date(schedule.scheduleTime);
+                return scheduleDate.toDateString() === selectedDate.toDateString();
+              });
+              
+              return (filteredPendingTodos.length > 0 || filteredPendingSchedules.length > 0) ? (
               <>
                 <ExtractedItemsPanel
-                  todos={pendingTodos}
-                  schedules={pendingSchedules}
+                    todos={filteredPendingTodos}
+                    schedules={filteredPendingSchedules}
+                    segments={filteredTranscripts}
                   onAddTodo={async (todo) => {
                     // 用户选择加入待办
                     await handleAddTodo(todo);
@@ -2372,11 +3429,13 @@ export function VoiceModulePanel() {
                     // 用户选择忽略日程
                     setPendingSchedules(prev => prev.filter(s => s.id !== scheduleId));
                   }}
+                    onSegmentClick={handleSegmentClick}
                 />
                 {/* 分割线 */}
                 <div className="border-t border-border/50 my-2" />
               </>
-            )}
+              ) : null;
+            })()}
             
             {/* 智能纪要 */}
             <div className="flex-1 min-h-0">

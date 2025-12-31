@@ -135,13 +135,15 @@ export class ScheduleExtractionService {
     const scheduleRegex = /\[SCHEDULE:\s*([^\]]+)\]/g;
     let match;
 
+    let matchIndex = 0;
     while ((match = scheduleRegex.exec(text)) !== null) {
       const scheduleText = match[1].trim();
       const scheduleTime = this.parseScheduleTime(scheduleText, segment.timestamp);
       
       if (scheduleTime) {
+        // 使用segment.id和matchIndex确保唯一性，避免同一segment中多个schedule的key重复
         const schedule: ScheduleItem = {
-          id: `schedule_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          id: `schedule_${segment.id}_${matchIndex}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
           sourceSegmentId: segment.id,
           extractedAt: new Date(),
           scheduleTime: scheduleTime,
@@ -150,6 +152,7 @@ export class ScheduleExtractionService {
         };
         
         schedules.push(schedule);
+        matchIndex++;
       }
     }
 

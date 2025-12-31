@@ -145,15 +145,39 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addSchedule: (schedule: ScheduleItem) => {
-    set(state => ({
-      schedules: [...state.schedules, schedule],
-    }));
+    set(state => {
+      // 检查是否已存在相同 id 的 schedule，避免重复添加
+      const existingIndex = state.schedules.findIndex(s => s.id === schedule.id);
+      if (existingIndex >= 0) {
+        // 如果已存在，更新而不是添加
+        return {
+          schedules: state.schedules.map((s, index) => 
+            index === existingIndex ? { ...s, ...schedule } : s
+          ),
+        };
+      }
+      return {
+        schedules: [...state.schedules, schedule],
+      };
+    });
   },
 
   addExtractedTodo: (todo: ExtractedTodo) => {
-    set(state => ({
-      extractedTodos: [...state.extractedTodos, todo],
-    }));
+    set(state => {
+      // 检查是否已存在相同 id 的 todo，避免重复添加
+      const existingIndex = state.extractedTodos.findIndex(t => t.id === todo.id);
+      if (existingIndex >= 0) {
+        // 如果已存在，更新而不是添加
+        return {
+          extractedTodos: state.extractedTodos.map((t, index) => 
+            index === existingIndex ? { ...t, ...todo } : t
+          ),
+        };
+      }
+      return {
+        extractedTodos: [...state.extractedTodos, todo],
+      };
+    });
   },
 
   removeExtractedTodo: (todoId: string) => {

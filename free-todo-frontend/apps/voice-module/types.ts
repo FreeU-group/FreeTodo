@@ -47,6 +47,7 @@ export interface AudioSegment {
   fileUrl?: string;             // 文件URL
   audioSource: 'microphone'; // 音频来源（仅支持麦克风）
   uploadStatus: 'pending' | 'uploading' | 'uploaded' | 'failed';
+  title?: string;                // 音频标题（如"xx会议"）
   
   // ⚡ 时间索引（10分钟固定分段架构）
   segmentIndex?: number;        // 段索引（0, 1, 2...），每10分钟一个

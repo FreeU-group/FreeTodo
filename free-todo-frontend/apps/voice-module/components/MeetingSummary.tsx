@@ -1,6 +1,6 @@
 /**
  * 会议纪要组件（参考通义听悟）
- * 包含：会议摘要、章节纪要、待办事项
+ * 包含：会议摘要、智能纪要、待办事项
  */
 
 import { CheckCircle2, ChevronDown, ChevronUp, Clock, ThumbsUp } from "lucide-react";
@@ -38,47 +38,53 @@ export function MeetingSummary({
     // 合并所有需要高亮的位置
     const highlights: Array<{ start: number; end: number; type: 'schedule' | 'todo' }> = [];
     
-    // 处理日程高亮
+    // 处理日程高亮 - 优先使用textStartIndex和textEndIndex
     segmentSchedules.forEach(schedule => {
-      if (schedule.description) {
-        const description = schedule.description.trim();
-        if (description.length < 2) return;
-        
-        // 在文本中查找匹配位置（不区分大小写，支持模糊匹配）
-        const lowerText = text.toLowerCase();
-        const lowerDesc = description.toLowerCase();
-        let index = lowerText.indexOf(lowerDesc);
-        
-        if (index !== -1) {
+      // 优先使用精确的索引位置
+      if (schedule.textStartIndex !== undefined && schedule.textEndIndex !== undefined) {
+        const start = Math.max(0, schedule.textStartIndex);
+        const end = Math.min(text.length, schedule.textEndIndex);
+        if (start < end) {
           highlights.push({
-            start: index,
-            end: Math.min(index + description.length, text.length),
+            start,
+            end,
             type: 'schedule',
           });
-        } else {
-          // 如果完整匹配失败，尝试去掉标点后匹配
-          const descNoPunct = description.replace(/[，。、！？；：]/g, '');
-          const textNoPunct = text.replace(/[，。、！？；：]/g, '');
-          const lowerTextNoPunct = textNoPunct.toLowerCase();
-          const lowerDescNoPunct = descNoPunct.toLowerCase();
-          const indexNoPunct = lowerTextNoPunct.indexOf(lowerDescNoPunct);
+          return;
+        }
+      }
+      
+      // 其次使用sourceText精确匹配
+      if (schedule.sourceText) {
+        const sourceText = schedule.sourceText.trim();
+        if (sourceText.length >= 2) {
+          const lowerText = text.toLowerCase();
+          const lowerSource = sourceText.toLowerCase();
+          const index = lowerText.indexOf(lowerSource);
           
-          if (indexNoPunct !== -1) {
-            // 找到在原始文本中的位置
-            let originalIndex = 0;
-            let noPunctIndex = 0;
-            for (let i = 0; i < text.length && noPunctIndex < indexNoPunct; i++) {
-              if (!/[，。、！？；：]/.test(text[i])) {
-                noPunctIndex++;
-              }
-              if (noPunctIndex < indexNoPunct) {
-                originalIndex++;
-              }
-            }
-            
+          if (index !== -1) {
             highlights.push({
-              start: originalIndex,
-              end: Math.min(originalIndex + description.length, text.length),
+              start: index,
+              end: Math.min(index + sourceText.length, text.length),
+              type: 'schedule',
+            });
+            return;
+          }
+        }
+      }
+      
+      // 最后使用description模糊匹配
+      if (schedule.description) {
+        const description = schedule.description.trim();
+        if (description.length >= 2) {
+          const lowerText = text.toLowerCase();
+          const lowerDesc = description.toLowerCase();
+          const index = lowerText.indexOf(lowerDesc);
+          
+          if (index !== -1) {
+            highlights.push({
+              start: index,
+              end: Math.min(index + description.length, text.length),
               type: 'schedule',
             });
           }
@@ -86,22 +92,56 @@ export function MeetingSummary({
       }
     });
     
-    // 处理待办高亮
+    // 处理待办高亮 - 优先使用textStartIndex和textEndIndex
     segmentTodos.forEach(todo => {
-      if (todo.title) {
-        const title = todo.title.trim();
-        if (title.length < 2) return;
-        
-        const lowerText = text.toLowerCase();
-        const lowerTitle = title.toLowerCase();
-        const index = lowerText.indexOf(lowerTitle);
-        
-        if (index !== -1) {
+      // 优先使用精确的索引位置
+      if (todo.textStartIndex !== undefined && todo.textEndIndex !== undefined) {
+        const start = Math.max(0, todo.textStartIndex);
+        const end = Math.min(text.length, todo.textEndIndex);
+        if (start < end) {
           highlights.push({
-            start: index,
-            end: Math.min(index + title.length, text.length),
+            start,
+            end,
             type: 'todo',
           });
+          return;
+        }
+      }
+      
+      // 其次使用sourceText精确匹配
+      if (todo.sourceText) {
+        const sourceText = todo.sourceText.trim();
+        if (sourceText.length >= 2) {
+          const lowerText = text.toLowerCase();
+          const lowerSource = sourceText.toLowerCase();
+          const index = lowerText.indexOf(lowerSource);
+          
+          if (index !== -1) {
+            highlights.push({
+              start: index,
+              end: Math.min(index + sourceText.length, text.length),
+              type: 'todo',
+            });
+            return;
+          }
+        }
+      }
+      
+      // 最后使用title模糊匹配
+      if (todo.title) {
+        const title = todo.title.trim();
+        if (title.length >= 2) {
+          const lowerText = text.toLowerCase();
+          const lowerTitle = title.toLowerCase();
+          const index = lowerText.indexOf(lowerTitle);
+          
+          if (index !== -1) {
+            highlights.push({
+              start: index,
+              end: Math.min(index + title.length, text.length),
+              type: 'todo',
+            });
+          }
         }
       }
     });
@@ -173,7 +213,7 @@ export function MeetingSummary({
     );
   };
 
-  // 生成章节纪要（按时间分段）- 去除标记，但保留高亮功能
+  // 生成智能纪要（按时间分段）- 去除标记，但保留高亮功能
   const chapters = segments
     .filter(s => !s.isInterim)
     .reduce((acc, segment) => {
@@ -237,69 +277,6 @@ export function MeetingSummary({
         </div>
       )}
       
-      {/* 章节纪要 */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-0 py-3">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">章节纪要</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setExpandedSections({ ...expandedSections, chapters: !expandedSections.chapters })}
-            className="p-1 rounded hover:bg-muted transition-colors"
-            aria-label={expandedSections.chapters ? "收起" : "展开"}
-          >
-            {expandedSections.chapters ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-        </div>
-        {expandedSections.chapters && (
-          <div className="pt-1 space-y-3 max-h-[400px] overflow-y-auto">
-            {chapters.length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                暂无章节内容
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {chapters.map((chapter) => (
-                  <div
-                    key={chapter.id}
-                    className="group relative py-3 border-b border-border/50 last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                    onClick={() => onSegmentClick?.(chapter.segment)}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-0.5">
-                        <div className="w-4 h-4 rounded border-2 border-primary bg-primary/10 flex items-center justify-center">
-                          <Clock className="h-2.5 w-2.5 text-primary" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <div className="text-xs font-mono text-muted-foreground">
-                          {chapter.time}
-                        </div>
-                        <p className="text-sm text-foreground leading-relaxed">
-                          {renderHighlightedText(chapter.text, chapter.segment.id)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground/70 italic flex items-center gap-1">
-          <span>⚠️</span>
-          智能纪要由 AI 生成，请谨慎使用
-        </p>
-      </div>
-
       {/* 分割线 - 智能纪要和待办事项之间的分隔 */}
       {(todos.length > 0 || schedules.length > 0) && (
         <div className="border-t border-border/50 my-4" />

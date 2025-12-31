@@ -1,6 +1,6 @@
 /**
  * 内容视图切换组件
- * 支持三种视图：原文、概览（章节纪要）、智能纪要
+ * 支持三种视图：原文、概览（智能纪要）、智能纪要
  */
 
 import { FileText, List, Sparkles } from "lucide-react";
@@ -29,7 +29,7 @@ const VIEW_OPTIONS: {
     id: "overview",
     label: "概览",
     icon: List,
-    description: "章节纪要",
+    description: "智能纪要",
   },
   {
     id: "summary",

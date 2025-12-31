@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Minimize2, X } from 'lucide-react';
+import { Minimize2, Maximize2, ChevronsUpDown } from 'lucide-react';
 import { IslandMode } from './types';
 import { 
   FloatContent
@@ -12,6 +12,7 @@ import { PanelContent } from './PanelContent';
 import { ResizeHandle } from './ResizeHandle';
 import { useAppStore } from '@/apps/voice-module/store/useAppStore';
 import { useConfig, useSaveConfig } from '@/lib/query';
+import { useTheme } from 'next-themes';
 
 interface DynamicIslandProps {
   mode: IslandMode;
@@ -29,6 +30,10 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   const recordingStatus = useAppStore(state => state.processStatus.recording);
   const isPaused = recordingStatus === 'paused';
   
+  // 主题管理
+  const { theme, systemTheme } = useTheme();
+  const currentTheme = theme === 'system' ? systemTheme : theme;
+  const isDark = currentTheme === 'dark';
   
   // 配置管理
   const { data: config } = useConfig();
@@ -166,14 +171,30 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
     // If we are in FULLSCREEN mode, we always want to capture mouse
     if (mode === IslandMode.FULLSCREEN) {
       setIgnoreMouse(false);
+      // 重置拖拽相关状态
+      setIsDragging(false);
+      setIsHovered(false);
+      dragStartPos.current = null;
     } 
     // Panel 模式：窗口可交互，不忽略鼠标
     else if (mode === IslandMode.PANEL) {
       setIgnoreMouse(false);
+      // 重置拖拽相关状态
+      setIsDragging(false);
+      setIsHovered(false);
+      dragStartPos.current = null;
     }
     // FLOAT 模式：默认忽略鼠标（点击穿透），hover 时会取消忽略
     else {
-      setIgnoreMouse(true);
+      // 延迟设置点击穿透，确保窗口状态已更新
+      setTimeout(() => {
+        setIgnoreMouse(true);
+      }, 100);
+      // 重置拖拽相关状态，确保切换回FLOAT模式时可以正常拖拽
+      setIsDragging(false);
+      setIsHovered(false);
+      dragStartPos.current = null;
+      console.log('[DynamicIsland] 切换到FLOAT模式，重置拖拽状态，将在100ms后启用点击穿透');
     }
   }, [mode]);
 
@@ -336,8 +357,10 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           const electronAPI = (window as any).electronAPI;
           if (electronAPI) {
             await electronAPI.collapseWindow?.();
-            // 折叠回灵动岛时，重新开启点击穿透
-            electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
+            // 折叠回灵动岛时，重新开启点击穿透（延迟确保窗口状态已更新）
+            setTimeout(() => {
+              electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
+            }, 150);
           }
           onModeChange?.(IslandMode.FLOAT); 
           break;
@@ -364,8 +387,10 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
             const electronAPI3 = (window as any).electronAPI;
             if (electronAPI3) {
               await electronAPI3.collapseWindow?.();
-              // 折叠回灵动岛时，重新开启点击穿透
-              electronAPI3?.setIgnoreMouseEvents?.(true, { forward: true });
+              // 折叠回灵动岛时，重新开启点击穿透（延迟确保窗口状态已更新）
+              setTimeout(() => {
+                electronAPI3?.setIgnoreMouseEvents?.(true, { forward: true });
+              }, 150);
             }
             onModeChange?.(IslandMode.FLOAT);
           }
@@ -389,7 +414,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
     
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
-    const islandWidth = 180;
+    const islandWidth = 150; // 更新为新的宽度
     const islandHeight = 48;
     const margin = 32;
     const snapThreshold = 50; // 吸附阈值：50px
@@ -473,6 +498,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   // 处理鼠标移动
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // 只在FLOAT模式下允许拖拽
+    if (mode !== IslandMode.FLOAT) return;
     if (!isDragging || !dragStartPos.current) return;
 
     // 确保在拖拽过程中点击穿透保持被取消状态
@@ -507,7 +534,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       // 限制在屏幕范围内
       const windowWidth = window.innerWidth;
       const windowHeight = window.innerHeight;
-      const islandWidth = 180;
+      const islandWidth = 150; // 更新为新的宽度
       const islandHeight = 48;
       
       newX = Math.max(0, Math.min(newX, windowWidth - islandWidth));
@@ -580,23 +607,23 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, calculateSnapPosition]);
+  }, [isDragging, calculateSnapPosition, mode]);
 
   const getLayoutState = (mode: IslandMode) => {
-    const margin = 32;
+    const margin = 40;
     
     switch (mode) {
       case IslandMode.FLOAT:
         // 默认收起状态：只显示小图标（32x32）
         // 鼠标悬停时展开：显示完整内容（180x48）
         const collapsedLayout = { 
-          width: 32, 
-          height: 32, 
-          borderRadius: 16
+          width: 36, 
+          height: 36, 
+          borderRadius: 18
         };
         const expandedLayout = { 
-          // 稍微缩窄一点，减小中间空隙
-          width: 160, 
+          // 三个图标并列，留点间距：18*3 + 16*2(gap) + 32*2(padding) = 54 + 32 + 64 = 150
+          width: 135, 
           height: 48, 
           borderRadius: 24
         };
@@ -623,11 +650,11 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
         }
       case IslandMode.PANEL:
         // Panel模式：窗口化显示，由Electron控制大小和位置
-        // 为避免四角露出灰底，这里让内容铺满整个窗口，改成矩形（无圆角）
+        // 添加圆角（增大到16px，更明显）
         return { 
           width: '100%',  
           height: '100%', 
-          borderRadius: 0,
+          borderRadius: 16,
           right: 0,        
           bottom: 0,
           left: 0,
@@ -637,7 +664,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
         return { 
           width: '100vw',  
           height: '100vh', 
-          borderRadius: 0,
+          borderRadius: 16, // 全屏模式也添加圆角
           right: 0,        
           bottom: 0,
           left: 0,
@@ -660,6 +687,15 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   const isFullscreen = mode === IslandMode.FULLSCREEN;
   const isPanel = mode === IslandMode.PANEL;
 
+  // 确保在FLOAT模式下，islandRef正确设置，并且拖拽状态已重置
+  // 注意：这个 useEffect 必须在所有条件返回之前调用，否则会违反 React Hooks 规则
+  useEffect(() => {
+    if (mode === IslandMode.FLOAT && islandRef.current) {
+      // 确保DOM元素存在且可交互
+      console.log('[DynamicIsland] FLOAT模式已激活，islandRef已设置');
+    }
+  }, [mode]);
+
   // FULLSCREEN 模式：不再包裹前端，只在顶部悬浮一条控制条，可拖动窗口
   if (isFullscreen) {
     return (
@@ -669,14 +705,14 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
             initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
             animate={{ opacity: 1, scale: 1, rotate: 0 }}
             exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
-            className="fixed inset-x-0 top-0 z-[30] pointer-events-none"
+            className="fixed inset-x-0 top-0 z-[99999] pointer-events-none"
           >
             <div
-              className="flex items-center justify-end px-4 pt-2 h-10"
+              className="flex items-center justify-end px-4 h-15"
               style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
             >
               <div
-                className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60 pointer-events-auto"
+                className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60 pointer-events-auto mr-50"
                 style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
               >
               <button
@@ -720,7 +756,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                   }
                 }}
               >
-                <X size={15} />
+                <ChevronsUpDown size={15} />
               </button>
               </div>
             </div>
@@ -758,7 +794,11 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
             mass: 0.6,
             restDelta: 0.001,
           }}
-          className="absolute pointer-events-auto origin-bottom-right bg-background rounded-2xl shadow-2xl border-2 border-[oklch(var(--border))]/80 overflow-hidden"
+          className="absolute pointer-events-auto origin-bottom-right bg-background shadow-2xl border-2 border-[oklch(var(--border))]/80 overflow-hidden"
+          style={{ 
+            borderRadius: '16px',
+            clipPath: 'inset(0 round 16px)',
+          } as React.CSSProperties}
         >
           {/* Panel 模式的缩放把手 */}
           <ResizeHandle position="top" onResize={handleResize} />
@@ -798,7 +838,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                     }
                   }}
                 >
-                  <Minimize2 size={14} />
+                  <Maximize2 size={14} />
                 </button>
                 <button
                   className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
@@ -818,7 +858,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                     }
                   }}
                 >
-                  <X size={14} />
+                  <ChevronsUpDown size={14} />
                 </button>
               </div>
             </div>
@@ -838,7 +878,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   }
   
   return (
-    <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
+    <div className="fixed inset-0 z-[99999] pointer-events-none overflow-hidden" style={{ zIndex: 99999 }}>
       <motion.div
         ref={islandRef}
         layout
@@ -854,48 +894,71 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           mass: 0.8,
           restDelta: 0.001
         }}
-        className="absolute cursor-grab active:cursor-grabbing overflow-hidden pointer-events-auto bg-[#0a0a0a]"
+        className="absolute cursor-grab active:cursor-grabbing overflow-hidden pointer-events-auto"
         style={{
-          boxShadow: '0px 20px 50px -10px rgba(0, 0, 0, 0.5), 0px 10px 20px -10px rgba(0,0,0,0.3)',
+          boxShadow: isDark 
+            ? '0px 20px 50px -10px rgba(0, 0, 0, 0.5), 0px 10px 20px -10px rgba(0,0,0,0.3)'
+            : '0px 20px 50px -10px rgba(0, 0, 0, 0.15), 0px 10px 20px -10px rgba(0,0,0,0.1)',
           borderRadius: layoutState.borderRadius ? `${layoutState.borderRadius}px` : undefined,
           userSelect: 'none' as any,
+          zIndex: 99999,
+          backgroundColor: isDark ? '#0a0a0a' : 'oklch(var(--primary-foreground))',
         } as React.CSSProperties}
       >
         {/* 背景 */}
         <>
-          <div className="absolute inset-0 backdrop-blur-[80px] transition-colors duration-700 ease-out bg-[#080808]/90"></div>
+          <div 
+            className="absolute inset-0 backdrop-blur-[80px] transition-colors duration-700 ease-out"
+            style={{
+              backgroundColor: isDark 
+                ? 'rgba(8, 8, 8, 0.9)' 
+                : 'oklch(var(--primary-foreground))',
+            }}
+          ></div>
           <div className={`absolute inset-0 transition-opacity duration-1000 ${isFullscreen ? 'opacity-100' : 'opacity-0'}`}>
-            <div className="absolute top-[-50%] left-[-20%] w-[100%] h-[100%] rounded-full bg-indigo-500/10 blur-[120px] mix-blend-screen"></div>
-            <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] rounded-full bg-purple-500/10 blur-[120px] mix-blend-screen"></div>
+            {isDark ? (
+              <>
+                <div className="absolute top-[-50%] left-[-20%] w-[100%] h-[100%] rounded-full bg-indigo-500/10 blur-[120px] mix-blend-screen"></div>
+                <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] rounded-full bg-purple-500/10 blur-[120px] mix-blend-screen"></div>
+              </>
+            ) : null}
           </div>
-          <div className="absolute inset-0 rounded-[inherit] border border-white/10 pointer-events-none shadow-[inset_0_0_20px_rgba(255,255,255,0.03)] transition-opacity duration-500"></div>
+          <div 
+            className="absolute inset-0 rounded-[inherit] pointer-events-none transition-opacity duration-500"
+            style={{
+              border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)'}`,
+              boxShadow: isDark 
+                ? 'inset 0 0 20px rgba(255,255,255,0.03)' 
+                : 'inset 0 0 20px rgba(0,0,0,0.02)',
+            }}
+          ></div>
         </>
 
         {/* 内容区域 */}
         <div
-          className="absolute inset-0 w-full h-full text-white font-sans antialiased overflow-hidden"
+          className={`absolute inset-0 w-full h-full font-sans antialiased overflow-hidden ${isDark ? 'text-white' : 'text-[oklch(var(--foreground))]'}`}
           // 右键打开自定义菜单，屏蔽浏览器/系统默认菜单（包括“退出应用”等文字）
           onContextMenu={handleOpenContextMenu}
         >
           {mode === IslandMode.FLOAT ? (
             <motion.div 
               key="float" 
-              className="absolute inset-0 w-full h-full"
+              className="absolute inset-0 w-full h-full pointer-events-none"
               onMouseEnter={handleMouseEnter} // 确保鼠标进入时取消点击穿透
               onMouseLeave={handleMouseLeave} // 鼠标离开时恢复点击穿透
-              onMouseDown={(e) => {
-                // 如果点击的是按钮，阻止拖拽和事件冒泡
-                const target = e.target as HTMLElement;
-                if (target.closest('button, a, input, select, textarea, [role="button"]')) {
-                  e.stopPropagation();
-                  return;
-                }
-                // 如果不是按钮，让事件继续冒泡到外层的 handleMouseDown
-                // 不要阻止默认行为，让拖拽可以正常工作
-              }}
             >
               <div
-                className="w-full h-full"
+                className="w-full h-full pointer-events-auto"
+                onMouseDown={(e) => {
+                  // 如果点击的是按钮，阻止拖拽和事件冒泡
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button, a, input, select, textarea, [role="button"]')) {
+                    e.stopPropagation();
+                    return;
+                  }
+                  // 如果不是按钮，让事件继续冒泡到外层的 handleMouseDown
+                  // 不要阻止默认行为，让拖拽可以正常工作
+                }}
               >
                 <FloatContent 
                   onToggleRecording={handleToggleRecording}

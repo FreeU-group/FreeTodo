@@ -59,17 +59,17 @@ export const FloatContent: React.FC<{
     );
   }
   
-  // 展开状态：显示完整内容
+  // 展开状态：显示完整内容 - 三个图标并列，留点间距
   return (
     <motion.div 
       variants={fadeVariants}
       initial="initial" animate="animate" exit="exit"
-      className="w-full h-full flex items-center justify-between px-5 relative group"
+      className="w-full h-full flex items-center justify-center gap-4 relative group"
       style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties} // 录音按钮区域不允许拖拽
     >
       {/* Left: Recording Status - 可点击区域 */}
       <div 
-        className="flex items-center gap-2 group/rec cursor-pointer flex-shrink-0"
+        className="flex items-center justify-center cursor-pointer flex-shrink-0"
         onClick={(e) => {
           e.stopPropagation();
           // 单击开始/暂停/恢复录音
@@ -97,75 +97,56 @@ export const FloatContent: React.FC<{
               <div className="w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.6)] z-10"></div>
             </>
           ) : (
-            <Mic size={16} className="text-white/60" />
+            <Mic 
+              size={18} 
+              strokeWidth={2.5}
+              className="text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.4)] transition-all hover:scale-110" 
+            />
           )}
-        </div>
-        <div className="w-0 overflow-hidden group-hover/rec:w-auto transition-all duration-300">
-          <span className="text-[10px] font-medium text-white/50 pl-1 whitespace-nowrap">
-            {isRecording 
-              ? (isPaused ? '已暂停' : '录音中') 
-              : ''}
-          </span>
         </div>
       </div>
 
-      {/* Divider - 不可点击 */}
-      <div className="w-[1px] h-3 bg-white/10 pointer-events-none flex-shrink-0"></div>
-
-      {/* Center: Voice Recording Waveform (only when recording) - 不可点击 */}
-      <div className="flex-1 flex items-center justify-center pointer-events-none">
-        {isRecording ? (
-          <div className="flex items-center gap-0.5 h-3">
-            {[1, 0.6, 1, 0.5, 0.8].map((h, i) => (
-              <motion.div 
-                key={i}
-                className="w-0.5 bg-orange-400 rounded-full"
-                animate={{ height: [4, h * 12, 4] }}
-                transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1, ease: "easeInOut" }}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="w-8 h-3"></div>
+      {/* Center: 截屏开关按钮 */}
+      <div 
+        className="relative cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0"
+        onClick={(e) => {
+          e.stopPropagation();
+          onScreenshot?.();
+        }}
+        title={screenshotEnabled ? '截屏已开启，单击关闭' : '截屏已关闭，单击开启'}
+      >
+        <Camera 
+          size={18} 
+          strokeWidth={2.5}
+          className={screenshotEnabled 
+            ? 'text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.4)] transition-all hover:scale-110' 
+            : 'text-green-400/60 drop-shadow-[0_0_4px_rgba(34,197,94,0.2)] transition-all hover:scale-110'} 
+        />
+        {screenshotEnabled && (
+          <motion.div 
+            className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full"
+            animate={{ scale: [1, 1.2, 1], opacity: [1, 0.7, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
+          />
         )}
       </div>
 
-      {/* Divider - 不可点击 */}
-      <div className="w-[1px] h-3 bg-white/10 pointer-events-none flex-shrink-0"></div>
-
-      {/* Right: 左侧是截屏图标，最右侧是“展开 Panel”图标 */}
-      <div className="flex items-center justify-center gap-3 text-white/80 flex-shrink-0">
-        {/* 截屏开关按钮 - 单击切换截屏开关（稍微往左一点，通过 gap 与右侧图标区分） */}
-        <div 
-          className="relative cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={(e) => {
-            e.stopPropagation();
-            onScreenshot?.();
-          }}
-          title={screenshotEnabled ? '截屏已开启，单击关闭' : '截屏已关闭，单击开启'}
-        >
-          <Camera size={18} className={screenshotEnabled ? 'text-green-400' : 'text-gray-500'} />
-          {screenshotEnabled && (
-            <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-          )}
-        </div>
-        {/* 最右：纯 Logo 图标，点击切换到 Panel 模式 */}
-        <button
-          type="button"
-          className="flex items-center justify-center"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenPanel?.();
-          }}
-          title="展开为 Panel"
-        >
-          <Hexagon
-            size={18}
-            strokeWidth={2.5}
-            className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]"
-          />
-        </button>
-      </div>
+      {/* Right: Logo 图标，点击切换到 Panel 模式 */}
+      <button
+        type="button"
+        className="flex items-center justify-center flex-shrink-0"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpenPanel?.();
+        }}
+        title="展开为 Panel"
+      >
+        <Hexagon
+          size={18}
+          strokeWidth={2.5}
+          className="text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]"
+        />
+      </button>
     </motion.div>
   );
 };
