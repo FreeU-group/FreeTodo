@@ -47,6 +47,11 @@ jobs:
       file_io_timeout: 15  # 文件I/O操作超时时间（秒）
       db_timeout: 20  # 数据库操作超时时间（秒）
       window_info_timeout: 5  # 获取窗口信息超时时间（秒）
+      pngquant:
+        enabled: true  # 启用 pngquant 压缩（需要系统安装 pngquant）
+        quality: "70-85"  # 压缩质量范围（越高越清晰，体积越大）
+        speed: 3  # 压缩速度（1-11），值越大越快但压缩率稍低
+        strip: true  # 去除元数据
       blacklist:
         enabled: false # 是否启用黑名单功能
         apps: ["微信"]  # 应用黑名单，使用友好名称，例如: ["微信", "QQ", "钉钉"]
