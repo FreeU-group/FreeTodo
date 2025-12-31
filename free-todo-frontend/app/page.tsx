@@ -101,10 +101,10 @@ export default function HomePage() {
 			store.registerEndpoint({
 				id: "ddl-reminder",
 				url: "/api/notifications",
-				interval: 30000, // 30秒轮询一次，与后端检查间隔匹配
+				interval: 10000, // 10秒轮询一次，显著短于后端检查间隔（30秒）
 				enabled: true, // 默认启用
 			});
-			console.log("[DDL提醒轮询] 已注册，间隔: 30秒");
+			console.log("[DDL提醒轮询] 已注册，间隔: 10秒");
 		}
 
 		// 初始同步

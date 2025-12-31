@@ -260,8 +260,14 @@ export function DynamicIsland() {
 									>
 										<Bell className="h-4 w-4 text-primary shrink-0" />
 									</motion.div>
-									<span className="text-sm font-medium text-foreground truncate max-w-[120px]">
+									<span className="text-sm font-medium text-foreground truncate max-w-[200px]">
 										{currentNotification.title || t("newNotification")}
+										{currentNotification.content && (
+											<span className="text-muted-foreground/70">
+												{" "}
+												（{currentNotification.content}）
+											</span>
+										)}
 									</span>
 								</motion.div>
 							) : (
@@ -276,21 +282,17 @@ export function DynamicIsland() {
 								>
 									{/* 左侧：图标 */}
 									<Bell className="h-4 w-4 text-primary shrink-0" />
-									{/* 中间：标题和内容（一行显示） */}
+									{/* 中间：待办标题和时间信息（一行显示） */}
 									<div className="flex-1 min-w-0 flex items-center gap-2">
-										<h3 className="text-sm font-semibold text-foreground truncate">
-											{currentNotification.title}
-										</h3>
-										{currentNotification.content && (
-											<>
-												<span className="text-xs text-muted-foreground/60">
-													•
+										<h3 className="text-sm font-semibold text-foreground truncate max-w-[500px]">
+											{currentNotification.title || t("newNotification")}
+											{currentNotification.content && (
+												<span className="text-muted-foreground/70">
+													{" "}
+													（{currentNotification.content}）
 												</span>
-												<p className="text-xs text-muted-foreground truncate">
-													{currentNotification.content}
-												</p>
-											</>
-										)}
+											)}
+										</h3>
 									</div>
 									{/* 时间戳 */}
 									{currentNotification.timestamp && (
