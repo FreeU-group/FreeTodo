@@ -17,6 +17,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TodoExtractionModal } from "@/apps/todo-list/TodoExtractionModal";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
+import { NotificationTestButton } from "@/components/notification/NotificationTestButton";
 import type { ExtractedTodo, TodoExtractionResponse } from "@/lib/api";
 import { getScreenshotImage } from "@/lib/api";
 import { useCreateActivityManualApiActivitiesManualPost } from "@/lib/generated/activity/activity";
@@ -810,6 +811,11 @@ export function DebugCapturePanel() {
 		<div className="flex h-full flex-col overflow-hidden bg-background">
 			{/* 头部 */}
 			<PanelHeader icon={Camera} title={tDebug("title")} />
+
+			{/* 通知测试按钮 */}
+			<div className="shrink-0 px-3 sm:px-4 pt-3">
+				<NotificationTestButton />
+			</div>
 
 			{/* 选中事件提示 */}
 			{selectedEvents.size > 0 && (

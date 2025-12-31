@@ -3,7 +3,7 @@ import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification } from "electron";
 
 // 强制生产模式：如果应用已打包，必须使用生产模式
 // 即使 NODE_ENV 被设置为 development，打包的应用也应该运行生产服务器
@@ -15,9 +15,9 @@ let healthCheckInterval: NodeJS.Timeout | null = null;
 let backendHealthCheckInterval: NodeJS.Timeout | null = null;
 
 // 默认端口配置（从环境变量读取，如果未设置则使用默认值）
-const DEFAULT_FRONTEND_PORT = Number.parseInt(process.env.PORT || "3000", 10);
+const DEFAULT_FRONTEND_PORT = Number.parseInt(process.env.PORT || "3001", 10);
 const DEFAULT_BACKEND_PORT = Number.parseInt(
-	process.env.BACKEND_PORT || "8000",
+	process.env.BACKEND_PORT || "8001",
 	10,
 );
 
@@ -416,10 +416,24 @@ async function startNextServer(): Promise<void> {
 }
 
 /**
+ * 获取 preload 脚本路径
+ */
+function getPreloadPath(): string {
+	if (app.isPackaged) {
+		// 打包环境：preload.js 和 main.js 在同一个目录（应用根目录）
+		// 使用 app.getAppPath() 获取应用路径
+		return path.join(app.getAppPath(), "preload.js");
+	}
+	// 开发环境：使用编译后的文件路径（dist-electron 目录）
+	return path.join(__dirname, "preload.js");
+}
+
+/**
  * 创建主窗口（使用动态 URL）
  */
 function createWindow(): void {
 	const serverUrl = getServerUrl();
+	const preloadPath = getPreloadPath();
 
 	mainWindow = new BrowserWindow({
 		width: 1200,
@@ -429,6 +443,7 @@ function createWindow(): void {
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
+			preload: preloadPath,
 		},
 		show: false, // 等待内容加载完成再显示
 		backgroundColor: "#1a1a1a",
@@ -724,6 +739,93 @@ function stopNextServer(): void {
 	}
 }
 
+/**
+ * 请求通知权限（如果需要）
+ * 注意：Electron 会在首次显示通知时自动请求权限，无需手动检查
+ */
+async function requestNotificationPermission(): Promise<void> {
+	// Electron 的 Notification 类没有 permission 属性
+	// 权限会在首次显示通知时自动请求
+	// macOS 10.14+ 会弹出权限请求对话框
+	// Windows 和 Linux 通常不需要显式权限请求
+	logToFile(
+		"Notification permission will be requested automatically on first notification",
+	);
+}
+
+/**
+ * 显示系统通知
+ */
+function showSystemNotification(
+	title: string,
+	body: string,
+	notificationId: string,
+): void {
+	if (!mainWindow) {
+		logToFile("WARNING: Cannot show notification - mainWindow is null");
+		return;
+	}
+
+	try {
+		const notification = new Notification({
+			title,
+			body,
+			silent: false, // 允许通知声音
+		});
+
+		// 处理通知点击事件
+		notification.on("click", () => {
+			logToFile(`Notification ${notificationId} clicked - focusing window`);
+			if (mainWindow) {
+				if (mainWindow.isMinimized()) {
+					mainWindow.restore();
+				}
+				mainWindow.focus();
+			}
+		});
+
+		// 处理通知显示事件
+		notification.on("show", () => {
+			logToFile(`Notification ${notificationId} shown: ${title}`);
+		});
+
+		// 处理通知关闭事件
+		notification.on("close", () => {
+			logToFile(`Notification ${notificationId} closed`);
+		});
+
+		// 显示通知
+		notification.show();
+	} catch (error) {
+		const errorMsg = `Failed to show notification: ${error instanceof Error ? error.message : String(error)}`;
+		logToFile(`ERROR: ${errorMsg}`);
+		// 静默失败，不影响应用运行
+	}
+}
+
+/**
+ * 设置 IPC 处理器
+ */
+function setupIpcHandlers(): void {
+	// 处理来自渲染进程的通知请求
+	ipcMain.handle(
+		"show-notification",
+		async (
+			_event,
+			data: { id: string; title: string; content: string; timestamp: string },
+		) => {
+			try {
+				logToFile(`Received notification request: ${data.id} - ${data.title}`);
+				showSystemNotification(data.title, data.content, data.id);
+			} catch (error) {
+				const errorMsg = `Failed to handle notification request: ${error instanceof Error ? error.message : String(error)}`;
+				logToFile(`ERROR: ${errorMsg}`);
+				throw error;
+			}
+		},
+	);
+}
+
 // 应用准备就绪（只在获得锁的情况下执行）
 if (gotTheLock) {
 	// macOS: 点击 dock 图标时重新创建窗口
@@ -762,6 +864,12 @@ if (gotTheLock) {
 			logToFile(
 				`Default ports: frontend=${DEFAULT_FRONTEND_PORT}, backend=${DEFAULT_BACKEND_PORT}`,
 			);
+
+			// 设置 IPC 处理器
+			setupIpcHandlers();
+
+			// 请求通知权限（如果需要）
+			await requestNotificationPermission();
 
 			// 1. 启动后端服务器（会自动探测可用端口）
 			await startBackendServer();

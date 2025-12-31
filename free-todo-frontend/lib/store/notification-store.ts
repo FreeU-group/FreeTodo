@@ -23,6 +23,8 @@ interface NotificationStoreState {
 	endpoints: Map<string, PollingEndpoint>;
 	// 展开/收起状态
 	isExpanded: boolean;
+	// 最后发送系统通知的 ID（用于去重）
+	lastNotifiedId: string | null;
 	// 方法
 	setNotification: (notification: Notification | null) => void;
 	registerEndpoint: (endpoint: PollingEndpoint) => void;
@@ -38,9 +40,42 @@ export const useNotificationStore = create<NotificationStoreState>(
 		currentNotification: null,
 		endpoints: new Map(),
 		isExpanded: false,
+		lastNotifiedId: null,
 
 		setNotification: (notification) => {
 			set({ currentNotification: notification });
+
+			// 如果有新通知且与上次通知不同，触发 Electron 系统通知
+			if (notification) {
+				const { lastNotifiedId } = get();
+				const isNewNotification = notification.id !== lastNotifiedId;
+
+				if (isNewNotification) {
+					// 更新最后通知的 ID
+					set({ lastNotifiedId: notification.id });
+
+					// 在 Electron 环境中显示系统通知
+					if (
+						typeof window !== "undefined" &&
+						window.electronAPI?.showNotification
+					) {
+						window.electronAPI
+							.showNotification({
+								id: notification.id,
+								title: notification.title,
+								content: notification.content,
+								timestamp: notification.timestamp,
+							})
+							.catch((error) => {
+								// 静默处理错误，不影响应用运行
+								console.warn("Failed to show system notification:", error);
+							});
+					}
+				}
+			} else {
+				// 通知被清除时，不清除 lastNotifiedId，保持去重状态
+				// 这样如果同一个通知再次出现，不会重复触发系统通知
+			}
 		},
 
 		registerEndpoint: (endpoint) => {
