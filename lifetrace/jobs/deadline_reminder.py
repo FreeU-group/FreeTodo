@@ -10,7 +10,7 @@ from lifetrace.storage.models import Todo
 from lifetrace.storage.notification_storage import add_notification
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.settings import settings
-from lifetrace.util.time_utils import get_utc_now
+from lifetrace.util.time_utils import get_utc_now, naive_as_utc
 
 logger = get_logger()
 
@@ -38,6 +38,9 @@ def execute_deadline_reminder_task():
 
         # 查询即将到期的待办事项
         # 条件：status == "active", deadline IS NOT NULL, deadline <= now + 5分钟, deadline > now
+        # 注意：SQLite 存储 datetime 为字符串，SQLAlchemy 读取时为 naive datetime
+        # 在查询比较时，SQLAlchemy 会将 timezone-aware datetime 转换为 naive 进行比较
+        # 但在 Python 代码中处理时，需要确保转换为 UTC timezone-aware
         with todo_mgr.db_base.get_session() as session:
             todos = (
                 session.query(Todo)
@@ -61,13 +64,18 @@ def execute_deadline_reminder_task():
                 if not todo.deadline:
                     continue
 
+                # 确保 deadline 是 UTC timezone-aware
+                # SQLite 存储 datetime 为字符串，SQLAlchemy 读取时为 naive datetime
+                # 由于我们统一使用 UTC 存储，数据库中的 naive datetime 就是 UTC 时间
+                deadline_utc = naive_as_utc(todo.deadline)
+
                 # 生成唯一通知 ID：todo_{todo_id}_{reminder_time}
                 # 使用待办的 deadline 作为 reminder_time，确保同一待办在同一时间点只通知一次
-                reminder_time = todo.deadline
+                reminder_time = deadline_utc
                 notification_id = f"todo_{todo.id}_{reminder_time.isoformat()}"
 
                 # 计算剩余时间
-                time_remaining = todo.deadline - now
+                time_remaining = deadline_utc - now
                 minutes_remaining = int(time_remaining.total_seconds() / 60)
 
                 # 生成通知标题和内容
@@ -87,11 +95,11 @@ def execute_deadline_reminder_task():
                     logger.info(
                         f"生成 DDL 提醒通知: todo_id={todo.id}, "
                         f"name={todo.name}, "
-                        f"deadline={todo.deadline}, "
+                        f"deadline={deadline_utc}, "
                         f"剩余时间={minutes_remaining}分钟"
                     )
                 else:
-                    logger.debug(f"通知已存在，跳过: todo_id={todo.id}, deadline={todo.deadline}")
+                    logger.debug(f"通知已存在，跳过: todo_id={todo.id}, deadline={deadline_utc}")
 
     except Exception as e:
         logger.error(f"执行 DDL 提醒任务失败: {e}", exc_info=True)

@@ -43,6 +43,28 @@ def to_utc(dt: datetime) -> datetime:
     return dt.astimezone(UTC)
 
 
+def naive_as_utc(dt: datetime) -> datetime:
+    """将 naive datetime 视为 UTC 时间（用于 SQLite 数据库读取）
+
+    注意：SQLite 存储 datetime 为字符串，SQLAlchemy 读取时为 naive datetime。
+    由于我们的代码统一使用 UTC 时间存储，数据库中的 naive datetime 实际上就是 UTC 时间。
+
+    Args:
+        dt: naive datetime 对象
+
+    Returns:
+        datetime: UTC timezone-aware datetime
+
+    Raises:
+        ValueError: 如果 dt 不是 naive datetime（已经有 tzinfo）
+    """
+    if dt.tzinfo is not None:
+        # 如果已经有时区信息，直接返回
+        return dt.astimezone(UTC)
+    # 假设 naive datetime 就是 UTC 时间，直接添加 UTC 时区信息
+    return dt.replace(tzinfo=UTC)
+
+
 def ensure_utc(dt: datetime | None) -> datetime | None:
     """确保 datetime 是 UTC，如果是 None 则返回 None
 
