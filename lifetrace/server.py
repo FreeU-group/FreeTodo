@@ -72,14 +72,20 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+# 从配置读取端口，动态构建 CORS 允许源列表
+frontend_port = config.get("frontend.port")
+server_port = config.get("server.port")
+
+allow_origins = [
+    f"http://localhost:{frontend_port}",
+    f"http://127.0.0.1:{frontend_port}",
+    f"http://localhost:{server_port}",
+    f"http://127.0.0.1:{server_port}",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

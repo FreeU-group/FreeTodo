@@ -12,6 +12,10 @@ server:
   port: 8000
   debug: false
 
+# 前端配置
+frontend:
+  port: 3000  # 前端开发服务器端口
+
 # 基础目录配置
 base_dir: data
 database_path: lifetrace.db

@@ -26,75 +26,45 @@
 
 ### Environment Requirements
 
-**Backend**:
-
-- Python 3.13+
-- Supported OS: Windows, macOS
+- **Python** 3.13+
+- **Node.js** 20+
+- **Git**
+- Supported OS: Windows, macOS, Linux
 - Optional: CUDA support (for GPU acceleration)
 
-**Frontend**:
+### One-Click Deployment (Recommended)
 
-- Node.js 20+
-- pnpm package manager
+The easiest way to get started is using our one-click deployment scripts:
 
-### Install Dependencies
-
-This project uses [uv](https://github.com/astral-sh/uv) for fast and reliable dependency management.
-
-**Install uv:**
+#### Linux / macOS
 
 ```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+git clone https://github.com/FreeU-group/LifeTrace.git
+cd LifeTrace
+chmod +x scripts/*.sh
+./scripts/install.sh
+./scripts/start.sh
 ```
 
-**Install dependencies and sync environment:**
+#### Windows (PowerShell)
 
-```bash
-# Sync dependencies from pyproject.toml and uv.lock
-uv sync
-
-# Activate the virtual environment
-# macOS/Linux
-source .venv/bin/activate
-
-# Windows
-.venv\Scripts\activate
+```powershell
+git clone https://github.com/FreeU-group/LifeTrace.git
+cd LifeTrace
+.\scripts\install.ps1
+.\scripts\start.ps1
 ```
 
-### Start the Backend Service
+These scripts will automatically:
+- Check and validate your environment
+- Install `uv` and `pnpm` if not present
+- Install all backend and frontend dependencies
+- Initialize configuration files
+- Start both services and open your browser
 
-> **Note**: On first run, the system will automatically create `config.yaml` from `default_config.yaml` if it doesn't exist. You can customize your settings by editing `lifetrace/config/config.yaml`.
+Once started, open your browser and navigate to `http://localhost:3000` to enjoy LifeTrace! 🎉
 
-**Start the server:**
-
-```bash
-python -m lifetrace.server
-```
-
-> **Customize Prompts**: If you want to modify AI prompts for different features, you can edit `lifetrace/config/prompt.yaml`.
-
-The backend service will start at `http://localhost:8000`.
-
-### Start the Frontend Service
-
-The frontend is required to use LifeTrace. Start the frontend development server:
-
-```bash
-cd frontend
-
-pnpm install
-pnpm dev
-```
-
-The frontend development server will start at `http://localhost:3000`, with API requests automatically proxied to backend `:8000`.
-
-Once both services are running, open your browser and navigate to `http://localhost:3000` to enjoy LifeTrace! 🎉
-
-For more details, see: [frontend/README.md](frontend/README.md)
+For advanced options (e.g., China mirrors, partial installation), see [scripts/README.md](scripts/README.md).
 
 ## 📋 TODO & Roadmap
 
@@ -120,6 +90,58 @@ For more details, see: [frontend/README.md](frontend/README.md)
 > 💡 **Want to contribute?** Check out our [Contributing Guidelines](#contributing) and pick up any TODO item that interests you!
 
 ## Development Guide
+
+### Manual Setup (For Developers)
+
+If you prefer manual control over the installation process or need to set up for development:
+
+#### Install uv
+
+This project uses [uv](https://github.com/astral-sh/uv) for fast and reliable dependency management.
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+#### Install Dependencies
+
+```bash
+# Sync dependencies from pyproject.toml and uv.lock
+uv sync
+
+# Activate the virtual environment
+# macOS/Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+```
+
+#### Start the Backend Service
+
+> **Note**: On first run, the system will automatically create `config.yaml` from `default_config.yaml` if it doesn't exist.
+
+```bash
+python -m lifetrace.server
+```
+
+The backend service will start at `http://localhost:8000`.
+
+#### Start the Frontend Service
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+The frontend development server will start at `http://localhost:3000`.
+
+For more details, see: [frontend/README.md](frontend/README.md)
 
 ### Project Structure
 

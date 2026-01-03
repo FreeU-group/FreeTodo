@@ -36,77 +36,45 @@ LifeTrace 采用**前后端分离**架构：
 
 ### 环境要求
 
-**后端**:
-
-- Python 3.13+
-- 支持的操作系统：Windows、macOS
+- **Python** 3.13+
+- **Node.js** 20+
+- **Git**
+- 支持的操作系统：Windows、macOS、Linux
 - 可选：CUDA 支持（用于 GPU 加速）
 
-**前端**:
+### 一键部署（推荐）
 
-- Node.js 20+
-- pnpm 包管理器
+使用一键部署脚本是最简单的启动方式：
 
-### 安装依赖
-
-本项目使用 [uv](https://github.com/astral-sh/uv) 进行快速可靠的依赖管理。
-
-**安装 uv:**
+#### Linux / macOS
 
 ```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Windows
-powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+git clone https://github.com/FreeU-group/LifeTrace.git
+cd LifeTrace
+chmod +x scripts/*.sh
+./scripts/install.sh
+./scripts/start.sh
 ```
 
-**安装依赖并同步环境:**
+#### Windows (PowerShell)
 
-```bash
-# 从 pyproject.toml 和 uv.lock 同步依赖
-uv sync
-
-# 激活虚拟环境
-# macOS/Linux
-source .venv/bin/activate
-
-# Windows
-.venv\Scripts\activate
+```powershell
+git clone https://github.com/FreeU-group/LifeTrace.git
+cd LifeTrace
+.\scripts\install.ps1
+.\scripts\start.ps1
 ```
 
-### 启动后端服务
-
-> **注意**：首次运行时，如果 `config.yaml` 不存在，系统会自动从 `default_config.yaml` 创建。您可以通过编辑 `lifetrace/config/config.yaml` 来自定义设置。
-
-**启动服务器：**
-
-```bash
-python -m lifetrace.server
-```
-
-> **自定义提示词**：如果您想修改不同功能的 AI 提示词，可以编辑 `lifetrace/config/prompt.yaml` 文件。
-
-后端服务将在 `http://localhost:8000` 启动。
-
-- **API 文档**: `http://localhost:8000/docs`
-
-### 启动前端服务
-
-前端是使用 LifeTrace 的必需组件。启动前端开发服务器：
-
-```bash
-cd frontend
-
-pnpm install
-pnpm dev
-```
-
-前端开发服务器将在 `http://localhost:3000` 启动，API 请求会自动代理到后端 `:8000`。
+这些脚本将自动完成：
+- 检查和验证环境
+- 安装 `uv` 和 `pnpm`（如未安装）
+- 安装所有后端和前端依赖
+- 初始化配置文件
+- 启动服务并打开浏览器
 
 服务启动后，在浏览器中访问 `http://localhost:3000` 开始使用 LifeTrace！🎉
 
-详细说明请参考：[frontend/README.md](frontend/README.md)
+更多高级选项（如国内镜像、部分安装等），请参阅 [scripts/README.md](scripts/README.md)。
 
 ## 📋 待办事项与路线图
 
@@ -132,6 +100,58 @@ pnpm dev
 > 💡 **想要贡献？** 查看我们的[贡献指南](#贡献)并选择任何你感兴趣的待办事项！
 
 ## 开发指南
+
+### 手动安装（开发者）
+
+如果您需要手动控制安装过程或进行开发，可以按以下步骤操作：
+
+#### 安装 uv
+
+本项目使用 [uv](https://github.com/astral-sh/uv) 进行快速可靠的依赖管理。
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+#### 安装依赖
+
+```bash
+# 从 pyproject.toml 和 uv.lock 同步依赖
+uv sync
+
+# 激活虚拟环境
+# macOS/Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+```
+
+#### 启动后端服务
+
+> **注意**：首次运行时，如果 `config.yaml` 不存在，系统会自动从 `default_config.yaml` 创建。
+
+```bash
+python -m lifetrace.server
+```
+
+后端服务将在 `http://localhost:8000` 启动。
+
+#### 启动前端服务
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+前端开发服务器将在 `http://localhost:3000` 启动。
+
+详细说明请参考：[frontend/README.md](frontend/README.md)
 
 ### 项目结构
 
