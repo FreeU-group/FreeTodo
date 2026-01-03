@@ -45,19 +45,30 @@ export class TodoExtractionService {
   }
 
   /**
-   * 添加已优化的片段到提取队列
+   * 添加片段到提取队列（支持优化文本和原始文本）
    */
   enqueue(segment: TranscriptSegment): void {
-    if (!segment.isOptimized || !segment.optimizedText) {
+    // 检查是否有文本（优化文本或原始文本）
+    const textToUse = segment.optimizedText || segment.rawText;
+    if (!textToUse || !textToUse.trim()) {
+      console.log('[TodoExtraction] ⚠️ 跳过空文本片段:', segment.id);
       return;
     }
 
     // 避免重复处理
     const exists = this.queue.find(s => s.id === segment.id);
     if (exists) {
+      console.log('[TodoExtraction] ⚠️ 片段已在队列中:', segment.id);
       return;
     }
 
+    console.log('[TodoExtraction] ✅ 添加片段到提取队列:', {
+      id: segment.id,
+      textLength: textToUse.length,
+      hasOptimizedText: !!segment.optimizedText,
+      hasRawText: !!segment.rawText
+    });
+    
     this.queue.push(segment);
     this.processQueue();
   }
@@ -104,32 +115,52 @@ export class TodoExtractionService {
   }
 
   /**
-   * 从文本中提取待办事项（调用后端API）
+   * 从文本中提取待办事项（调用后端API，支持优化文本和原始文本）
    */
   private async extractTodos(segment: TranscriptSegment): Promise<void> {
-    if (!segment.optimizedText) {
+    const textToUse = segment.optimizedText || segment.rawText;
+    if (!textToUse || !textToUse.trim()) {
+      console.log('[TodoExtraction] ⚠️ 片段文本为空，跳过提取:', segment.id);
       return;
     }
+    
+    console.log('[TodoExtraction] 🤖 开始调用LLM API提取待办，片段ID:', segment.id, '文本长度:', textToUse.length);
 
     try {
+      const API_BASE_URL = typeof window !== 'undefined' 
+        ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api')
+        : 'http://localhost:8000/api';
+      
+      console.log('[TodoExtraction] 📤 发送提取请求:', {
+        url: `${API_BASE_URL}/audio/extract-todos`,
+        textLength: textToUse.length,
+        referenceTime: segment.timestamp.toISOString()
+      });
+      
       // 调用后端API提取待办并自动创建Todo
-      const response = await fetch('/api/audio/extract-todos', {
+      const response = await fetch(`${API_BASE_URL}/audio/extract-todos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: segment.optimizedText,
+          text: textToUse,
           reference_time: segment.timestamp.toISOString(),
-          source_segment_id: segment.id,
+          source_segment_id: segment.segmentId || segment.audioFileId || segment.id,
         }),
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[TodoExtraction] ❌ API请求失败:', response.status, errorText);
         throw new Error(`提取待办失败: ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log('[TodoExtraction] 📥 LLM API返回结果:', {
+        todosCount: data.todos?.length || 0,
+        todos: data.todos
+      });
       
       // 后端返回提取结果，不自动创建，先存储到待确认列表
       if (data.todos && data.todos.length > 0) {
@@ -140,29 +171,46 @@ export class TodoExtractionService {
             description: todo.description,
             deadline: todo.deadline ? new Date(todo.deadline) : undefined,
             priority: todo.priority as 'high' | 'medium' | 'low',
-            sourceSegmentId: segment.id,
+            sourceSegmentId: segment.segmentId || segment.audioFileId || segment.id || '', // 使用音频ID作为sourceSegmentId
             extractedAt: new Date(),
             sourceText: todo.source_text || todo.title || todo.description,
             textStartIndex: todo.text_start_index,
             textEndIndex: todo.text_end_index,
           };
           
-          // 先存储到待确认列表，不自动调用回调
-          if (!this.extractedTodosWithoutCallback) {
-            this.extractedTodosWithoutCallback = [];
+          console.log('[TodoExtraction] ✅ 提取到待办:', {
+            id: extractedTodo.id,
+            sourceSegmentId: extractedTodo.sourceSegmentId,
+            title: extractedTodo.title
+          });
+          
+          // 立即调用回调，实时显示
+          if (this.onTodoExtracted) {
+            this.onTodoExtracted(extractedTodo);
+          } else {
+            // 如果回调未设置，存储到待确认列表
+            if (!this.extractedTodosWithoutCallback) {
+              this.extractedTodosWithoutCallback = [];
+            }
+            this.extractedTodosWithoutCallback.push(extractedTodo);
           }
-          this.extractedTodosWithoutCallback.push(extractedTodo);
         }
+        console.log(`[TodoExtraction] ✅ LLM提取到 ${data.todos.length} 个待办`);
+      } else {
+        console.log(`[TodoExtraction] ℹ️ LLM未提取到待办（文本可能不包含待办信息）`);
       }
     } catch (error) {
       console.error('[TodoExtraction] 调用后端API失败，使用本地解析:', error);
       
-      // 降级到本地解析
-      const todos = this.parseTodos(segment.optimizedText, segment);
-      
-      for (const todo of todos) {
-        if (this.onTodoExtracted) {
-          this.onTodoExtracted(todo);
+      // 降级到本地解析（使用优化文本或原始文本）
+      const textForParse = segment.optimizedText || segment.rawText || '';
+      if (textForParse) {
+        const todos = this.parseTodos(textForParse, segment);
+        
+        for (const todo of todos) {
+          if (this.onTodoExtracted) {
+            this.onTodoExtracted(todo);
+          }
         }
       }
     }

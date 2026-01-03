@@ -104,16 +104,26 @@ async def save_schedules(request: BatchSaveRequest):
 async def query_schedules(
     startTime: Optional[str] = Query(None, description="开始时间（ISO 格式）"),
     endTime: Optional[str] = Query(None, description="结束时间（ISO 格式）"),
+    audioFileId: Optional[str] = Query(None, description="音频文件ID（sourceSegmentId）"),
 ):
     """
     查询历史日程
+    
+    支持两种查询方式：
+    1. 根据时间范围查询（startTime, endTime）
+    2. 根据音频ID查询（audioFileId，优先级更高）
     """
     try:
-        # 暂时从内存中查询，后续可以改为数据库查询
         filtered_schedules = []
         
         for schedule in _schedules_db:
             try:
+                # 优先根据音频ID查询
+                if audioFileId:
+                    if schedule.sourceSegmentId == audioFileId:
+                        filtered_schedules.append(schedule.model_dump())
+                    continue
+                
                 schedule_time = datetime.fromisoformat(schedule.scheduleTime.replace('Z', '+00:00'))
                 
                 # 如果提供了时间范围，进行过滤
@@ -143,7 +153,7 @@ async def query_schedules(
             key=lambda s: datetime.fromisoformat(s.get("scheduleTime", "").replace('Z', '+00:00'))
         )
         
-        logger.info(f"查询日程: startTime={startTime}, endTime={endTime}, 结果数={len(filtered_schedules)}")
+        logger.info(f"查询日程: startTime={startTime}, endTime={endTime}, audioFileId={audioFileId}, 结果数={len(filtered_schedules)}")
         
         return {"schedules": filtered_schedules}
     except Exception as e:

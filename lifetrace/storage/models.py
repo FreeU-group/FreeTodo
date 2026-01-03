@@ -368,8 +368,19 @@ class AudioRecording(TimestampMixin, table=True):
     transcript_text: str | None = Field(default=None, sa_column=Column(Text))  # 原始转录文本
     optimized_text: str | None = Field(default=None, sa_column=Column(Text))  # 优化后的文本
     summary_text: str | None = Field(default=None, sa_column=Column(Text))  # 摘要文本
+    extracted_todos: str | None = Field(default=None, sa_column=Column(Text))  # 提取的待办事项（JSON格式）
     num_speakers: int | None = None  # 说话人数量
     segment_id: str | None = Field(default=None, max_length=200)  # 前端segment ID
+    title: str | None = Field(default=None, max_length=500)  # 录音标题
+    
+    # 处理状态标记（仅在回看模式使用）
+    is_transcribed: bool = Field(default=False)  # 是否已通过完整音频转录
+    is_extracted: bool = Field(default=False)  # 是否已智能提取（待办、日程）
+    is_summarized: bool = Field(default=False)  # 是否已生成智能纪要
+    
+    # 音频类型标记
+    is_full_audio: bool = Field(default=False)  # 是否为完整音频（用于回放）
+    is_segment_audio: bool = Field(default=False)  # 是否为分段音频（10秒，用于转录）
 
     def __repr__(self):
         return f"<AudioRecording(id={self.id}, segment_id={self.segment_id}, start_time={self.start_time})>"

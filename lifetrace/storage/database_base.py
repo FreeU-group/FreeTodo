@@ -286,8 +286,15 @@ class DatabaseBase:
                 ("transcript_text", "TEXT"),  # 原始转录文本
                 ("optimized_text", "TEXT"),  # 优化后的文本
                 ("summary_text", "TEXT"),  # 摘要文本
+                ("extracted_todos", "TEXT"),  # 提取的待办事项（JSON格式）
                 ("num_speakers", "INTEGER"),  # 说话人数量
                 ("segment_id", "VARCHAR(200)"),  # 前端segment ID
+                ("title", "VARCHAR(500)"),  # 录音标题
+                ("is_transcribed", "INTEGER DEFAULT 0"),  # 是否已通过完整音频转录（SQLite 使用 INTEGER 表示布尔值）
+                ("is_extracted", "INTEGER DEFAULT 0"),  # 是否已智能提取（待办、日程）
+                ("is_summarized", "INTEGER DEFAULT 0"),  # 是否已生成智能纪要
+                ("is_full_audio", "INTEGER DEFAULT 0"),  # 是否为完整音频（用于回放）
+                ("is_segment_audio", "INTEGER DEFAULT 0"),  # 是否为分段音频（10秒，用于转录）
             ]
             
             for column_name, column_type in columns_to_add:

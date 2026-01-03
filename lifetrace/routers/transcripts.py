@@ -167,28 +167,44 @@ async def batch_save_transcripts(request: BatchSaveRequest):
 
 @router.get("")
 async def query_transcripts(
-    startTime: str = Query(..., description="开始时间（ISO 格式）"),
-    endTime: str = Query(..., description="结束时间（ISO 格式）"),
+    startTime: str = Query(None, description="开始时间（ISO 格式）"),
+    endTime: str = Query(None, description="结束时间（ISO 格式）"),
+    audioFileId: str = Query(None, description="音频文件ID（segment_id）"),
 ):
     """
     查询历史转录文本
     
-    注意：当前版本返回空列表，后续可以从数据库查询
+    支持两种查询方式：
+    1. 根据时间范围查询（startTime, endTime）
+    2. 根据音频ID查询（audioFileId，优先级更高）
     """
     try:
-        # 解析时间范围
-        start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
-        end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
-        
-        logger.debug(f"查询转录文本: startTime={start}, endTime={end}")
+        logger.debug(f"查询转录文本: startTime={startTime}, endTime={endTime}, audioFileId={audioFileId}")
         
         # 从数据库查询
         with get_session() as session:
-            # 查询指定时间范围内的转录片段
-            segments = session.query(TranscriptSegment).filter(
+            query = session.query(TranscriptSegment)
+            
+            # 优先根据音频ID查询
+            if audioFileId:
+                # 通过 audio_file_id 或 segment_id 匹配（注意：segment_id 存储的是 transcript.id，不是 audio.id）
+                # 所以主要匹配 audio_file_id
+                segments = query.filter(
+                    (TranscriptSegment.audio_file_id == audioFileId)
+                ).order_by(TranscriptSegment.timestamp).all()
+                logger.info(f"根据音频ID查询转录文本: audioFileId={audioFileId}, 查询到 {len(segments)} 条")
+            elif startTime and endTime:
+                # 根据时间范围查询
+                start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
+                end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
+                segments = query.filter(
                 TranscriptSegment.timestamp >= start,
                 TranscriptSegment.timestamp <= end,
             ).order_by(TranscriptSegment.timestamp).all()
+                logger.info(f"根据时间范围查询转录文本: startTime={start}, endTime={end}")
+            else:
+                logger.warning("查询转录文本：未提供查询参数（audioFileId 或 startTime/endTime）")
+                segments = []
             
             transcripts = []
             for seg in segments:
@@ -200,6 +216,7 @@ async def query_transcripts(
                     "audioStart": seg.audio_start,
                     "audioEnd": seg.audio_end,
                     "audioFileId": seg.audio_file_id,
+                    "segmentId": seg.segment_id,  # 添加segmentId字段
                 })
             
             logger.info(f"✅ 查询到 {len(transcripts)} 条转录文本")

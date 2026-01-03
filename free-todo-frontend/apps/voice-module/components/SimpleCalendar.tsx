@@ -145,10 +145,10 @@ export function SimpleCalendar({ selectedDate, onDateSelect, onClose, audioDates
               <span>{date.getDate()}</span>
               {audioCount > 0 && (
                 <span className={cn(
-                  "absolute top-0.5 right-0.5 text-[10px] font-bold leading-none px-1 py-0.5 rounded-full min-w-[16px] text-center",
+                  "absolute bottom-0 right-0 text-[8px] font-normal leading-none px-0.5 py-0 rounded-full min-w-[12px] text-center",
                   isSelectedDate 
-                    ? "bg-white text-primary border border-primary/30" 
-                    : "bg-primary text-white border border-primary/50"
+                    ? "bg-white/90 text-primary border border-primary/20" 
+                    : "bg-primary/70 text-white border border-primary/40"
                 )}>
                   {audioCount}
                 </span>

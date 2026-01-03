@@ -15,6 +15,7 @@ interface ExtractedItemsPanelProps {
   onAddTodo?: (todo: ExtractedTodo) => void;  // 用户选择加入待办
   onAddSchedule?: (schedule: ScheduleItem) => void;  // 用户选择加入日程
   onSegmentClick?: (segment: TranscriptSegment) => void;  // 点击跳转到音频位置
+  isExtracting?: boolean; // 是否正在提取
 }
 
 export function ExtractedItemsPanel({
@@ -26,6 +27,7 @@ export function ExtractedItemsPanel({
   onAddTodo,
   onAddSchedule,
   onSegmentClick,
+  isExtracting = false,
 }: ExtractedItemsPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [dismissedTodos, setDismissedTodos] = useState<Set<string>>(new Set());
@@ -41,11 +43,7 @@ export function ExtractedItemsPanel({
     [schedules, dismissedSchedules]
   );
 
-  const hasItems = visibleTodos.length > 0 || visibleSchedules.length > 0;
-
-  if (!hasItems) {
-    return null;
-  }
+  // 始终显示面板，即使没有内容也显示标题
 
   const handleDismissTodo = (todoId: string) => {
     setDismissedTodos((prev) => new Set(prev).add(todoId));
@@ -90,10 +88,10 @@ export function ExtractedItemsPanel({
       {/* 内容区域 */}
       {isExpanded && (
         <div className="pt-1 space-y-4 max-h-[400px] overflow-y-auto">
-          {/* 待办事项 - 与智能纪要保持一致 */}
-          {visibleTodos.length > 0 && (
+          {/* 待办事项 - 与智能纪要保持一致 - 始终显示标题 */}
             <div className="space-y-2">
-              {visibleTodos.map((todo) => {
+            {visibleTodos.length > 0 ? (
+              visibleTodos.map((todo) => {
                 const segment = segments.find(s => s.id === todo.sourceSegmentId);
                 const timeInSeconds = segment?.audioStart ? segment.audioStart / 1000 : 0;
                 const hours = Math.floor(timeInSeconds / 3600);
@@ -184,19 +182,24 @@ export function ExtractedItemsPanel({
                     </div>
                   </div>
                 );
-              })}
+              })
+            ) : null}
             </div>
-          )}
 
           {/* 分割线 - 待办事项和日程之间的分隔 */}
           {visibleTodos.length > 0 && visibleSchedules.length > 0 && (
             <div className="border-t border-border/50 my-2" />
           )}
 
-          {/* 日程安排 - 直接显示列表，不显示标题 */}
-          {visibleSchedules.length > 0 && (
+          {/* 日程安排 - 始终显示标题 */}
             <div className="space-y-2">
-              {visibleSchedules.map((schedule) => {
+            {isExtracting && visibleSchedules.length === 0 ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span>正在提取日程安排...</span>
+              </div>
+            ) : visibleSchedules.length > 0 ? (
+              visibleSchedules.map((schedule) => {
                 const segment = segments.find(s => s.id === schedule.sourceSegmentId);
                 
                 // 格式化日期时间（如：2025/12/25 07:00）
@@ -274,16 +277,11 @@ export function ExtractedItemsPanel({
                     </div>
                   </div>
                 );
-              })}
+              })
+            ) : (
+              <div className="text-sm text-muted-foreground py-4 text-center">暂无日程安排</div>
+            )}
             </div>
-          )}
-
-          {/* 空状态 */}
-          {visibleTodos.length === 0 && visibleSchedules.length === 0 && (
-            <div className="text-center py-6 text-sm text-muted-foreground">
-              暂无提取项
-            </div>
-          )}
         </div>
       )}
     </div>

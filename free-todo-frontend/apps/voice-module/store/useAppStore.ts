@@ -124,14 +124,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       const existingIndex = state.transcripts.findIndex(t => t.id === segment.id);
       if (existingIndex >= 0) {
         // 如果已存在，更新而不是添加
-        return {
-          transcripts: state.transcripts.map((t, index) => 
-            index === existingIndex ? { ...t, ...segment } : t
-          ),
-        };
+        const updated = state.transcripts.map((t, index) => 
+          index === existingIndex ? { ...t, ...segment } : t
+        );
+        // 更新后重新排序，确保按时间戳排序（最新的在最底下）
+        updated.sort((a, b) => {
+          const timeA = a.timestamp ? a.timestamp.getTime() : (a.audioStart || 0);
+          const timeB = b.timestamp ? b.timestamp.getTime() : (b.audioStart || 0);
+          return timeA - timeB;
+        });
+        return { transcripts: updated };
       }
+      // 新添加的放到最底下（按时间戳排序）
+      const newTranscripts = [...state.transcripts, segment];
+      newTranscripts.sort((a, b) => {
+        const timeA = a.timestamp ? a.timestamp.getTime() : (a.audioStart || 0);
+        const timeB = b.timestamp ? b.timestamp.getTime() : (b.audioStart || 0);
+        return timeA - timeB;
+      });
       return {
-        transcripts: [...state.transcripts, segment],
+        transcripts: newTranscripts,
       };
     });
   },

@@ -320,7 +320,12 @@ export function RecordingView({
           </div>
         ) : (
           <div className="space-y-4">
-            {validSegments.map((segment) => {
+            {validSegments.sort((a, b) => {
+              // 按时间戳排序，确保最新的在最下面
+              const timeA = a.timestamp ? a.timestamp.getTime() : (a.audioStart || 0);
+              const timeB = b.timestamp ? b.timestamp.getTime() : (b.audioStart || 0);
+              return timeA - timeB;
+            }).map((segment) => {
               const isHighlighted = segment.id === highlightedSegmentId;
               // 临时结果优先显示 interimText，否则显示 rawText
               const text = segment.isInterim 

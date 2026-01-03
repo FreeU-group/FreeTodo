@@ -164,14 +164,14 @@ async def transcribe_file(
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         temp_file_path = TEMP_STORAGE_DIR / f"{timestamp}_{file.filename}"
         
-        logger.info(f"开始上传文件: {file.filename}, 大小: {file.size if hasattr(file, 'size') else 'unknown'}")
+        logger.info(f"🎤 [分段转录] 开始上传文件: {file.filename}, 大小: {file.size if hasattr(file, 'size') else 'unknown'}")
         
         with open(temp_file_path, "wb") as f:
             content = await file.read()
             f.write(content)
         
         file_size = os.path.getsize(temp_file_path)
-        logger.info(f"文件上传成功: {temp_file_path}, 大小: {file_size} bytes")
+        logger.info(f"✅ [分段转录] 文件上传成功: {temp_file_path}, 大小: {file_size} bytes, 文件名: {file.filename}")
         
         # 如果是视频文件，提取音频轨道
         if file_ext in SUPPORTED_VIDEO_FORMATS:
@@ -214,7 +214,7 @@ async def transcribe_file(
                 raise HTTPException(status_code=500, detail=f"提取视频音频失败: {str(e)}")
         
         # 使用 Faster-Whisper 转录
-        logger.info("开始转录...")
+        logger.info(f"🎤 [分段转录] 开始转录文件: {file.filename}, 大小: {file_size} bytes")
         try:
             model = get_whisper_model()
             
@@ -232,6 +232,7 @@ async def transcribe_file(
                 transcript_parts.append(segment.text.strip())
             
             transcript = " ".join(transcript_parts)
+            logger.info(f"✅ [分段转录] 转录完成: {file.filename}, 文本长度: {len(transcript)} 字符")
             
             # 将繁体中文转换为简体中文
             transcript = convert_traditional_to_simplified(transcript)

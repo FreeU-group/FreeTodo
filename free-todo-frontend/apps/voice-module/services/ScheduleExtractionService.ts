@@ -35,22 +35,27 @@ export class ScheduleExtractionService {
    * 添加已优化的片段到提取队列
    */
   enqueue(segment: TranscriptSegment): void {
-    // 检查是否已优化且有优化文本
-    if (!segment.isOptimized || !segment.optimizedText) {
+    // 检查是否有文本（优化文本或原始文本）
+    const textToUse = segment.optimizedText || segment.rawText;
+    if (!textToUse || !textToUse.trim()) {
+      console.log('[ScheduleExtraction] ⚠️ 跳过空文本片段:', segment.id);
       return;
     }
 
-    // 检查是否包含日程标记（优化服务会在文本中添加 [SCHEDULE:...] 标记）
-    const hasSchedule = segment.optimizedText.includes('[SCHEDULE:') || segment.containsSchedule;
-    if (!hasSchedule) {
-      return;
-    }
+    // 不再检查是否包含日程标记，直接调用LLM提取（LLM会智能识别日程）
+    // 因为现在使用LLM API，不需要预先标记
 
     const exists = this.queue.find(s => s.id === segment.id);
     if (exists) {
+      console.log('[ScheduleExtraction] ⚠️ 片段已在队列中:', segment.id);
       return;
     }
 
+    console.log('[ScheduleExtraction] ✅ 添加片段到提取队列:', {
+      id: segment.id,
+      textLength: textToUse.length,
+      hasOptimizedText: !!segment.optimizedText
+    });
     this.queue.push(segment);
     this.processQueue();
   }
@@ -101,23 +106,84 @@ export class ScheduleExtractionService {
   }
 
   /**
-   * 从文本中提取日程
+   * 从文本中提取日程（调用后端LLM API）
    */
   private async extractSchedules(segment: TranscriptSegment): Promise<void> {
-    if (!segment.optimizedText) {
+    const textToUse = segment.optimizedText || segment.rawText;
+    if (!textToUse || !textToUse.trim()) {
+      console.log('[ScheduleExtraction] ⚠️ 片段文本为空，跳过提取:', segment.id);
       return;
     }
 
     try {
-      const schedules = this.parseSchedules(segment.optimizedText, segment);
+      console.log('[ScheduleExtraction] 🤖 开始调用LLM API提取日程，片段ID:', segment.id, '文本长度:', textToUse.length);
       
-      for (const schedule of schedules) {
+      // 调用后端LLM API提取日程
+      const API_BASE_URL = typeof window !== 'undefined' 
+        ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api')
+        : 'http://localhost:8000/api';
+      
+      const requestBody = {
+        text: textToUse,
+        reference_time: segment.timestamp.toISOString(),
+        source_segment_id: segment.id,
+      };
+      
+      console.log('[ScheduleExtraction] 📤 发送提取请求:', {
+        url: `${API_BASE_URL}/audio/extract-schedules`,
+        textLength: textToUse.length,
+        referenceTime: requestBody.reference_time
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/audio/extract-schedules`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ScheduleExtraction] ❌ API请求失败:', response.status, errorText);
+        throw new Error(`提取日程失败: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('[ScheduleExtraction] 📥 LLM API返回结果:', {
+        schedulesCount: data.schedules?.length || 0,
+        schedules: data.schedules
+      });
+      
+      // 后端返回提取结果
+      if (data.schedules && data.schedules.length > 0) {
+        for (const scheduleData of data.schedules) {
+          const schedule: ScheduleItem = {
+            id: `schedule_${segment.id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+            sourceSegmentId: segment.segmentId || segment.audioFileId || segment.id, // 使用音频ID作为sourceSegmentId
+            extractedAt: new Date(),
+            scheduleTime: new Date(scheduleData.schedule_time),
+            description: scheduleData.description,
+            status: 'pending',
+          };
+          
+          console.log('[ScheduleExtraction] ✅ 提取到日程:', {
+            id: schedule.id,
+            sourceSegmentId: schedule.sourceSegmentId,
+            scheduleTime: schedule.scheduleTime,
+            description: schedule.description?.substring(0, 50)
+          });
+          
         if (this.onScheduleExtracted) {
           this.onScheduleExtracted(schedule);
         }
+        }
+        console.log(`[ScheduleExtraction] ✅ LLM提取到 ${data.schedules.length} 个日程`);
+      } else {
+        console.log(`[ScheduleExtraction] ℹ️ LLM未提取到日程（文本可能不包含日程信息）`);
       }
     } catch (error) {
-      console.error(`[ScheduleExtraction] Extraction failed for segment ${segment.id}:`, error);
+      console.error(`[ScheduleExtraction] ❌ 提取失败，片段ID: ${segment.id}`, error);
       if (this.onError) {
         const err = error instanceof Error ? error : new Error('Schedule extraction failed');
         this.onError(err);
@@ -201,7 +267,7 @@ export class ScheduleExtractionService {
           }
           
           return date;
-        } else if (match.length >= 3) {
+        } else if (match.length >= 3 && offset !== undefined) {
           // 相对日期
           const hour = parseInt(match[1]);
           const minute = match[2] ? parseInt(match[2]) : 0;

@@ -37,12 +37,72 @@ export class PersistenceService {
   }
 
   /**
-   * 上传音频片段
+   * 上传完整音频（用于回放）
+   */
+  async uploadFullAudio(blob: Blob, metadata: {
+    startTime: Date;
+    endTime: Date;
+    recordingId: string;
+    title?: string;
+    isFullAudio?: boolean;
+  }): Promise<string | null> {
+    try {
+      console.log(`[PersistenceService] 📤 开始上传完整音频: recordingId=${metadata.recordingId}, 大小=${blob.size} bytes`);
+      
+      const formData = new FormData();
+      formData.append('file', blob, `${metadata.recordingId}.webm`);
+      formData.append('startTime', metadata.startTime.toISOString());
+      formData.append('endTime', metadata.endTime.toISOString());
+      formData.append('segmentId', metadata.recordingId);
+      if (metadata.title) {
+        formData.append('title', metadata.title);
+      }
+      formData.append('isFullAudio', 'true');
+      if (metadata.isFullAudio !== undefined) {
+        formData.append('isFullAudio', metadata.isFullAudio.toString());
+      }
+
+      const response = await fetch(`${API_BASE_URL}/audio/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`[PersistenceService] ✅ 完整音频上传成功:`, {
+        fileId: result.id,
+        recordingId: metadata.recordingId,
+        filename: result.filename,
+        file_path: result.file_path,
+        file_size: result.file_size,
+        attachment_id: result.attachment_id,
+        audio_recording_id: result.audio_recording_id,
+      });
+      return result.id || null;
+    } catch (error) {
+      console.error('[PersistenceService] ❌ 完整音频上传失败:', error);
+      
+      if (this.onError) {
+        const err = error instanceof Error ? error : new Error('Full audio upload failed');
+        this.onError(err);
+      }
+
+      return null;
+    }
+  }
+
+  /**
+   * 上传音频片段（10秒分段，用于转录）
    */
   async uploadAudio(blob: Blob, metadata: {
     startTime: Date;
     endTime: Date;
     segmentId: string;
+    isSegmentAudio?: boolean;
   }): Promise<string | null> {
     try {
       console.log(`[PersistenceService] 📤 开始上传音频: segmentId=${metadata.segmentId}, 大小=${blob.size} bytes, 保存到后端: ${API_BASE_URL}/audio/upload`);
@@ -52,6 +112,8 @@ export class PersistenceService {
       formData.append('startTime', metadata.startTime.toISOString());
       formData.append('endTime', metadata.endTime.toISOString());
       formData.append('segmentId', metadata.segmentId);
+      formData.append('isFullAudio', 'false');
+      formData.append('isSegmentAudio', metadata.isSegmentAudio !== undefined ? metadata.isSegmentAudio.toString() : 'true');
 
       const response = await fetch(`${API_BASE_URL}/audio/upload`, {
         method: 'POST',
@@ -131,7 +193,7 @@ export class PersistenceService {
           optimizedText: segment.optimizedText || null,
           audioStart: audioStart,
           audioEnd: audioEnd,
-          audioFileId: segment.audioFileId || null,
+          audioFileId: segment.audioFileId || segment.segmentId || null, // 优先使用audioFileId，如果没有则使用segmentId
         };
       }).filter((item): item is NonNullable<typeof item> => item !== null);
 
@@ -218,13 +280,19 @@ export class PersistenceService {
 
   /**
    * 查询历史转录
+   * @param startTime 开始时间（可选）
+   * @param endTime 结束时间（可选）
+   * @param audioFileId 音频文件ID（可选，优先级更高）
    */
-  async queryTranscripts(startTime: Date, endTime: Date): Promise<TranscriptSegment[]> {
+  async queryTranscripts(startTime?: Date, endTime?: Date, audioFileId?: string): Promise<TranscriptSegment[]> {
     try {
-      const params = new URLSearchParams({
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-      });
+      const params = new URLSearchParams();
+      if (audioFileId) {
+        params.append('audioFileId', audioFileId);
+      } else if (startTime && endTime) {
+        params.append('startTime', startTime.toISOString());
+        params.append('endTime', endTime.toISOString());
+      }
 
       const response = await fetch(`${API_BASE_URL}/transcripts?${params}`);
       
@@ -245,8 +313,8 @@ export class PersistenceService {
         containsTodo: t.containsTodo || false, // 添加待办标记
         audioStart: t.audioStart || 0,
         audioEnd: t.audioEnd || (t.audioStart || 0) + 5000,
-        audioFileId: t.audioFileId,
-        segmentId: t.segmentId, // 添加segmentId支持
+        audioFileId: t.audioFileId || t.segmentId, // 优先使用audioFileId，如果没有则使用segmentId
+        segmentId: t.segmentId || t.audioFileId, // 添加segmentId支持
         absoluteStart: t.absoluteStart ? new Date(t.absoluteStart) : undefined, // 添加绝对时间支持
         absoluteEnd: t.absoluteEnd ? new Date(t.absoluteEnd) : undefined,
         uploadStatus: 'uploaded' as const,
@@ -269,13 +337,19 @@ export class PersistenceService {
 
   /**
    * 查询日程
+   * @param startTime 开始时间（可选）
+   * @param endTime 结束时间（可选）
+   * @param audioFileId 音频文件ID（可选，优先级更高）
    */
-  async querySchedules(startTime: Date, endTime: Date): Promise<ScheduleItem[]> {
+  async querySchedules(startTime?: Date, endTime?: Date, audioFileId?: string): Promise<ScheduleItem[]> {
     try {
-      const params = new URLSearchParams({
-        startTime: startTime.toISOString(),
-        endTime: endTime.toISOString(),
-      });
+      const params = new URLSearchParams();
+      if (audioFileId) {
+        params.append('audioFileId', audioFileId);
+      } else if (startTime && endTime) {
+        params.append('startTime', startTime.toISOString());
+        params.append('endTime', endTime.toISOString());
+      }
 
       const response = await fetch(`${API_BASE_URL}/schedules?${params}`);
       
@@ -321,6 +395,12 @@ export class PersistenceService {
     file_url: string | null;
     filename: string | null;
     file_size: number | null;
+    title?: string | null;
+    is_full_audio?: boolean;
+    is_segment_audio?: boolean;
+    is_transcribed?: boolean;
+    is_extracted?: boolean;
+    is_summarized?: boolean;
   }>> {
     try {
       const params = new URLSearchParams({

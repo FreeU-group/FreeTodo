@@ -101,27 +101,9 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({ segments, onSegment
                 </div>
               </div>
             ) : segment.isOptimized ? (
-              // 已优化：显示优化后的文本，带提取结果展示
+              // 已优化：显示优化后的文本（不显示提取结果标签，提取结果在右侧智能提取区域显示）
               <div className="leading-relaxed">
                 {renderOptimizedText(segment.optimizedText || segment.rawText, segment.containsSchedule || false)}
-                <div className="flex flex-wrap items-center gap-2 mt-2">
-                  {segment.containsSchedule && (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 text-xs text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span className="font-medium">已提取日程</span>
-                    </span>
-                  )}
-                  {segment.containsTodo && (
-                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-500/10 text-xs text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      <span className="font-medium">已提取待办</span>
-                    </span>
-                  )}
-                </div>
               </div>
             ) : (
               // 原始结果：显示原始文本，带优化中状态

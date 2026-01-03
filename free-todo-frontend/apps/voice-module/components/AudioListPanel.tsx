@@ -16,6 +16,7 @@ interface AudioListPanelProps {
   onEditTitle?: (audioId: string) => void;
   onUpdateAudio?: (audioId: string, updates: Partial<AudioSegment>) => void;
   onDeleteAudio?: (audioId: string) => void;
+  isLoading?: boolean; // 是否正在加载
 }
 
 export function AudioListPanel({
@@ -25,6 +26,7 @@ export function AudioListPanel({
   onEditTitle,
   onUpdateAudio,
   onDeleteAudio,
+  isLoading = false,
 }: AudioListPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [contextMenu, setContextMenu] = useState<{ audioId: string; x: number; y: number } | null>(null);
@@ -166,7 +168,14 @@ export function AudioListPanel({
       {/* 内容区域 */}
       {isExpanded && (
         <div className="pt-1 space-y-3 max-h-[400px] overflow-y-auto">
-          {audioSegments.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span>加载中...</span>
+              </div>
+            </div>
+          ) : audioSegments.length === 0 ? (
             <div className="text-center py-6 text-sm text-muted-foreground">
               当天暂无音频文件
             </div>

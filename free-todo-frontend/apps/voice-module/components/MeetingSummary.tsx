@@ -14,6 +14,7 @@ interface MeetingSummaryProps {
   todos: ExtractedTodo[];
   onSegmentClick?: (segment: TranscriptSegment) => void;
   summaryText?: string; // LLM生成的智能纪要
+  isSummarizing?: boolean; // 是否正在生成纪要
 }
 
 export function MeetingSummary({
@@ -22,6 +23,7 @@ export function MeetingSummary({
   todos,
   onSegmentClick,
   summaryText,
+  isSummarizing = false,
 }: MeetingSummaryProps) {
   const [expandedSections, setExpandedSections] = useState({
     summary: true,
@@ -244,8 +246,7 @@ export function MeetingSummary({
 
   return (
     <div className="flex-1 overflow-y-auto min-h-0">
-      {/* 智能纪要摘要 */}
-      {summaryText && (
+      {/* 智能纪要摘要 - 始终显示标题 */}
         <div className="space-y-3 mb-4">
           <div className="flex items-center justify-between px-0 py-3">
             <div className="flex items-center gap-2">
@@ -269,21 +270,28 @@ export function MeetingSummary({
           </div>
           {expandedSections.summary && (
             <div className="pt-1">
+            {isSummarizing ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <span>正在生成纪要...</span>
+              </div>
+            ) : summaryText ? (
               <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
                 {summaryText}
               </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">暂无纪要内容</p>
+            )}
             </div>
           )}
         </div>
-      )}
       
       {/* 分割线 - 智能纪要和待办事项之间的分隔 */}
       {(todos.length > 0 || schedules.length > 0) && (
         <div className="border-t border-border/50 my-4" />
       )}
 
-      {/* 待办事项 - 显示已加入的待办和日程（参考智能纪要的列表样式） */}
-      {(todos.length > 0 || schedules.length > 0) && (
+      {/* 待办事项 - 始终显示标题 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between px-0 py-3">
             <div className="flex items-center gap-2">
@@ -389,7 +397,6 @@ export function MeetingSummary({
             </div>
           )}
         </div>
-      )}
     </div>
   );
 }

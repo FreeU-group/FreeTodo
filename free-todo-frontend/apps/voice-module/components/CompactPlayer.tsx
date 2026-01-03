@@ -129,7 +129,8 @@ export function CompactPlayer({
     onSpeedChange?.(speed);
   };
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  // 计算进度百分比，确保即使duration为0也能正确显示
+  const progress = duration > 0 && isFinite(duration) ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
 
   return (
     <div className="relative flex flex-col gap-4 p-4 mb-8">
@@ -250,12 +251,12 @@ export function CompactPlayer({
             onMouseMove={handleProgressMouseMove}
           >
             {/* 背景渐变 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-muted via-muted/80 to-muted rounded-full" />
+            <div className="absolute inset-0 bg-gradient-to-r from-muted via-muted/80 to-muted rounded-full z-0" />
             
-            {/* 进度条 */}
+            {/* 进度条 - 确保在背景之上 */}
             <div
-              className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary via-primary/90 to-primary rounded-full transition-all duration-300 shadow-sm"
-              style={{ width: `${progress}%` }}
+              className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary via-primary/90 to-primary rounded-full transition-all duration-300 shadow-sm z-[1]"
+              style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
             >
               {/* 进度条光泽效果 */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />

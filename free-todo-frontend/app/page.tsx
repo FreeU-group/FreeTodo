@@ -87,7 +87,7 @@ export default function HomePage() {
 			store.registerEndpoint({
 				id: "draft-todos",
 				url: "/api/todos?status=draft&limit=1",
-				interval: 1000, // 1秒轮询一次，实现近实时更新
+				interval: 1000, // 5秒轮询一次，减少服务器压力
 				enabled: autoTodoDetectionEnabled,
 			});
 		} else if (existingEndpoint.enabled !== autoTodoDetectionEnabled) {
