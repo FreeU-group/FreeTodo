@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { InputBox } from "@/apps/chat/components/input/InputBox";
 import { LinkedTodos } from "@/apps/chat/components/input/LinkedTodos";
 import { ModeSwitcher } from "@/apps/chat/components/input/ModeSwitcher";
+import { WebSearchToggle } from "@/apps/chat/components/input/WebSearchToggle";
 import type { ChatMode } from "@/apps/chat/types";
 import type { Todo } from "@/lib/types";
 
@@ -18,6 +19,7 @@ type ChatInputSectionProps = {
 	hasSelection: boolean;
 	showTodosExpanded: boolean;
 	modeMenuOpen: boolean;
+	webSearchEnabled: boolean;
 	onInputChange: (value: string) => void;
 	onSend: () => void;
 	onStop?: () => void;
@@ -29,6 +31,7 @@ type ChatInputSectionProps = {
 	onToggleTodo: (todoId: number) => void;
 	onToggleModeMenu: () => void;
 	onChangeMode: (mode: ChatMode) => void;
+	onToggleWebSearch: () => void;
 };
 
 export function ChatInputSection({
@@ -41,6 +44,7 @@ export function ChatInputSection({
 	hasSelection,
 	showTodosExpanded,
 	modeMenuOpen,
+	webSearchEnabled,
 	onInputChange,
 	onSend,
 	onStop,
@@ -52,6 +56,7 @@ export function ChatInputSection({
 	onToggleTodo,
 	onToggleModeMenu,
 	onChangeMode,
+	onToggleWebSearch,
 }: ChatInputSectionProps) {
 	const tChat = useTranslations("chat");
 	const tPage = useTranslations("page");
@@ -92,17 +97,23 @@ export function ChatInputSection({
 					/>
 				}
 				modeSwitcher={
-					<div className="relative" ref={modeMenuRef}>
-						<ModeSwitcher
-							chatMode={chatMode}
-							locale={locale}
-							modeMenuOpen={modeMenuOpen}
-							onToggleMenu={onToggleModeMenu}
-							onChangeMode={(mode) => {
-								onChangeMode(mode);
-								onToggleModeMenu();
-							}}
-							variant="inline"
+					<div className="flex items-center gap-2" ref={modeMenuRef}>
+						<div className="relative">
+							<ModeSwitcher
+								chatMode={chatMode}
+								locale={locale}
+								modeMenuOpen={modeMenuOpen}
+								onToggleMenu={onToggleModeMenu}
+								onChangeMode={(mode) => {
+									onChangeMode(mode);
+									onToggleModeMenu();
+								}}
+								variant="inline"
+							/>
+						</div>
+						<WebSearchToggle
+							enabled={webSearchEnabled}
+							onToggle={onToggleWebSearch}
 						/>
 					</div>
 				}

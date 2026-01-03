@@ -6,9 +6,11 @@ interface ChatStoreState {
 	chatMode: ChatMode;
 	conversationId: string | null;
 	historyOpen: boolean;
+	webSearchEnabled: boolean;
 	setChatMode: (mode: ChatMode) => void;
 	setConversationId: (id: string | null) => void;
 	setHistoryOpen: (open: boolean) => void;
+	setWebSearchEnabled: (enabled: boolean) => void;
 }
 
 const isValidChatMode = (value: string | null): value is ChatMode => {
@@ -26,9 +28,11 @@ export const useChatStore = create<ChatStoreState>()(
 			chatMode: "ask",
 			conversationId: null,
 			historyOpen: false,
+			webSearchEnabled: false,
 			setChatMode: (mode) => set({ chatMode: mode }),
 			setConversationId: (id) => set({ conversationId: id }),
 			setHistoryOpen: (open) => set({ historyOpen: open }),
+			setWebSearchEnabled: (enabled) => set({ webSearchEnabled: enabled }),
 		}),
 		{
 			name: "chat-config",
@@ -58,11 +62,18 @@ export const useChatStore = create<ChatStoreState>()(
 									? state.historyOpen
 									: false;
 
+							// 验证 webSearchEnabled
+							const webSearchEnabled: boolean =
+								typeof state.webSearchEnabled === "boolean"
+									? state.webSearchEnabled
+									: false;
+
 							return JSON.stringify({
 								state: {
 									chatMode,
 									conversationId,
 									historyOpen,
+									webSearchEnabled,
 								},
 							});
 						} catch (e) {

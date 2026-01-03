@@ -8,6 +8,7 @@ from lifetrace.jobs.activity_aggregator import (
     get_aggregator_instance,
 )
 from lifetrace.jobs.clean_data import execute_clean_data_task, get_clean_data_instance
+from lifetrace.jobs.deadline_reminder import execute_deadline_reminder_task
 from lifetrace.jobs.ocr import execute_ocr_task
 from lifetrace.jobs.recorder import execute_capture_task, get_recorder_instance
 from lifetrace.jobs.scheduler import get_scheduler_manager
@@ -53,6 +54,9 @@ class JobManager:
 
         # 启动数据清理任务
         self._start_clean_data_job()
+
+        # 启动 DDL 提醒任务
+        self._start_deadline_reminder_job()
 
         logger.info("所有后台任务已启动")
 
@@ -247,6 +251,30 @@ class JobManager:
                 logger.info("数据清理服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动数据清理服务失败: {e}", exc_info=True)
+
+    def _start_deadline_reminder_job(self):
+        """启动 DDL 提醒任务"""
+        enabled = settings.get("jobs.deadline_reminder.enabled")
+
+        try:
+            # 添加到调度器（无论是否启用都添加）
+            interval = settings.get("jobs.deadline_reminder.interval")
+            reminder_id = settings.get("jobs.deadline_reminder.id")
+            self.scheduler_manager.add_interval_job(
+                func=execute_deadline_reminder_task,
+                job_id="deadline_reminder_job",
+                name=reminder_id,
+                seconds=interval,
+                replace_existing=True,
+            )
+            logger.info(f"DDL 提醒定时任务已添加，间隔: {interval}秒")
+
+            # 如果未启用，则暂停任务
+            if not enabled:
+                self.scheduler_manager.pause_job("deadline_reminder_job")
+                logger.info("DDL 提醒服务未启用，已暂停")
+        except Exception as e:
+            logger.error(f"启动 DDL 提醒任务失败: {e}", exc_info=True)
 
 
 # 全局单例

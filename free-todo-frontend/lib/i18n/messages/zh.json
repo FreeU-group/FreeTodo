@@ -84,6 +84,11 @@
 			"difyEnabledLabel": "启用 Dify 测试模式",
 			"difyEnabledDescription": "开启后，聊天面板中的 Dify Test 模式将通过 Dify API 返回回复。",
 			"difySaveSuccess": "Dify 配置已保存",
+			"tavilyConfigTitle": "Tavily 联网搜索配置",
+			"tavilySaveSuccess": "Tavily 配置已保存",
+			"tavilyApiKeyHint": "如何获取 API Key？请访问",
+			"tavilyApiKeyLink": "Tavily 控制台",
+			"save": "保存",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",
 			"model": "模型",
@@ -334,6 +339,13 @@
 			},
 			"active": "当前"
 		},
+		"webSearch": {
+			"label": "联网搜索",
+			"toggle": "切换联网搜索",
+			"enabled": "联网搜索已启用",
+			"disabled": "联网搜索已禁用"
+		},
+		"sources": "来源",
 		"todoContext": {
 			"id": "ID",
 			"name": "名称",
@@ -431,7 +443,8 @@
 			"task_context_mapper_job": "任务上下文关联",
 			"task_summary_job": "任务总结",
 			"clean_data_job": "数据清理",
-			"activity_aggregator_job": "活动聚合"
+			"activity_aggregator_job": "活动聚合",
+			"deadline_reminder_job": "DDL提醒"
 		},
 		"jobDescriptions": {
 			"recorder_job": "定时截取屏幕截图",
@@ -439,7 +452,8 @@
 			"task_context_mapper_job": "（旧版）关联截图与任务上下文",
 			"task_summary_job": "（旧版）生成任务执行总结",
 			"clean_data_job": "清理过期的截图和数据",
-			"activity_aggregator_job": "聚合用户活动事件"
+			"activity_aggregator_job": "聚合用户活动事件",
+			"deadline_reminder_job": "检查待办事项的截止日期，在 DDL 前 5 分钟发送提醒通知"
 		}
 	},
 	"common": {

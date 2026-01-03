@@ -121,6 +121,12 @@ settings = Dynaconf(
         Validator("llm.vision_model", default="qwen3-vl-plus"),
         Validator("llm.temperature", default=0.7),
         Validator("llm.max_tokens", default=2048, is_type_of=int),
+        # Tavily 配置（联网搜索）
+        Validator("tavily.api_key", default="YOUR_TAVILY_API_KEY_HERE"),
+        Validator("tavily.search_depth", default="basic"),
+        Validator("tavily.max_results", default=5, is_type_of=int),
+        Validator("tavily.include_domains", default=[]),
+        Validator("tavily.exclude_domains", default=[]),
     ],
 )
 

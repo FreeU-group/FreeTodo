@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from lifetrace.storage.database_base import DatabaseBase
 from lifetrace.storage.models import Event, OCRResult, Screenshot
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.time_utils import get_utc_now
 
 logger = get_logger()
 
@@ -115,7 +116,7 @@ class EventManager:
             closed_event_id = None  # 记录被关闭的事件ID
 
             with self.db_base.get_session() as session:
-                now_ts = timestamp or datetime.now()
+                now_ts = timestamp or get_utc_now()
                 last_event = self._get_last_open_event(session)
 
                 # 判断是否应该复用事件
@@ -186,7 +187,7 @@ class EventManager:
             with self.db_base.get_session() as session:
                 last_event = self._get_last_open_event(session)
                 if last_event and last_event.end_time is None:
-                    last_event.end_time = end_time or datetime.now()
+                    last_event.end_time = end_time or get_utc_now()
                     closed_event_id = last_event.id
                     session.flush()
 

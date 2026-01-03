@@ -21,6 +21,7 @@ import {
 	RecorderConfigSection,
 	SchedulerSection,
 	SettingsSection,
+	TavilyConfigSection,
 	ToggleSwitch,
 } from "./components";
 
@@ -147,6 +148,9 @@ export function SettingsPanel() {
 
 				{/* Dify 配置 */}
 				<DifyConfigSection config={config} loading={loading} />
+
+				{/* Tavily 配置 */}
+				<TavilyConfigSection config={config} loading={loading} />
 
 				{/* 基础设置（录制配置） */}
 				<RecorderConfigSection config={config} loading={loading} />

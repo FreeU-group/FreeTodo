@@ -104,6 +104,54 @@ async def test_llm_config(config_data: dict[str, str]):
         return _handle_llm_test_error(error_msg, model)
 
 
+@router.post("/test-tavily-config")
+async def test_tavily_config(config_data: dict[str, str]):
+    """测试Tavily配置是否可用（仅验证认证）"""
+    try:
+        from tavily import TavilyClient
+
+        # 同时支持 camelCase 和 snake_case 格式（前端 fetcher 会自动转换为 snake_case）
+        tavily_key = _get_config_value(config_data, "tavilyApiKey", "tavily_api_key")
+
+        if not tavily_key:
+            return {"success": False, "error": "Tavily API Key 不能为空"}
+
+        # 检查是否为占位符
+        invalid_values = [
+            "xxx",
+            "YOUR_API_KEY_HERE",
+            "YOUR_TAVILY_API_KEY_HERE",
+        ]
+        if tavily_key in invalid_values:
+            return {"success": False, "error": "请填写有效的 Tavily API Key"}
+
+        logger.info(f"开始测试 Tavily 配置 - Key前缀: {tavily_key[:10]}...")
+
+        # 创建临时客户端进行测试
+        try:
+            client = TavilyClient(api_key=tavily_key)
+            # 执行一个简单的搜索请求来验证 API key
+            client.search(query="test", max_results=1)
+            logger.info("Tavily配置测试成功")
+            return {"success": True, "message": "配置验证成功"}
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"Tavily配置测试失败: {error_msg} - Key前缀: {tavily_key[:10]}...")
+            # 处理常见的错误
+            if "401" in error_msg or "unauthorized" in error_msg.lower():
+                return {
+                    "success": False,
+                    "error": "API Key 无效，请检查：\n1. 是否从 Tavily 控制台正确复制了完整的 API Key\n2. API Key 是否已启用\n\n原始错误: "
+                    + error_msg,
+                }
+            return {"success": False, "error": error_msg}
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Tavily配置测试失败: {error_msg}")
+        return {"success": False, "error": error_msg}
+
+
 @router.get("/get-config")
 async def get_config_detailed():
     """获取当前配置（返回驼峰格式的配置键）"""

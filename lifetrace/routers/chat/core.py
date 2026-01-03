@@ -1,14 +1,14 @@
 """聊天核心路由：基础问答与流式聊天。"""
 
-from datetime import datetime
-
 from fastapi import Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from lifetrace.core.dependencies import get_chat_service, get_rag_service
+from lifetrace.llm.web_search_service import WebSearchService
 from lifetrace.schemas.chat import ChatMessage, ChatResponse
 from lifetrace.services.chat_service import ChatService
 from lifetrace.services.dify_client import call_dify_chat
+from lifetrace.util.time_utils import get_utc_now
 
 from .base import _create_llm_stream_generator, logger, router
 
@@ -31,7 +31,7 @@ async def chat_with_llm(
             success = True  # noqa: F841
             response = ChatResponse(
                 response=rag_result["response"],
-                timestamp=datetime.now(),
+                timestamp=get_utc_now(),
                 query_info=rag_result.get("query_info"),
                 retrieval_info=rag_result.get("retrieval_info"),
                 performance=rag_result.get("performance"),
@@ -44,7 +44,7 @@ async def chat_with_llm(
 
             return ChatResponse(
                 response=error_msg,
-                timestamp=datetime.now(),
+                timestamp=get_utc_now(),
                 query_info={
                     "original_query": message.message,
                     "error": rag_result.get("error"),
@@ -56,7 +56,7 @@ async def chat_with_llm(
 
         return ChatResponse(
             response="抱歉，系统暂时无法处理您的请求，请稍后重试。",
-            timestamp=datetime.now(),
+            timestamp=get_utc_now(),
             query_info={"original_query": message.message, "error": str(e)},
         )
 
@@ -83,6 +83,10 @@ async def chat_with_llm_stream(
         # 2. Dify 测试模式（直接返回）
         if getattr(message, "mode", None) == "dify_test":
             return _create_dify_streaming_response(message, chat_service, session_id)
+
+        # 2.5. 联网搜索模式（直接返回）
+        if getattr(message, "mode", None) == "web_search":
+            return _create_web_search_streaming_response(message, chat_service, session_id)
 
         # 3. 根据 use_rag 构建 messages / temperature，并处理 RAG 失败场景
         (
@@ -230,6 +234,54 @@ def _create_dify_streaming_response(
     }
     return StreamingResponse(
         dify_token_generator(), media_type="text/plain; charset=utf-8", headers=headers
+    )
+
+
+def _create_web_search_streaming_response(
+    message: ChatMessage,
+    chat_service: ChatService,
+    session_id: str,
+) -> StreamingResponse:
+    """处理联网搜索模式，使用 Tavily 搜索和 LLM 生成流式输出"""
+    logger.info("[stream] 进入联网搜索模式")
+
+    # 保存用户消息
+    chat_service.add_message(
+        session_id=session_id,
+        role="user",
+        content=message.message,
+    )
+
+    # 创建联网搜索服务实例
+    web_search_service = WebSearchService()
+
+    def web_search_token_generator():
+        total_content = ""
+        try:
+            # 调用联网搜索服务，流式生成回答
+            for chunk in web_search_service.stream_answer_with_sources(message.message):
+                total_content += chunk
+                yield chunk
+
+            # 保存完整的助手回复
+            if total_content:
+                chat_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=total_content,
+                )
+                logger.info("[stream][web_search] 消息已保存到数据库")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[stream][web_search] 生成失败: {e}")
+            yield "联网搜索处理失败，请检查后端配置。"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "X-Session-Id": session_id,
+    }
+    return StreamingResponse(
+        web_search_token_generator(), media_type="text/plain; charset=utf-8", headers=headers
     )
 
 

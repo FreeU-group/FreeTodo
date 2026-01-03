@@ -73,6 +73,7 @@ export const useChatController = ({
 		chatMode,
 		conversationId,
 		historyOpen,
+		webSearchEnabled,
 		setChatMode,
 		setConversationId,
 		setHistoryOpen,
@@ -210,8 +211,12 @@ export const useChatController = ({
 		const userLabel = t("userInput");
 
 		// Build payload message based on chat mode
+		// 如果启用了联网搜索，也要包含待办上下文，以便更好地理解用户意图
 		let payloadMessage: string;
-		if (chatMode === "plan") {
+		if (webSearchEnabled) {
+			// 联网搜索模式：包含待办上下文，帮助理解用户意图
+			payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
+		} else if (chatMode === "plan") {
 			payloadMessage = `${planSystemPrompt}\n\n${userLabel}: ${text}`;
 		} else if (chatMode === "edit") {
 			// Edit mode: combine todo context with edit system prompt
@@ -244,7 +249,12 @@ export const useChatController = ({
 		let assistantContent = "";
 
 		try {
-			const modeForBackend = chatMode === "difyTest" ? "dify_test" : chatMode;
+			// 如果启用了联网搜索，优先使用 web_search 模式
+			const modeForBackend = webSearchEnabled
+				? "web_search"
+				: chatMode === "difyTest"
+					? "dify_test"
+					: chatMode;
 
 			await sendChatMessageStream(
 				{
@@ -252,6 +262,7 @@ export const useChatController = ({
 					conversationId: conversationId || undefined,
 					// 当发送格式化消息（包含todo上下文）时，设置useRag=false
 					// 因为前端已经构建了完整的prompt，后端只需要解析并保存用户输入部分
+					// 联网搜索模式也使用 useRag=false，因为搜索逻辑在后端独立处理
 					useRag: false,
 					mode: modeForBackend,
 				},
@@ -380,6 +391,7 @@ export const useChatController = ({
 		tCommon,
 		todos,
 		setConversationId,
+		webSearchEnabled,
 	]);
 
 	const handleKeyDown = useCallback(

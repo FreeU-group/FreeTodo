@@ -50,6 +50,7 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "server_": (7, "server"),
     "chat_": (5, "chat"),
     "dify_": (5, "dify"),
+    "tavily_": (7, "tavily"),
 }
 
 # 复合任务名映射：首部分 -> 完整任务名
@@ -253,6 +254,8 @@ class ConfigService:
             "dify.enabled",
             "dify.api_key",
             "dify.base_url",
+            # Tavily 配置（联网搜索）
+            "tavily.api_key",
         ]
 
         config_dict = {}

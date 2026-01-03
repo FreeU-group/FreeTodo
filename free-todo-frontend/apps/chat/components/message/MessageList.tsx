@@ -1,4 +1,4 @@
-import { ListTodo, Loader2, MoreVertical } from "lucide-react";
+import { ExternalLink, ListTodo, Loader2, MoreVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -25,6 +25,7 @@ type MessageListProps = {
 	locale: string;
 	// Edit mode props (optional)
 	chatMode?: ChatMode;
+	webSearchEnabled?: boolean;
 	effectiveTodos?: Todo[];
 	onUpdateTodo?: (params: {
 		id: number;
@@ -40,6 +41,7 @@ export function MessageList({
 	typingText,
 	locale,
 	chatMode,
+	webSearchEnabled: _webSearchEnabled = false,
 	effectiveTodos = [],
 	onUpdateTodo,
 	isUpdating = false,
@@ -61,6 +63,49 @@ export function MessageList({
 	>(null);
 	const messageMenuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 	const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
+
+	// 解析 webSearch 模式下的消息内容，分离正文和来源列表
+	const parseWebSearchMessage = useCallback(
+		(
+			content: string,
+		): { body: string; sources: Array<{ title: string; url: string }> } => {
+			// 查找 Sources: 标记
+			const sourcesMarker = "\n\nSources:";
+			const sourcesIndex = content.indexOf(sourcesMarker);
+
+			if (sourcesIndex === -1) {
+				// 没有 Sources 标记，返回全部内容作为正文
+				return { body: content, sources: [] };
+			}
+
+			// 分离正文和来源部分
+			const body = content.substring(0, sourcesIndex).trim();
+			const sourcesText = content
+				.substring(sourcesIndex + sourcesMarker.length)
+				.trim();
+
+			// 解析来源列表（格式：1. 标题 (URL)）
+			const sources: Array<{ title: string; url: string }> = [];
+			const sourceLines = sourcesText.split("\n");
+			for (const line of sourceLines) {
+				const trimmed = line.trim();
+				if (!trimmed) continue;
+
+				// 匹配格式：数字. 标题 (URL)
+				const match = trimmed.match(/^\d+\.\s+(.+?)\s+\((.+?)\)$/);
+				if (match) {
+					sources.push({
+						title: match[1].trim(),
+						url: match[2].trim(),
+					});
+				}
+			}
+
+			return { body, sources };
+		},
+		[],
+	);
+
 	// 提取待办相关状态 - 按消息ID存储
 	const [extractionStates, setExtractionStates] = useState<
 		Map<
@@ -271,159 +316,287 @@ export function MessageList({
 								/>
 							</div>
 						) : (
-							<div
-								ref={(el) => {
-									if (el) {
-										messageMenuRefs.current.set(msg.id, el);
-									} else {
-										messageMenuRefs.current.delete(msg.id);
-									}
-								}}
-								role="group"
-								className={cn(
-									"relative max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-sm",
-									msg.role === "assistant"
-										? "bg-muted text-foreground"
-										: "bg-primary/10 dark:bg-primary/20 text-foreground",
-								)}
-								onMouseEnter={() => {
-									if (isAssistantMessageWithContent) {
-										setHoveredMessageId(msg.id);
-									}
-								}}
-								onMouseLeave={() => {
-									setHoveredMessageId(null);
-								}}
-							>
-								<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">
-									{msg.role === "assistant" ? t("assistant") : t("user")}
-								</div>
-								<div className="leading-relaxed relative">
-									{/* Hover 时显示的菜单按钮 - 位于右下角 */}
-									{hoveredMessageId === msg.id &&
-										isAssistantMessageWithContent && (
-											<button
-												type="button"
-												onClick={handleMessageMenuClick}
-												className="absolute -bottom-1 -right-1 opacity-70 hover:opacity-100 transition-opacity rounded-full p-1.5 bg-background/80 hover:bg-background shadow-sm border border-border/50"
-												aria-label={tContextMenu("extractButton")}
-											>
-												<MoreVertical className="h-3.5 w-3.5" />
-											</button>
-										)}
-									<ReactMarkdown
-										remarkPlugins={[remarkGfm]}
-										components={{
-											h1: ({ children }) => (
-												<h1
-													className={cn(
-														"text-lg font-bold mb-2 mt-0",
-														msg.role === "assistant"
-															? "text-foreground"
-															: "text-primary-foreground",
-													)}
+							<div className="max-w-[80%]">
+								<div
+									ref={(el) => {
+										if (el) {
+											messageMenuRefs.current.set(msg.id, el);
+										} else {
+											messageMenuRefs.current.delete(msg.id);
+										}
+									}}
+									role="group"
+									className={cn(
+										"relative rounded-2xl px-4 py-3 text-sm shadow-sm",
+										msg.role === "assistant"
+											? "bg-muted text-foreground"
+											: "bg-primary/10 dark:bg-primary/20 text-foreground",
+									)}
+									onMouseEnter={() => {
+										if (isAssistantMessageWithContent) {
+											setHoveredMessageId(msg.id);
+										}
+									}}
+									onMouseLeave={() => {
+										setHoveredMessageId(null);
+									}}
+								>
+									<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">
+										{msg.role === "assistant" ? t("assistant") : t("user")}
+									</div>
+									<div className="leading-relaxed relative">
+										{/* Hover 时显示的菜单按钮 - 位于右下角 */}
+										{hoveredMessageId === msg.id &&
+											isAssistantMessageWithContent && (
+												<button
+													type="button"
+													onClick={handleMessageMenuClick}
+													className="absolute -bottom-1 -right-1 opacity-70 hover:opacity-100 transition-opacity rounded-full p-1.5 bg-background/80 hover:bg-background shadow-sm border border-border/50"
+													aria-label={tContextMenu("extractButton")}
 												>
-													{children}
-												</h1>
-											),
-											h2: ({ children }) => (
-												<h2
-													className={cn(
-														"text-base font-semibold mb-2 mt-3",
-														msg.role === "assistant"
-															? "text-foreground"
-															: "text-primary-foreground",
+													<MoreVertical className="h-3.5 w-3.5" />
+												</button>
+											)}
+										{(() => {
+											// 无论是否启用联网搜索，只要消息内容包含 Sources 标记就解析
+											// 这样可以避免关闭联网搜索后，已包含 Sources 的消息显示异常
+											const hasSourcesMarker =
+												msg.role === "assistant" &&
+												msg.content &&
+												msg.content.includes("\n\nSources:");
+											const { body, sources } = hasSourcesMarker
+												? parseWebSearchMessage(msg.content)
+												: { body: msg.content, sources: [] };
+
+											// 将角标引用 [[n]] 替换为可点击的链接（只显示数字，不显示方括号）
+											const processBodyWithCitations = (
+												text: string,
+											): string => {
+												if (!hasSourcesMarker || sources.length === 0) {
+													return text;
+												}
+												// 匹配 [[数字]] 格式的引用，替换为只显示数字的链接
+												return text.replace(/\[\[(\d+)\]\]/g, (match, num) => {
+													const index = parseInt(num, 10) - 1;
+													if (index >= 0 && index < sources.length) {
+														const sourceId = `source-${msg.id}-${index}`;
+														// 只显示数字，不显示方括号
+														return `[${num}](#${sourceId})`;
+													}
+													return match;
+												});
+											};
+
+											const processedBody = processBodyWithCitations(body);
+
+											return (
+												<>
+													<ReactMarkdown
+														remarkPlugins={[remarkGfm]}
+														components={{
+															h1: ({ children }) => (
+																<h1
+																	className={cn(
+																		"text-lg font-bold mb-2 mt-0",
+																		msg.role === "assistant"
+																			? "text-foreground"
+																			: "text-primary-foreground",
+																	)}
+																>
+																	{children}
+																</h1>
+															),
+															h2: ({ children }) => (
+																<h2
+																	className={cn(
+																		"text-base font-semibold mb-2 mt-3",
+																		msg.role === "assistant"
+																			? "text-foreground"
+																			: "text-primary-foreground",
+																	)}
+																>
+																	{children}
+																</h2>
+															),
+															h3: ({ children }) => (
+																<h3
+																	className={cn(
+																		"text-sm font-semibold mb-1 mt-2",
+																		msg.role === "assistant"
+																			? "text-foreground"
+																			: "text-primary-foreground",
+																	)}
+																>
+																	{children}
+																</h3>
+															),
+															p: ({ children }) => (
+																<p className="my-1.5 leading-relaxed">
+																	{children}
+																</p>
+															),
+															ul: ({ children }) => (
+																<ul className="my-2 list-disc pl-5 space-y-0.5">
+																	{children}
+																</ul>
+															),
+															ol: ({ children }) => (
+																<ol className="my-2 list-decimal pl-5 space-y-0.5">
+																	{children}
+																</ol>
+															),
+															li: ({ children }) => (
+																<li className="leading-relaxed">{children}</li>
+															),
+															strong: ({ children }) => (
+																<strong className="font-semibold">
+																	{children}
+																</strong>
+															),
+															code: ({ children }) => (
+																<code
+																	className={cn(
+																		"px-1.5 py-0.5 rounded text-xs font-mono",
+																		msg.role === "assistant"
+																			? "bg-background text-foreground"
+																			: "bg-primary-foreground/20 text-primary-foreground",
+																	)}
+																>
+																	{children}
+																</code>
+															),
+															pre: ({ children }) => (
+																<pre
+																	className={cn(
+																		"rounded p-2 overflow-x-auto my-2 text-xs",
+																		msg.role === "assistant"
+																			? "bg-background border border-border"
+																			: "bg-primary-foreground/20",
+																	)}
+																>
+																	{children}
+																</pre>
+															),
+															blockquote: ({ children }) => (
+																<blockquote
+																	className={cn(
+																		"border-l-2 pl-3 my-2 italic",
+																		msg.role === "assistant"
+																			? "border-border opacity-80"
+																			: "border-primary-foreground/50 opacity-90",
+																	)}
+																>
+																	{children}
+																</blockquote>
+															),
+															a: ({ href, children }) => {
+																// 检查是否是内部锚点链接（来源引用）
+																const isSourceLink =
+																	href?.startsWith("#source-") ?? false;
+																return (
+																	<a
+																		href={href ?? "#"}
+																		onClick={
+																			isSourceLink && href
+																				? (e) => {
+																						e.preventDefault();
+																						const targetId = href.substring(1); // 移除 #
+																						const targetElement =
+																							document.getElementById(targetId);
+																						if (targetElement) {
+																							targetElement.scrollIntoView({
+																								behavior: "smooth",
+																								block: "center",
+																							});
+																							// 高亮目标元素
+																							targetElement.classList.add(
+																								"ring-2",
+																								"ring-primary",
+																								"ring-offset-2",
+																							);
+																							setTimeout(() => {
+																								targetElement.classList.remove(
+																									"ring-2",
+																									"ring-primary",
+																									"ring-offset-2",
+																								);
+																							}, 2000);
+																						}
+																					}
+																				: undefined
+																		}
+																		className={cn(
+																			isSourceLink
+																				? "text-primary font-medium hover:text-primary/80 no-underline"
+																				: "underline underline-offset-2",
+																			!isSourceLink && msg.role === "assistant"
+																				? "hover:opacity-80"
+																				: "hover:opacity-90",
+																		)}
+																		style={
+																			isSourceLink
+																				? {
+																						verticalAlign: "super",
+																						fontSize: "0.75em",
+																						marginLeft: "0.1em",
+																					}
+																				: undefined
+																		}
+																		target={isSourceLink ? undefined : "_blank"}
+																		rel={
+																			isSourceLink
+																				? undefined
+																				: "noopener noreferrer"
+																		}
+																	>
+																		{children}
+																	</a>
+																);
+															},
+														}}
+													>
+														{processedBody}
+													</ReactMarkdown>
+													{/* 来源列表 - 仅在 webSearch 模式下显示 */}
+													{sources.length > 0 && (
+														<div
+															id={`sources-${msg.id}`}
+															className="mt-4 pt-4 border-t border-border/50 scroll-mt-4"
+														>
+															<div className="mb-2 text-xs font-semibold uppercase tracking-wide opacity-70">
+																{t("sources") || "Sources"}
+															</div>
+															<ul className="space-y-2">
+																{sources.map((source, idx) => {
+																	const sourceId = `source-${msg.id}-${idx}`;
+																	return (
+																		<li
+																			key={sourceId}
+																			id={sourceId}
+																			className="flex items-start gap-2 scroll-mt-4 transition-all duration-200"
+																		>
+																			<span className="text-xs text-muted-foreground mt-0.5">
+																				{idx + 1}.
+																			</span>
+																			<a
+																				href={source.url}
+																				target="_blank"
+																				rel="noopener noreferrer"
+																				className="text-xs text-primary hover:underline flex items-center gap-1 flex-1"
+																			>
+																				<span>{source.title}</span>
+																				<ExternalLink className="h-3 w-3" />
+																			</a>
+																		</li>
+																	);
+																})}
+															</ul>
+														</div>
 													)}
-												>
-													{children}
-												</h2>
-											),
-											h3: ({ children }) => (
-												<h3
-													className={cn(
-														"text-sm font-semibold mb-1 mt-2",
-														msg.role === "assistant"
-															? "text-foreground"
-															: "text-primary-foreground",
-													)}
-												>
-													{children}
-												</h3>
-											),
-											p: ({ children }) => (
-												<p className="my-1.5 leading-relaxed">{children}</p>
-											),
-											ul: ({ children }) => (
-												<ul className="my-2 list-disc pl-5 space-y-0.5">
-													{children}
-												</ul>
-											),
-											ol: ({ children }) => (
-												<ol className="my-2 list-decimal pl-5 space-y-0.5">
-													{children}
-												</ol>
-											),
-											li: ({ children }) => (
-												<li className="leading-relaxed">{children}</li>
-											),
-											strong: ({ children }) => (
-												<strong className="font-semibold">{children}</strong>
-											),
-											code: ({ children }) => (
-												<code
-													className={cn(
-														"px-1.5 py-0.5 rounded text-xs font-mono",
-														msg.role === "assistant"
-															? "bg-background text-foreground"
-															: "bg-primary-foreground/20 text-primary-foreground",
-													)}
-												>
-													{children}
-												</code>
-											),
-											pre: ({ children }) => (
-												<pre
-													className={cn(
-														"rounded p-2 overflow-x-auto my-2 text-xs",
-														msg.role === "assistant"
-															? "bg-background border border-border"
-															: "bg-primary-foreground/20",
-													)}
-												>
-													{children}
-												</pre>
-											),
-											blockquote: ({ children }) => (
-												<blockquote
-													className={cn(
-														"border-l-2 pl-3 my-2 italic",
-														msg.role === "assistant"
-															? "border-border opacity-80"
-															: "border-primary-foreground/50 opacity-90",
-													)}
-												>
-													{children}
-												</blockquote>
-											),
-											a: ({ href, children }) => (
-												<a
-													href={href}
-													className={cn(
-														"underline underline-offset-2",
-														msg.role === "assistant"
-															? "hover:opacity-80"
-															: "hover:opacity-90",
-													)}
-													target="_blank"
-													rel="noopener noreferrer"
-												>
-													{children}
-												</a>
-											),
-										}}
-									>
-										{msg.content}
-									</ReactMarkdown>
+												</>
+											);
+										})()}
+									</div>
 								</div>
 							</div>
 						)}

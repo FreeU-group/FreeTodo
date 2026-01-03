@@ -94,6 +94,13 @@ jobs:
       max_screenshots: 10000 # 最大截图数量限制
       max_days: 30 # 数据保留天数（按日期清理旧数据）
       delete_file_only: true # 只删除文件（true），还是同时删除记录（false）
+  deadline_reminder:
+    id: deadline_reminder # 任务ID
+    name: DDL提醒 # 任务显示名称（中文）
+    enabled: true # 是否启用 DDL 提醒任务（默认开启）
+    interval: 30 # 检查间隔（秒），默认30秒检查一次
+    params:
+      reminder_window_minutes: 5 # 提醒时间窗口（分钟），在 DDL 前多少分钟提醒
 
 # 向量数据库配置
 vector_db:
@@ -147,3 +154,11 @@ llm:
         - max_input_tokens: 256000
           input_price: 0.003
           output_price: 0.03
+
+# Tavily 配置（联网搜索）
+tavily:
+  api_key: YOUR_TAVILY_API_KEY_HERE # Tavily API Key，需要用户配置
+  search_depth: basic # 搜索深度：basic 或 advanced
+  max_results: 5 # 最大返回结果数
+  include_domains: [] # 包含的域名列表（可选）
+  exclude_domains: [] # 排除的域名列表（可选）

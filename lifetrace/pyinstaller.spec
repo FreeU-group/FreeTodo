@@ -141,9 +141,10 @@ hiddenimports = [
     "apscheduler.triggers",
     "apscheduler.triggers.cron",
     "apscheduler.triggers.interval",
-    # Utils (psutil, openai)
+    # Utils (psutil, openai, tavily)
     "psutil",
     "openai",
+    "tavily",  # Tavily API for web search
     "dateutil",  # 可能被其他库依赖
     "rich",  # 可能被其他库依赖
     # Logging (loguru)
@@ -245,6 +246,14 @@ datas.extend(alembic_datas)
 # Collect imagehash submodules (图像哈希)
 imagehash_submodules = collect_submodules("imagehash")
 hiddenimports.extend(imagehash_submodules)
+
+# Collect tavily submodules (Tavily API for web search)
+tavily_submodules = collect_submodules("tavily")
+hiddenimports.extend(tavily_submodules)
+
+# Collect tavily data files if any
+tavily_datas = collect_data_files("tavily")
+datas.extend(tavily_datas)
 
 # Collect numpy submodules (NumPy 2.x 需要显式收集子模块)
 # NumPy 2.4+ 与 PyInstaller 的兼容性问题，需要确保所有核心模块都被包含

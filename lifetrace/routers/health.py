@@ -1,7 +1,5 @@
 """健康检查路由"""
 
-from datetime import datetime
-
 from fastapi import APIRouter
 from openai import OpenAI
 
@@ -9,6 +7,7 @@ from lifetrace.core.dependencies import get_ocr_processor, get_rag_service
 from lifetrace.storage import db_base
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.settings import settings
+from lifetrace.util.time_utils import get_utc_now
 
 logger = get_logger()
 
@@ -22,7 +21,7 @@ async def health_check():
     return {
         "app": "lifetrace",  # 固定的应用标识，用于前端识别后端服务
         "status": "healthy",
-        "timestamp": datetime.now(),
+        "timestamp": get_utc_now(),
         "database": "connected" if db_base.engine else "disconnected",
         "ocr": "available" if ocr_processor.is_available() else "unavailable",
     }
@@ -39,7 +38,7 @@ async def llm_health_check():
             return {
                 "status": "unavailable",
                 "message": f"RAG服务初始化失败: {str(init_error)}",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": get_utc_now().isoformat(),
             }
 
         # 检查配置是否完整
@@ -50,7 +49,7 @@ async def llm_health_check():
             return {
                 "status": "unconfigured",
                 "message": "LLM配置不完整，请设置API Key和Base URL",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": get_utc_now().isoformat(),
             }
 
         client = OpenAI(api_key=llm_key, base_url=base_url)
@@ -68,7 +67,7 @@ async def llm_health_check():
             "status": "healthy",
             "message": "LLM服务正常",
             "model": model,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": get_utc_now().isoformat(),
         }
 
     except Exception as e:
@@ -76,5 +75,5 @@ async def llm_health_check():
         return {
             "status": "error",
             "message": f"LLM服务异常: {str(e)}",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": get_utc_now().isoformat(),
         }

@@ -1,5 +1,10 @@
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+	localToUtcIso,
+	utcToLocalDisplay,
+	utcToLocalInput,
+} from "@/lib/utils/time";
 
 export const statusOptions: TodoStatus[] = [
 	"active",
@@ -64,33 +69,42 @@ export const getPriorityBorderColor = (priority: TodoPriority) => {
 	}
 };
 
-export const formatDeadlineForInput = (value?: string) => {
+/**
+ * 将 UTC 时间转换为本地时间字符串（用于 input[type="datetime-local"]）
+ * @param value UTC 时间 ISO 字符串
+ * @returns 本地时间字符串，格式为 YYYY-MM-DDTHH:mm
+ */
+export const formatDeadlineForInput = (value?: string): string => {
 	if (!value) return "";
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return "";
-	const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-	const local = new Date(date.getTime() - offsetMs);
-	return local.toISOString().slice(0, 16);
-};
-
-export const parseInputToIso = (value: string) => {
-	if (!value) return undefined;
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return undefined;
-	return date.toISOString();
-};
-
-export const formatDateTime = (value?: string) => {
-	if (!value) return "";
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) return "";
-	return date.toLocaleString();
+	return utcToLocalInput(value);
 };
 
 /**
- * 格式化 deadline，如果时间为 0:00:00 则只显示日期，否则显示完整的日期时间
+ * 将本地时间字符串转换为 UTC ISO 字符串（用于发送到后端）
+ * @param value 本地时间字符串（来自 input[type="datetime-local"]）
+ * @returns UTC ISO 字符串
  */
-export const formatDeadline = (value?: string) => {
+export const parseInputToIso = (value: string): string | undefined => {
+	if (!value) return undefined;
+	const iso = localToUtcIso(value);
+	return iso || undefined;
+};
+
+/**
+ * 格式化日期时间（已弃用，使用 formatDeadline 代替）
+ * @deprecated 使用 formatDeadline 代替
+ */
+export const formatDateTime = (value?: string): string => {
+	if (!value) return "";
+	return utcToLocalDisplay(value, "datetime");
+};
+
+/**
+ * 格式化 deadline，如果本地时间为 0:00:00 则只显示日期，否则显示完整的日期时间
+ * @param value UTC 时间 ISO 字符串
+ * @returns 本地时间显示字符串
+ */
+export const formatDeadline = (value?: string): string => {
 	if (!value) return "";
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return "";

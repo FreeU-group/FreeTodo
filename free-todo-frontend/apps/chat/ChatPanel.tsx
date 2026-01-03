@@ -11,6 +11,7 @@ import { useBreakdownQuestionnaire } from "@/apps/chat/hooks/useBreakdownQuestio
 import { useChatController } from "@/apps/chat/hooks/useChatController";
 import { usePromptHandlers } from "@/apps/chat/hooks/usePromptHandlers";
 import { useCreateTodo, useUpdateTodo } from "@/lib/query";
+import { useChatStore } from "@/lib/store/chat-store";
 import { useLocaleStore } from "@/lib/store/locale";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { CreateTodoInput, Todo } from "@/lib/types";
@@ -42,6 +43,9 @@ export function ChatPanel() {
 	// 从 Zustand 获取 UI 状态
 	const { selectedTodoIds, clearTodoSelection, toggleTodoSelection } =
 		useTodoStore();
+
+	// 从 ChatStore 获取联网搜索状态
+	const { webSearchEnabled, setWebSearchEnabled } = useChatStore();
 
 	// 使用 Breakdown Questionnaire hook
 	const breakdownQuestionnaire = useBreakdownQuestionnaire();
@@ -137,6 +141,7 @@ export function ChatPanel() {
 					typingText={typingText}
 					locale={locale}
 					chatMode={chatController.chatMode}
+					webSearchEnabled={webSearchEnabled}
 					effectiveTodos={chatController.effectiveTodos}
 					onUpdateTodo={updateTodoMutation.mutateAsync}
 					isUpdating={updateTodoMutation.isPending}
@@ -154,6 +159,7 @@ export function ChatPanel() {
 				hasSelection={chatController.hasSelection}
 				showTodosExpanded={showTodosExpanded}
 				modeMenuOpen={modeMenuOpen}
+				webSearchEnabled={webSearchEnabled}
 				onInputChange={chatController.setInputValue}
 				onSend={chatController.handleSend}
 				onStop={chatController.handleStop}
@@ -165,6 +171,7 @@ export function ChatPanel() {
 				onToggleTodo={toggleTodoSelection}
 				onToggleModeMenu={() => setModeMenuOpen((prev) => !prev)}
 				onChangeMode={chatController.setChatMode}
+				onToggleWebSearch={() => setWebSearchEnabled(!webSearchEnabled)}
 			/>
 		</div>
 	);

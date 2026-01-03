@@ -84,6 +84,11 @@
 			"difyEnabledLabel": "Enable Dify test mode",
 			"difyEnabledDescription": "When enabled, the Dify Test mode in chat will use Dify API for responses.",
 			"difySaveSuccess": "Dify configuration saved",
+			"tavilyConfigTitle": "Tavily Web Search Configuration",
+			"tavilySaveSuccess": "Tavily configuration saved",
+			"tavilyApiKeyHint": "How to get API Key? Please visit",
+			"tavilyApiKeyLink": "Tavily Console",
+			"save": "Save",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",
 			"model": "Model",
@@ -334,6 +339,13 @@
 			},
 			"active": "Active"
 		},
+		"webSearch": {
+			"label": "Web Search",
+			"toggle": "Toggle web search",
+			"enabled": "Web search enabled",
+			"disabled": "Web search disabled"
+		},
+		"sources": "Sources",
 		"todoContext": {
 			"id": "ID",
 			"name": "Name",
@@ -431,7 +443,8 @@
 			"task_context_mapper_job": "Task Context Mapper",
 			"task_summary_job": "Task Summary",
 			"clean_data_job": "Data Cleanup",
-			"activity_aggregator_job": "Activity Aggregator"
+			"activity_aggregator_job": "Activity Aggregator",
+			"deadline_reminder_job": "DDL Reminder"
 		},
 		"jobDescriptions": {
 			"recorder_job": "Capture screenshots periodically",
@@ -439,7 +452,8 @@
 			"task_context_mapper_job": "(Legacy) Associate screenshots with task context",
 			"task_summary_job": "(Legacy) Generate task execution summary",
 			"clean_data_job": "Clean up expired screenshots and data",
-			"activity_aggregator_job": "Aggregate user activity events"
+			"activity_aggregator_job": "Aggregate user activity events",
+			"deadline_reminder_job": "Check todo deadlines and send reminder notifications 5 minutes before DDL"
 		}
 	},
 	"common": {
