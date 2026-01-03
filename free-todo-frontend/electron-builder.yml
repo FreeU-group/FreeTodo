@@ -63,6 +63,8 @@ nsis:
   deleteAppDataOnUninstall: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
+  # 自定义 NSIS 脚本，用于安装前关闭正在运行的进程
+  include: build/installer.nsh
 
 # macOS 配置
 mac:

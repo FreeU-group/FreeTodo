@@ -668,7 +668,15 @@ async function startBackendServer(): Promise<void> {
 function stopBackendServer(): void {
 	if (backendProcess) {
 		logToFile("Stopping backend server...");
-		backendProcess.kill("SIGTERM");
+		if (process.platform === "win32" && backendProcess.pid) {
+			// Windows: 使用 taskkill 强制终止进程树
+			// /f = 强制终止, /t = 终止进程树（包括子进程）
+			spawn("taskkill", ["/pid", String(backendProcess.pid), "/f", "/t"], {
+				shell: true,
+			});
+		} else {
+			backendProcess.kill("SIGTERM");
+		}
 		backendProcess = null;
 	}
 	stopBackendHealthCheck();
@@ -734,7 +742,14 @@ function stopNextServer(): void {
 	stopHealthCheck();
 	if (nextProcess) {
 		logToFile("Stopping Next.js server...");
-		nextProcess.kill("SIGTERM");
+		if (process.platform === "win32" && nextProcess.pid) {
+			// Windows: 使用 taskkill 强制终止进程树
+			spawn("taskkill", ["/pid", String(nextProcess.pid), "/f", "/t"], {
+				shell: true,
+			});
+		} else {
+			nextProcess.kill("SIGTERM");
+		}
 		nextProcess = null;
 	}
 }
