@@ -109,6 +109,36 @@ export function VoiceModulePanel() {
   // 音频相关状态
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 设置错误提示，3秒后自动清除
+  const setErrorWithAutoHide = useCallback((errorMessage: string | null) => {
+    // 清除之前的定时器
+    if (errorTimeoutRef.current) {
+      clearTimeout(errorTimeoutRef.current);
+      errorTimeoutRef.current = null;
+    }
+    
+    setError(errorMessage);
+    
+    // 如果有错误消息，3秒后自动清除
+    if (errorMessage) {
+      errorTimeoutRef.current = setTimeout(() => {
+        setError(null);
+        errorTimeoutRef.current = null;
+      }, 3000);
+    }
+  }, []);
+  
+  // 组件卸载时清除定时器
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current);
+        errorTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // 设置当前模块上下文
   const { setCurrentModule, setVoiceTranscripts } = useModuleContextStore();
@@ -794,7 +824,7 @@ export function VoiceModulePanel() {
       },
       onError: (err) => {
         console.error('Recording error:', err);
-        setError(err.message);
+        setErrorWithAutoHide(err.message);
         setProcessStatus('recording', 'error');
       },
       onAudioData: (analyserNode) => {
@@ -818,7 +848,7 @@ export function VoiceModulePanel() {
         },
         onError: (err: Error) => {
           console.error('WebSocket Recognition error:', err);
-          setError(err.message);
+          setErrorWithAutoHide(err.message);
           setProcessStatus('recognition', 'error');
         },
         onStatusChange: (status) => {
@@ -835,7 +865,7 @@ export function VoiceModulePanel() {
         onResult: handleRecognitionResult,
         onError: (err: Error) => {
           console.error('Recognition error:', err);
-          setError(err.message);
+          setErrorWithAutoHide(err.message);
           setProcessStatus('recognition', 'error');
         },
         onStatusChange: (status: 'idle' | 'running' | 'error') => {
@@ -898,7 +928,7 @@ export function VoiceModulePanel() {
     audioPlayerRef.current = audio;
     
     audio.onerror = () => {
-      setError('音频加载失败');
+      setErrorWithAutoHide('音频加载失败');
       if (playbackIntervalRef.current) clearInterval(playbackIntervalRef.current);
     };
     
@@ -1022,7 +1052,7 @@ export function VoiceModulePanel() {
           },
           onError: (err) => {
             console.error('[VoiceModulePanel] Recording error:', err);
-            setError(err.message);
+            setErrorWithAutoHide(err.message);
             setProcessStatus('recording', 'error');
           },
           onAudioData: (analyserNode) => {
@@ -1059,7 +1089,7 @@ export function VoiceModulePanel() {
             },
             onError: (err) => {
               console.error('[VoiceModulePanel] WebSocket Recognition error:', err);
-              setError(err.message);
+              setErrorWithAutoHide(err.message);
               setProcessStatus('recognition', 'error');
             },
             onStatusChange: (status) => {
@@ -1076,12 +1106,12 @@ export function VoiceModulePanel() {
                   console.log('[VoiceModulePanel] ✅ WebSocket 识别服务已启动');
                 } catch (recognitionError) {
                   console.error('[VoiceModulePanel] ❌ WebSocket Recognition start error:', recognitionError);
-                  setError('识别服务启动失败，请检查后端服务是否运行');
+                  setErrorWithAutoHide('识别服务启动失败，请检查后端服务是否运行');
                 }
               }, 500);
             } else {
               console.error('[VoiceModulePanel] ❌ 无法获取音频流');
-              setError('无法获取音频流');
+              setErrorWithAutoHide('无法获取音频流');
             }
           }
         } else {
@@ -1091,7 +1121,7 @@ export function VoiceModulePanel() {
             onResult: handleRecognitionResult,
             onError: (err) => {
               console.error('[VoiceModulePanel] Recognition error:', err);
-              setError(err.message);
+              setErrorWithAutoHide(err.message);
               setProcessStatus('recognition', 'error');
             },
             onStatusChange: (status) => {
@@ -1105,18 +1135,18 @@ export function VoiceModulePanel() {
               console.log('[VoiceModulePanel] ✅ Web Speech API 识别服务已启动');
             } catch (recognitionError) {
               console.error('[VoiceModulePanel] ❌ Recognition start error:', recognitionError);
-              setError('识别服务启动失败，请检查浏览器是否支持语音识别');
+              setErrorWithAutoHide('识别服务启动失败，请检查浏览器是否支持语音识别');
             }
           }, 500);
         }
       } else {
         console.error('[VoiceModulePanel] 识别服务未初始化');
-        setError('识别服务未初始化');
+        setErrorWithAutoHide('识别服务未初始化');
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to start recording');
       console.error('Recording error:', error);
-      setError(error.message);
+      setErrorWithAutoHide(error.message);
       setProcessStatus('recording', 'error');
       storeStopRecording();
       setRecordingDuration(0);
@@ -1275,7 +1305,7 @@ export function VoiceModulePanel() {
               }
             } catch (error) {
       console.error('[VoiceModulePanel] ❌ 保存完整音频失败:', error);
-      setError('保存录音失败，请重试');
+      setErrorWithAutoHide('保存录音失败，请重试');
     }
   }, [pendingFullAudio, stopConfirmTitle, selectedDate, storeStopRecording, setViewMode]);
   
@@ -1634,7 +1664,7 @@ export function VoiceModulePanel() {
       }
     } catch (error) {
       console.error('[VoiceModulePanel] ❌ 加载历史数据失败:', error);
-      setError('加载历史数据失败，请重试');
+      setErrorWithAutoHide('加载历史数据失败，请重试');
       setIsLoadingAudioList(false);
     }
   }, [addTranscript, addSchedule, addAudioSegment]);
@@ -1676,7 +1706,7 @@ export function VoiceModulePanel() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('导出失败:', error);
-      setError('导出失败，请重试');
+      setErrorWithAutoHide('导出失败，请重试');
     }
   }, [selectedDate, transcripts, schedules, extractedTodos]);
 
@@ -1686,7 +1716,7 @@ export function VoiceModulePanel() {
     // 这里可以添加一个编辑状态，允许用户编辑转录文本
     console.log('[VoiceModulePanel] 📝 编辑模式：可以编辑转录文本、日程、待办等');
     // 暂时显示提示，后续可以实现编辑对话框
-    setError('编辑功能：可以点击转录文本进行编辑（功能开发中）');
+    setErrorWithAutoHide('编辑功能：可以点击转录文本进行编辑（功能开发中）');
   }, [setError]);
 
   // 处理选择音频文件（回看模式检测逻辑）
@@ -2410,7 +2440,7 @@ export function VoiceModulePanel() {
             }
           } catch (error) {
             console.error('[VoiceModulePanel] ❌ 转录失败:', error);
-            setError('转录失败，请重试');
+            setErrorWithAutoHide('转录失败，请重试');
           } finally {
             setIsTranscribing(false);
           }
@@ -2481,7 +2511,7 @@ export function VoiceModulePanel() {
         }
       } catch (error) {
         console.error('[VoiceModulePanel] ❌ 加载音频数据失败:', error);
-        setError('加载音频数据失败，请重试');
+        setErrorWithAutoHide('加载音频数据失败，请重试');
       }
     }
   }, [viewMode, addTranscript, addSchedule, transcripts, schedules, setError, setIsTranscribing, setIsExtracting, setMeetingSummary, setCurrentAudioUrl, optimizationServiceRef, scheduleExtractionServiceRef, todoExtractionServiceRef, audioPlayerRef]);
@@ -3624,7 +3654,7 @@ export function VoiceModulePanel() {
                         } catch (err) {
                           const error = err instanceof Error ? err : new Error('测试失败');
                           console.error('Test recording error:', error);
-                          setError(error.message);
+                          setErrorWithAutoHide(error.message);
                           setIsLoadingAudioList(false);
                           setViewMode('playback');
                         }
@@ -3869,7 +3899,7 @@ export function VoiceModulePanel() {
                         console.log('[VoiceModulePanel] ✅ 音频删除成功，列表已刷新');
                       } else {
                         console.error('[VoiceModulePanel] ❌ 音频删除失败');
-                        setError('删除音频失败，请重试');
+                        setErrorWithAutoHide('删除音频失败，请重试');
                       }
                     }
                   }}
@@ -4036,7 +4066,7 @@ export function VoiceModulePanel() {
         </div>
       )}
 
-      {/* 错误提示 */}
+      {/* 错误提示 - 3秒后自动消失 */}
       {error && (
         <div className="shrink-0 px-6 py-2 bg-red-500/10 text-red-600 dark:text-red-400 text-sm border-t border-red-500/20">
           {error}

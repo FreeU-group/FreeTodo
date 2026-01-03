@@ -143,6 +143,7 @@
 				"vision_assistant": "自动待办检测",
 				"workspace_assistant": "工作区助手",
 				"plan_assistant": "计划助手",
+				"voice_module": "语音模块",
 				"unknown": "未知功能"
 			}
 		}
