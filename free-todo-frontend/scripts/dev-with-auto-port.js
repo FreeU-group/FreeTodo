@@ -22,7 +22,7 @@ const DEFAULT_BACKEND_PORT = 8001;
 const MAX_PORT_ATTEMPTS = 100;
 
 /**
- * 检查端口是否可用
+ * 检查端口是否可用（同时检查 IPv4 和 IPv6）
  * @param {number} port - 要检查的端口
  * @returns {Promise<boolean>} - 端口是否可用
  */
@@ -34,7 +34,9 @@ function isPortAvailable(port) {
 			server.close();
 			resolve(true);
 		});
-		server.listen(port, "127.0.0.1");
+		// 使用 '::' 检查 IPv6（包含 IPv4），与 Next.js 默认行为一致
+		// 如果系统不支持 IPv6，会自动回退到 IPv4
+		server.listen(port, "::");
 	});
 }
 
