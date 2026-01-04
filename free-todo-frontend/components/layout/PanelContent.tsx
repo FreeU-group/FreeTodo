@@ -10,6 +10,7 @@ import { CostTrackingPanel } from "@/apps/cost-tracking";
 import { SettingsPanel } from "@/apps/settings";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
+import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import {
 	PanelHeader,
 	PanelPositionProvider,
@@ -57,6 +58,7 @@ export function PanelContent({ position }: PanelContentProps) {
 			settings: "settingsLabel",
 			costTracking: "costTrackingLabel",
 			achievements: "achievementsLabel",
+			voiceModule: "voiceModuleLabel",
 			debugShots: "debugShotsLabel",
 		};
 		const key = labelKeyMap[feat];
@@ -77,6 +79,7 @@ export function PanelContent({ position }: PanelContentProps) {
 			settings: "settingsPlaceholder",
 			costTracking: "costTrackingPlaceholder",
 			achievements: "achievementsPlaceholder",
+			voiceModule: "voiceModulePlaceholder",
 			debugShots: "debugShotsPlaceholder",
 		};
 		const key = placeholderKeyMap[feat];
@@ -171,6 +174,15 @@ export function PanelContent({ position }: PanelContentProps) {
 		return (
 			<PanelPositionProvider position={position}>
 				<CostTrackingPanel />
+			</PanelPositionProvider>
+		);
+	}
+
+	// 如果是语音模块功能，显示语音模块面板
+	if (feature === "voiceModule") {
+		return (
+			<PanelPositionProvider position={position}>
+				<VoiceModulePanel />
 			</PanelPositionProvider>
 		);
 	}

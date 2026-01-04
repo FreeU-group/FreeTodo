@@ -15,6 +15,7 @@ import {
 	ListTodo,
 	type LucideIcon,
 	MessageSquare,
+	Mic,
 	Settings,
 } from "lucide-react";
 
@@ -30,7 +31,8 @@ export type CorePanelFeature =
 	| "diary"
 	| "settings"
 	| "costTracking"
-	| "achievements";
+	| "achievements"
+	| "voiceModule";
 export type DevPanelFeature = "debugShots";
 export type PanelFeature = CorePanelFeature | DevPanelFeature;
 
@@ -44,6 +46,7 @@ const CORE_PANEL_FEATURES: CorePanelFeature[] = [
 	"settings",
 	"costTracking",
 	"achievements",
+	"voiceModule",
 ];
 const DEV_PANEL_FEATURES: DevPanelFeature[] = IS_DEV_ENV ? ["debugShots"] : [];
 
@@ -71,6 +74,7 @@ const CORE_FEATURE_ICON_MAP: Record<CorePanelFeature, LucideIcon> = {
 	settings: Settings,
 	costTracking: DollarSign,
 	achievements: Award,
+	voiceModule: Mic,
 };
 
 const DEV_FEATURE_ICON_MAP: Record<DevPanelFeature, LucideIcon> = {

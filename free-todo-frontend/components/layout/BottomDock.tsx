@@ -52,6 +52,7 @@ const FEATURE_LABEL_MAP: Partial<Record<PanelFeature, string>> = {
 	settings: "settings",
 	costTracking: "costTracking",
 	achievements: "achievements",
+	voiceModule: "voiceModule",
 	debugShots: "debugShots",
 };
 
@@ -310,7 +311,7 @@ export function BottomDock({ className }: BottomDockProps) {
 	).map((position) => {
 		// 在 SSR 时使用默认功能分配，客户端挂载后使用实际值
 		const defaultFeatureMap: Record<PanelPosition, PanelFeature> = {
-			panelA: "todos",
+			panelA: "voiceModule",
 			panelB: "todoDetail",
 			panelC: "chat",
 		};

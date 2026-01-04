@@ -10,6 +10,7 @@ import { UserAvatar } from "@/components/common/ui/UserAvatar";
 import { BottomDock } from "@/components/layout/BottomDock";
 import { PanelContainer } from "@/components/layout/PanelContainer";
 import { PanelContent } from "@/components/layout/PanelContent";
+import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { DynamicIsland } from "@/components/notification/DynamicIsland";
 import { GlobalDndProvider } from "@/lib/dnd";
@@ -18,8 +19,28 @@ import { useConfig } from "@/lib/query";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
+import { useDynamicIslandStore } from "@/lib/store/dynamic-island-store";
+import { IslandMode } from "@/components/DynamicIsland/types";
+
+/**
+ * 检测是否在 Electron 环境中
+ */
+function isElectronEnvironment(): boolean {
+	if (typeof window === 'undefined') return false;
+	return !!(
+		(window as any).electronAPI ||
+		(window as any).require?.('electron') ||
+		navigator.userAgent.includes('Electron')
+	);
+}
 
 export default function HomePage() {
+	// 所有 hooks 必须在条件返回之前调用（React Hooks 规则）
+	const { mode } = useDynamicIslandStore();
+	// 浏览器模式下始终使用全屏模式（不显示灵动岛）
+	const isElectron = isElectronEnvironment();
+	const isFullscreen = !isElectron || mode === IslandMode.FULLSCREEN;
+	
 	const {
 		isPanelAOpen,
 		isPanelBOpen,
@@ -80,7 +101,7 @@ export default function HomePage() {
 			store.registerEndpoint({
 				id: "draft-todos",
 				url: "/api/todos?status=draft&limit=1",
-				interval: 1000, // 1秒轮询一次，实现近实时更新
+				interval: 1000, // 5秒轮询一次，减少服务器压力
 				enabled: autoTodoDetectionEnabled,
 			});
 		} else if (existingEndpoint.enabled !== autoTodoDetectionEnabled) {
@@ -332,9 +353,24 @@ export default function HomePage() {
 		window.addEventListener("pointerup", handlePointerUp);
 	};
 
+	// 如果不是全屏模式且是 Electron 环境，只显示透明背景（DynamicIsland 会通过 DynamicIslandProvider 显示）
+	// 浏览器模式下始终显示全屏内容
+	// 注意：必须在所有 hooks 调用之后才能条件返回
+	if (!isFullscreen && isElectron) {
+		return (
+			<div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: 'transparent', background: 'transparent' }}>
+				{/* 透明背景，只显示 DynamicIsland */}
+				{/* 在悬浮模式下也渲染 VoiceModulePanel（隐藏），确保录音服务初始化和事件监听器注册 */}
+				<div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
+					<VoiceModulePanel />
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<GlobalDndProvider>
-			<main className="relative flex h-screen flex-col overflow-hidden text-foreground">
+			<main className="relative flex h-screen flex-col overflow-hidden text-foreground bg-background">
 				<div className="relative z-10 flex h-full flex-col text-foreground">
 					<header className="relative flex h-15 shrink-0 items-center bg-primary-foreground dark:bg-accent px-4 text-foreground overflow-visible">
 						{/* 左侧：Logo */}
@@ -351,8 +387,8 @@ export default function HomePage() {
 							</h1>
 						</div>
 
-						{/* 中间：通知区域（灵动岛） - 只在有通知时显示 */}
-						{currentNotification && (
+						{/* 中间：通知区域（灵动岛） - 只在有通知时且是 Electron 环境时显示 */}
+						{currentNotification && isElectron && (
 							<div className="flex-1 flex items-center justify-center relative min-w-0 overflow-visible">
 								<DynamicIsland />
 							</div>

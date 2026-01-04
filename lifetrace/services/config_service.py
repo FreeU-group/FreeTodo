@@ -179,8 +179,27 @@ class ConfigService:
             # 将 snake_case 格式转换为点分隔格式
             backend_key = snake_to_dot_notation(raw_key)
             try:
-                # 获取当前配置值
-                old_value = settings.get(backend_key)
+                # 获取当前配置值，使用安全的方式访问
+                old_value = None
+                try:
+                    # 尝试使用属性访问
+                    parts = backend_key.split(".")
+                    obj = settings
+                    for part in parts:
+                        obj = getattr(obj, part)
+                    old_value = obj
+                except AttributeError:
+                    # 如果属性访问失败，尝试使用 get 方法
+                    try:
+                        old_value = settings.get(backend_key)
+                    except (KeyError, AttributeError):
+                        # 配置项不存在，视为新增配置
+                        config_changed = True
+                        if "api_key" in backend_key.lower():
+                            changed_items.append(f"{backend_key}: (新增) {str(new_value)[:10]}...")
+                        else:
+                            changed_items.append(f"{backend_key}: (新增) {new_value}")
+                        continue
 
                 # 比对新旧值
                 if old_value != new_value:
@@ -261,13 +280,36 @@ class ConfigService:
         config_dict = {}
         for backend_key in backend_config_keys:
             try:
-                value = settings.get(backend_key)
+                # Dynaconf 支持点分隔键访问
+                # 使用 try-except 安全地获取配置值
+                value = None
+                try:
+                    # 尝试使用属性访问方式（Dynaconf 支持）
+                    parts = backend_key.split(".")
+                    obj = settings
+                    for part in parts:
+                        obj = getattr(obj, part)
+                    value = obj
+                except AttributeError:
+                    # 如果属性访问失败，尝试使用 get 方法
+                    try:
+                        value = settings.get(backend_key)
+                    except (KeyError, AttributeError):
+                        # 配置项不存在
+                        logger.debug(f"配置项 {backend_key} 不存在，跳过")
+                        continue
+                
+                # 如果值为 None，跳过该配置项
+                if value is None:
+                    logger.debug(f"配置项 {backend_key} 值为 None，跳过")
+                    continue
+                
                 # 将点分隔格式转换为 snake_case 格式，以便前端 fetcher 能正确转换为 camelCase
                 frontend_key = dot_to_snake_notation(backend_key)
                 config_dict[frontend_key] = value
-            except KeyError:
-                # 配置项不存在，跳过或使用默认值
-                logger.debug(f"配置项 {backend_key} 不存在，跳过")
+            except Exception as e:
+                # 捕获所有异常，记录日志但继续处理其他配置项
+                logger.warning(f"获取配置项 {backend_key} 时出错: {e}，跳过", exc_info=True)
                 continue
 
         return config_dict

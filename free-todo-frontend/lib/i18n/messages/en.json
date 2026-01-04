@@ -56,6 +56,8 @@
 		"costTrackingPlaceholder": "Placeholder: view cost tracking here",
 		"achievementsLabel": "Achievements",
 		"achievementsPlaceholder": "Placeholder: plug an achievements component here",
+		"voiceModuleLabel": "Voice Module",
+		"voiceModulePlaceholder": "7×24 Intelligent Recording Assistant with continuous recording, speech recognition and schedule extraction",
 		"screenshotsLabel": "Screenshots (Debug)",
 		"screenshotsPlaceholder": "Event timeline with screenshots (dev mode only)",
 		"debugShotsLabel": "Debug Shots",
@@ -166,6 +168,7 @@
 		"settings": "Settings",
 		"costTracking": "Cost",
 		"achievements": "Achievements",
+		"voiceModule": "Voice Module",
 		"screenshots": "Screenshots",
 		"debugShots": "Debug Shots",
 		"unassigned": "Unassigned"
@@ -289,6 +292,7 @@
 		"noResponseReceived": "No response received, please try again.",
 		"addedTodos": "Added {count} todos to the list.",
 		"errorOccurred": "Something went wrong. Please try again.",
+		"promptNotLoaded": "Prompt is loading, please wait...",
 		"breakdownSummary": {
 			"title": "Task Breakdown Result",
 			"description": "Based on your answers, we have broken down the task into the following subtasks:",

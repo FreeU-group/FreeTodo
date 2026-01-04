@@ -19,6 +19,11 @@ from lifetrace.storage.database import (
     task_mgr,
     todo_mgr,
 )
+from lifetrace.storage.models import (
+    Attachment,
+    AudioRecording,
+    TranscriptSegment,
+)
 
 __all__ = [
     # 各个功能管理器
@@ -37,4 +42,8 @@ __all__ = [
     "db_base",
     "get_session",
     "get_db",
+    # 数据模型
+    "Attachment",
+    "AudioRecording",
+    "TranscriptSegment",
 ]
