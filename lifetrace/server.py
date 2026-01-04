@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -71,6 +72,25 @@ async def lifespan(app: FastAPI):
 
     # 启动所有后台任务
     job_manager.start_all()
+    
+    # ⚡ 后台预加载 Whisper 模型和路由（不阻塞启动）
+    async def preload_voice_module():
+        """后台预加载语音识别模块（路由和模型）"""
+        try:
+            # 1. 先注册路由（不阻塞，只是导入和注册）
+            _register_voice_router()
+            logger.info("✅ 已注册语音识别路由（后台加载）")
+            
+            # 2. 然后预加载模型（在后台异步加载）
+            from lifetrace.routers.voice_stream_whisper import preload_whisper_model
+            await preload_whisper_model()
+            logger.info("✅ Whisper 模型预加载完成")
+        except Exception as e:
+            logger.warning(f"语音识别模块预加载失败（将在首次使用时加载）: {e}")
+    
+    # 在后台异步预加载，不阻塞启动
+    asyncio.create_task(preload_voice_module())
+    logger.info("✅ 已启动语音识别模块后台预加载（路由+模型）")
     
     # ⚡ 不再启动独立的 WhisperLiveKit 服务器
     # 我们使用原生实现（voice_stream_whisperlivekit_native），直接集成 Faster-Whisper + WhisperLiveKit 算法
@@ -166,51 +186,70 @@ app.include_router(audio_schedule_extraction.router)  # 从音频提取日程
 app.include_router(transcripts.router)
 app.include_router(schedules.router)  # 日程管理路由
 app.include_router(deepseek.router)
-# WebSocket ASR - 优先使用 WhisperLiveKit 原生实现（直接集成，不依赖独立服务器）
-# 主端点 /api/voice/stream 使用 WhisperLiveKit 核心技术
-# 如果 Faster-Whisper 不可用，会降级到其他方案
-try:
-    from lifetrace.routers import voice_stream_whisperlivekit_native
-    from faster_whisper import WhisperModel  # noqa: F401 检查是否安装
-    # 注册 WhisperLiveKit 原生实现路由（主端点）
-    app.include_router(voice_stream_whisperlivekit_native.router)
-    logger.info("✅ 已注册 WhisperLiveKit 原生实现 WebSocket 路由（/api/voice/stream）")
-    logger.info("   直接集成 WhisperLiveKit 核心技术，超低延迟（< 300ms）实时语音识别")
-    logger.info("   不依赖独立服务器，使用 Faster-Whisper + WhisperLiveKit 算法")
-except ImportError as e:
-    logger.warning(f"WhisperLiveKit 原生实现需要 Faster-Whisper: {e}")
-    # 降级到独立服务器模式（如果可用）
+# WebSocket ASR 路由将在后台加载（不阻塞启动）
+# 路由注册逻辑已移至 _register_voice_router() 函数，在 lifespan 中异步调用
+
+_voice_router_registered = False
+
+def _register_voice_router():
+    """注册语音识别路由（后台加载）"""
+    global _voice_router_registered
+    if _voice_router_registered:
+        return
+    
+    # WebSocket ASR - 优先使用 WhisperLiveKit 原生实现（直接集成，不依赖独立服务器）
+    # 主端点 /api/voice/stream 使用 WhisperLiveKit 核心技术
+    # 如果 Faster-Whisper 不可用，会降级到其他方案
     try:
-        from lifetrace.routers import voice_stream_whisperlivekit
-        app.include_router(voice_stream_whisperlivekit.router)
-        logger.info("✅ 已降级到 WhisperLiveKit 独立服务器模式（/api/voice/stream）")
-    except Exception:
-        # 降级到 Faster-Whisper（优化版）
+        from lifetrace.routers import voice_stream_whisperlivekit_native
+        from faster_whisper import WhisperModel  # noqa: F401 检查是否安装
+        # 注册 WhisperLiveKit 原生实现路由（主端点）
+        app.include_router(voice_stream_whisperlivekit_native.router)
+        logger.info("✅ 已注册 WhisperLiveKit 原生实现 WebSocket 路由（/api/voice/stream）")
+        logger.info("   直接集成 WhisperLiveKit 核心技术，超低延迟（< 300ms）实时语音识别")
+        logger.info("   不依赖独立服务器，使用 Faster-Whisper + WhisperLiveKit 算法")
+        _voice_router_registered = True
+    except ImportError as e:
+        logger.warning(f"WhisperLiveKit 原生实现需要 Faster-Whisper: {e}")
+        # 降级到独立服务器模式（如果可用）
+        try:
+            from lifetrace.routers import voice_stream_whisperlivekit
+            app.include_router(voice_stream_whisperlivekit.router)
+            logger.info("✅ 已降级到 WhisperLiveKit 独立服务器模式（/api/voice/stream）")
+            _voice_router_registered = True
+        except Exception:
+            # 降级到 Faster-Whisper（优化版）
+            try:
+                from lifetrace.routers import voice_stream_whisper
+                from faster_whisper import WhisperModel  # noqa: F401
+                app.include_router(voice_stream_whisper.router)
+                logger.info("✅ 已降级到 Faster-Whisper WebSocket 路由（/api/voice/stream）")
+                _voice_router_registered = True
+            except ImportError:
+                logger.warning("Faster-Whisper 未安装，尝试使用 FunASR")
+                app.include_router(voice_stream.router)  # FunASR（备用）
+                _voice_router_registered = True
+            except Exception as e2:
+                logger.warning(f"Faster-Whisper 路由注册失败: {e2}，尝试使用 FunASR")
+                app.include_router(voice_stream.router)  # FunASR（备用）
+                _voice_router_registered = True
+    except Exception as e:
+        logger.warning(f"WhisperLiveKit 原生实现路由注册失败: {e}")
+        # 降级到 Faster-Whisper
         try:
             from lifetrace.routers import voice_stream_whisper
             from faster_whisper import WhisperModel  # noqa: F401
             app.include_router(voice_stream_whisper.router)
             logger.info("✅ 已降级到 Faster-Whisper WebSocket 路由（/api/voice/stream）")
+            _voice_router_registered = True
         except ImportError:
             logger.warning("Faster-Whisper 未安装，尝试使用 FunASR")
             app.include_router(voice_stream.router)  # FunASR（备用）
+            _voice_router_registered = True
         except Exception as e2:
             logger.warning(f"Faster-Whisper 路由注册失败: {e2}，尝试使用 FunASR")
             app.include_router(voice_stream.router)  # FunASR（备用）
-except Exception as e:
-    logger.warning(f"WhisperLiveKit 原生实现路由注册失败: {e}")
-    # 降级到 Faster-Whisper
-    try:
-        from lifetrace.routers import voice_stream_whisper
-        from faster_whisper import WhisperModel  # noqa: F401
-        app.include_router(voice_stream_whisper.router)
-        logger.info("✅ 已降级到 Faster-Whisper WebSocket 路由（/api/voice/stream）")
-    except ImportError:
-        logger.warning("Faster-Whisper 未安装，尝试使用 FunASR")
-        app.include_router(voice_stream.router)  # FunASR（备用）
-    except Exception as e2:
-        logger.warning(f"Faster-Whisper 路由注册失败: {e2}，尝试使用 FunASR")
-        app.include_router(voice_stream.router)  # FunASR（备用）
+            _voice_router_registered = True
 
 
 def find_available_port(host: str, start_port: int, max_attempts: int = 100) -> int:

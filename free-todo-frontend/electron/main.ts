@@ -156,6 +156,73 @@ function waitForServer(url: string, timeout: number): Promise<void> {
 }
 
 /**
+ * 检查指定端口是否运行着 LifeTrace 后端
+ * 通过调用 /health 端点并验证 app 标识来确认是 LifeTrace 后端
+ */
+function isLifeTraceBackend(port: number): Promise<boolean> {
+	return new Promise((resolve) => {
+		const req = http.get(
+			{
+				hostname: "127.0.0.1",
+				port,
+				path: "/health",
+				timeout: 2000, // 2秒超时
+			},
+			(res) => {
+				let data = "";
+				res.on("data", (chunk) => {
+					data += chunk.toString();
+				});
+				res.on("end", () => {
+					try {
+						const json = JSON.parse(data);
+						// 验证是否是 LifeTrace 后端
+						if (json.app === "lifetrace") {
+							resolve(true);
+						} else {
+							resolve(false);
+						}
+					} catch {
+						resolve(false);
+					}
+				});
+			},
+		);
+
+		req.on("error", () => resolve(false));
+		req.on("timeout", () => {
+			req.destroy();
+			resolve(false);
+		});
+	});
+}
+
+/**
+ * 检测运行中的后端服务器端口
+ * 通过调用 /health 端点并验证 app 标识来确认是 LifeTrace 后端
+ */
+async function detectRunningBackendPort(): Promise<number | null> {
+	// 先检查优先级端口（开发版和 Build 版默认端口）
+	const priorityPorts = [8001, 8000];
+	for (const port of priorityPorts) {
+		if (await isLifeTraceBackend(port)) {
+			logToFile(`Detected backend running on port: ${port}`);
+			return port;
+		}
+	}
+
+	// 再检查其他可能的端口（跳过已检查的）
+	for (let port = 8002; port < 8100; port++) {
+		if (await isLifeTraceBackend(port)) {
+			logToFile(`Detected backend running on port: ${port}`);
+			return port;
+		}
+	}
+
+	return null;
+}
+
+/**
  * 等待后端服务器启动就绪
  */
 function waitForBackend(url: string, timeout: number): Promise<void> {
@@ -678,7 +745,7 @@ function createWindow(): void {
 			logToFile(`Preload script check result: ${JSON.stringify(result, null, 2)}`);
 			if (!result.hasElectronAPI) {
 				logToFile("WARNING: electronAPI is not available in renderer process!");
-				console.warn("⚠️ electronAPI is not available. Check preload script loading.");
+				console.warn("[WARN] electronAPI is not available. Check preload script loading.");
 				if (mainWindow) {
 					dialog.showMessageBox(mainWindow, {
 						type: "warning",
@@ -1045,14 +1112,21 @@ async function startBackendServer(): Promise<void> {
 
 /**
  * 停止后端服务器
+ * 注意：这个函数只发送停止信号，不等待进程退出
+ * 实际的等待逻辑在 cleanup 函数中处理
  */
 function stopBackendServer(): void {
-	if (backendProcess) {
-		logToFile("Stopping backend server...");
-		backendProcess.kill("SIGTERM");
-		backendProcess = null;
-	}
 	stopBackendHealthCheck();
+	if (backendProcess && !backendProcess.killed) {
+		logToFile("Stopping backend server...");
+		try {
+			// 发送优雅关闭信号（SIGTERM）
+			backendProcess.kill("SIGTERM");
+		} catch (error) {
+			logToFile(`Error stopping backend server: ${error instanceof Error ? error.message : String(error)}`);
+		}
+		// 不立即设置为 null，让 cleanup 函数可以等待进程退出
+	}
 }
 
 /**
@@ -1110,13 +1184,20 @@ function stopHealthCheck(): void {
 
 /**
  * 关闭 Next.js 服务器
+ * 注意：这个函数只发送停止信号，不等待进程退出
+ * 实际的等待逻辑在 cleanup 函数中处理
  */
 function stopNextServer(): void {
 	stopHealthCheck();
-	if (nextProcess) {
+	if (nextProcess && !nextProcess.killed) {
 		logToFile("Stopping Next.js server...");
-		nextProcess.kill("SIGTERM");
-		nextProcess = null;
+		try {
+			// 发送优雅关闭信号（SIGTERM）
+			nextProcess.kill("SIGTERM");
+		} catch (error) {
+			logToFile(`Error stopping Next.js server: ${error instanceof Error ? error.message : String(error)}`);
+		}
+		// 不立即设置为 null，让 cleanup 函数可以等待进程退出
 	}
 }
 
@@ -1223,16 +1304,146 @@ if (gotTheLock) {
 		}
 	});
 
-	// 应用退出前清理
-	app.on("before-quit", () => {
-		stopBackendServer();
-		stopNextServer();
+	// 处理进程信号（Ctrl+C, kill 等）和应用退出
+	// 参考后端：等待子进程优雅退出，而不是立即强制终止
+	let isExiting = false;
+	const gracefulShutdown = (useAppQuit: boolean = false) => {
+		if (isExiting) {
+			return; // 防止重复调用
+		}
+		isExiting = true;
+		logToFile("Graceful shutdown initiated");
+		console.log("[INFO] Shutting down gracefully...");
+		
+		// 停止健康检查
+		stopHealthCheck();
+		stopBackendHealthCheck();
+		
+		// 保存进程引用，因为后续会设置为 null
+		const nextProc = nextProcess;
+		const backendProc = backendProcess;
+		
+		// 统计需要等待的进程数
+		let pendingProcesses = 0;
+		const checkAndExit = () => {
+			pendingProcesses--;
+			if (pendingProcesses <= 0) {
+				logToFile("All child processes exited, exiting application");
+				console.log("[OK] All processes stopped, exiting...");
+				// 清理进程引用
+				nextProcess = null;
+				backendProcess = null;
+				if (useAppQuit) {
+					app.quit();
+				} else {
+					app.exit(0);
+				}
+			}
+		};
+		
+		// 停止后端服务器（如果存在）
+		if (backendProc && !backendProc.killed) {
+			pendingProcesses++;
+			logToFile("Stopping backend server...");
+			console.log("[INFO] Stopping backend server...");
+			try {
+				backendProc.kill("SIGTERM");
+				backendProc.once("exit", () => {
+					logToFile("Backend server exited");
+					console.log("[OK] Backend server stopped");
+					checkAndExit();
+				});
+				// 设置超时，如果 5 秒内没有退出，强制终止
+				setTimeout(() => {
+					if (backendProc && !backendProc.killed) {
+						logToFile("Force killing backend process (timeout)");
+						console.log("[WARN] Backend server did not exit, forcing kill...");
+						try {
+							backendProc.kill("SIGKILL");
+						} catch (error) {
+							logToFile(`Error force killing backend: ${error instanceof Error ? error.message : String(error)}`);
+						}
+					}
+				}, 5000);
+			} catch (error) {
+				logToFile(`Error stopping backend server: ${error instanceof Error ? error.message : String(error)}`);
+				checkAndExit(); // 即使出错也继续退出流程
+			}
+		}
+		
+		// 停止 Next.js 服务器（如果存在）
+		if (nextProc && !nextProc.killed) {
+			pendingProcesses++;
+			logToFile("Stopping Next.js server...");
+			console.log("[INFO] Stopping Next.js server...");
+			try {
+				nextProc.kill("SIGTERM");
+				nextProc.once("exit", () => {
+					logToFile("Next.js server exited");
+					console.log("[OK] Next.js server stopped");
+					checkAndExit();
+				});
+				// 设置超时，如果 5 秒内没有退出，强制终止
+				setTimeout(() => {
+					if (nextProc && !nextProc.killed) {
+						logToFile("Force killing Next.js process (timeout)");
+						console.log("[WARN] Next.js server did not exit, forcing kill...");
+						try {
+							nextProc.kill("SIGKILL");
+						} catch (error) {
+							logToFile(`Error force killing Next.js: ${error instanceof Error ? error.message : String(error)}`);
+						}
+					}
+				}, 5000);
+			} catch (error) {
+				logToFile(`Error stopping Next.js server: ${error instanceof Error ? error.message : String(error)}`);
+				checkAndExit(); // 即使出错也继续退出流程
+			}
+		}
+		
+		// 如果没有需要等待的进程，立即退出
+		if (pendingProcesses === 0) {
+			logToFile("No child processes to wait for, exiting immediately");
+			console.log("[INFO] No child processes to stop, exiting immediately");
+			nextProcess = null;
+			backendProcess = null;
+			if (useAppQuit) {
+				app.quit();
+			} else {
+				app.exit(0);
+			}
+		} else {
+			console.log(`[INFO] Waiting for ${pendingProcesses} process(es) to stop...`);
+		}
+	};
+
+	// 应用退出前清理（使用 Electron 的正常退出流程）
+	app.on("before-quit", (event) => {
+		logToFile("Application before-quit event triggered");
+		// 阻止立即退出，等待子进程优雅退出
+		event.preventDefault();
+		gracefulShutdown(true);
 	});
 
-	// 应用退出时确保清理
-	app.on("quit", () => {
-		stopBackendServer();
-		stopNextServer();
+	// 应用退出时确保清理（备用，通常不会到达这里，因为 before-quit 已经处理了）
+	app.on("will-quit", (event) => {
+		logToFile("Application will-quit event triggered");
+		// 这里不再需要处理，因为 before-quit 已经处理了所有清理
+	});
+
+	// 处理进程信号（Ctrl+C, kill 等）
+	const cleanup = () => {
+		gracefulShutdown(false);
+	};
+
+	process.on("SIGINT", () => {
+		logToFile("SIGINT received (Ctrl+C)");
+		cleanup();
+	});
+
+	process.on("SIGTERM", () => {
+		logToFile("SIGTERM received");
+		cleanup();
 	});
 
 	// 注册 IPC 处理器：设置窗口是否忽略鼠标事件（用于透明窗口点击穿透）
@@ -1861,8 +2072,20 @@ if (gotTheLock) {
 			// 请求通知权限（如果需要）
 			await requestNotificationPermission();
 
-			// 1. 启动后端服务器（会自动探测可用端口）
-			await startBackendServer();
+			// 1. 自动检测后端端口（如果后端已运行）
+			logToFile("Detecting running backend server...");
+			console.log("[INFO] Detecting running backend server...");
+			const detectedBackendPort = await detectRunningBackendPort();
+			if (detectedBackendPort) {
+				actualBackendPort = detectedBackendPort;
+				logToFile(`Detected backend running on port: ${actualBackendPort}`);
+				console.log(`[OK] Detected backend running on port: ${actualBackendPort}`);
+			} else {
+				// 如果检测不到，启动后端服务器
+				logToFile("No running backend detected, will start backend server...");
+				console.log("[WARN] No running backend detected, will start backend server...");
+				await startBackendServer();
+			}
 
 			// 2. 等待后端就绪（最多等待 180 秒）
 			const backendUrl = getBackendUrl();
@@ -1880,7 +2103,7 @@ if (gotTheLock) {
 			} catch (error) {
 				const errorMsg = `Backend server not available: ${error instanceof Error ? error.message : String(error)}`;
 				logToFile(`WARNING: ${errorMsg}`);
-				console.warn(`⚠️  ${errorMsg}`);
+				console.warn(`[WARN] ${errorMsg}`);
 				// 开发模式下，后端服务器不可用时不阻塞，继续启动窗口
 				if (!isDev) {
 					throw error; // 生产模式下必须要有后端
@@ -1928,4 +2151,3 @@ if (gotTheLock) {
 		}
 	});
 }
-

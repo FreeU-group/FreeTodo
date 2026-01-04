@@ -55,42 +55,110 @@ router = APIRouter(prefix="/api/voice", tags=["voice-stream"])
 
 # 全局 Faster-Whisper 模型（延迟加载）
 _whisper_model: Any = None
+_model_loading_lock = asyncio.Lock()
+_model_loading_task: Optional[asyncio.Task] = None
 
 
-def get_whisper_model():
-    """获取 Faster-Whisper 模型（延迟加载）"""
+def _load_whisper_model_sync():
+    """同步加载 Whisper 模型（在线程池中运行）"""
     global _whisper_model
-    if _whisper_model is None:
-        try:
-            from faster_whisper import WhisperModel
-        except ImportError:
-            error_msg = (
-                "Faster-Whisper 未安装。系统音频实时识别需要 Faster-Whisper。\n"
-                "安装方法：\n"
-                "uv pip install faster-whisper\n"
-                "注意：首次运行会自动下载模型（约 1.5GB）"
-            )
-            logger.error(error_msg)
-            raise ImportError(error_msg)
+    if _whisper_model is not None:
+        return _whisper_model
+    
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        error_msg = (
+            "Faster-Whisper 未安装。系统音频实时识别需要 Faster-Whisper。\n"
+            "安装方法：\n"
+            "uv pip install faster-whisper\n"
+            "注意：首次运行会自动下载模型（约 1.5GB）"
+        )
+        logger.error(error_msg)
+        raise ImportError(error_msg)
+    
+    try:
+        # 从配置读取模型大小（默认使用 base 模型，平衡速度和准确率）
+        model_size = getattr(settings.speech_recognition, 'whisper_model_size', 'base')
+        device = getattr(settings.speech_recognition, 'whisper_device', 'cpu')
+        compute_type = 'int8' if device == 'cpu' else 'float16'  # CPU 使用 int8，GPU 使用 float16
         
-        try:
-            # 从配置读取模型大小（默认使用 base 模型，平衡速度和准确率）
-            model_size = getattr(settings.speech_recognition, 'whisper_model_size', 'base')
-            device = getattr(settings.speech_recognition, 'whisper_device', 'cpu')
-            compute_type = 'int8' if device == 'cpu' else 'float16'  # CPU 使用 int8，GPU 使用 float16
-            
-            logger.info(f"初始化 Faster-Whisper 模型: size={model_size}, device={device}, compute_type={compute_type}")
-            
-            _whisper_model = WhisperModel(
-                model_size,
-                device=device,
-                compute_type=compute_type,
-            )
-            logger.info("Faster-Whisper 模型初始化成功")
-        except Exception as e:
-            logger.error(f"Faster-Whisper 模型初始化失败: {e}", exc_info=True)
-            raise
+        logger.info(f"初始化 Faster-Whisper 模型: size={model_size}, device={device}, compute_type={compute_type}")
+        
+        _whisper_model = WhisperModel(
+            model_size,
+            device=device,
+            compute_type=compute_type,
+        )
+        logger.info("Faster-Whisper 模型初始化成功")
+    except Exception as e:
+        logger.error(f"Faster-Whisper 模型初始化失败: {e}", exc_info=True)
+        raise
+    
     return _whisper_model
+
+
+async def get_whisper_model():
+    """获取 Faster-Whisper 模型（异步，支持后台预加载）"""
+    global _whisper_model, _model_loading_task
+    
+    # 如果模型已加载，直接返回
+    if _whisper_model is not None:
+        return _whisper_model
+    
+    # 如果正在后台加载，等待加载完成
+    if _model_loading_task is not None:
+        logger.info("模型正在后台加载，等待加载完成...")
+        try:
+            await _model_loading_task
+            if _whisper_model is not None:
+                logger.info("✅ 模型后台加载完成")
+                return _whisper_model
+        except Exception as e:
+            logger.warning(f"模型后台加载失败: {e}，将立即加载")
+            _model_loading_task = None
+    
+    # 如果模型仍未加载，立即加载（在线程池中运行，避免阻塞）
+    async with _model_loading_lock:
+        # 双重检查（可能在等待锁时，其他协程已经加载完成）
+        if _whisper_model is not None:
+            return _whisper_model
+        
+        logger.info("开始加载 Faster-Whisper 模型...")
+        loop = asyncio.get_event_loop()
+        _whisper_model = await loop.run_in_executor(None, _load_whisper_model_sync)
+        logger.info("✅ Faster-Whisper 模型加载完成")
+        return _whisper_model
+
+
+async def preload_whisper_model():
+    """后台预加载 Whisper 模型（不阻塞启动）"""
+    global _whisper_model, _model_loading_task
+    
+    # 如果模型已加载，直接返回
+    if _whisper_model is not None:
+        logger.info("Whisper 模型已加载，跳过预加载")
+        return
+    
+    # 如果正在加载，等待完成
+    if _model_loading_task is not None:
+        logger.info("Whisper 模型正在后台加载中，等待完成...")
+        try:
+            await _model_loading_task
+            logger.info("✅ Whisper 模型后台预加载完成")
+        except Exception as e:
+            logger.warning(f"Whisper 模型后台预加载失败: {e}")
+        return
+    
+    # 启动后台加载任务
+    async def load_task():
+        try:
+            await get_whisper_model()
+        except Exception as e:
+            logger.warning(f"Whisper 模型预加载失败: {e}")
+    
+    _model_loading_task = asyncio.create_task(load_task())
+    logger.info("✅ 已启动 Whisper 模型后台预加载任务")
 
 
 class StreamingPolicy:
@@ -567,7 +635,7 @@ class PCMAudioProcessor:
     async def _transcribe(self, audio_array: np.ndarray, voice_ended: bool = False) -> Optional[dict]:
         """执行语音识别（在线程池中运行，避免阻塞事件循环）"""
         try:
-            model = get_whisper_model()
+            model = await get_whisper_model()
             audio_duration = len(audio_array) / self.sample_rate
             
             logger.debug(f"准备识别，音频长度: {audio_duration:.2f}s, 样本数: {len(audio_array)}")
@@ -709,7 +777,7 @@ async def stream_transcription(websocket: WebSocket):
     
     # 获取 Faster-Whisper 模型
     try:
-        model = get_whisper_model()
+        model = await get_whisper_model()
     except ImportError as e:
         error_msg = str(e)
         logger.error(f"Faster-Whisper 未安装: {error_msg}")

@@ -604,7 +604,7 @@ async def stream_transcription_native(websocket: WebSocket):
     # 获取 Faster-Whisper 模型
     try:
         from lifetrace.routers.voice_stream_whisper import get_whisper_model
-        model = get_whisper_model()
+        model = await get_whisper_model()
     except ImportError as e:
         error_msg = str(e)
         logger.error(f"Faster-Whisper 未安装: {error_msg}")
