@@ -349,6 +349,13 @@
 			"enabled": "Web search enabled",
 			"disabled": "Web search disabled"
 		},
+		"toolCall": {
+			"using": "Using {toolName}...",
+			"searchQueryLabel": "Search query:",
+			"toolNames": {
+				"web_search": "Web Search"
+			}
+		},
 		"sources": "Sources",
 		"todoContext": {
 			"id": "ID",
@@ -561,7 +568,25 @@
 		"tagsPlaceholder": "e.g., work, report",
 		"priority": "Priority",
 		"notes": "Notes",
-		"notesPlaceholder": "Personal notes or action items"
+		"notesPlaceholder": "Personal notes or action items",
+		"filter": "Filter",
+		"filterStatus": "Status",
+		"filterTag": "Tag",
+		"filterDueTime": "Due Time",
+		"filterAll": "All",
+		"statusActive": "Active",
+		"statusCompleted": "Completed",
+		"statusCanceled": "Canceled",
+		"statusDraft": "Draft",
+		"dueTimeOverdue": "Overdue",
+		"dueTimeToday": "Today",
+		"dueTimeTomorrow": "Tomorrow",
+		"dueTimeThisWeek": "This Week",
+		"dueTimeThisMonth": "This Month",
+		"dueTimeFuture": "Future",
+		"clearFilters": "Clear Filters",
+		"quickFilters": "Quick Filters",
+		"moreOptions": "More Options"
 	},
 	"todoDetail": {
 		"editTitle": "Click to edit title",

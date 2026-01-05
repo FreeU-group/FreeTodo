@@ -16,6 +16,7 @@ import { useTodoMutations, useTodos } from "@/lib/query";
 import type { ReorderTodoItem } from "@/lib/query/todos";
 import { useTodoStore } from "@/lib/store/todo-store";
 import type { CreateTodoInput, Todo } from "@/lib/types";
+import type { TodoFilterState } from "./components/TodoFilter";
 import { useOrderedTodos } from "./hooks/useOrderedTodos";
 import { NewTodoInlineForm } from "./NewTodoInlineForm";
 import { TodoToolbar } from "./TodoToolbar";
@@ -42,11 +43,17 @@ export function TodoList() {
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [newTodoName, setNewTodoName] = useState("");
+	const [filter, setFilter] = useState<TodoFilterState>({
+		status: "all",
+		tag: "all",
+		dueTime: "all",
+	});
 
 	const { filteredTodos, orderedTodos } = useOrderedTodos(
 		todos,
 		searchQuery,
 		collapsedTodoIds,
+		filter,
 	);
 
 	// 处理内部排序 - 当 TODO_CARD 在列表内移动时
@@ -319,7 +326,13 @@ export function TodoList() {
 
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-background dark:bg-background">
-			<TodoToolbar searchQuery={searchQuery} onSearch={setSearchQuery} />
+			<TodoToolbar
+				searchQuery={searchQuery}
+				onSearch={setSearchQuery}
+				todos={todos}
+				filter={filter}
+				onFilterChange={setFilter}
+			/>
 
 			<MultiTodoContextMenu selectedTodoIds={selectedTodoIds}>
 				<div className="flex-1 overflow-y-auto">

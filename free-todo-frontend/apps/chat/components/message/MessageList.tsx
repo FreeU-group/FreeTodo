@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { PromptSuggestions } from "@/apps/chat/components/input/PromptSuggestions";
 import { EditModeMessage } from "@/apps/chat/components/message/EditModeMessage";
 import { MessageTodoExtractionPanel } from "@/apps/chat/components/message/MessageTodoExtractionPanel";
+import { ToolCallLoading } from "@/apps/chat/components/message/ToolCallLoading";
 import type { ChatMessage, ChatMode } from "@/apps/chat/types";
 import { buildHierarchicalTodoContext } from "@/apps/chat/utils/todoContext";
 import {
@@ -25,7 +26,6 @@ type MessageListProps = {
 	locale: string;
 	// Edit mode props (optional)
 	chatMode?: ChatMode;
-	webSearchEnabled?: boolean;
 	effectiveTodos?: Todo[];
 	onUpdateTodo?: (params: {
 		id: number;
@@ -41,7 +41,6 @@ export function MessageList({
 	typingText,
 	locale,
 	chatMode,
-	webSearchEnabled: _webSearchEnabled = false,
 	effectiveTodos = [],
 	onUpdateTodo,
 	isUpdating = false,
@@ -63,6 +62,43 @@ export function MessageList({
 	>(null);
 	const messageMenuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 	const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
+
+	// 工具调用标记检测
+	// 支持格式：[使用工具: tool_name] 或 [使用工具: tool_name | 关键词: query] 或 [使用工具: tool_name | param: value]
+	const TOOL_CALL_PATTERN = /\[使用工具:\s*([^|\]]+)(?:\s*\|\s*([^\]]+))?\]/g;
+
+	// 提取工具调用信息
+	const extractToolCalls = useCallback(
+		(
+			content: string,
+		): Array<{ name: string; params?: string; fullMatch: string }> => {
+			const matches: Array<{
+				name: string;
+				params?: string;
+				fullMatch: string;
+			}> = [];
+			// 重置正则表达式的 lastIndex
+			TOOL_CALL_PATTERN.lastIndex = 0;
+			let match: RegExpExecArray | null = TOOL_CALL_PATTERN.exec(content);
+			while (match !== null) {
+				const toolName = match[1].trim();
+				const params = match[2]?.trim();
+				matches.push({
+					name: toolName,
+					params: params,
+					fullMatch: match[0],
+				});
+				match = TOOL_CALL_PATTERN.exec(content);
+			}
+			return matches;
+		},
+		[],
+	);
+
+	// 移除工具调用标记
+	const removeToolCalls = useCallback((content: string): string => {
+		return content.replace(TOOL_CALL_PATTERN, "").trim();
+	}, []);
 
 	// 解析 webSearch 模式下的消息内容，分离正文和来源列表
 	const parseWebSearchMessage = useCallback(
@@ -213,16 +249,53 @@ export function MessageList({
 		>
 			{messages.map((msg, index) => {
 				const isLastMessage = index === messages.length - 1;
+
+				// 检测工具调用标记（在消息渲染前）
+				const toolCalls = msg.content ? extractToolCalls(msg.content) : [];
+				// 移除工具调用标记后的内容
+				const contentWithoutToolCalls = msg.content
+					? removeToolCalls(msg.content)
+					: "";
+				// 判断是否正在工具调用（有工具调用标记且移除标记后内容为空）
+				const isToolCallingOnly =
+					isStreaming &&
+					isLastMessage &&
+					msg.role === "assistant" &&
+					toolCalls.length > 0 &&
+					!contentWithoutToolCalls.trim();
+
+				// 如果正在工具调用且没有实际内容，只显示 shimmer-text，不显示消息框
+				if (isToolCallingOnly) {
+					const lastToolCall = toolCalls[toolCalls.length - 1];
+					// 提取搜索关键词（如果参数中包含"关键词:"）
+					let searchQuery: string | undefined;
+					if (lastToolCall.params) {
+						const keywordMatch = lastToolCall.params.match(/关键词:\s*(.+)/);
+						if (keywordMatch) {
+							searchQuery = keywordMatch[1].trim();
+						}
+					}
+					return (
+						<div key={msg.id} className="flex flex-col items-start w-full px-4">
+							<ToolCallLoading
+								toolName={lastToolCall.name}
+								searchQuery={searchQuery}
+							/>
+						</div>
+					);
+				}
+
 				// 判断是否是正在等待首次回复的空 assistant 消息
 				const isEmptyStreamingMessage =
 					isStreaming &&
 					isLastMessage &&
 					msg.role === "assistant" &&
-					!msg.content;
+					!contentWithoutToolCalls.trim();
 
 				// 跳过没有内容的非 streaming assistant 消息
+				// 注意：这里使用 contentWithoutToolCalls 来判断，排除工具调用标记
 				if (
-					!msg.content &&
+					!contentWithoutToolCalls.trim() &&
 					msg.role === "assistant" &&
 					!isEmptyStreamingMessage
 				) {
@@ -233,13 +306,16 @@ export function MessageList({
 				const isEditModeAssistantMessage =
 					chatMode === "edit" &&
 					msg.role === "assistant" &&
-					msg.content &&
+					contentWithoutToolCalls.trim() &&
 					!isEmptyStreamingMessage &&
 					onUpdateTodo;
 
 				// 是否为 assistant 消息且不是空的 streaming 消息
+				// 使用 contentWithoutToolCalls 来判断，排除工具调用标记
 				const isAssistantMessageWithContent =
-					msg.role === "assistant" && msg.content && !isEmptyStreamingMessage;
+					msg.role === "assistant" &&
+					contentWithoutToolCalls.trim() &&
+					!isEmptyStreamingMessage;
 
 				// 处理消息菜单按钮点击
 				const handleMessageMenuClick = (event: React.MouseEvent) => {
@@ -357,15 +433,20 @@ export function MessageList({
 												</button>
 											)}
 										{(() => {
+											// 移除工具调用标记后的内容
+											const contentWithoutToolCalls = msg.content
+												? removeToolCalls(msg.content)
+												: "";
+
 											// 无论是否启用联网搜索，只要消息内容包含 Sources 标记就解析
 											// 这样可以避免关闭联网搜索后，已包含 Sources 的消息显示异常
 											const hasSourcesMarker =
 												msg.role === "assistant" &&
-												msg.content &&
-												msg.content.includes("\n\nSources:");
+												contentWithoutToolCalls &&
+												contentWithoutToolCalls.includes("\n\nSources:");
 											const { body, sources } = hasSourcesMarker
-												? parseWebSearchMessage(msg.content)
-												: { body: msg.content, sources: [] };
+												? parseWebSearchMessage(contentWithoutToolCalls)
+												: { body: contentWithoutToolCalls, sources: [] };
 
 											// 将角标引用 [[n]] 替换为可点击的链接（只显示数字，不显示方括号）
 											const processBodyWithCitations = (

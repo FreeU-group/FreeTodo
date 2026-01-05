@@ -4,6 +4,7 @@ from fastapi import Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from lifetrace.core.dependencies import get_chat_service, get_rag_service
+from lifetrace.llm.agent_service import AgentService
 from lifetrace.llm.web_search_service import WebSearchService
 from lifetrace.schemas.chat import ChatMessage, ChatResponse
 from lifetrace.services.chat_service import ChatService
@@ -84,7 +85,11 @@ async def chat_with_llm_stream(
         if getattr(message, "mode", None) == "dify_test":
             return _create_dify_streaming_response(message, chat_service, session_id)
 
-        # 2.5. 联网搜索模式（直接返回）
+        # 2.3. Agent 模式（工具调用框架）
+        if getattr(message, "mode", None) == "agent":
+            return _create_agent_streaming_response(message, chat_service, session_id)
+
+        # 2.5. 联网搜索模式（直接返回，保留向后兼容）
         if getattr(message, "mode", None) == "web_search":
             return _create_web_search_streaming_response(message, chat_service, session_id)
 
@@ -234,6 +239,70 @@ def _create_dify_streaming_response(
     }
     return StreamingResponse(
         dify_token_generator(), media_type="text/plain; charset=utf-8", headers=headers
+    )
+
+
+def _create_agent_streaming_response(
+    message: ChatMessage,
+    chat_service: ChatService,
+    session_id: str,
+) -> StreamingResponse:
+    """处理 Agent 模式，支持工具调用"""
+    logger.info("[stream] 进入 Agent 模式")
+
+    # 保存用户消息
+    chat_service.add_message(
+        session_id=session_id,
+        role="user",
+        content=message.message,
+    )
+
+    # 创建 Agent 服务
+    agent_service = AgentService()
+
+    # 解析待办上下文
+    todo_context = None
+    user_query = message.message
+    if "用户输入:" in message.message or "User input:" in message.message:
+        markers = ["用户输入:", "User input:"]
+        for marker in markers:
+            if marker in message.message:
+                parts = message.message.split(marker, 1)
+                if len(parts) == 2:  # noqa: PLR2004
+                    todo_context = parts[0].strip()
+                    user_query = parts[1].strip()
+                    break
+
+    def agent_token_generator():
+        total_content = ""
+        try:
+            # 流式生成 Agent 回答
+            for chunk in agent_service.stream_agent_response(
+                user_query=user_query,
+                todo_context=todo_context,
+            ):
+                total_content += chunk
+                yield chunk
+
+            # 保存完整的助手回复
+            if total_content:
+                chat_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=total_content,
+                )
+                logger.info("[stream][agent] 消息已保存到数据库")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[stream][agent] 生成失败: {e}")
+            yield "Agent 处理失败，请检查后端配置。"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "X-Session-Id": session_id,
+    }
+    return StreamingResponse(
+        agent_token_generator(), media_type="text/plain; charset=utf-8", headers=headers
     )
 
 
