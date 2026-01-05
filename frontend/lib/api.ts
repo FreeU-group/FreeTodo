@@ -436,6 +436,61 @@ export const api = {
     });
   },
 
+  // 上传工作区图片
+  uploadWorkspaceImage: (
+    projectId: string,
+    file: File,
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal
+  ): Promise<{ success: boolean; url?: string; filename?: string; error?: string }> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // 设置进度回调
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const progress = (e.loaded / e.total) * 100;
+            onProgress(progress);
+          }
+        });
+      }
+
+      // 设置取消信号
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          xhr.abort();
+          reject(new Error('Upload cancelled'));
+        });
+      }
+
+      // 设置完成回调
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch {
+            reject(new Error('Invalid response format'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      });
+
+      // 设置错误回调
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error'));
+      });
+
+      // 发送请求
+      xhr.open('POST', `${API_BASE_URL}/api/workspace/upload-image?project_id=${encodeURIComponent(projectId)}`);
+      xhr.send(formData);
+    });
+  },
+
   // 创建工作区文件
   createWorkspaceFile: (fileName: string, folder?: string, content?: string) =>
     apiClient.post('/api/workspace/create', {

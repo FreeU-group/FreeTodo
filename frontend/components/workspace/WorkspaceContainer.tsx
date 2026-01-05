@@ -3,7 +3,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { GripVertical, Upload, Plus, Folder, ArrowLeft, Sparkles } from 'lucide-react';
 import FileTree, { FileNode } from './FileTree';
-import RichTextEditor from './RichTextEditor';
+// import RichTextEditor from './RichTextEditor';
+import RichTextEditorTiptap from './RichTextEditorTiptap';
+import ImageViewer from './ImageViewer';
 import WorkspaceChat from './WorkspaceChat';
 import WorkspaceProjectList from './WorkspaceProjectList';
 import ChapterGenerationModal from './ChapterGenerationModal';
@@ -449,6 +451,27 @@ export default function WorkspaceContainer({
     lastSavedContentRef.current = '';
   };
 
+  // 判断文件是否为图片
+  const isImageFile = (fileName: string): boolean => {
+    const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp', '.tiff', '.tif'];
+    const ext = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    return imageExtensions.includes(ext);
+  };
+
+  // 获取图片URL
+  const getImageUrl = (file: FileNode): string => {
+    if (!currentProject) return '';
+    // Extract filename from file.id which is in format: project_id/path/to/file
+    const parts = file.id.split('/');
+    if (parts.length >= 2 && parts[1] === 'images') {
+      // This is an image file in the images folder
+      const filename = parts[parts.length - 1];
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      return `${baseUrl}/api/workspace/images/${currentProject}/${filename}`;
+    }
+    return '';
+  };
+
   // 加载项目文件列表
   useEffect(() => {
     if (!currentProject) return;
@@ -569,24 +592,32 @@ export default function WorkspaceContainer({
   }, [chatWidth]);
 
   // 处理文件/文件夹选择
+  // 确保切换文件时先加载内容，再更新选中状态
+  // 这样可以保证编辑器重新挂载时使用的是新文件的内容，而不是旧内容
   const handleSelectFile = async (node: FileNode) => {
-    setSelectedFile(node);
-
     // 如果是文件夹，只选中不加载内容
     if (node.type === 'folder') {
+      setSelectedFile(node);
       return;
     }
 
-    // 如果是文件，总是从 API 加载最新内容
+    // 如果是文件，先从 API 加载最新内容，再一起更新状态
+    // 这样确保 selectedFile 和 fileContent 同步更新，避免编辑器使用旧内容重新挂载
     try {
       const response = await api.getWorkspaceFile(node.id);
       const content = response.data?.content ?? '';
+      
+      // 原子性地更新选中文件和内容，确保编辑器重新挂载时使用正确的内容
+      setSelectedFile(node);
       setFileContent(content);
       lastSavedContentRef.current = content;
-      // 更新文件树中的内容
+      
+      // 更新文件树中的内容缓存
       updateFileContent(node.id, content);
     } catch (error) {
       console.error('加载文件内容失败:', error);
+      // 出错时也要更新选中状态，但内容为空
+      setSelectedFile(node);
       setFileContent('');
       lastSavedContentRef.current = '';
     }
@@ -920,9 +951,13 @@ export default function WorkspaceContainer({
     isProcessing: boolean;
     previewText: string;
     originalText: string;
-    selectionStart: number;
-    selectionEnd: number;
+    selectionFrom: number;  // Tiptap editor position
+    selectionTo: number;    // Tiptap editor position
   } | undefined>(undefined);
+
+  // 存储编辑器实例引用，用于获取选区位置
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const editorInstanceRef = useRef<any>(null);
 
   // 处理 AI 编辑操作
   const handleAIEdit = async (action: string, selectedText: string, customPrompt?: string) => {
@@ -942,15 +977,21 @@ export default function WorkspaceContainer({
       return;
     }
 
-    const startIndex = fileContent.indexOf(selectedText);
-    if (startIndex === -1) return;
+    // 获取编辑器选区位置（Tiptap ProseMirror positions）
+    const editor = editorInstanceRef.current;
+    if (!editor) {
+      console.error('Editor instance not available');
+      return;
+    }
+
+    const { from, to } = editor.state.selection;
 
     setAiEditState({
       isProcessing: true,
       previewText: '',
       originalText: selectedText,
-      selectionStart: startIndex,
-      selectionEnd: startIndex + selectedText.length,
+      selectionFrom: from,
+      selectionTo: to,
     });
 
     try {
@@ -989,16 +1030,21 @@ export default function WorkspaceContainer({
   const handleAIEditConfirm = async () => {
     if (!aiEditState?.previewText || !selectedFile) return;
 
-    const { originalText, previewText, selectionStart } = aiEditState;
+    const editor = editorInstanceRef.current;
+    if (!editor) return;
 
-    const newContent =
-      fileContent.substring(0, selectionStart) +
-      previewText +
-      fileContent.substring(selectionStart + originalText.length);
+    // 注意：编辑器内容的实际修改由 RichTextEditorTiptap 的 handleDiffConfirm 处理
+    // 这里只负责清除 AI 编辑状态并保存文件
 
+    // 清除 AI 编辑状态
+    setAiEditState(undefined);
+
+    // 等待一帧，确保 RichTextEditorTiptap 的 handleDiffConfirm 已执行完毕
+    await new Promise(resolve => requestAnimationFrame(resolve));
+
+    const newContent = editor.getHTML();
     setFileContent(newContent);
     updateFileContent(selectedFile.id, newContent);
-    setAiEditState(undefined);
 
     try {
       const response = await api.saveWorkspaceFile(selectedFile.id, newContent);
@@ -1013,6 +1059,8 @@ export default function WorkspaceContainer({
 
   // 取消 AI 编辑
   const handleAIEditCancel = () => {
+    // 注意：编辑器内容的恢复由 RichTextEditorTiptap 的 handleDiffCancel 处理
+    // 这里只负责清除 AI 编辑状态
     setAiEditState(undefined);
   };
 
@@ -1164,51 +1212,65 @@ export default function WorkspaceContainer({
 
       {/* 中间：富文本编辑器 */}
       <div className="flex-1 h-full overflow-hidden relative">
-        <RichTextEditor
-          content={fileContent}
-          onChange={handleContentChange}
-          onSave={() => handleSaveFile(true)}
-          placeholder={editorLabels.editorPlaceholder}
-          fileName={selectedFile?.type === 'file' ? (() => {
-            const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
-            const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
-            return supportedExtensions.includes(ext) ? selectedFile.name : undefined;
-          })() : undefined}
-          unsupportedFileInfo={selectedFile?.type === 'file' ? (() => {
-            const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
-            const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
-            if (!supportedExtensions.includes(ext)) {
-              return {
-                fileName: selectedFile.name,
-                message: editorLabels.unsupportedFileLabel,
-                supportedFormats: editorLabels.supportedFormatsLabel,
-              };
-            }
-            return undefined;
-          })() : undefined}
-          saveLabel={editorLabels.saveLabel}
-          editLabel={editorLabels.editLabel}
-          previewLabel={editorLabels.previewLabel}
-          noFileLabel={editorLabels.noFileLabel}
-          selectFileHint={editorLabels.selectFileHint}
-          isFileTreeCollapsed={isFileTreeCollapsed}
-          onToggleFileTree={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
-          collapseSidebarLabel={editorLabels.collapseSidebarLabel}
-          expandSidebarLabel={editorLabels.expandSidebarLabel}
-          isChatCollapsed={isChatCollapsed}
-          onToggleChat={() => setIsChatCollapsed(!isChatCollapsed)}
-          collapseChatLabel={editorLabels.collapseChatLabel}
-          expandChatLabel={editorLabels.expandChatLabel}
-          wordCountLabel={editorLabels.wordCountLabel}
-          lastUpdatedLabel={isGeneratingOutline ? editorLabels.generatingOutlineLabel : editorLabels.lastUpdatedLabel}
-          lastUpdatedTime={isGeneratingOutline ? null : lastUpdatedTime}
-          onAIEdit={handleAIEdit}
-          aiEditState={aiEditState}
-          onAIEditConfirm={handleAIEditConfirm}
-          onAIEditCancel={handleAIEditCancel}
-          aiEditLabels={editorLabels.aiEditLabels}
-          aiMenuLabels={editorLabels.aiMenuLabels}
-        />
+       {/* 编辑器 / 图片查看器 */}
+        {selectedFile?.type === 'file' && isImageFile(selectedFile.name) ? (
+          <ImageViewer
+            imageUrl={getImageUrl(selectedFile)}
+            imageName={selectedFile.name}
+          />
+        ) : (
+          <RichTextEditorTiptap
+            content={fileContent}
+            onChange={handleContentChange}
+            onSave={() => handleSaveFile(true)}
+            placeholder={editorLabels.editorPlaceholder}
+            fileId={selectedFile?.id}
+            fileName={selectedFile?.type === 'file' ? (() => {
+              const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
+              const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+              return supportedExtensions.includes(ext) ? selectedFile.name : undefined;
+            })() : undefined}
+            projectId={currentProject || undefined}
+            onImageUploadSuccess={refreshProjectFiles}
+            unsupportedFileInfo={selectedFile?.type === 'file' ? (() => {
+              const supportedExtensions = ['.txt', '.md', '.doc', '.docx'];
+              const ext = selectedFile.name.toLowerCase().substring(selectedFile.name.lastIndexOf('.'));
+              if (!supportedExtensions.includes(ext)) {
+                return {
+                  fileName: selectedFile.name,
+                  message: editorLabels.unsupportedFileLabel,
+                  supportedFormats: editorLabels.supportedFormatsLabel,
+                };
+              }
+              return undefined;
+            })() : undefined}
+            saveLabel={editorLabels.saveLabel}
+            editLabel={editorLabels.editLabel}
+            previewLabel={editorLabels.previewLabel}
+            noFileLabel={editorLabels.noFileLabel}
+            selectFileHint={editorLabels.selectFileHint}
+            isFileTreeCollapsed={isFileTreeCollapsed}
+            onToggleFileTree={() => setIsFileTreeCollapsed(!isFileTreeCollapsed)}
+            collapseSidebarLabel={editorLabels.collapseSidebarLabel}
+            expandSidebarLabel={editorLabels.expandSidebarLabel}
+            isChatCollapsed={isChatCollapsed}
+            onToggleChat={() => setIsChatCollapsed(!isChatCollapsed)}
+            collapseChatLabel={editorLabels.collapseChatLabel}
+            expandChatLabel={editorLabels.expandChatLabel}
+            wordCountLabel={editorLabels.wordCountLabel}
+            lastUpdatedLabel={isGeneratingOutline ? editorLabels.generatingOutlineLabel : editorLabels.lastUpdatedLabel}
+            lastUpdatedTime={isGeneratingOutline ? null : lastUpdatedTime}
+            onAIEdit={handleAIEdit}
+            aiEditState={aiEditState}
+            onAIEditConfirm={handleAIEditConfirm}
+            onAIEditCancel={handleAIEditCancel}
+            aiEditLabels={editorLabels.aiEditLabels}
+            aiMenuLabels={editorLabels.aiMenuLabels}
+            onEditorInitialized={(editor) => {
+              editorInstanceRef.current = editor;
+            }}
+          />
+        )}
 
         {/* 生成章节按钮 - 仅在 outline.md 文件时显示 */}
         {selectedFile?.name?.toLowerCase() === 'outline.md' && !isGeneratingOutline && (

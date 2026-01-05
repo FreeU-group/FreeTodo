@@ -50,6 +50,15 @@ class CreateWorkspaceProjectResponse(BaseModel):
     error: str | None = None
 
 
+class UploadImageResponse(BaseModel):
+    """上传图片响应"""
+
+    success: bool
+    url: str | None = None
+    filename: str | None = None
+    error: str | None = None
+
+
 class RenameWorkspaceProjectRequest(BaseModel):
     """重命名工作区项目请求"""
 

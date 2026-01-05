@@ -33,6 +33,7 @@ from lifetrace.schemas.workspace import (
     SaveFileRequest,
     SaveFileResponse,
     UploadFileResponse,
+    UploadImageResponse,
     WorkspaceFilesResponse,
     WorkspaceProject,
     WorkspaceProjectsResponse,
@@ -1047,6 +1048,141 @@ async def upload_file(
     except Exception as e:
         logger.error(f"文件上传失败: {e}")
         return UploadFileResponse(success=False, error=str(e))
+
+
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"}
+
+
+@router.post("/upload-image", response_model=UploadImageResponse)
+async def upload_image(
+    file: UploadFile = File(...),
+    project_id: str = Query(..., description="项目ID"),
+):
+    """上传图片到工作区项目的 images 文件夹
+
+    Args:
+        file: 上传的图片文件
+        project_id: 项目ID
+
+    Returns:
+        上传结果，包含图片访问URL
+    """
+    try:
+        if not file.filename:
+            return UploadImageResponse(success=False, error="文件名不能为空")
+
+        # 验证文件扩展名
+        file_ext = Path(file.filename).suffix.lower()
+        if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
+            return UploadImageResponse(
+                success=False,
+                error=f"不支持的图片格式: {file_ext}，支持的格式: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}",
+            )
+
+        workspace_dir = deps.config.workspace_dir
+        project_path = Path(workspace_dir) / project_id
+
+        # 验证项目目录存在
+        if not project_path.exists():
+            return UploadImageResponse(
+                success=False,
+                error=f"项目不存在: {project_id}",
+            )
+
+        # 创建 images 目录
+        images_dir = project_path / "images"
+        images_dir.mkdir(exist_ok=True)
+
+        # 生成唯一文件名（添加时间戳避免冲突）
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_filename = Path(file.filename).stem[:50]  # 限制文件名长度
+        unique_filename = f"{safe_filename}_{timestamp}{file_ext}"
+        target_file = images_dir / unique_filename
+
+        # 读取并保存文件
+        file_content = await file.read()
+
+        # 验证文件大小（使用已有的 MAX_FILE_SIZE 常量）
+        from lifetrace.util.logging_config import get_logger as gl
+        MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
+        if len(file_content) > MAX_IMAGE_SIZE:
+            return UploadImageResponse(
+                success=False,
+                error=f"图片文件过大，最大支持 {MAX_IMAGE_SIZE / 1024 / 1024}MB",
+            )
+
+        target_file.write_bytes(file_content)
+
+        # 构建访问URL（相对于API的路径）
+        image_url = f"/api/workspace/images/{project_id}/{unique_filename}"
+
+        logger.info(f"图片上传成功: {project_id}/images/{unique_filename}")
+
+        return UploadImageResponse(
+            success=True,
+            url=image_url,
+            filename=unique_filename,
+        )
+
+    except Exception as e:
+        logger.error(f"图片上传失败: {e}")
+        return UploadImageResponse(success=False, error=str(e))
+
+
+@router.get("/images/{project_id}/{filename}")
+async def get_image(project_id: str, filename: str):
+    """获取项目中的图片文件
+
+    Args:
+        project_id: 项目ID
+        filename: 图片文件名
+
+    Returns:
+        图片文件流
+    """
+    try:
+        workspace_dir = deps.config.workspace_dir
+        image_path = Path(workspace_dir) / project_id / "images" / filename
+
+        # 安全检查：确保路径在 workspace 目录内
+        try:
+            image_path.resolve().relative_to(Path(workspace_dir).resolve())
+        except ValueError:
+            raise HTTPException(status_code=403, detail="禁止访问工作区外的文件") from None
+
+        # 检查文件是否存在
+        if not image_path.exists() or not image_path.is_file():
+            raise HTTPException(status_code=404, detail="图片不存在")
+
+        # 验证是否为图片文件
+        file_ext = image_path.suffix.lower()
+        if file_ext not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="不是有效的图片文件")
+
+        # 确定 MIME 类型
+        mime_types = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".svg": "image/svg+xml",
+        }
+        media_type = mime_types.get(file_ext, "application/octet-stream")
+
+        # 创建文件流响应
+        def iter_file():
+            with open(image_path, "rb") as f:
+                yield from f
+
+        return StreamingResponse(iter_file(), media_type=media_type)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取图片失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/create", response_model=CreateFileResponse)
