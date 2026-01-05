@@ -298,12 +298,12 @@ class ConfigService:
                         # 配置项不存在
                         logger.debug(f"配置项 {backend_key} 不存在，跳过")
                         continue
-                
+
                 # 如果值为 None，跳过该配置项
                 if value is None:
                     logger.debug(f"配置项 {backend_key} 值为 None，跳过")
                     continue
-                
+
                 # 将点分隔格式转换为 snake_case 格式，以便前端 fetcher 能正确转换为 camelCase
                 frontend_key = dot_to_snake_notation(backend_key)
                 config_dict[frontend_key] = value

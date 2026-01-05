@@ -174,17 +174,19 @@ async function main() {
 			}
 			isCleaningUp = true;
 			console.log("\n🛑 正在关闭开发服务器...");
-			
+
 			if (nextProcess && !nextProcess.killed) {
 				// 先尝试优雅关闭（发送 SIGTERM）
 				nextProcess.kill("SIGTERM");
-				
+
 				// 等待子进程退出
 				nextProcess.once("exit", (code, signal) => {
-					console.log(`✅ 开发服务器已关闭 (code: ${code}, signal: ${signal || 'none'})`);
+					console.log(
+						`✅ 开发服务器已关闭 (code: ${code}, signal: ${signal || "none"})`,
+					);
 					process.exit(0);
 				});
-				
+
 				// 设置超时，如果 5 秒内没有关闭，强制终止
 				const forceKillTimeout = setTimeout(() => {
 					if (nextProcess && !nextProcess.killed) {
@@ -201,7 +203,7 @@ async function main() {
 						process.exit(0);
 					}
 				}, 5000);
-				
+
 				// 如果子进程正常退出，清除超时
 				nextProcess.once("exit", () => {
 					clearTimeout(forceKillTimeout);

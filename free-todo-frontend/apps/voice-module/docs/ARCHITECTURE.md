@@ -507,4 +507,3 @@ model.transcribe(
 **文档版本**：v1.0  
 **最后更新**：2025-12-21  
 **维护者**：LifeTrace Team From zy
-

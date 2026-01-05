@@ -31,7 +31,7 @@ class IncrementalContext:
     def __init__(self, context_duration: float = 1.0):
         self.context_duration = context_duration
         self.context_buffer = deque()
-    
+
     def add_audio(self, audio_array: np.ndarray):
         """添加音频到上下文缓冲区"""
         self.context_buffer.extend(audio_array)
@@ -39,7 +39,7 @@ class IncrementalContext:
         max_samples = int(self.context_duration * 16000)
         while len(self.context_buffer) > max_samples:
             self.context_buffer.popleft()
-    
+
     def get_context(self, current_audio: np.ndarray) -> np.ndarray:
         """获取带上下文的音频（用于识别）"""
         context = np.array(list(self.context_buffer))
@@ -54,20 +54,20 @@ class ImprovedVAD:
         self.energy_threshold = 0.01
         self.zero_crossing_rate_threshold = 0.1
         self.silence_duration = 0.0
-    
+
     def detect(self, audio: np.ndarray) -> bool:
         """多特征 VAD 检测"""
         # 1. 能量检测
         energy = np.mean(audio ** 2)
         if energy < self.energy_threshold:
             return False
-        
+
         # 2. 过零率检测（语音通常有较高的过零率）
         zero_crossings = np.sum(np.diff(np.sign(audio)) != 0)
         zcr = zero_crossings / len(audio)
         if zcr < self.zero_crossing_rate_threshold:
             return False
-        
+
         return True
 ```
 
@@ -78,7 +78,7 @@ class ResultMerger:
     def __init__(self):
         self.last_result = ""
         self.partial_results = []
-    
+
     def merge(self, new_text: str, is_final: bool) -> str:
         """合并新的识别结果"""
         if is_final:
@@ -98,4 +98,3 @@ class ResultMerger:
                 self.partial_results = [new_text]
                 return new_text
 ```
-

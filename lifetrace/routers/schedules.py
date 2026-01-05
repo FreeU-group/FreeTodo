@@ -1,7 +1,6 @@
 """日程管理路由"""
 
 from datetime import datetime
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -15,6 +14,7 @@ router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
 class ScheduleItemInDB(BaseModel):
     """日程项（数据库模型）"""
+
     id: str
     sourceSegmentId: str
     scheduleTime: str  # ISO 格式时间字符串
@@ -25,49 +25,50 @@ class ScheduleItemInDB(BaseModel):
 
 class BatchSaveRequest(BaseModel):
     """批量保存请求"""
-    schedules: List[ScheduleItemInDB]
+
+    schedules: list[ScheduleItemInDB]
 
 
 class BatchSaveResponse(BaseModel):
     """批量保存响应"""
+
     saved: int
     message: str
 
 
 # 模拟数据库存储
-_schedules_db: List[ScheduleItemInDB] = []
+_schedules_db: list[ScheduleItemInDB] = []
 
 
 @router.post("", response_model=BatchSaveResponse)
 async def save_schedules(request: BatchSaveRequest):
     """
     批量保存日程
-    
+
     注意：当前版本仅记录日志，不持久化到数据库
     后续可以集成到数据库或文件系统
     """
     try:
         saved_count = 0
-        
+
         for schedule in request.schedules:
             try:
                 # 解析时间戳
-                schedule_time = datetime.fromisoformat(schedule.scheduleTime.replace('Z', '+00:00'))
-                extracted_at = datetime.fromisoformat(schedule.extractedAt.replace('Z', '+00:00'))
-                
+                schedule_time = datetime.fromisoformat(schedule.scheduleTime.replace("Z", "+00:00"))
+                _extracted_at = datetime.fromisoformat(schedule.extractedAt.replace("Z", "+00:00"))
+
                 # 检查是否已存在，如果存在则更新，否则添加
                 existing_index = next(
-                    (i for i, item in enumerate(_schedules_db) if item.id == schedule.id),
-                    None
+                    (i for i, item in enumerate(_schedules_db) if item.id == schedule.id), None
                 )
-                
+
                 if existing_index is not None:
                     _schedules_db[existing_index] = schedule
                     logger.debug(f"更新日程: {schedule.id}")
                 else:
                     _schedules_db.append(schedule)
                     logger.debug(f"保存新日程: {schedule.id}")
-                
+
                 # 记录日志（后续可以改为保存到数据库）
                 logger.info(
                     f"保存日程: id={schedule.id}, "
@@ -75,7 +76,7 @@ async def save_schedules(request: BatchSaveRequest):
                     f"description={schedule.description[:50]}..., "
                     f"status={schedule.status}"
                 )
-                
+
                 # TODO: 保存到数据库
                 # 例如：
                 # db.save_schedule(
@@ -86,36 +87,35 @@ async def save_schedules(request: BatchSaveRequest):
                 #     status=schedule.status,
                 #     extracted_at=extracted_at,
                 # )
-                
+
                 saved_count += 1
             except Exception as e:
                 logger.error(f"保存日程失败: id={schedule.id}, error={e}")
-        
+
         return BatchSaveResponse(
-            saved=saved_count,
-            message=f"成功保存 {saved_count}/{len(request.schedules)} 条日程"
+            saved=saved_count, message=f"成功保存 {saved_count}/{len(request.schedules)} 条日程"
         )
     except Exception as e:
         logger.error(f"批量保存日程失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"保存失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"保存失败: {str(e)}") from e
 
 
 @router.get("")
 async def query_schedules(
-    startTime: Optional[str] = Query(None, description="开始时间（ISO 格式）"),
-    endTime: Optional[str] = Query(None, description="结束时间（ISO 格式）"),
-    audioFileId: Optional[str] = Query(None, description="音频文件ID（sourceSegmentId）"),
+    startTime: str | None = Query(None, description="开始时间（ISO 格式）"),
+    endTime: str | None = Query(None, description="结束时间（ISO 格式）"),
+    audioFileId: str | None = Query(None, description="音频文件ID（sourceSegmentId）"),
 ):
     """
     查询历史日程
-    
+
     支持两种查询方式：
     1. 根据时间范围查询（startTime, endTime）
     2. 根据音频ID查询（audioFileId，优先级更高）
     """
     try:
         filtered_schedules = []
-        
+
         for schedule in _schedules_db:
             try:
                 # 优先根据音频ID查询
@@ -123,22 +123,22 @@ async def query_schedules(
                     if schedule.sourceSegmentId == audioFileId:
                         filtered_schedules.append(schedule.model_dump())
                     continue
-                
-                schedule_time = datetime.fromisoformat(schedule.scheduleTime.replace('Z', '+00:00'))
-                
+
+                schedule_time = datetime.fromisoformat(schedule.scheduleTime.replace("Z", "+00:00"))
+
                 # 如果提供了时间范围，进行过滤
                 if startTime and endTime:
-                    start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
-                    end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
-                    
+                    start = datetime.fromisoformat(startTime.replace("Z", "+00:00"))
+                    end = datetime.fromisoformat(endTime.replace("Z", "+00:00"))
+
                     if start <= schedule_time <= end:
                         filtered_schedules.append(schedule.model_dump())
                 elif startTime:
-                    start = datetime.fromisoformat(startTime.replace('Z', '+00:00'))
+                    start = datetime.fromisoformat(startTime.replace("Z", "+00:00"))
                     if schedule_time >= start:
                         filtered_schedules.append(schedule.model_dump())
                 elif endTime:
-                    end = datetime.fromisoformat(endTime.replace('Z', '+00:00'))
+                    end = datetime.fromisoformat(endTime.replace("Z", "+00:00"))
                     if schedule_time <= end:
                         filtered_schedules.append(schedule.model_dump())
                 else:
@@ -147,17 +147,18 @@ async def query_schedules(
             except Exception as e:
                 logger.warning(f"解析日程项失败: {schedule}, 错误: {e}")
                 continue
-        
+
         # 按时间排序
         filtered_schedules.sort(
-            key=lambda s: datetime.fromisoformat(s.get("scheduleTime", "").replace('Z', '+00:00'))
+            key=lambda s: datetime.fromisoformat(s.get("scheduleTime", "").replace("Z", "+00:00"))
         )
-        
-        logger.info(f"查询日程: startTime={startTime}, endTime={endTime}, audioFileId={audioFileId}, 结果数={len(filtered_schedules)}")
-        
+
+        logger.info(
+            f"查询日程: startTime={startTime}, endTime={endTime}, audioFileId={audioFileId}, 结果数={len(filtered_schedules)}"
+        )
+
         return {"schedules": filtered_schedules}
     except Exception as e:
         logger.error(f"查询日程失败: {e}", exc_info=True)
         # 返回空列表而不是抛出错误，避免前端崩溃
         return {"schedules": []}
-

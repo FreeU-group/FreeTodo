@@ -45,26 +45,26 @@ function check_loopback_module() {
 function load_loopback_module() {
     # 加载 PulseAudio 环回模块
     echo "正在加载 PulseAudio 环回模块..."
-    
+
     # 获取默认输出设备
     DEFAULT_SINK=$(pactl info | grep "Default Sink" | cut -d: -f2 | tr -d ' ')
-    
+
     if [ -z "$DEFAULT_SINK" ]; then
         echo "❌ 无法获取默认输出设备"
         return 1
     fi
-    
+
     # 创建虚拟源（sink）
     VIRTUAL_SINK="virtual_audio_sink"
-    
+
     # 加载 null sink（虚拟输出设备）
     pactl load-module module-null-sink sink_name="$VIRTUAL_SINK" sink_properties=device.description="VirtualAudioSink" || {
         echo "⚠️  可能已存在同名 sink，尝试使用现有设备"
     }
-    
+
     # 加载环回模块（将默认输出路由到虚拟 sink）
     LOOPBACK_ID=$(pactl load-module module-loopback source="$DEFAULT_SINK.monitor" sink="$VIRTUAL_SINK" || echo "")
-    
+
     if [ -n "$LOOPBACK_ID" ]; then
         echo "✅ 环回模块已加载 (ID: $LOOPBACK_ID)"
         echo "虚拟音频设备: $VIRTUAL_SINK"
@@ -107,7 +107,7 @@ echo "✅ PulseAudio 正在运行"
 if [ "$CHECK_ONLY" = true ]; then
     echo ""
     echo "检查环回模块状态..."
-    
+
     if check_loopback_module; then
         echo "✅ 环回模块已加载"
         list_virtual_sinks
@@ -115,7 +115,7 @@ if [ "$CHECK_ONLY" = true ]; then
         echo "⚠️  环回模块未加载"
         echo "运行: ./setup_virtual_audio_linux.sh --load-module"
     fi
-    
+
     exit 0
 fi
 
@@ -150,32 +150,3 @@ echo "卸载模块: ./setup_virtual_audio_linux.sh --unload-module"
 
 echo ""
 echo "✅ 配置完成"
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

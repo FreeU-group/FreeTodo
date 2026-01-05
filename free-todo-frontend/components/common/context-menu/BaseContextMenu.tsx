@@ -1,9 +1,9 @@
 "use client";
 
+import { motion } from "framer-motion";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface MenuItem {
@@ -69,7 +69,7 @@ export function BaseContextMenu({
 			if (!menuRef.current) return;
 			const rect = menuRef.current.getBoundingClientRect();
 			const { clientX, clientY } = event;
-			
+
 			// 如果鼠标移出菜单区域，关闭菜单
 			if (
 				clientX < rect.left ||
@@ -111,7 +111,8 @@ export function BaseContextMenu({
 					top: position.y,
 					left: position.x,
 					position: "absolute",
-					boxShadow: '0px 20px 50px -10px rgba(0, 0, 0, 0.5), 0px 10px 20px -10px rgba(0,0,0,0.3), 0 0 20px rgba(34,211,238,0.1), inset 0 0 20px rgba(255,255,255,0.03)',
+					boxShadow:
+						"0px 20px 50px -10px rgba(0, 0, 0, 0.5), 0px 10px 20px -10px rgba(0,0,0,0.3), 0 0 20px rgba(34,211,238,0.1), inset 0 0 20px rgba(255,255,255,0.03)",
 				}}
 			>
 				{header && (
@@ -133,10 +134,11 @@ export function BaseContextMenu({
 									"transition-all duration-300 hover:scale-110",
 									"text-cyan-400/70 hover:text-cyan-400",
 									"shadow-[0_0_8px_rgba(34,211,238,0.2)] hover:shadow-[0_0_12px_rgba(34,211,238,0.4)]",
-									"before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-cyan-400/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300"
+									"before:absolute before:inset-0 before:rounded-lg before:bg-gradient-to-br before:from-cyan-400/10 before:to-transparent before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-300",
 								)}
 								style={{
-									clipPath: 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)',
+									clipPath:
+										"polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
 								}}
 								onClick={() => {
 									item.onClick();

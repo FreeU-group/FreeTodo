@@ -3,32 +3,33 @@
 配置 Alembic 使用 SQLModel 进行数据库迁移。
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Windows 编码修复：在导入任何可能读取配置文件的模块之前设置
-if sys.platform == 'win32':
+if sys.platform == "win32":
     # 强制使用 UTF-8 编码
-    os.environ['PYTHONIOENCODING'] = 'utf-8'
-    
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+
     # 修改 configparser 的默认编码行为
     import configparser
-    
+
     # 保存原始的 read 方法
     _original_read = configparser.ConfigParser.read
-    
+
     def _utf8_read(self, filenames, encoding=None):
         """强制使用 UTF-8 编码读取配置文件"""
         # 如果 encoding 是 None 或 'locale'，强制使用 UTF-8
-        if encoding is None or encoding == 'locale':
-            encoding = 'utf-8'
+        if encoding is None or encoding == "locale":
+            encoding = "utf-8"
         return _original_read(self, filenames, encoding=encoding)
-    
+
     # 替换 read 方法
     configparser.ConfigParser.read = _utf8_read
 
 from logging.config import fileConfig
+
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel

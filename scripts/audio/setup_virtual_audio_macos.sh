@@ -41,12 +41,12 @@ function get_blackhole_devices() {
 
 function install_blackhole() {
     echo "正在检查 BlackHole 安装..."
-    
+
     if check_blackhole_installed; then
         echo "✅ BlackHole 已安装"
         return 0
     fi
-    
+
     echo "⚠️  BlackHole 未安装"
     echo ""
     echo "安装步骤:"
@@ -58,7 +58,7 @@ function install_blackhole() {
     echo ""
     echo "3. 安装后需要授权（系统设置 > 隐私与安全性 > 麦克风）"
     echo "4. 重启应用"
-    
+
     return 1
 }
 
@@ -80,7 +80,7 @@ echo "=== macOS 虚拟音频设备配置 ==="
 if [ "$CHECK_ONLY" = true ]; then
     echo ""
     echo "检查虚拟音频设备状态..."
-    
+
     if check_blackhole_installed; then
         echo "✅ BlackHole 已安装"
         echo ""
@@ -91,7 +91,7 @@ if [ "$CHECK_ONLY" = true ]; then
         echo "请运行: ./setup_virtual_audio_macos.sh --install"
         exit 1
     fi
-    
+
     exit 0
 fi
 
@@ -120,8 +120,3 @@ configure_audio_routing
 
 echo ""
 echo "✅ 配置完成"
-
-
-
-
-

@@ -709,7 +709,6 @@ export default function EventsPage() {
 	}, [sortedDates]);
 
 	// 监听消息变化，滚动到底部
-	// biome-ignore lint/correctness/useExhaustiveDependencies(messages): 需要在消息变化时触发滚动，scrollToBottom是稳定的
 	useEffect(() => {
 		scrollToBottom();
 	}, [messages, scrollToBottom]);
@@ -1071,7 +1070,6 @@ export default function EventsPage() {
 																			{/* AI摘要或简要描述 - 支持Markdown */}
 																			<div
 																				className="text-sm text-foreground/80 leading-relaxed markdown-content"
-																				// biome-ignore lint/security/noDangerouslySetInnerHtml: 需要渲染Markdown内容，已通过renderMarkdown进行安全处理
 																				dangerouslySetInnerHTML={{
 																					__html: renderMarkdown(
 																						event.ai_summary ||

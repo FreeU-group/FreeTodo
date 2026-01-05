@@ -5,7 +5,10 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { PanelFeature } from "@/lib/config/panel-config";
-import { FEATURE_ICON_MAP, ALL_PANEL_FEATURES } from "@/lib/config/panel-config";
+import {
+	ALL_PANEL_FEATURES,
+	FEATURE_ICON_MAP,
+} from "@/lib/config/panel-config";
 import { cn } from "@/lib/utils";
 
 interface PanelSelectorMenuProps {
@@ -164,4 +167,3 @@ export function PanelSelectorMenu({
 
 	return null;
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
 /**
  * 在 Electron 环境中立即设置透明背景
@@ -8,56 +8,59 @@ import { useEffect } from 'react';
  * 避免 Next.js SSR 导致的窗口显示问题
  */
 export function ElectronTransparentScript() {
-  useEffect(() => {
-    // 检测是否在 Electron 环境中
-    const isElectron = typeof window !== 'undefined' && (
-      (window as any).electronAPI || 
-      (window as any).require?.('electron') ||
-      navigator.userAgent.includes('Electron')
-    );
+	useEffect(() => {
+		// 检测是否在 Electron 环境中
+		const isElectron =
+			typeof window !== "undefined" &&
+			((window as any).electronAPI ||
+				(window as any).require?.("electron") ||
+				navigator.userAgent.includes("Electron"));
 
-    if (!isElectron) {
-      return;
-    }
+		if (!isElectron) {
+			return;
+		}
 
-    // 立即设置透明背景，使用 !important 级别的内联样式
-    const html = document.documentElement;
-    const body = document.body;
-    const nextRoot = document.getElementById('__next');
+		// 立即设置透明背景，使用 !important 级别的内联样式
+		const html = document.documentElement;
+		const body = document.body;
+		const nextRoot = document.getElementById("__next");
 
-    html.setAttribute('data-electron', 'true');
-    
-    // 使用 setProperty 设置 !important 样式
-    html.style.setProperty('background-color', 'transparent', 'important');
-    html.style.setProperty('background', 'transparent', 'important');
-    body.style.setProperty('background-color', 'transparent', 'important');
-    body.style.setProperty('background', 'transparent', 'important');
-    
-    if (nextRoot) {
-      nextRoot.style.setProperty('background-color', 'transparent', 'important');
-      nextRoot.style.setProperty('background', 'transparent', 'important');
-    }
+		html.setAttribute("data-electron", "true");
 
-    // 移除可能存在的背景色类
-    body.classList.remove('bg-background');
-    
-    // 通知 Electron 主进程透明背景已设置
-    if ((window as any).require) {
-      try {
-        const { ipcRenderer } = (window as any).require('electron');
-        ipcRenderer.send('transparent-background-ready');
-      } catch (e) {
-        // 忽略错误
-      }
-    } else if ((window as any).electronAPI) {
-      try {
-        (window as any).electronAPI?.transparentBackgroundReady?.();
-      } catch (e) {
-        // 忽略错误
-      }
-    }
-  }, []); // 只在挂载时执行一次
+		// 使用 setProperty 设置 !important 样式
+		html.style.setProperty("background-color", "transparent", "important");
+		html.style.setProperty("background", "transparent", "important");
+		body.style.setProperty("background-color", "transparent", "important");
+		body.style.setProperty("background", "transparent", "important");
 
-  return null;
+		if (nextRoot) {
+			nextRoot.style.setProperty(
+				"background-color",
+				"transparent",
+				"important",
+			);
+			nextRoot.style.setProperty("background", "transparent", "important");
+		}
+
+		// 移除可能存在的背景色类
+		body.classList.remove("bg-background");
+
+		// 通知 Electron 主进程透明背景已设置
+		if ((window as any).require) {
+			try {
+				const { ipcRenderer } = (window as any).require("electron");
+				ipcRenderer.send("transparent-background-ready");
+			} catch (e) {
+				// 忽略错误
+			}
+		} else if ((window as any).electronAPI) {
+			try {
+				(window as any).electronAPI?.transparentBackgroundReady?.();
+			} catch (e) {
+				// 忽略错误
+			}
+		}
+	}, []); // 只在挂载时执行一次
+
+	return null;
 }
-

@@ -75,8 +75,3 @@ Write-Host "   2. WhisperLiveKit 服务器会自动启动（端口 8002）" -For
 Write-Host "   3. 前端会自动连接到 /api/voice/stream" -ForegroundColor White
 Write-Host ""
 Write-Host "💡 提示: 首次运行时会自动下载模型（约 1.5GB）" -ForegroundColor Yellow
-
-
-
-
-

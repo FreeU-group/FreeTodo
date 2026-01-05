@@ -205,19 +205,20 @@ export const useChatController = ({
 		setError(null);
 
 		// 获取当前模块上下文
-		const { currentModule, voiceTranscripts } = useModuleContextStore.getState();
-		
+		const { currentModule, voiceTranscripts } =
+			useModuleContextStore.getState();
+
 		// 构建音频上下文（如果当前在音频模块）
 		let audioContext: string | null = null;
 		const isVoiceModule = currentModule === "voice";
-		
+
 		if (isVoiceModule && voiceTranscripts.length > 0) {
 			// 获取最近 10 分钟的转录内容
 			const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 			const recentSegments = voiceTranscripts.filter(
-				(t) => t.timestamp > tenMinutesAgo
+				(t) => t.timestamp > tenMinutesAgo,
 			);
-			
+
 			if (recentSegments.length > 0) {
 				audioContext = recentSegments
 					.map(
@@ -232,7 +233,7 @@ export const useChatController = ({
 
 		// Build payload message based on chat mode and module context
 		let payloadMessage: string;
-		
+
 		// 如果在音频模块，使用音频上下文（不添加待办上下文）
 		if (isVoiceModule) {
 			if (audioContext) {
@@ -249,7 +250,7 @@ export const useChatController = ({
 			const todoContext = hasSelection
 				? buildHierarchicalTodoContext(effectiveTodos, todos, t, tCommon)
 				: buildTodoContextBlock([], t("noTodoContext"), t);
-			
+
 			// 如果启用了联网搜索，也要包含待办上下文，以便更好地理解用户意图
 			if (webSearchEnabled) {
 				// 联网搜索模式：包含待办上下文，帮助理解用户意图

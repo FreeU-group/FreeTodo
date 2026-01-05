@@ -3,8 +3,9 @@
 提供跨平台虚拟音频设备的检查和配置接口
 """
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
-from typing import Dict, Any
 
 from lifetrace.services.audio_device_manager import get_audio_device_manager
 from lifetrace.util.logging_config import get_logger
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/api/audio", tags=["audio-device"])
 
 
 @router.get("/device/status")
-async def get_audio_device_status() -> Dict[str, Any]:
+async def get_audio_device_status() -> dict[str, Any]:
     """获取音频设备状态"""
     try:
         manager = get_audio_device_manager()
@@ -26,11 +27,11 @@ async def get_audio_device_status() -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"获取音频设备状态失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取状态失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取状态失败: {str(e)}") from e
 
 
 @router.post("/device/check")
-async def check_virtual_audio() -> Dict[str, Any]:
+async def check_virtual_audio() -> dict[str, Any]:
     """检查虚拟音频设备是否可用"""
     try:
         manager = get_audio_device_manager()
@@ -42,11 +43,11 @@ async def check_virtual_audio() -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"检查虚拟音频设备失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"检查失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"检查失败: {str(e)}") from e
 
 
 @router.post("/device/setup")
-async def setup_virtual_audio() -> Dict[str, Any]:
+async def setup_virtual_audio() -> dict[str, Any]:
     """设置虚拟音频设备"""
     try:
         manager = get_audio_device_manager()
@@ -57,33 +58,4 @@ async def setup_virtual_audio() -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"设置虚拟音频设备失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"设置失败: {str(e)}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        raise HTTPException(status_code=500, detail=f"设置失败: {str(e)}") from e

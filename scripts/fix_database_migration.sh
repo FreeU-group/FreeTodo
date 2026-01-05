@@ -47,4 +47,3 @@ else
     echo "❌ 数据库迁移失败"
     exit 1
 fi
-

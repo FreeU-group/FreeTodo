@@ -26,10 +26,10 @@ async def test_whisperlivekit():
     """测试 WhisperLiveKit 服务"""
     print("🧪 开始测试 WhisperLiveKit 服务...")
     print()
-    
+
     # 获取服务实例
     service = get_whisperlivekit_service()
-    
+
     # 显示配置
     print("📋 配置信息:")
     print(f"   模型大小: {service.model_size}")
@@ -38,7 +38,7 @@ async def test_whisperlivekit():
     print(f"   服务器端口: {service.server_port}")
     print(f"   服务器主机: {service.server_host}")
     print()
-    
+
     # 测试启动服务器
     print("🚀 尝试启动 WhisperLiveKit 服务器...")
     try:
@@ -48,7 +48,7 @@ async def test_whisperlivekit():
             print(f"   WebSocket URL: {service.get_server_url()}")
             print(f"   HTTP URL: {service.get_http_url()}")
             print()
-            
+
             # 测试健康检查
             print("🏥 测试健康检查...")
             is_healthy = await service.health_check()
@@ -57,11 +57,11 @@ async def test_whisperlivekit():
             else:
                 print("⚠️  服务器健康检查失败")
             print()
-            
+
             # 等待几秒
             print("⏳ 等待 5 秒...")
             await asyncio.sleep(5)
-            
+
             # 停止服务器
             print("🛑 停止服务器...")
             await service.stop_server()
@@ -79,7 +79,7 @@ async def test_whisperlivekit():
         import traceback
         traceback.print_exc()
         return False
-    
+
     print()
     print("✅ 所有测试通过！")
     return True
@@ -97,8 +97,3 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
-
-
-
-
-

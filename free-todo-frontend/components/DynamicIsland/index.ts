@@ -1,4 +1,3 @@
-export { DynamicIsland } from './DynamicIsland';
-export { IslandMode } from './types';
-export type { IslandDimensions } from './types';
-
+export { DynamicIsland } from "./DynamicIsland";
+export type { IslandDimensions } from "./types";
+export { IslandMode } from "./types";

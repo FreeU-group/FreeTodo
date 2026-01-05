@@ -3,34 +3,34 @@
 import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import { LayoutSelector } from "@/components/common/layout/LayoutSelector";
 import { ThemeToggle } from "@/components/common/theme/ThemeToggle";
 import { LanguageToggle } from "@/components/common/ui/LanguageToggle";
 import { UserAvatar } from "@/components/common/ui/UserAvatar";
+import { IslandMode } from "@/components/DynamicIsland/types";
 import { BottomDock } from "@/components/layout/BottomDock";
 import { PanelContainer } from "@/components/layout/PanelContainer";
 import { PanelContent } from "@/components/layout/PanelContent";
-import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { DynamicIsland } from "@/components/notification/DynamicIsland";
 import { GlobalDndProvider } from "@/lib/dnd";
 import { useWindowAdaptivePanels } from "@/lib/hooks/useWindowAdaptivePanels";
 import { useConfig } from "@/lib/query";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
+import { useDynamicIslandStore } from "@/lib/store/dynamic-island-store";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
-import { useDynamicIslandStore } from "@/lib/store/dynamic-island-store";
-import { IslandMode } from "@/components/DynamicIsland/types";
 
 /**
  * 检测是否在 Electron 环境中
  */
 function isElectronEnvironment(): boolean {
-	if (typeof window === 'undefined') return false;
+	if (typeof window === "undefined") return false;
 	return !!(
 		(window as any).electronAPI ||
-		(window as any).require?.('electron') ||
-		navigator.userAgent.includes('Electron')
+		(window as any).require?.("electron") ||
+		navigator.userAgent.includes("Electron")
 	);
 }
 
@@ -40,7 +40,7 @@ export default function HomePage() {
 	// 浏览器模式下始终使用全屏模式（不显示灵动岛）
 	const isElectron = isElectronEnvironment();
 	const isFullscreen = !isElectron || mode === IslandMode.FULLSCREEN;
-	
+
 	const {
 		isPanelAOpen,
 		isPanelBOpen,
@@ -358,10 +358,22 @@ export default function HomePage() {
 	// 注意：必须在所有 hooks 调用之后才能条件返回
 	if (!isFullscreen && isElectron) {
 		return (
-			<div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: 'transparent', background: 'transparent' }}>
+			<div
+				className="relative w-full h-full overflow-hidden"
+				style={{ backgroundColor: "transparent", background: "transparent" }}
+			>
 				{/* 透明背景，只显示 DynamicIsland */}
 				{/* 在悬浮模式下也渲染 VoiceModulePanel（隐藏），确保录音服务初始化和事件监听器注册 */}
-				<div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', overflow: 'hidden' }}>
+				<div
+					style={{
+						position: "absolute",
+						left: "-9999px",
+						top: "-9999px",
+						width: "1px",
+						height: "1px",
+						overflow: "hidden",
+					}}
+				>
 					<VoiceModulePanel />
 				</div>
 			</div>

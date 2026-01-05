@@ -77,8 +77,3 @@ echo "   2. WhisperLiveKit 服务器会自动启动（端口 8002）"
 echo "   3. 前端会自动连接到 /api/voice/stream"
 echo ""
 echo "💡 提示: 首次运行时会自动下载模型（约 1.5GB）"
-
-
-
-
-

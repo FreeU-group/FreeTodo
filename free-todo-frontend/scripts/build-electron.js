@@ -10,9 +10,9 @@ const isWatch = process.argv.includes("--watch");
 
 async function build() {
 	const distDir = path.join(__dirname, "..", "dist-electron");
-	
+
 	// 确保 dist-electron 目录存在
-	const fs = require("fs");
+	const fs = require("node:fs");
 	if (!fs.existsSync(distDir)) {
 		fs.mkdirSync(distDir, { recursive: true });
 	}

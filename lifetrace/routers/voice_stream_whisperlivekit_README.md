@@ -154,4 +154,3 @@ uv pip install whisperlivekit
 
 - [WhisperLiveKit 官方文档](https://github.com/collabora/whisperlivekit)
 - [技术推荐文档](../../free-todo-frontend/apps/voice-module/TECHNICAL_RECOMMENDATIONS.md)
-

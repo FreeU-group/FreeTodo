@@ -37,7 +37,7 @@ try {
     # 运行数据库迁移
     Write-Host "📦 运行数据库迁移..." -ForegroundColor Yellow
     python -m alembic upgrade head
-    
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host "✅ 数据库迁移成功！" -ForegroundColor Green
     } else {
@@ -51,4 +51,3 @@ try {
 
 Write-Host ""
 Write-Host "✅ 数据库迁移完成！" -ForegroundColor Green
-

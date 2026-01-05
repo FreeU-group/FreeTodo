@@ -37,10 +37,7 @@ from lifetrace.routers import (
     transcripts,
     vector,
     vision,
-    voice_stream,
-    voice_stream_whisper,  # Faster-Whisper 替代方案
-    voice_stream_whisperlivekit,  # WhisperLiveKit 超低延迟方案（独立服务器）
-    voice_stream_whisperlivekit_native,  # WhisperLiveKit 原生实现（直接集成）
+    voice_stream,  # WhisperLiveKit 原生实现（直接集成）
 )
 from lifetrace.routers import config as config_router
 from lifetrace.services.config_service import is_llm_configured
@@ -72,7 +69,7 @@ async def lifespan(app: FastAPI):
 
     # 启动所有后台任务
     job_manager.start_all()
-    
+
     # ⚡ 后台预加载 Whisper 模型和路由（不阻塞启动）
     async def preload_voice_module():
         """后台预加载语音识别模块（路由和模型）"""
@@ -80,18 +77,19 @@ async def lifespan(app: FastAPI):
             # 1. 先注册路由（不阻塞，只是导入和注册）
             _register_voice_router()
             logger.info("✅ 已注册语音识别路由（后台加载）")
-            
+
             # 2. 然后预加载模型（在后台异步加载）
             from lifetrace.routers.voice_stream_whisper import preload_whisper_model
+
             await preload_whisper_model()
             logger.info("✅ Whisper 模型预加载完成")
         except Exception as e:
             logger.warning(f"语音识别模块预加载失败（将在首次使用时加载）: {e}")
-    
+
     # 在后台异步预加载，不阻塞启动
     asyncio.create_task(preload_voice_module())
     logger.info("✅ 已启动语音识别模块后台预加载（路由+模型）")
-    
+
     # ⚡ 不再启动独立的 WhisperLiveKit 服务器
     # 我们使用原生实现（voice_stream_whisperlivekit_native），直接集成 Faster-Whisper + WhisperLiveKit 算法
     # 不需要外部服务器，所有处理都在当前进程中完成
@@ -105,7 +103,7 @@ async def lifespan(app: FastAPI):
     # 停止所有后台任务
     if job_manager:
         job_manager.stop_all()
-    
+
     # ⚡ 不再需要停止独立的 WhisperLiveKit 服务器
     # 原生实现不需要外部服务器，所有资源会在进程退出时自动清理
 
@@ -191,18 +189,21 @@ app.include_router(deepseek.router)
 
 _voice_router_registered = False
 
+
 def _register_voice_router():
     """注册语音识别路由（后台加载）"""
     global _voice_router_registered
     if _voice_router_registered:
         return
-    
+
     # WebSocket ASR - 优先使用 WhisperLiveKit 原生实现（直接集成，不依赖独立服务器）
     # 主端点 /api/voice/stream 使用 WhisperLiveKit 核心技术
     # 如果 Faster-Whisper 不可用，会降级到其他方案
     try:
-        from lifetrace.routers import voice_stream_whisperlivekit_native
         from faster_whisper import WhisperModel  # noqa: F401 检查是否安装
+
+        from lifetrace.routers import voice_stream_whisperlivekit_native
+
         # 注册 WhisperLiveKit 原生实现路由（主端点）
         app.include_router(voice_stream_whisperlivekit_native.router)
         logger.info("✅ 已注册 WhisperLiveKit 原生实现 WebSocket 路由（/api/voice/stream）")
@@ -214,14 +215,17 @@ def _register_voice_router():
         # 降级到独立服务器模式（如果可用）
         try:
             from lifetrace.routers import voice_stream_whisperlivekit
+
             app.include_router(voice_stream_whisperlivekit.router)
             logger.info("✅ 已降级到 WhisperLiveKit 独立服务器模式（/api/voice/stream）")
             _voice_router_registered = True
         except Exception:
             # 降级到 Faster-Whisper（优化版）
             try:
-                from lifetrace.routers import voice_stream_whisper
                 from faster_whisper import WhisperModel  # noqa: F401
+
+                from lifetrace.routers import voice_stream_whisper
+
                 app.include_router(voice_stream_whisper.router)
                 logger.info("✅ 已降级到 Faster-Whisper WebSocket 路由（/api/voice/stream）")
                 _voice_router_registered = True
@@ -237,8 +241,10 @@ def _register_voice_router():
         logger.warning(f"WhisperLiveKit 原生实现路由注册失败: {e}")
         # 降级到 Faster-Whisper
         try:
-            from lifetrace.routers import voice_stream_whisper
             from faster_whisper import WhisperModel  # noqa: F401
+
+            from lifetrace.routers import voice_stream_whisper
+
             app.include_router(voice_stream_whisper.router)
             logger.info("✅ 已降级到 Faster-Whisper WebSocket 路由（/api/voice/stream）")
             _voice_router_registered = True
@@ -301,7 +307,7 @@ if __name__ == "__main__":
 
     logger.info(f"启动服务器: http://{server_host}:{actual_port}")
     logger.info(f"调试模式: {'开启' if server_debug else '关闭'}")
-    logger.info(f"热重载: 已启用")
+    logger.info("热重载: 已启用")
     if actual_port != server_port:
         logger.info(f"注意: 原始端口 {server_port} 已被占用，已自动切换到 {actual_port}")
 

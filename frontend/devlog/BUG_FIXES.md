@@ -54,7 +54,7 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
     if (children) {
       return children;
     }
-    
+
     // 否则使用菜单切换逻辑（主页面）
     switch (activeMenu) {
       case 'events': return <EventsPage />;
@@ -167,7 +167,7 @@ A: 可能的原因：
 
 ### Q4: 动态路由的 URL 格式是什么？
 
-A: 
+A:
 - 项目列表：`/project-management`
 - 项目详情：`/project-management/{项目ID}`（例如：`/project-management/1`）
 - **注意**：不要访问 `/project-management/[id]`，`[id]` 只是文件夹名称，实际使用时应该替换为真实的数字
@@ -204,4 +204,3 @@ A:
 - [Next.js 文档 - Hydration](https://nextjs.org/docs/messages/react-hydration-error)
 - [Next.js 文档 - Dynamic Routes](https://nextjs.org/docs/app/building-your-application/routing/dynamic-routes)
 - [React 文档 - suppressHydrationWarning](https://react.dev/reference/react-dom/client/hydrateRoot#suppressing-unavoidable-hydration-mismatch-errors)
-

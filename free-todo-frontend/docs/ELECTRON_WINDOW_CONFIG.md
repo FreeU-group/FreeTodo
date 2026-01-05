@@ -479,4 +479,3 @@ mainWindow = new BrowserWindow({
 - [Electron 官方文档 - BrowserWindow](https://www.electronjs.org/docs/latest/api/browser-window)
 - [Electron 安全指南](https://www.electronjs.org/docs/latest/tutorial/security)
 - [进程间通信 (IPC)](https://www.electronjs.org/docs/latest/tutorial/ipc)
-

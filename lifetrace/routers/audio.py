@@ -2,10 +2,10 @@
 
 import hashlib
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Query
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from lifetrace.storage import Attachment, AudioRecording, get_session
@@ -32,7 +32,7 @@ async def upload_audio(
     isSegmentAudio: str = Form("false", description="是否为分段音频（10秒，用于转录）"),
 ):
     """上传音频文件并保存到数据库
-    
+
     支持两种类型：
     1. 完整音频（isFullAudio=true）：用于回放
     2. 分段音频（isSegmentAudio=true）：10秒分段，用于转录
@@ -41,20 +41,20 @@ async def upload_audio(
         # 解析时间（前端发送的是 UTC 时间）
         start_dt = datetime.fromisoformat(startTime.replace("Z", "+00:00"))
         end_dt = datetime.fromisoformat(endTime.replace("Z", "+00:00"))
-        
+
         # 确保时间有 UTC 时区信息
         if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+            start_dt = start_dt.replace(tzinfo=UTC)
         else:
             # 转换为 UTC 时间
-            start_dt = start_dt.astimezone(timezone.utc)
-        
+            start_dt = start_dt.astimezone(UTC)
+
         if end_dt.tzinfo is None:
-            end_dt = end_dt.replace(tzinfo=timezone.utc)
+            end_dt = end_dt.replace(tzinfo=UTC)
         else:
             # 转换为 UTC 时间
-            end_dt = end_dt.astimezone(timezone.utc)
-        
+            end_dt = end_dt.astimezone(UTC)
+
         # 存储到数据库时，如果数据库字段是 naive datetime，需要转换为 naive UTC
         # SQLAlchemy 会自动处理，但为了确保正确，我们使用 UTC 时间
         start_dt_naive = start_dt.replace(tzinfo=None) if start_dt.tzinfo else start_dt
@@ -72,14 +72,14 @@ async def upload_audio(
             f.write(content)
 
         file_size = os.path.getsize(file_path)
-        
+
         # 计算文件哈希
         file_hash = hashlib.sha256(content).hexdigest()
 
         # 保存到数据库
         attachment_id = None
         audio_recording_id = None
-        
+
         with get_session() as session:
             # 1. 创建 Attachment 记录
             attachment = Attachment(
@@ -97,11 +97,11 @@ async def upload_audio(
             duration_seconds = int((end_dt - start_dt).total_seconds())
             is_full = isFullAudio.lower() == "true"
             is_segment = isSegmentAudio.lower() == "true"
-            
+
             audio_recording = AudioRecording(
                 attachment_id=attachment.id,
                 start_time=start_dt_naive,  # 存储为 naive UTC 时间
-                end_time=end_dt_naive,      # 存储为 naive UTC 时间
+                end_time=end_dt_naive,  # 存储为 naive UTC 时间
                 duration_seconds=duration_seconds,
                 segment_id=segmentId,
                 title=title,  # 录音标题
@@ -154,11 +154,12 @@ async def query_audio_recordings(
     """查询音频录音记录"""
     try:
         from datetime import datetime
-        from lifetrace.storage import AudioRecording, Attachment
-        
+
+        from lifetrace.storage import Attachment, AudioRecording
+
         with get_session() as session:
             query = session.query(AudioRecording)
-            
+
             if startTime and endTime:
                 start_dt = datetime.fromisoformat(startTime.replace("Z", "+00:00"))
                 end_dt = datetime.fromisoformat(endTime.replace("Z", "+00:00"))
@@ -166,52 +167,56 @@ async def query_audio_recordings(
                     AudioRecording.start_time >= start_dt,
                     AudioRecording.start_time <= end_dt,
                 )
-            
+
             recordings = query.order_by(AudioRecording.start_time).all()
-            
+
             results = []
             for rec in recordings:
                 attachment = None
                 if rec.attachment_id:
-                    attachment = session.query(Attachment).filter(Attachment.id == rec.attachment_id).first()
-                
+                    attachment = (
+                        session.query(Attachment).filter(Attachment.id == rec.attachment_id).first()
+                    )
+
                 file_url = None
                 if attachment and attachment.file_path:
                     filename = os.path.basename(attachment.file_path)
                     file_url = f"/api/audio/file/{filename}"
-                
+
                 # 确保返回的时间包含时区信息
                 # 如果数据库存储的是 naive datetime，假设它是 UTC 时间
                 start_time = rec.start_time
                 if start_time.tzinfo is None:
                     # 如果是 naive datetime，假设它是 UTC 时间
-                    start_time = start_time.replace(tzinfo=timezone.utc)
-                
+                    start_time = start_time.replace(tzinfo=UTC)
+
                 end_time = rec.end_time
                 if end_time and end_time.tzinfo is None:
                     # 如果是 naive datetime，假设它是 UTC 时间
-                    end_time = end_time.replace(tzinfo=timezone.utc)
-                
-                results.append({
-                    "id": rec.segment_id or str(rec.id),
-                    "segment_id": rec.segment_id,
-                    "start_time": start_time.isoformat(),
-                    "end_time": end_time.isoformat() if end_time else None,
-                    "duration_seconds": rec.duration_seconds,
-                    "file_url": file_url,
-                    "filename": os.path.basename(attachment.file_path) if attachment else None,
-                    "file_size": attachment.file_size if attachment else None,
-                    "title": rec.title,  # 录音标题
-                    "is_full_audio": rec.is_full_audio,  # 是否为完整音频
-                    "is_segment_audio": rec.is_segment_audio,  # 是否为分段音频
-                    "is_transcribed": rec.is_transcribed,  # 是否已转录
-                    "is_extracted": rec.is_extracted,  # 是否已提取
-                    "is_summarized": rec.is_summarized,  # 是否已生成纪要
-                })
-            
+                    end_time = end_time.replace(tzinfo=UTC)
+
+                results.append(
+                    {
+                        "id": rec.segment_id or str(rec.id),
+                        "segment_id": rec.segment_id,
+                        "start_time": start_time.isoformat(),
+                        "end_time": end_time.isoformat() if end_time else None,
+                        "duration_seconds": rec.duration_seconds,
+                        "file_url": file_url,
+                        "filename": os.path.basename(attachment.file_path) if attachment else None,
+                        "file_size": attachment.file_size if attachment else None,
+                        "title": rec.title,  # 录音标题
+                        "is_full_audio": rec.is_full_audio,  # 是否为完整音频
+                        "is_segment_audio": rec.is_segment_audio,  # 是否为分段音频
+                        "is_transcribed": rec.is_transcribed,  # 是否已转录
+                        "is_extracted": rec.is_extracted,  # 是否已提取
+                        "is_summarized": rec.is_summarized,  # 是否已生成纪要
+                    }
+                )
+
             logger.info(f"✅ 查询到 {len(results)} 条音频录音记录")
             return JSONResponse(content={"recordings": results})
-            
+
     except Exception as e:
         logger.error(f"查询音频录音记录失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}") from e
@@ -235,20 +240,22 @@ async def get_audio(audio_id: str):
         # 从数据库获取纪要内容
         summary_text = None
         with get_session() as session:
-            audio_recording = session.query(AudioRecording).filter(
-                AudioRecording.segment_id == audio_id
-            ).first()
-            
+            audio_recording = (
+                session.query(AudioRecording).filter(AudioRecording.segment_id == audio_id).first()
+            )
+
             if not audio_recording:
                 # 尝试通过 id 查找
                 try:
                     audio_id_int = int(audio_id)
-                    audio_recording = session.query(AudioRecording).filter(
-                        AudioRecording.id == audio_id_int
-                    ).first()
+                    audio_recording = (
+                        session.query(AudioRecording)
+                        .filter(AudioRecording.id == audio_id_int)
+                        .first()
+                    )
                 except ValueError:
                     pass
-            
+
             if audio_recording:
                 summary_text = audio_recording.summary_text
                 extracted_todos = audio_recording.extracted_todos
@@ -280,7 +287,6 @@ async def get_audio_file(filename: str):
             raise HTTPException(status_code=404, detail="音频文件不存在")
 
         from fastapi.responses import FileResponse
-        from fastapi import Response
 
         # 确定正确的媒体类型（不包含 codecs，让浏览器自动检测）
         file_ext = file_path.suffix.lower()
@@ -293,7 +299,9 @@ async def get_audio_file(filename: str):
         }
         media_type = media_type_map.get(file_ext, "audio/webm")
 
-        logger.info(f"返回音频文件: {filename}, 媒体类型: {media_type}, 文件大小: {file_path.stat().st_size} bytes")
+        logger.info(
+            f"返回音频文件: {filename}, 媒体类型: {media_type}, 文件大小: {file_path.stat().st_size} bytes"
+        )
 
         # 添加 CORS 头，确保浏览器可以访问
         headers = {
@@ -304,7 +312,7 @@ async def get_audio_file(filename: str):
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Expose-Headers": "Content-Length, Content-Type, Accept-Ranges",
         }
-        
+
         return FileResponse(
             path=str(file_path),
             media_type=media_type,
@@ -324,16 +332,16 @@ async def mark_transcribed(audio_id: str):
     """标记音频已转录"""
     try:
         with get_session() as session:
-            audio_recording = session.query(AudioRecording).filter(
-                AudioRecording.segment_id == audio_id
-            ).first()
-            
+            audio_recording = (
+                session.query(AudioRecording).filter(AudioRecording.segment_id == audio_id).first()
+            )
+
             if not audio_recording:
                 raise HTTPException(status_code=404, detail="音频记录不存在")
-            
+
             audio_recording.is_transcribed = True
             session.commit()
-            
+
             logger.info(f"✅ 已标记音频为已转录: segment_id={audio_id}")
             return JSONResponse(content={"message": "已标记为已转录", "audio_id": audio_id})
     except HTTPException:
@@ -348,16 +356,16 @@ async def mark_extracted(audio_id: str):
     """标记音频已提取（待办、日程）"""
     try:
         with get_session() as session:
-            audio_recording = session.query(AudioRecording).filter(
-                AudioRecording.segment_id == audio_id
-            ).first()
-            
+            audio_recording = (
+                session.query(AudioRecording).filter(AudioRecording.segment_id == audio_id).first()
+            )
+
             if not audio_recording:
                 raise HTTPException(status_code=404, detail="音频记录不存在")
-            
+
             audio_recording.is_extracted = True
             session.commit()
-            
+
             logger.info(f"✅ 已标记音频为已提取: segment_id={audio_id}")
             return JSONResponse(content={"message": "已标记为已提取", "audio_id": audio_id})
     except HTTPException:
@@ -374,28 +382,30 @@ async def save_summary(audio_id: str, request: dict):
         summary = request.get("summary", "")
         if not summary:
             raise HTTPException(status_code=400, detail="纪要内容不能为空")
-        
+
         with get_session() as session:
-            audio_recording = session.query(AudioRecording).filter(
-                AudioRecording.segment_id == audio_id
-            ).first()
-            
+            audio_recording = (
+                session.query(AudioRecording).filter(AudioRecording.segment_id == audio_id).first()
+            )
+
             if not audio_recording:
                 # 尝试通过 id 查找
                 try:
                     audio_id_int = int(audio_id)
-                    audio_recording = session.query(AudioRecording).filter(
-                        AudioRecording.id == audio_id_int
-                    ).first()
+                    audio_recording = (
+                        session.query(AudioRecording)
+                        .filter(AudioRecording.id == audio_id_int)
+                        .first()
+                    )
                 except ValueError:
                     pass
-            
+
             if not audio_recording:
                 raise HTTPException(status_code=404, detail="音频记录不存在")
-            
+
             audio_recording.summary_text = summary
             session.commit()
-            
+
             logger.info(f"✅ 已保存纪要到数据库: segment_id={audio_id}, 长度={len(summary)}")
             return JSONResponse(content={"message": "纪要已保存", "audio_id": audio_id})
     except HTTPException:
@@ -410,26 +420,28 @@ async def mark_summarized(audio_id: str):
     """标记音频已生成纪要（只有在保存成功后才调用）"""
     try:
         with get_session() as session:
-            audio_recording = session.query(AudioRecording).filter(
-                AudioRecording.segment_id == audio_id
-            ).first()
-            
+            audio_recording = (
+                session.query(AudioRecording).filter(AudioRecording.segment_id == audio_id).first()
+            )
+
             if not audio_recording:
                 # 尝试通过 id 查找
                 try:
                     audio_id_int = int(audio_id)
-                    audio_recording = session.query(AudioRecording).filter(
-                        AudioRecording.id == audio_id_int
-                    ).first()
+                    audio_recording = (
+                        session.query(AudioRecording)
+                        .filter(AudioRecording.id == audio_id_int)
+                        .first()
+                    )
                 except ValueError:
                     pass
-            
+
             if not audio_recording:
                 raise HTTPException(status_code=404, detail="音频记录不存在")
-            
+
             audio_recording.is_summarized = True
             session.commit()
-            
+
             logger.info(f"✅ 已标记音频为已生成纪要: segment_id={audio_id}")
             return JSONResponse(content={"message": "已标记为已生成纪要", "audio_id": audio_id})
     except HTTPException:
@@ -444,34 +456,39 @@ async def save_extracted_todos(audio_id: str, request: dict):
     """保存提取的待办事项到数据库"""
     try:
         import json
+
         todos = request.get("todos", [])
         if not todos:
             raise HTTPException(status_code=400, detail="待办事项列表不能为空")
-        
+
         with get_session() as session:
-            audio_recording = session.query(AudioRecording).filter(
-                AudioRecording.segment_id == audio_id
-            ).first()
-            
+            audio_recording = (
+                session.query(AudioRecording).filter(AudioRecording.segment_id == audio_id).first()
+            )
+
             if not audio_recording:
                 # 尝试通过 id 查找
                 try:
                     audio_id_int = int(audio_id)
-                    audio_recording = session.query(AudioRecording).filter(
-                        AudioRecording.id == audio_id_int
-                    ).first()
+                    audio_recording = (
+                        session.query(AudioRecording)
+                        .filter(AudioRecording.id == audio_id_int)
+                        .first()
+                    )
                 except ValueError:
                     pass
-            
+
             if not audio_recording:
                 raise HTTPException(status_code=404, detail="音频记录不存在")
-            
+
             # 将待办事项保存为JSON字符串
             audio_recording.extracted_todos = json.dumps(todos, ensure_ascii=False)
             session.commit()
-            
+
             logger.info(f"✅ 已保存待办事项到数据库: segment_id={audio_id}, 数量={len(todos)}")
-            return JSONResponse(content={"message": "待办事项已保存", "audio_id": audio_id, "count": len(todos)})
+            return JSONResponse(
+                content={"message": "待办事项已保存", "audio_id": audio_id, "count": len(todos)}
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -485,20 +502,22 @@ async def delete_audio(audio_id: str):
     try:
         with get_session() as session:
             # 查找音频记录
-            audio_recording = session.query(AudioRecording).filter(
-                AudioRecording.segment_id == audio_id
-            ).first()
-            
+            audio_recording = (
+                session.query(AudioRecording).filter(AudioRecording.segment_id == audio_id).first()
+            )
+
             if not audio_recording:
                 raise HTTPException(status_code=404, detail="音频记录不存在")
-            
+
             # 查找关联的附件
             attachment = None
             if audio_recording.attachment_id:
-                attachment = session.query(Attachment).filter(
-                    Attachment.id == audio_recording.attachment_id
-                ).first()
-            
+                attachment = (
+                    session.query(Attachment)
+                    .filter(Attachment.id == audio_recording.attachment_id)
+                    .first()
+                )
+
             # 删除文件
             if attachment and attachment.file_path:
                 file_path = Path(attachment.file_path)
@@ -508,29 +527,29 @@ async def delete_audio(audio_id: str):
                         logger.info(f"✅ 已删除音频文件: {file_path}")
                     except Exception as e:
                         logger.warning(f"删除音频文件失败: {file_path}, 错误: {e}")
-            
+
             # 删除数据库记录
             # 先删除关联的转录片段
             from lifetrace.storage import TranscriptSegment
+
             session.query(TranscriptSegment).filter(
                 TranscriptSegment.audio_recording_id == audio_recording.id
             ).delete()
-            
+
             # 删除音频记录
             session.delete(audio_recording)
-            
+
             # 删除附件记录
             if attachment:
                 session.delete(attachment)
-            
+
             session.commit()
-            
+
             logger.info(f"✅ 已删除音频记录: segment_id={audio_id}")
             return JSONResponse(content={"message": "音频已删除", "audio_id": audio_id})
-            
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"删除音频失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"删除失败: {str(e)}") from e
-

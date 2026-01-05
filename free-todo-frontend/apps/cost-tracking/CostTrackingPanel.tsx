@@ -50,9 +50,10 @@ export function CostTrackingPanel() {
 
 		// 转换为 snake_case 格式以匹配翻译 key
 		const normalizedId = toSnakeCase(featureId);
-		const translationKey = `page.costTracking.featureNames.${normalizedId}` as Parameters<
-			typeof t
-		>[0];
+		const translationKey =
+			`page.costTracking.featureNames.${normalizedId}` as Parameters<
+				typeof t
+			>[0];
 
 		// 尝试获取翻译
 		let translation: string;

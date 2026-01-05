@@ -29,6 +29,7 @@ async def list_todos(
         return service.list_todos(limit, offset, status)
     except Exception as e:
         from lifetrace.util.logging_config import get_logger
+
         logger = get_logger()
         logger.error(f"获取待办列表失败: {e}", exc_info=True)
         # 返回空列表而不是抛出 500 错误

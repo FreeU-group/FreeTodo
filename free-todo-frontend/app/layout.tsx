@@ -4,9 +4,9 @@ import { getLocale, getMessages } from "next-intl/server";
 import { ThemeProvider } from "@/components/common/theme/ThemeProvider";
 import { ScrollbarController } from "@/components/common/ui/ScrollbarController";
 import { DynamicIslandProvider } from "@/components/DynamicIsland/DynamicIslandProvider";
-import { QueryProvider } from "@/lib/query/provider";
-import { TransparentBody } from "@/components/DynamicIsland/TransparentBody";
 import { ElectronTransparentScript } from "@/components/DynamicIsland/ElectronTransparentScript";
+import { TransparentBody } from "@/components/DynamicIsland/TransparentBody";
+import { QueryProvider } from "@/lib/query/provider";
 import "./globals.css";
 
 interface RootLayoutProps {
@@ -23,10 +23,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 	const messages = await getMessages();
 
 	return (
-		<html 
-			lang={locale} 
-			suppressHydrationWarning
-		>
+		<html lang={locale} suppressHydrationWarning>
 			<body
 				className="min-h-screen bg-background text-foreground antialiased"
 				suppressHydrationWarning

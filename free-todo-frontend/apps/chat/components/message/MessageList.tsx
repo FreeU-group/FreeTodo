@@ -184,7 +184,6 @@ export function MessageList({
 	}, [messages, scrollToBottom]);
 
 	// 流式输出时，只有在底部才自动滚动
-	// biome-ignore lint/correctness/useExhaustiveDependencies: 保持依赖个数恒定以避免 HMR 报错
 	useEffect(() => {
 		if (!isStreaming) return;
 		if (!isAtBottomRef.current) return;

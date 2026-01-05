@@ -6,27 +6,25 @@
 - Linux: PulseAudio 环回模块
 """
 
+import logging
 import os
-import sys
 import platform
 import subprocess
-import logging
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class AudioDeviceManager:
     """跨平台音频设备管理器"""
-    
+
     def __init__(self):
         self.platform = platform.system().lower()
         self.scripts_dir = Path(__file__).parent.parent.parent / "scripts" / "audio"
-        
-    def check_virtual_audio_available(self) -> Tuple[bool, str]:
+
+    def check_virtual_audio_available(self) -> tuple[bool, str]:
         """检查虚拟音频设备是否可用
-        
+
         Returns:
             (is_available, message): 是否可用和状态消息
         """
@@ -38,10 +36,10 @@ class AudioDeviceManager:
             return self._check_linux()
         else:
             return False, f"不支持的操作系统: {self.platform}"
-    
-    def setup_virtual_audio(self) -> Tuple[bool, str]:
+
+    def setup_virtual_audio(self) -> tuple[bool, str]:
         """设置虚拟音频设备
-        
+
         Returns:
             (success, message): 是否成功和消息
         """
@@ -53,21 +51,28 @@ class AudioDeviceManager:
             return self._setup_linux()
         else:
             return False, f"不支持的操作系统: {self.platform}"
-    
-    def _check_windows(self) -> Tuple[bool, str]:
+
+    def _check_windows(self) -> tuple[bool, str]:
         """检查 Windows 虚拟音频设备"""
         try:
             script_path = self.scripts_dir / "setup_virtual_audio_windows.ps1"
             if not script_path.exists():
                 return False, "配置脚本不存在"
-            
+
             result = subprocess.run(
-                ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script_path), "-CheckOnly"],
+                [
+                    "powershell",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(script_path),
+                    "-CheckOnly",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
-            
+
             if result.returncode == 0:
                 return True, "VB-CABLE 已安装"
             else:
@@ -75,24 +80,21 @@ class AudioDeviceManager:
         except Exception as e:
             logger.error(f"检查 Windows 虚拟音频设备失败: {e}")
             return False, f"检查失败: {str(e)}"
-    
-    def _check_macos(self) -> Tuple[bool, str]:
+
+    def _check_macos(self) -> tuple[bool, str]:
         """检查 macOS 虚拟音频设备"""
         try:
             script_path = self.scripts_dir / "setup_virtual_audio_macos.sh"
             if not script_path.exists():
                 return False, "配置脚本不存在"
-            
+
             # 确保脚本可执行
             os.chmod(script_path, 0o755)
-            
+
             result = subprocess.run(
-                [str(script_path), "--check-only"],
-                capture_output=True,
-                text=True,
-                timeout=10
+                [str(script_path), "--check-only"], capture_output=True, text=True, timeout=10
             )
-            
+
             if result.returncode == 0:
                 return True, "BlackHole 已安装"
             else:
@@ -100,28 +102,21 @@ class AudioDeviceManager:
         except Exception as e:
             logger.error(f"检查 macOS 虚拟音频设备失败: {e}")
             return False, f"检查失败: {str(e)}"
-    
-    def _check_linux(self) -> Tuple[bool, str]:
+
+    def _check_linux(self) -> tuple[bool, str]:
         """检查 Linux 虚拟音频设备"""
         try:
             # 检查 PulseAudio 是否运行
-            result = subprocess.run(
-                ["pgrep", "-x", "pulseaudio"],
-                capture_output=True,
-                timeout=5
-            )
-            
+            result = subprocess.run(["pgrep", "-x", "pulseaudio"], capture_output=True, timeout=5)
+
             if result.returncode != 0:
                 return False, "PulseAudio 未运行"
-            
+
             # 检查环回模块
             result = subprocess.run(
-                ["pactl", "list", "modules", "short"],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["pactl", "list", "modules", "short"], capture_output=True, text=True, timeout=5
             )
-            
+
             if "module-loopback" in result.stdout:
                 return True, "PulseAudio 环回模块已加载"
             else:
@@ -129,21 +124,21 @@ class AudioDeviceManager:
         except Exception as e:
             logger.error(f"检查 Linux 虚拟音频设备失败: {e}")
             return False, f"检查失败: {str(e)}"
-    
-    def _setup_windows(self) -> Tuple[bool, str]:
+
+    def _setup_windows(self) -> tuple[bool, str]:
         """设置 Windows 虚拟音频设备"""
         try:
             script_path = self.scripts_dir / "setup_virtual_audio_windows.ps1"
             if not script_path.exists():
                 return False, "配置脚本不存在"
-            
+
             result = subprocess.run(
                 ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script_path)],
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
-            
+
             if result.returncode == 0:
                 return True, "Windows 虚拟音频设备配置完成"
             else:
@@ -151,23 +146,18 @@ class AudioDeviceManager:
         except Exception as e:
             logger.error(f"设置 Windows 虚拟音频设备失败: {e}")
             return False, f"设置失败: {str(e)}"
-    
-    def _setup_macos(self) -> Tuple[bool, str]:
+
+    def _setup_macos(self) -> tuple[bool, str]:
         """设置 macOS 虚拟音频设备"""
         try:
             script_path = self.scripts_dir / "setup_virtual_audio_macos.sh"
             if not script_path.exists():
                 return False, "配置脚本不存在"
-            
+
             os.chmod(script_path, 0o755)
-            
-            result = subprocess.run(
-                [str(script_path)],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
+
+            result = subprocess.run([str(script_path)], capture_output=True, text=True, timeout=30)
+
             if result.returncode == 0:
                 return True, "macOS 虚拟音频设备配置完成"
             else:
@@ -175,23 +165,18 @@ class AudioDeviceManager:
         except Exception as e:
             logger.error(f"设置 macOS 虚拟音频设备失败: {e}")
             return False, f"设置失败: {str(e)}"
-    
-    def _setup_linux(self) -> Tuple[bool, str]:
+
+    def _setup_linux(self) -> tuple[bool, str]:
         """设置 Linux 虚拟音频设备"""
         try:
             script_path = self.scripts_dir / "setup_virtual_audio_linux.sh"
             if not script_path.exists():
                 return False, "配置脚本不存在"
-            
+
             os.chmod(script_path, 0o755)
-            
-            result = subprocess.run(
-                [str(script_path)],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
+
+            result = subprocess.run([str(script_path)], capture_output=True, text=True, timeout=30)
+
             if result.returncode == 0:
                 return True, "Linux 虚拟音频设备配置完成"
             else:
@@ -199,18 +184,18 @@ class AudioDeviceManager:
         except Exception as e:
             logger.error(f"设置 Linux 虚拟音频设备失败: {e}")
             return False, f"设置失败: {str(e)}"
-    
-    def get_audio_device_info(self) -> Dict[str, any]:
+
+    def get_audio_device_info(self) -> dict[str, any]:
         """获取音频设备信息"""
         available, message = self.check_virtual_audio_available()
-        
+
         return {
             "platform": self.platform,
             "available": available,
             "message": message,
             "recommended_setup": self._get_recommended_setup(),
         }
-    
+
     def _get_recommended_setup(self) -> str:
         """获取推荐设置说明"""
         if self.platform == "windows":
@@ -244,7 +229,7 @@ Linux 推荐配置：
 
 
 # 单例
-_audio_device_manager: Optional[AudioDeviceManager] = None
+_audio_device_manager: AudioDeviceManager | None = None
 
 
 def get_audio_device_manager() -> AudioDeviceManager:
@@ -253,8 +238,3 @@ def get_audio_device_manager() -> AudioDeviceManager:
     if _audio_device_manager is None:
         _audio_device_manager = AudioDeviceManager()
     return _audio_device_manager
-
-
-
-
-

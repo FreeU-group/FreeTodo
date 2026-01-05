@@ -10,25 +10,26 @@ export type ModuleType = "voice" | "event" | "project" | "todo" | null;
 interface ModuleContextState {
 	currentModule: ModuleType;
 	setCurrentModule: (module: ModuleType) => void;
-	
+
 	// 音频模块的转录内容（用于作为聊天上下文）
 	voiceTranscripts: Array<{
 		timestamp: Date;
 		optimizedText?: string;
 		rawText: string;
 	}>;
-	setVoiceTranscripts: (transcripts: Array<{
-		timestamp: Date;
-		optimizedText?: string;
-		rawText: string;
-	}>) => void;
+	setVoiceTranscripts: (
+		transcripts: Array<{
+			timestamp: Date;
+			optimizedText?: string;
+			rawText: string;
+		}>,
+	) => void;
 }
 
 export const useModuleContextStore = create<ModuleContextState>((set) => ({
 	currentModule: null,
 	setCurrentModule: (module) => set({ currentModule: module }),
-	
+
 	voiceTranscripts: [],
 	setVoiceTranscripts: (transcripts) => set({ voiceTranscripts: transcripts }),
 }));
-

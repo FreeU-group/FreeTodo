@@ -215,34 +215,36 @@ class DatabaseBase:
         try:
             # 检查 audio_recordings 表是否存在
             table_exists = conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table' AND name='audio_recordings'")
+                text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='audio_recordings'"
+                )
             ).fetchone()
-            
+
             if not table_exists:
                 # 表不存在，会在创建表时自动包含所有列
                 return
-            
+
             # 获取现有列信息（包括列名和是否可空）
-            columns_info = conn.execute(
-                text("PRAGMA table_info(audio_recordings)")
-            ).fetchall()
+            columns_info = conn.execute(text("PRAGMA table_info(audio_recordings)")).fetchall()
             # col[1] 是列名, col[3] 是 notnull (1=NOT NULL, 0=可空)
             existing_columns = {col[1]: col[3] for col in columns_info}
-            
+
             # 检查是否有 file_path 列（旧版本遗留，应该移除，因为文件路径存储在 Attachment 表中）
             if "file_path" in existing_columns:
                 # SQLite 不支持直接删除列或修改列约束，需要重建表
-                logger.info("🔄 检测到 audio_recordings 表中有 file_path 列（旧版本遗留），开始迁移...")
+                logger.info(
+                    "🔄 检测到 audio_recordings 表中有 file_path 列（旧版本遗留），开始迁移..."
+                )
                 try:
                     # 获取所有列信息（用于构建 SELECT 语句）
                     columns_info_full = conn.execute(
                         text("PRAGMA table_info(audio_recordings)")
                     ).fetchall()
-                    
+
                     # 构建列名列表（排除 file_path）
                     col_names = [col[1] for col in columns_info_full if col[1] != "file_path"]
                     col_names_str = ", ".join(col_names)
-                    
+
                     # 1. 创建新表并复制数据（排除 file_path 列）
                     # 注意：这种方法会丢失主键、索引等，但会保留数据
                     create_table_sql = f"""
@@ -251,33 +253,37 @@ class DatabaseBase:
                         FROM audio_recordings
                     """
                     conn.execute(text(create_table_sql))
-                    
+
                     # 2. 删除旧表
                     conn.execute(text("DROP TABLE audio_recordings"))
-                    
+
                     # 3. 重命名新表
-                    conn.execute(text("ALTER TABLE audio_recordings_new RENAME TO audio_recordings"))
-                    
+                    conn.execute(
+                        text("ALTER TABLE audio_recordings_new RENAME TO audio_recordings")
+                    )
+
                     # 4. 重新创建主键（如果存在）
                     # 检查原表是否有主键
-                    pk_columns = [col[1] for col in columns_info_full if col[5] == 1]  # col[5] 是 pk
+                    pk_columns = [
+                        col[1] for col in columns_info_full if col[5] == 1
+                    ]  # col[5] 是 pk
                     if pk_columns:
                         # SQLite 不支持直接添加主键，需要再次重建表
                         # 但为了简化，我们暂时跳过这一步，因为 id 列通常会自动成为主键
                         # 如果需要，可以在这里添加更复杂的逻辑
                         pass
-                    
+
                     logger.info("✅ 已成功移除 audio_recordings 表中的 file_path 列")
-                    
+
                     # 重新获取列信息
                     columns_info = conn.execute(
                         text("PRAGMA table_info(audio_recordings)")
                     ).fetchall()
                     existing_columns = {col[1]: col[3] for col in columns_info}
-                    
+
                 except Exception as e:
                     logger.warning(f"⚠️ 迁移 file_path 列失败: {e}，将尝试添加缺失的列")
-            
+
             # 需要添加的列（如果不存在）- 按照模型定义添加所有缺失的列
             columns_to_add = [
                 ("event_id", "INTEGER"),  # 关联 Event
@@ -290,22 +296,27 @@ class DatabaseBase:
                 ("num_speakers", "INTEGER"),  # 说话人数量
                 ("segment_id", "VARCHAR(200)"),  # 前端segment ID
                 ("title", "VARCHAR(500)"),  # 录音标题
-                ("is_transcribed", "INTEGER DEFAULT 0"),  # 是否已通过完整音频转录（SQLite 使用 INTEGER 表示布尔值）
+                (
+                    "is_transcribed",
+                    "INTEGER DEFAULT 0",
+                ),  # 是否已通过完整音频转录（SQLite 使用 INTEGER 表示布尔值）
                 ("is_extracted", "INTEGER DEFAULT 0"),  # 是否已智能提取（待办、日程）
                 ("is_summarized", "INTEGER DEFAULT 0"),  # 是否已生成智能纪要
                 ("is_full_audio", "INTEGER DEFAULT 0"),  # 是否为完整音频（用于回放）
                 ("is_segment_audio", "INTEGER DEFAULT 0"),  # 是否为分段音频（10秒，用于转录）
             ]
-            
+
             for column_name, column_type in columns_to_add:
                 if column_name not in existing_columns:
                     try:
-                        alter_sql = f"ALTER TABLE audio_recordings ADD COLUMN {column_name} {column_type}"
+                        alter_sql = (
+                            f"ALTER TABLE audio_recordings ADD COLUMN {column_name} {column_type}"
+                        )
                         conn.execute(text(alter_sql))
                         logger.info(f"✅ 已为 audio_recordings 表添加列: {column_name}")
                     except Exception as e:
                         logger.warning(f"⚠️ 添加列 {column_name} 失败: {e}")
-            
+
             conn.commit()
         except Exception as e:
             logger.warning(f"迁移 audio_recordings 表失败: {e}")
