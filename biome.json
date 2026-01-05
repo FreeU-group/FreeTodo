@@ -4,47 +4,7 @@
 		"enabled": true,
 		"rules": {
 			"a11y": {
-				"useSemanticElements": "off",
-				"noAutofocus": "off",
-				"noStaticElementInteractions": "off",
-				"useKeyWithClickEvents": "off",
-				"useButtonType": "off",
-				"noSvgWithoutTitle": "off",
-				"noLabelWithoutControl": "off",
-				"noRedundantRoles": "off"
-			},
-			"suspicious": {
-				"noExplicitAny": "off",
-				"noGlobalIsNan": "off",
-				"noGlobalIsFinite": "off",
-				"noArrayIndexKey": "off",
-				"noImplicitAnyLet": "off",
-				"noAssignInExpressions": "off",
-				"noShorthandPropertyOverrides": "off"
-			},
-			"complexity": {
-				"noImportantStyles": "off",
-				"useOptionalChain": "off",
-				"useLiteralKeys": "off"
-			},
-			"security": {
-				"noDangerouslySetInnerHtml": "off"
-			},
-			"correctness": {
-				"noUnusedVariables": "off",
-				"useExhaustiveDependencies": "off",
-				"useParseIntRadix": "off",
-				"noUnusedFunctionParameters": "off",
-				"useHookAtTopLevel": "off"
-			},
-			"style": {
-				"useTemplate": "off",
-				"useNodejsImportProtocol": "off",
-				"noDescendingSpecificity": "off",
-				"noNonNullAssertion": "off"
-			},
-			"performance": {
-				"noImgElement": "off"
+				"useSemanticElements": "off"
 			}
 		}
 	},
