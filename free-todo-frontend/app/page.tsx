@@ -37,8 +37,18 @@ function isElectronEnvironment(): boolean {
 export default function HomePage() {
 	// 所有 hooks 必须在条件返回之前调用（React Hooks 规则）
 	const { mode } = useDynamicIslandStore();
+
+	// 使用 mounted 状态来避免 SSR 水合不匹配
+	// 在服务器端和初始客户端渲染时，始终渲染全屏模式
+	// 只有在水合完成后（mounted 为 true），才根据实际环境决定显示模式
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
 	// 浏览器模式下始终使用全屏模式（不显示灵动岛）
-	const isElectron = isElectronEnvironment();
+	// 在未挂载时（SSR/初始渲染），始终使用全屏模式以避免水合不匹配
+	const isElectron = mounted ? isElectronEnvironment() : false;
 	const isFullscreen = !isElectron || mode === IslandMode.FULLSCREEN;
 
 	const {

@@ -58,8 +58,9 @@ export function getPreloadPath(): string {
 		// 使用 app.getAppPath() 获取应用路径
 		return path.join(app.getAppPath(), "preload.js");
 	}
-	// 开发环境：使用编译后的文件路径（dist-electron 目录）
-	return path.join(__dirname, "..", "preload.js");
+	// 开发环境：preload.js 和 main.js 都在 dist-electron 目录
+	// __dirname 在 bundle 后指向 dist-electron 目录
+	return path.join(__dirname, "preload.js");
 }
 
 /**
