@@ -50,22 +50,22 @@ export function CostTrackingPanel() {
 
 		// 转换为 snake_case 格式以匹配翻译 key
 		const normalizedId = toSnakeCase(featureId);
-		const translationKey =
-			`page.costTracking.featureNames.${normalizedId}` as Parameters<
-				typeof t
-			>[0];
+		// t 已经以 "page.costTracking" 为命名空间，所以只需要相对路径
+		const translationKey = `featureNames.${normalizedId}` as Parameters<
+			typeof t
+		>[0];
 
 		// 尝试获取翻译
 		let translation: string;
 		try {
 			translation = t(translationKey);
 			// 如果翻译结果包含完整的命名空间路径（说明翻译不存在），返回未知功能
-			if (translation.includes("page.costTracking.featureNames.")) {
-				return t("page.costTracking.featureNames.unknown");
+			if (translation.includes("featureNames.")) {
+				return t("featureNames.unknown");
 			}
 		} catch (error) {
 			// 如果翻译失败，返回未知功能
-			return t("page.costTracking.featureNames.unknown");
+			return t("featureNames.unknown");
 		}
 
 		return translation;
