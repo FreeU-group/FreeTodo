@@ -120,3 +120,17 @@ class TodoReorderRequest(BaseModel):
     """批量重排序请求模型"""
 
     items: list[TodoReorderItem] = Field(..., description="待排序的待办列表")
+
+
+class TodoOrganizeRequest(BaseModel):
+    """整理待办请求模型"""
+
+    parent_title: str = Field(..., min_length=1, max_length=200, description="父任务标题")
+    todo_ids: list[int] = Field(..., min_items=1, description="要整理的待办ID列表")
+
+
+class TodoOrganizeResponse(BaseModel):
+    """整理待办响应模型"""
+
+    parent_todo: TodoResponse = Field(..., description="创建的父任务")
+    updated_count: int = Field(..., description="更新的待办数量")

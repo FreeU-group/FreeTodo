@@ -8,6 +8,8 @@ from lifetrace.core.dependencies import get_todo_service
 from lifetrace.schemas.todo import (
     TodoCreate,
     TodoListResponse,
+    TodoOrganizeRequest,
+    TodoOrganizeResponse,
     TodoReorderRequest,
     TodoResponse,
     TodoUpdate,
@@ -80,3 +82,20 @@ async def reorder_todos(
         for item in request.items
     ]
     return service.reorder_todos(items)
+
+
+@router.post("/organize", response_model=TodoOrganizeResponse, status_code=200)
+async def organize_todos(
+    request: TodoOrganizeRequest,
+    service: TodoService = Depends(get_todo_service),
+):
+    """
+    整理待办：创建父任务并将多个待办移动到其下
+
+    Args:
+        request: 包含父任务标题和待办ID列表的请求
+
+    Returns:
+        创建的父任务信息和更新的待办数量
+    """
+    return service.organize_todos(request.parent_title, request.todo_ids)

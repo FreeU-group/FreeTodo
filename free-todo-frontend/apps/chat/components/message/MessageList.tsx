@@ -1,11 +1,15 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, ListTodo, Loader2, MoreVertical } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PromptSuggestions } from "@/apps/chat/components/input/PromptSuggestions";
+import { BatchTodoConfirmationPanel } from "@/apps/chat/components/message/BatchTodoConfirmationPanel";
 import { EditModeMessage } from "@/apps/chat/components/message/EditModeMessage";
 import { MessageTodoExtractionPanel } from "@/apps/chat/components/message/MessageTodoExtractionPanel";
+import { OrganizeTodosConfirmationPanel } from "@/apps/chat/components/message/OrganizeTodosConfirmationPanel";
+import { TodoConfirmationPanel } from "@/apps/chat/components/message/TodoConfirmationPanel";
 import { ToolCallLoading } from "@/apps/chat/components/message/ToolCallLoading";
 import type { ChatMessage, ChatMode } from "@/apps/chat/types";
 import { buildHierarchicalTodoContext } from "@/apps/chat/utils/todoContext";
@@ -14,7 +18,7 @@ import {
 	type MenuItem,
 	useContextMenu,
 } from "@/components/common/context-menu/BaseContextMenu";
-import { useTodos } from "@/lib/query";
+import { queryKeys, useTodos } from "@/lib/query";
 import { toastError } from "@/lib/toast";
 import type { Todo, UpdateTodoInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -51,6 +55,7 @@ export function MessageList({
 	const tContextMenu = useTranslations("contextMenu");
 	const messageListRef = useRef<HTMLDivElement>(null);
 	const { data: allTodos = [] } = useTodos();
+	const queryClient = useQueryClient();
 	// 跟踪用户是否在底部（或接近底部）
 	const isAtBottomRef = useRef(true);
 	// 跟踪上一次消息数量，用于检测新消息
@@ -99,6 +104,60 @@ export function MessageList({
 	const removeToolCalls = useCallback((content: string): string => {
 		return content.replace(TOOL_CALL_PATTERN, "").trim();
 	}, []);
+
+	// 解析并提取待确认信息
+	const parseTodoConfirmation = useCallback(
+		(
+			content: string,
+		): {
+			confirmation:
+				| {
+						type: "todo_confirmation";
+						operation: "create_todo" | "update_todo" | "delete_todo";
+						data: {
+							operation: string;
+							todo_id?: number;
+							params?: Record<string, unknown>;
+						};
+						preview: string;
+				  }
+				| {
+						type: "batch_todo_confirmation";
+						operation: "batch_create_todos";
+						todos: Array<{ name: string; description?: string }>;
+						preview: string;
+				  }
+				| {
+						type: "organize_todos_confirmation";
+						operation: "organize_todos";
+						todos: Array<{ id: number; name: string }>;
+						parent_title: string;
+						todo_ids: number[];
+						preview: string;
+				  }
+				| null;
+			contentWithoutConfirmation: string;
+		} => {
+			const confirmationPattern = /<!-- TODO_CONFIRMATION:\s*({.+?})\s*-->/s;
+			const match = content.match(confirmationPattern);
+			if (match) {
+				try {
+					const confirmationData = JSON.parse(match[1]);
+					const contentWithoutConfirmation = content
+						.replace(confirmationPattern, "")
+						.trim();
+					return {
+						confirmation: confirmationData,
+						contentWithoutConfirmation,
+					};
+				} catch (error) {
+					console.error("解析确认信息失败:", error);
+				}
+			}
+			return { confirmation: null, contentWithoutConfirmation: content };
+		},
+		[],
+	);
 
 	// 解析 webSearch 模式下的消息内容，分离正文和来源列表
 	const parseWebSearchMessage = useCallback(
@@ -155,6 +214,37 @@ export function MessageList({
 				}>;
 				parentTodoId: number | null;
 			}
+		>
+	>(new Map());
+
+	// 待办确认状态 - 按消息ID存储
+	const [confirmationStates, setConfirmationStates] = useState<
+		Map<
+			string,
+			| {
+					type: "todo_confirmation";
+					operation: "create_todo" | "update_todo" | "delete_todo";
+					data: {
+						operation: string;
+						todo_id?: number;
+						params?: Record<string, unknown>;
+					};
+					preview: string;
+			  }
+			| {
+					type: "batch_todo_confirmation";
+					operation: "batch_create_todos";
+					todos: Array<{ name: string; description?: string }>;
+					preview: string;
+			  }
+			| {
+					type: "organize_todos_confirmation";
+					operation: "organize_todos";
+					todos: Array<{ id: number; name: string }>;
+					parent_title: string;
+					todo_ids: number[];
+					preview: string;
+			  }
 		>
 	>(new Map());
 
@@ -254,9 +344,23 @@ export function MessageList({
 				// 检测工具调用标记（在消息渲染前）
 				const toolCalls = msg.content ? extractToolCalls(msg.content) : [];
 				// 移除工具调用标记后的内容
-				const contentWithoutToolCalls = msg.content
+				let contentWithoutToolCalls = msg.content
 					? removeToolCalls(msg.content)
 					: "";
+
+				// 解析待确认信息
+				const { confirmation, contentWithoutConfirmation } =
+					parseTodoConfirmation(contentWithoutToolCalls);
+				contentWithoutToolCalls = contentWithoutConfirmation;
+
+				// 如果有确认信息，存储到state中（只处理一次）
+				if (confirmation && !confirmationStates.has(msg.id)) {
+					setConfirmationStates((prev) => {
+						const newMap = new Map(prev);
+						newMap.set(msg.id, confirmation);
+						return newMap;
+					});
+				}
 				// 判断是否正在工具调用（有工具调用标记且移除标记后内容为空）
 				const isToolCallingOnly =
 					isStreaming &&
@@ -434,11 +538,7 @@ export function MessageList({
 												</button>
 											)}
 										{(() => {
-											// 移除工具调用标记后的内容
-											const contentWithoutToolCalls = msg.content
-												? removeToolCalls(msg.content)
-												: "";
-
+											// 使用已经在map开头解析好的contentWithoutToolCalls
 											// 无论是否启用联网搜索，只要消息内容包含 Sources 标记就解析
 											// 这样可以避免关闭联网搜索后，已包含 Sources 的消息显示异常
 											const hasSourcesMarker =
@@ -681,6 +781,73 @@ export function MessageList({
 								</div>
 							</div>
 						)}
+						{/* 待办确认面板 - 显示在消息下方 */}
+						{confirmationStates.has(msg.id) &&
+							(() => {
+								const confirmation = confirmationStates.get(msg.id);
+								if (!confirmation) return null;
+								const handleComplete = () => {
+									setConfirmationStates((prev) => {
+										const newMap = new Map(prev);
+										newMap.delete(msg.id);
+										return newMap;
+									});
+									// 刷新待办列表
+									queryClient.invalidateQueries({
+										queryKey: queryKeys.todos.all,
+									});
+								};
+
+								if (confirmation.type === "batch_todo_confirmation") {
+									return (
+										<div
+											className={cn(
+												"w-full",
+												msg.role === "assistant"
+													? "max-w-[80%]"
+													: "max-w-[80%]",
+											)}
+										>
+											<BatchTodoConfirmationPanel
+												confirmation={confirmation}
+												onComplete={handleComplete}
+											/>
+										</div>
+									);
+								}
+
+								if (confirmation.type === "organize_todos_confirmation") {
+									return (
+										<div
+											className={cn(
+												"w-full",
+												msg.role === "assistant"
+													? "max-w-[80%]"
+													: "max-w-[80%]",
+											)}
+										>
+											<OrganizeTodosConfirmationPanel
+												confirmation={confirmation}
+												onComplete={handleComplete}
+											/>
+										</div>
+									);
+								}
+
+								return (
+									<div
+										className={cn(
+											"w-full",
+											msg.role === "assistant" ? "max-w-[80%]" : "max-w-[80%]",
+										)}
+									>
+										<TodoConfirmationPanel
+											confirmation={confirmation}
+											onComplete={handleComplete}
+										/>
+									</div>
+								);
+							})()}
 						{/* 提取待办面板 - 显示在消息下方 */}
 						{extractionStates.has(msg.id) && (
 							<div

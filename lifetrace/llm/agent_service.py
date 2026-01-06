@@ -1,6 +1,7 @@
 """Agent 服务，管理工具调用工作流"""
 
 import json
+import re
 from collections.abc import Generator
 from typing import Any
 
@@ -46,6 +47,11 @@ class AgentService:
         iteration_count = 0
         accumulated_context = []
 
+        # 批量删除状态跟踪
+        batch_delete_mode = False
+        batch_delete_todo_ids = []
+        batch_delete_results = []  # 存储所有delete_todo的确认结果
+
         # 构建初始消息
         messages = self._build_initial_messages(
             user_query,
@@ -53,12 +59,126 @@ class AgentService:
             conversation_history,
         )
 
+        # 检测批量删除场景：用户说"删除这些"且待办上下文中包含多个待办
+        if (
+            any(word in user_query for word in ["这些", "它们", "这些待办"])
+            and "删除" in user_query
+        ):
+            if todo_context:
+                import re
+                # 只提取"选中待办"部分的ID，避免提取父待办或子待办的ID
+                # 待办上下文中，每个选中待办前面有"选中待办"或"Selected Todo"标签
+                # 格式示例：
+                # 选中待办
+                # ID: 21
+                # 名称: ...
+                # ---
+                # 选中待办
+                # ID: 22
+                # ...
+
+                # 方法1：提取每个"选中待办"或"Selected Todo"标记后的第一个ID
+                selected_todo_ids = []
+                # 支持中英文标签
+                pattern = r"(?:选中待办|Selected Todo|【当前选中待办】|\[Selected Todo\])[\s\S]*?ID:\s*(\d+)"
+                matches = re.findall(pattern, todo_context, re.IGNORECASE)
+                if matches:
+                    selected_todo_ids = [int(id_str) for id_str in matches]
+                    # 去重，保持顺序
+                    seen = set()
+                    unique_ids = []
+                    for id_val in selected_todo_ids:
+                        if id_val not in seen:
+                            seen.add(id_val)
+                            unique_ids.append(id_val)
+                    selected_todo_ids = unique_ids
+
+                # 方法2：如果方法1没找到，使用分隔符"---"分割，提取每个部分第一个ID
+                if not selected_todo_ids and "---" in todo_context:
+                    sections = todo_context.split("---")
+                    for section in sections:
+                        # 在每个section中查找第一个ID（在"ID:"之后）
+                        id_match = re.search(r"ID:\s*(\d+)", section)
+                        if id_match:
+                            todo_id = int(id_match.group(1))
+                            if todo_id not in selected_todo_ids:
+                                selected_todo_ids.append(todo_id)
+
+                # 如果还是没有找到，fallback到旧方法（但不推荐）
+                if not selected_todo_ids:
+                    id_matches = re.findall(r"ID:\s*(\d+)", todo_context)
+                    # 只取唯一的ID
+                    seen = set()
+                    for id_str in id_matches:
+                        id_val = int(id_str)
+                        if id_val not in seen:
+                            seen.add(id_val)
+                            selected_todo_ids.append(id_val)
+
+                if len(selected_todo_ids) > 1:
+                    batch_delete_mode = True
+                    batch_delete_todo_ids = selected_todo_ids
+                    logger.info(
+                        f"[Agent] 检测到批量删除场景，待删除{len(batch_delete_todo_ids)}个待办: {batch_delete_todo_ids}"
+                    )
+
+                    # 直接生成批量删除确认面板，不进入工具选择循环
+                    todos_info = []
+                    for todo_id in batch_delete_todo_ids:
+                        # 从待办上下文中提取名称
+                        todo_name = f"待办 {todo_id}"
+                        # 使用正则提取该ID对应的名称
+                        name_pattern = (
+                            rf"【当前选中待办】[\s\S]*?ID:\s*{todo_id}[\s\S]*?名称:\s*([^\n]+)"
+                        )
+                        name_match = re.search(name_pattern, todo_context)
+                        if name_match:
+                            todo_name = name_match.group(1).strip()
+                        todos_info.append({"id": todo_id, "name": todo_name})
+
+                    # 生成批量确认JSON
+                    batch_confirmation_json = json.dumps(
+                        {
+                            "type": "batch_todo_confirmation",
+                            "operation": "batch_delete_todos",
+                            "todos": todos_info,
+                            "preview": f"准备批量删除 {len(todos_info)} 个待办事项",
+                        },
+                        ensure_ascii=False,
+                    )
+
+                    preview_text = f"准备批量删除以下 {len(todos_info)} 个待办事项：\n" + "\n".join(
+                        [f"- ID: {t['id']} | 名称: {t['name']}" for t in todos_info]
+                    )
+
+                    confirmation_content = (
+                        f"{preview_text}\n\n<!-- TODO_CONFIRMATION: {batch_confirmation_json} -->"
+                    )
+                    yield confirmation_content
+                    return  # 直接返回，不进入工具选择循环
+
         while iteration_count < self.MAX_ITERATIONS:
             iteration_count += 1
             logger.info(f"[Agent] 迭代 {iteration_count}/{self.MAX_ITERATIONS}")
 
             # 步骤1: 工具选择
-            tool_decision = self._decide_tool_usage(messages, tool_call_count)
+            # 在批量删除模式下，传递已处理和剩余ID信息
+            processed_ids_list = []
+            remaining_ids_list = []
+            if batch_delete_mode:
+                processed_ids_set = {r.get("todo_id") for r in batch_delete_results}
+                processed_ids_list = list(processed_ids_set)
+                remaining_ids_list = [
+                    tid for tid in batch_delete_todo_ids if tid not in processed_ids_set
+                ]
+
+            tool_decision = self._decide_tool_usage(
+                messages,
+                tool_call_count,
+                batch_delete_mode=batch_delete_mode,
+                processed_ids=processed_ids_list,
+                remaining_ids=remaining_ids_list,
+            )
 
             if tool_decision["use_tool"]:
                 # 步骤2: 执行工具
@@ -70,7 +190,11 @@ class AgentService:
                 tool_params = tool_decision.get("tool_params", {})
 
                 # 构建工具调用标记，包含参数信息（特别是搜索关键词）
-                if tool_name == "web_search" and "query" in tool_params:
+                # 对于clarify_todo，不显示工具调用标记，直接显示结果
+                if tool_name == "clarify_todo":
+                    # clarify_todo的结果会直接返回，不显示工具调用标记
+                    pass
+                elif tool_name == "web_search" and "query" in tool_params:
                     # 对于 web_search，显示搜索关键词
                     yield f"\n[使用工具: {tool_name} | 关键词: {tool_params['query']}]\n\n"
                 else:
@@ -83,6 +207,114 @@ class AgentService:
 
                 tool_result = self._execute_tool(tool_name, tool_params)
                 tool_call_count += 1
+
+                # 检查是否是clarify_todo工具，如果是且成功，直接返回结果（需要用户输入）
+                if tool_name == "clarify_todo" and tool_result.success:
+                    logger.info("[Agent] clarify_todo工具返回，需要用户输入，直接返回结果")
+                    # 直接返回工具结果内容，不继续处理
+                    yield tool_result.content
+                    return
+
+                # 检查是否需要用户确认（create_todo, update_todo, delete_todo）
+                if tool_result.metadata and tool_result.metadata.get("requires_confirmation"):
+                    # 批量删除场景：收集所有确认结果，最后统一返回批量确认面板
+                    if batch_delete_mode and tool_name == "delete_todo":
+                        confirmation_data = tool_result.metadata.get("confirmation_data", {})
+                        batch_delete_results.append(confirmation_data)
+                        logger.info(
+                            f"[Agent] 批量删除中，已收集{len(batch_delete_results)}/{len(batch_delete_todo_ids)}个待删除确认"
+                        )
+
+                        # 如果还有待办没处理，继续循环
+                        if len(batch_delete_results) < len(batch_delete_todo_ids):
+                            # 输出当前确认信息，但不返回，继续循环
+                            formatted_result = self._format_tool_result(tool_name, tool_result)
+                            result_content = formatted_result.replace(
+                                f"工具 {tool_name} 执行结果：\n", ""
+                            )
+                            yield result_content
+                            # 继续执行，不return，让循环继续
+                        else:
+                            # 所有待办都已收集，生成批量删除确认面板
+                            logger.info("[Agent] 批量删除收集完成，生成批量确认面板")
+
+                            # 构建批量删除确认数据
+                            todos_info = []
+                            seen_ids = set()  # 去重，避免重复添加同一个待办
+
+                            # 优先从待办上下文中提取选中待办的信息
+                            if todo_context:
+                                # 提取所有选中待办的ID和名称
+                                selected_pattern = r"(?:【当前选中待办】|\[Selected Todo\])[\s\S]*?ID:\s*(\d+)[\s\S]*?名称:\s*([^\n]+)"
+                                selected_matches = re.findall(
+                                    selected_pattern, todo_context, re.IGNORECASE
+                                )
+
+                                for todo_id_str, todo_name in selected_matches:
+                                    todo_id = int(todo_id_str)
+                                    if todo_id not in seen_ids and todo_id in batch_delete_todo_ids:
+                                        seen_ids.add(todo_id)
+                                        todos_info.append(
+                                            {"id": todo_id, "name": todo_name.strip()}
+                                        )
+
+                            # 对于没有从上下文中找到的待办，从工具结果中提取
+                            for result in batch_delete_results:
+                                todo_id = result.get("todo_id")
+                                if todo_id in seen_ids:
+                                    continue  # 已经添加过了
+
+                                # 从工具结果的预览消息中提取名称
+                                todo_name = f"待办 {todo_id}"
+                                # 尝试从accumulated_context中查找
+                                for ctx in accumulated_context:
+                                    if f"ID: {todo_id}" in ctx:
+                                        # 尝试提取名称
+                                        name_match = re.search(
+                                            rf"ID:\s*{todo_id}[\s\S]*?名称:\s*([^\n|]+)", ctx
+                                        )
+                                        if name_match:
+                                            todo_name = name_match.group(1).strip()
+                                            break
+                                seen_ids.add(todo_id)
+                                todos_info.append({"id": todo_id, "name": todo_name})
+
+                            # 确保所有待删除的ID都在列表中
+                            for todo_id in batch_delete_todo_ids:
+                                if todo_id not in seen_ids:
+                                    todos_info.append({"id": todo_id, "name": f"待办 {todo_id}"})
+
+                            # 生成批量确认JSON
+                            batch_confirmation_json = json.dumps(
+                                {
+                                    "type": "batch_todo_confirmation",
+                                    "operation": "batch_delete_todos",
+                                    "todos": todos_info,
+                                    "preview": f"准备批量删除 {len(todos_info)} 个待办事项",
+                                },
+                                ensure_ascii=False,
+                            )
+
+                            preview_text = (
+                                f"准备批量删除以下 {len(todos_info)} 个待办事项：\n"
+                                + "\n".join(
+                                    [f"- ID: {t['id']} | 名称: {t['name']}" for t in todos_info]
+                                )
+                            )
+
+                            confirmation_content = f"{preview_text}\n\n<!-- TODO_CONFIRMATION: {batch_confirmation_json} -->"
+                            yield confirmation_content
+                            return
+                    else:
+                        # 非批量场景，立即返回确认
+                        logger.info(f"[Agent] {tool_name}工具需要用户确认，直接返回结果")
+                        formatted_result = self._format_tool_result(tool_name, tool_result)
+                        # 移除工具调用标记（如果有），只显示结果内容
+                        result_content = formatted_result.replace(
+                            f"工具 {tool_name} 执行结果：\n", ""
+                        )
+                        yield result_content
+                        return
 
                 # 将工具结果添加到上下文
                 tool_context = self._format_tool_result(tool_name, tool_result)
@@ -103,11 +335,42 @@ class AgentService:
                 )
 
                 # 步骤3: 任务评估
-                should_continue = self._evaluate_task_completion(
-                    user_query,
-                    messages,
-                    tool_result,
-                )
+                # 批量删除场景：如果还有待办没处理，强制继续
+                if batch_delete_mode and tool_name == "delete_todo":
+                    # 获取已处理的ID集合
+                    processed_ids = {r.get("todo_id") for r in batch_delete_results}
+                    remaining_ids = [
+                        tid for tid in batch_delete_todo_ids if tid not in processed_ids
+                    ]
+
+                    if remaining_ids:
+                        logger.info(
+                            f"[Agent] 批量删除模式：已处理{len(processed_ids)}/{len(batch_delete_todo_ids)}个待办，"
+                            f"剩余待处理ID: {remaining_ids}，强制继续"
+                        )
+                        # 在消息中添加提示，告诉Agent还有哪些待办需要删除
+                        if remaining_ids:
+                            remaining_hint = f"\n[提示] 批量删除进行中，还需要删除以下待办的ID: {', '.join(map(str, remaining_ids))}。请继续为每个ID调用 delete_todo 工具。"
+                            messages.append(
+                                {
+                                    "role": "user",
+                                    "content": remaining_hint,
+                                }
+                            )
+                        should_continue = True
+                    else:
+                        # 所有待办都已处理，让评估决定是否继续
+                        should_continue = self._evaluate_task_completion(
+                            user_query,
+                            messages,
+                            tool_result,
+                        )
+                else:
+                    should_continue = self._evaluate_task_completion(
+                        user_query,
+                        messages,
+                        tool_result,
+                    )
 
                 if not should_continue:
                     logger.info("[Agent] 任务评估：可以生成最终回答")
@@ -161,6 +424,9 @@ class AgentService:
         self,
         messages: list[dict],
         tool_call_count: int,
+        batch_delete_mode: bool = False,
+        processed_ids: list[int] | None = None,
+        remaining_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         """
         决定是否需要使用工具
@@ -196,7 +462,13 @@ class AgentService:
 
         # 调用 LLM 进行工具选择
         try:
-            decision_messages = self._build_tool_decision_messages(messages, tool_selection_prompt)
+            decision_messages = self._build_tool_decision_messages(
+                messages,
+                tool_selection_prompt,
+                batch_delete_mode=batch_delete_mode,
+                processed_ids=processed_ids,
+                remaining_ids=remaining_ids,
+            )
             decision = self._call_llm_for_tool_selection(decision_messages)
 
             if decision:
@@ -213,28 +485,111 @@ class AgentService:
                         "tool_name": tool_name,
                         "tool_params": tool_params,
                     }
+
+            # 如果在批量删除模式下，LLM 没有返回可用工具决策，则进行规则兜底：
+            # 只要还有 remaining_ids，就强制为下一个 remaining_id 调用 delete_todo
+            if batch_delete_mode and remaining_ids:
+                next_id = remaining_ids[0]
+                logger.info(
+                    f"[Agent] 批量删除兜底逻辑生效，为剩余ID {next_id} 强制调用 delete_todo"
+                )
+                return {
+                    "use_tool": True,
+                    "tool_name": "delete_todo",
+                    "tool_params": {"todo_id": next_id},
+                }
         except Exception as e:
             logger.error(f"[Agent] 工具选择失败: {e}")
 
         return {"use_tool": False, "tool_name": None, "tool_params": None}
 
     def _build_tool_decision_messages(
-        self, messages: list[dict], tool_selection_prompt: str
+        self,
+        messages: list[dict],
+        tool_selection_prompt: str,
+        batch_delete_mode: bool = False,
+        processed_ids: list[int] | None = None,
+        remaining_ids: list[int] | None = None,
     ) -> list[dict]:
         """构建工具选择决策消息，包含完整的上下文但排除工具相关消息"""
         decision_messages = [{"role": "system", "content": tool_selection_prompt}]
 
         # 添加所有非工具相关的消息（保留待办上下文和对话历史）
+        # 特殊处理：对于extract_todo的结果，需要保留todos信息
+        extract_todo_summary = None
+
         for msg in messages:
             # 跳过系统提示词（使用新的工具选择提示词）
             if msg.get("role") == "system":
                 continue
             content = msg.get("content", "")
-            # 跳过工具调用和工具结果相关的消息
-            if content.startswith("[工具调用:") or content.startswith("[工具结果]"):
+
+            # 特殊处理：检查是否是extract_todo的结果
+            if content.startswith("[工具结果]"):
+                # 尝试从工具结果中提取extract_todo的信息
+                if "extract_todo" in content or "提取的待办数据结构" in content:
+                    # 保留extract_todo的结果摘要，用于后续批量创建
+                    # 提取JSON部分（如果存在）
+                    try:
+                        json_match = re.search(r"```json\n(.*?)\n```", content, re.DOTALL)
+                        if json_match:
+                            todos_json_str = json_match.group(1)
+                            todos_data = json.loads(todos_json_str)
+                            if todos_data:
+                                todos_list = todos_data.get("todos", [])
+                                if todos_list:
+                                    # 创建摘要
+                                    todo_names = [
+                                        t.get("name", "") for t in todos_list[:10]
+                                    ]  # 最多显示10个
+                                    extract_todo_summary = (
+                                        f"之前已通过extract_todo工具提取了{len(todos_list)}个待办事项，"
+                                        f"包括：{', '.join(todo_names)}{'...' if len(todos_list) > 10 else ''}。"
+                                        f"完整的待办数据结构：\n```json\n{json.dumps(todos_list, ensure_ascii=False, indent=2)}\n```"
+                                    )
+                                    logger.info(
+                                        f"[Agent] 提取到extract_todo结果，包含{len(todos_list)}个待办"
+                                    )
+                    except Exception:
+                        # 如果解析失败，至少保留原始内容的一部分
+                        if "提取的待办数据结构" in content:
+                            extract_todo_summary = content[:500]  # 保留前500字符
+                            logger.warning("[Agent] extract_todo结果解析失败，使用原始内容片段")
+                # 对于其他工具结果，跳过
                 continue
+
+            # 跳过工具调用消息
+            if content.startswith("[工具调用:"):
+                continue
+
             # 保留待办上下文、对话历史和用户查询
             decision_messages.append(msg)
+
+        # 如果有extract_todo的摘要，添加到消息列表末尾
+        if extract_todo_summary:
+            decision_messages.append(
+                {
+                    "role": "user",
+                    "content": f"[上下文信息] {extract_todo_summary}",
+                }
+            )
+            logger.info("[Agent] 已将extract_todo结果添加到工具决策上下文")
+
+        # 批量删除模式：添加明确的提示，避免重复选择已处理的ID
+        if batch_delete_mode and remaining_ids:
+            batch_delete_hint = (
+                f"\n\n⚠️ **批量删除模式进行中** ⚠️\n"
+                f"- 已处理的待办ID: {', '.join(map(str, processed_ids or []))}\n"
+                f"- **必须删除的剩余待办ID**: {', '.join(map(str, remaining_ids))}\n"
+                f"- **重要**：请仅从剩余ID列表中选择，不要选择已处理的ID。\n"
+                f"- 如果使用 delete_todo 工具，todo_id 参数必须从剩余ID列表中选择。\n"
+            )
+            decision_messages.append(
+                {
+                    "role": "user",
+                    "content": batch_delete_hint,
+                }
+            )
 
         return decision_messages
 
@@ -291,7 +646,73 @@ class AgentService:
         if not result.success:
             return f"工具 {tool_name} 执行失败: {result.error}"
 
+        # 检查是否需要用户确认
+        if result.metadata and result.metadata.get("requires_confirmation"):
+            # 返回待确认信息的特殊格式（JSON格式，便于前端解析）
+            confirmation_data = result.metadata.get("confirmation_data", {})
+
+            # 区分单个todo确认和批量todo确认
+            operation = confirmation_data.get("operation", "")
+            if operation == "batch_create_todos":
+                # 批量创建确认
+                todos = confirmation_data.get("todos", [])
+                confirmation_json = json.dumps(
+                    {
+                        "type": "batch_todo_confirmation",
+                        "operation": "batch_create_todos",
+                        "todos": todos,
+                        "preview": result.content,
+                    },
+                    ensure_ascii=False,
+                )
+                return f"{result.content}\n\n<!-- TODO_CONFIRMATION: {confirmation_json} -->"
+            elif operation == "organize_todos":
+                # 整理待办确认
+                todos = confirmation_data.get("todos", [])
+                parent_title = confirmation_data.get("parent_title", "")
+                todo_ids = confirmation_data.get("todo_ids", [])
+                confirmation_json = json.dumps(
+                    {
+                        "type": "organize_todos_confirmation",
+                        "operation": "organize_todos",
+                        "todos": todos,
+                        "parent_title": parent_title,
+                        "todo_ids": todo_ids,
+                        "preview": result.content,
+                    },
+                    ensure_ascii=False,
+                )
+                return f"{result.content}\n\n<!-- TODO_CONFIRMATION: {confirmation_json} -->"
+            else:
+                # 单个todo确认（create/update/delete）
+                confirmation_json = json.dumps(
+                    {
+                        "type": "todo_confirmation",
+                        "operation": operation,
+                        "data": confirmation_data,
+                        "preview": result.content,
+                    },
+                    ensure_ascii=False,
+                )
+                return f"{result.content}\n\n<!-- TODO_CONFIRMATION: {confirmation_json} -->"
+
         formatted = f"工具 {tool_name} 执行结果：\n{result.content}"
+
+        # 如果是 extract_todo 工具，将结构化 todos 数据一并输出，方便后续批量创建使用
+        if tool_name == "extract_todo" and result.metadata:
+            todos = result.metadata.get("todos")
+            if todos:
+                try:
+                    todos_json = json.dumps(todos, ensure_ascii=False, indent=2)
+                    formatted += (
+                        "\n\n提取到的待办数据结构（JSON，供后续批量创建使用）：\n"
+                        "```json\n"
+                        f"{todos_json}\n"
+                        "```"
+                    )
+                except Exception:
+                    # 如果序列化失败，直接忽略结构化部分，避免影响主流程
+                    logger.exception("[Agent] 序列化 extract_todo 结果失败，忽略结构化部分")
 
         # 如果有来源信息，添加到末尾
         if result.metadata and "sources" in result.metadata:
@@ -319,6 +740,89 @@ class AgentService:
         if not tool_result.success:
             return True
 
+        # 特殊处理：检测批量删除场景
+        # 如果待办上下文中包含多个待办，用户要求删除"这些"待办，且刚执行了delete_todo，需要检查是否还有其他待办待删除
+        if "删除" in user_query or "删除" in user_query.lower():
+            # 检查是否有待办上下文，且包含多个待办
+            todo_context_found = False
+            todo_ids_in_context = []
+
+            for msg in messages:
+                content = msg.get("content", "")
+                if "用户当前的待办事项上下文" in content:
+                    todo_context_found = True
+                    # 提取所有ID
+                    import re
+
+                    id_matches = re.findall(r"ID:\s*(\d+)", content)
+                    todo_ids_in_context = [int(id_str) for id_str in id_matches]
+                    break
+
+            # 如果上下文中包含多个待办ID，且用户说"删除这些"
+            if (
+                todo_context_found
+                and len(todo_ids_in_context) > 1
+                and any(word in user_query for word in ["这些", "它们", "这些待办"])
+            ):
+                # 检查已经删除的待办（通过检查消息历史中的工具调用）
+                for msg in messages:
+                    content = msg.get("content", "")
+                    if content.startswith("[工具调用: delete_todo]"):
+                        # 从后续的工具结果中提取已删除的ID
+                        # 注意：这里我们需要从工具结果中提取，但由于是确认流程，可能还没有实际删除
+                        # 更好的方法是检查是否有待删除的待办还没被调用delete_todo
+                        pass
+
+                # 检查是否所有待办都已调用delete_todo（通过检查消息历史）
+                delete_todo_calls = []
+                for i, msg in enumerate(messages):
+                    content = msg.get("content", "")
+                    if content.startswith("[工具调用: delete_todo]"):
+                        # 尝试从下一个消息（工具结果）中提取todo_id
+                        if i + 1 < len(messages):
+                            next_content = messages[i + 1].get("content", "")
+                            id_match = re.search(r"todo_id[:\s]+(\d+)", next_content)
+                            if id_match:
+                                delete_todo_calls.append(int(id_match.group(1)))
+
+                # 如果还有待办没有被调用delete_todo，继续循环
+                if len(delete_todo_calls) < len(todo_ids_in_context):
+                    logger.info(
+                        f"[Agent] 批量删除中，已删除 {len(delete_todo_calls)}/{len(todo_ids_in_context)} 个待办，继续循环"
+                    )
+                    return True
+
+        # 特殊处理：批量删除场景检测
+        # 检查是否有待办上下文，且用户要求删除"这些"待办
+        if "删除" in user_query and any(
+            word in user_query for word in ["这些", "它们", "这些待办"]
+        ):
+            todo_ids_in_context = []
+            for msg in messages:
+                content = msg.get("content", "")
+                if "用户当前的待办事项上下文" in content:
+                    import re
+
+                    id_matches = re.findall(r"ID:\s*(\d+)", content)
+                    todo_ids_in_context = [int(id_str) for id_str in id_matches]
+                    break
+
+            if len(todo_ids_in_context) > 1:
+                # 统计已经调用delete_todo的次数
+                delete_todo_count = sum(
+                    1
+                    for msg in messages
+                    if msg.get("content", "").startswith("[工具调用: delete_todo]")
+                )
+
+                # 如果还有待办没有调用delete_todo，继续循环
+                if delete_todo_count < len(todo_ids_in_context):
+                    logger.info(
+                        f"[Agent] 批量删除检测：上下文中{len(todo_ids_in_context)}个待办，"
+                        f"已调用{delete_todo_count}次delete_todo，继续循环"
+                    )
+                    return True
+
         # 使用 LLM 评估
         evaluation_prompt = get_prompt(
             "agent",
@@ -331,11 +835,22 @@ class AgentService:
             evaluation_prompt = self._get_default_evaluation_prompt()
 
         try:
+            # 在评估消息中包含更多上下文，特别是待办上下文信息
+            context_info = ""
+            for msg in messages:
+                content = msg.get("content", "")
+                if "用户当前的待办事项上下文" in content:
+                    context_info = f"\n\n待办上下文摘要: {content[:200]}"
+                    break
+
             eval_messages = [
                 {"role": "system", "content": evaluation_prompt},
                 {
                     "role": "user",
-                    "content": (f"用户查询: {user_query}\n\n工具结果: {tool_result.content[:500]}"),
+                    "content": (
+                        f"用户查询: {user_query}\n\n"
+                        f"工具结果: {tool_result.content[:500]}{context_info}"
+                    ),
                 },
             ]
 
