@@ -39,7 +39,7 @@ export function OverviewView({
 			return {
 				id: segment.id,
 				time: formatTime(timeInSeconds),
-				text: text.length > 150 ? text.substring(0, 150) + "..." : text,
+				text: text.length > 150 ? `${text.substring(0, 150)}...` : text,
 				segment,
 			};
 		});
@@ -74,6 +74,14 @@ export function OverviewView({
 											"bg-primary/5 border-primary/30 shadow-lg scale-[1.02]",
 									)}
 									onClick={() => onSegmentClick?.(chapter.segment)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											onSegmentClick?.(chapter.segment);
+										}
+									}}
+									role="button"
+									tabIndex={0}
 								>
 									{/* 左侧时间轴节点 */}
 									<div className="flex flex-col items-center shrink-0 w-12">

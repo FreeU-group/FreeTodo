@@ -39,6 +39,7 @@ export function BottomControlBar({
 				<div className="flex items-center gap-2 bg-background/95 backdrop-blur-md border border-border/50 rounded-full shadow-2xl px-2 py-2">
 					{/* 左侧：回看模式（80%） */}
 					<button
+						type="button"
 						onClick={() => onModeChange("playback")}
 						className={cn(
 							"flex items-center gap-3 px-6 py-3 rounded-full",
@@ -53,6 +54,7 @@ export function BottomControlBar({
 
 					{/* 右侧：录音按钮（20%） */}
 					<button
+						type="button"
 						onClick={onStartRecording}
 						className={cn(
 							"flex items-center justify-center w-12 h-12 rounded-full",
@@ -90,6 +92,7 @@ export function BottomControlBar({
 							录音中 {formatTime(recordingDuration)}
 						</span>
 						<button
+							type="button"
 							onClick={onStopRecording}
 							className="ml-auto p-1.5 rounded-full hover:bg-red-500/20 transition-colors"
 							title="停止录音"
@@ -100,6 +103,7 @@ export function BottomControlBar({
 
 					{/* 右侧：回看按钮（20%） */}
 					<button
+						type="button"
 						onClick={() => onModeChange("playback")}
 						className={cn(
 							"flex items-center justify-center w-12 h-12 rounded-full",

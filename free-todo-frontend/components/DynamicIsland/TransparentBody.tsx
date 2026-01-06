@@ -18,8 +18,10 @@ export function TransparentBody() {
 		// 检测是否在 Electron 环境中
 		const isElectron =
 			typeof window !== "undefined" &&
-			((window as any).electronAPI ||
-				(window as any).require?.("electron") ||
+			(window.electronAPI ||
+				(window as typeof window & { require?: (m: string) => unknown }).require?.(
+					"electron",
+				) ||
 				navigator.userAgent.includes("Electron"));
 
 		if (!isElectron) {

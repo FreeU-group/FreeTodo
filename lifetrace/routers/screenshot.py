@@ -134,7 +134,9 @@ async def get_screenshot_path(screenshot_id: int):
 
 
 @router.post("/capture")
-async def capture_screenshot(request: dict | None = Body(None)):
+async def capture_screenshot(
+    request: dict | None = Body(None),  # noqa: B008
+):
     """手动触发截屏
 
     请求体（可选）:

@@ -69,6 +69,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 					}}
 				>
 					<button
+				type="button"
 						onClick={() => {
 							onQuit();
 							onClose();

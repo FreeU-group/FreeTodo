@@ -50,6 +50,7 @@ export function ContentViewSwitcher({
 				const isActive = currentView === option.id;
 				return (
 					<button
+						type="button"
 						key={option.id}
 						onClick={() => onViewChange(option.id)}
 						className={cn(

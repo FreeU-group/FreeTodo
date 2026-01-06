@@ -17,7 +17,7 @@ from .base import _create_llm_stream_generator, logger, router
 @router.post("", response_model=ChatResponse)
 async def chat_with_llm(
     message: ChatMessage,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """与LLM聊天接口 - 集成RAG功能"""
 
@@ -65,7 +65,7 @@ async def chat_with_llm(
 @router.post("/stream")
 async def chat_with_llm_stream(
     message: ChatMessage,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """与LLM聊天接口（流式输出）
 

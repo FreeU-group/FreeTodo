@@ -22,7 +22,7 @@ class RetrievalService:
         self.query_parser = QueryParser()
         logger.info("检索服务初始化完成")
 
-    def search_by_conditions(
+    def search_by_conditions(  # noqa: C901, PLR0912, PLR0915
         self, conditions: QueryConditions, limit: int = 50
     ) -> list[dict[str, Any]]:
         """
@@ -242,7 +242,9 @@ class RetrievalService:
 
         return self.search_by_conditions(conditions, limit)
 
-    def get_statistics(self, conditions: QueryConditions = None) -> dict[str, Any]:
+    def get_statistics(  # noqa: C901
+        self, conditions: QueryConditions = None
+    ) -> dict[str, Any]:
         """
         获取统计信息
 
@@ -337,8 +339,9 @@ class RetrievalService:
                 # 记录统计结果
                 logger.info("统计结果:")
                 logger.info(f"  总截图数: {total_count}")
+                MAX_APP_DISTRIBUTION_ITEMS = 5
                 logger.info(
-                    f"  应用分布: {dict(list(stats['app_distribution'].items())[:5])}{'...' if len(stats['app_distribution']) > 5 else ''}"
+                    f"  应用分布: {dict(list(stats['app_distribution'].items())[:MAX_APP_DISTRIBUTION_ITEMS])}{'...' if len(stats['app_distribution']) > MAX_APP_DISTRIBUTION_ITEMS else ''}"
                 )
                 logger.info(
                     f"  时间范围: {stats['time_range']['earliest']} 到 {stats['time_range']['latest']}"
@@ -393,9 +396,10 @@ class RetrievalService:
         if screenshot.created_at:
             now = datetime.now()
             time_diff = now - screenshot.created_at
+            DAYS_IN_WEEK = 7
             if time_diff.days < 1:
                 score += 0.2
-            elif time_diff.days < 7:
+            elif time_diff.days < DAYS_IN_WEEK:
                 score += 0.1
 
         return min(score, 1.0)

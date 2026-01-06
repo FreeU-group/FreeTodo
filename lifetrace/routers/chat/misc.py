@@ -14,7 +14,7 @@ from .base import logger, router
 @router.post("/new", response_model=NewChatResponse)
 async def create_new_chat(
     request: NewChatRequest = None,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """创建新对话会话"""
     try:
@@ -42,7 +42,7 @@ async def create_new_chat(
 async def add_message_to_session(
     session_id: str,
     request: AddMessageRequest,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """添加消息到会话（消息已在流式聊天中自动保存，此接口保持兼容性）"""
     try:
@@ -66,7 +66,7 @@ async def add_message_to_session(
 @router.delete("/session/{session_id}")
 async def clear_chat_session(
     session_id: str,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """清除指定会话的上下文"""
     try:
@@ -90,7 +90,7 @@ async def clear_chat_session(
 async def get_chat_history(
     session_id: str | None = Query(None),
     chat_type: str | None = Query(None, description="聊天类型过滤：event, project, general"),
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """获取聊天历史记录（从数据库读取）"""
     try:

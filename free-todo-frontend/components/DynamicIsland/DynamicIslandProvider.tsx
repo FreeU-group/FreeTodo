@@ -9,9 +9,13 @@ import { IslandMode } from "./types";
  */
 function isElectronEnvironment(): boolean {
 	if (typeof window === "undefined") return false;
+	const win = window as Window & {
+		electronAPI?: unknown;
+		require?: ((module: string) => unknown) | undefined;
+	};
 	return !!(
-		(window as any).electronAPI ||
-		(window as any).require?.("electron") ||
+		win.electronAPI ||
+		win.require?.("electron") ||
 		navigator.userAgent.includes("Electron")
 	);
 }

@@ -258,7 +258,6 @@ export function Questionnaire({
 										}}
 										placeholder={t("customAnswerPlaceholder")}
 										disabled={disabled}
-										autoFocus
 										className={cn(
 											"flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none",
 											disabled && "cursor-not-allowed opacity-50",

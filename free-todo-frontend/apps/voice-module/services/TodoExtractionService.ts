@@ -43,6 +43,16 @@ export class TodoExtractionService {
 	}
 
 	/**
+	 * 获取队列状态
+	 */
+	getQueueStatus(): { queueLength: number; isProcessing: boolean } {
+		return {
+			queueLength: this.queue.length,
+			isProcessing: this.isProcessing,
+		};
+	}
+
+	/**
 	 * 添加片段到提取队列（支持优化文本和原始文本）
 	 */
 	enqueue(segment: TranscriptSegment): void {
@@ -242,12 +252,12 @@ export class TodoExtractionService {
 		// 方法1: 匹配 [TODO: ...] 格式（LLM 标记的）
 		const todoRegex =
 			/\[TODO:\s*([^|]+)(?:\s*\|\s*deadline:\s*([^|]+))?(?:\s*\|\s*priority:\s*(\w+))?\]/g;
-		let match;
-
-		while ((match = todoRegex.exec(text)) !== null) {
-			const title = match[1].trim();
-			const deadlineText = match[2]?.trim();
-			const priorityText = match[3]?.trim().toLowerCase() || "medium";
+		for (;;) {
+			const m = todoRegex.exec(text);
+			if (!m) break;
+			const title = m[1].trim();
+			const deadlineText = m[2]?.trim();
+			const priorityText = m[3]?.trim().toLowerCase() || "medium";
 
 			const deadline = deadlineText
 				? this.parseDeadline(deadlineText, segment.timestamp)
@@ -261,8 +271,8 @@ export class TodoExtractionService {
 				id: `todo_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
 				title,
 				description: text.substring(
-					Math.max(0, match.index - 50),
-					Math.min(text.length, match.index + match[0].length + 50),
+					Math.max(0, m.index - 50),
+					Math.min(text.length, m.index + m[0].length + 50),
 				),
 				deadline,
 				priority,
@@ -326,7 +336,7 @@ export class TodoExtractionService {
 
 			// 尝试解析 ISO 格式
 			const parsed = new Date(deadlineText);
-			if (!isNaN(parsed.getTime())) {
+			if (!Number.isNaN(parsed.getTime())) {
 				return parsed;
 			}
 

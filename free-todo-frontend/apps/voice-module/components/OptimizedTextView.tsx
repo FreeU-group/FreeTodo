@@ -21,12 +21,15 @@ interface OptimizedTextViewProps {
 		sourceText?: string;
 		textStartIndex?: number;
 		textEndIndex?: number;
+		description?: string;
 	}>; // 日程信息，用于高亮
 	todos?: Array<{
 		sourceSegmentId: string;
 		sourceText?: string;
 		textStartIndex?: number;
 		textEndIndex?: number;
+		title?: string;
+		description?: string;
 	}>; // 待办信息，用于高亮
 }
 
@@ -77,9 +80,7 @@ export function OptimizedTextView({
 		const segmentSchedules = schedules.filter(
 			(s: { sourceSegmentId: string }) => s.sourceSegmentId === segmentId,
 		);
-		const segmentTodos = todos.filter(
-			(t: { sourceSegmentId: string }) => t.sourceSegmentId === segmentId,
-		);
+		const segmentTodos = todos.filter((t) => t.sourceSegmentId === segmentId);
 
 		// 合并所有需要高亮的位置
 		const highlights: Array<{
@@ -189,6 +190,8 @@ export function OptimizedTextView({
 				sourceText?: string;
 				textStartIndex?: number;
 				textEndIndex?: number;
+				title?: string;
+				description?: string;
 			}) => {
 				// 优先使用LLM返回的textStartIndex和textEndIndex（如果可用）
 				if (
@@ -259,7 +262,7 @@ export function OptimizedTextView({
 					highlights.length === 0 ||
 					!highlights.some((h) => h.type === "todo")
 				) {
-					const todoTitle = (todo as any).title || (todo as any).description;
+					const todoTitle = todo.title || todo.description;
 					if (todoTitle?.trim()) {
 						const title = todoTitle.trim();
 						const lowerTitle = title.toLowerCase();
@@ -295,31 +298,42 @@ export function OptimizedTextView({
 			return <span>{text}</span>;
 		}
 
-		const parts: Array<{ text: string; highlight?: "schedule" | "todo" }> = [];
+		const parts: Array<{
+			text: string;
+			highlight?: "schedule" | "todo";
+			id: string;
+		}> = [];
 		let lastIndex = 0;
 
 		highlights.forEach((highlight) => {
 			if (highlight.start > lastIndex) {
-				parts.push({ text: text.substring(lastIndex, highlight.start) });
+				parts.push({
+					text: text.substring(lastIndex, highlight.start),
+					id: `plain-${lastIndex}-${highlight.start}`,
+				});
 			}
 			parts.push({
 				text: text.substring(highlight.start, highlight.end),
 				highlight: highlight.type,
+				id: `${highlight.type}-${highlight.start}-${highlight.end}`,
 			});
 			lastIndex = highlight.end;
 		});
 
 		if (lastIndex < text.length) {
-			parts.push({ text: text.substring(lastIndex) });
+			parts.push({
+				text: text.substring(lastIndex),
+				id: `plain-${lastIndex}-${text.length}`,
+			});
 		}
 
 		return (
 			<>
-				{parts.map((part, index) => {
+				{parts.map((part) => {
 					if (part.highlight === "schedule") {
 						return (
 							<mark
-								key={index}
+								key={part.id}
 								className={cn(
 									"relative inline-block",
 									"bg-gradient-to-r from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-800/30",
@@ -340,7 +354,7 @@ export function OptimizedTextView({
 					} else if (part.highlight === "todo") {
 						return (
 							<mark
-								key={index}
+								key={part.id}
 								className={cn(
 									"relative inline-block",
 									"bg-gradient-to-r from-blue-100 to-blue-50 dark:from-blue-900/40 dark:to-blue-800/30",
@@ -359,7 +373,7 @@ export function OptimizedTextView({
 							</mark>
 						);
 					} else {
-						return <span key={index}>{part.text}</span>;
+						return <span key={part.id}>{part.text}</span>;
 					}
 				})}
 			</>
@@ -407,6 +421,14 @@ export function OptimizedTextView({
 								isHighlighted && "bg-primary/5",
 							)}
 							onClick={() => onSegmentClick?.(segment)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onSegmentClick?.(segment);
+								}
+							}}
+							role="button"
+							tabIndex={0}
 						>
 							<div className="flex items-start gap-3">
 								<div className="flex-shrink-0 mt-0.5">

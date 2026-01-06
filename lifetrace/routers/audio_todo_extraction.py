@@ -50,7 +50,7 @@ class AudioTodoExtractionResponse(BaseModel):
 @router.post("/extract-todos", response_model=AudioTodoExtractionResponse)
 async def extract_todos_from_audio(
     request: AudioTodoExtractionRequest,
-    todo_service: TodoService = Depends(get_todo_service),
+    todo_service: TodoService = Depends(get_todo_service),  # noqa: B008
 ):
     """
     从音频转录文本中提取待办事项（使用LLM智能提取，不自动创建）

@@ -22,7 +22,7 @@ async def list_todos(
     limit: int = Query(200, ge=1, le=2000, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
     status: str | None = Query(None, description="状态筛选：active/completed/canceled/draft"),
-    service: TodoService = Depends(get_todo_service),
+    service: TodoService = Depends(get_todo_service),  # noqa: B008
 ):
     """获取待办列表"""
     try:
@@ -39,7 +39,7 @@ async def list_todos(
 @router.get("/{todo_id}", response_model=TodoResponse)
 async def get_todo(
     todo_id: int = Path(..., description="Todo ID"),
-    service: TodoService = Depends(get_todo_service),
+    service: TodoService = Depends(get_todo_service),  # noqa: B008
 ):
     """获取单个待办"""
     return service.get_todo(todo_id)
@@ -48,7 +48,7 @@ async def get_todo(
 @router.post("", response_model=TodoResponse, status_code=201)
 async def create_todo(
     todo: TodoCreate,
-    service: TodoService = Depends(get_todo_service),
+    service: TodoService = Depends(get_todo_service),  # noqa: B008
 ):
     """创建待办"""
     return service.create_todo(todo)
@@ -58,7 +58,7 @@ async def create_todo(
 async def update_todo(
     todo_id: int = Path(..., description="Todo ID"),
     todo: TodoUpdate = None,
-    service: TodoService = Depends(get_todo_service),
+    service: TodoService = Depends(get_todo_service),  # noqa: B008
 ):
     """更新待办"""
     return service.update_todo(todo_id, todo)
@@ -67,7 +67,7 @@ async def update_todo(
 @router.delete("/{todo_id}", status_code=204)
 async def delete_todo(
     todo_id: int = Path(..., description="Todo ID"),
-    service: TodoService = Depends(get_todo_service),
+    service: TodoService = Depends(get_todo_service),  # noqa: B008
 ):
     """删除待办"""
     service.delete_todo(todo_id)
@@ -76,7 +76,7 @@ async def delete_todo(
 @router.post("/reorder", status_code=200)
 async def reorder_todos(
     request: TodoReorderRequest,
-    service: TodoService = Depends(get_todo_service),
+    service: TodoService = Depends(get_todo_service),  # noqa: B008
 ):
     """批量更新待办的排序和父子关系"""
     items = [

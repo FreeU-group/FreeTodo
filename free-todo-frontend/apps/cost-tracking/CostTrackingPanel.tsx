@@ -63,7 +63,7 @@ export function CostTrackingPanel() {
 			if (translation.includes("featureNames.")) {
 				return t("featureNames.unknown");
 			}
-		} catch (error) {
+		} catch (_error) {
 			// 如果翻译失败，返回未知功能
 			return t("featureNames.unknown");
 		}

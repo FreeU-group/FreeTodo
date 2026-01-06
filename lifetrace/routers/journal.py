@@ -22,7 +22,7 @@ router = APIRouter(tags=["journals"])
 @router.post("/api/journals", response_model=JournalResponse, status_code=201)
 async def create_journal(
     journal: JournalCreate,
-    service: JournalService = Depends(get_journal_service),
+    service: JournalService = Depends(get_journal_service),  # noqa: B008
 ):
     """创建日记"""
     try:
@@ -36,11 +36,11 @@ async def create_journal(
 
 @router.get("/api/journals", response_model=JournalListResponse)
 async def list_journals(
-    limit: int = Query(100, ge=1, le=1000, description="返回数量限制"),
-    offset: int = Query(0, ge=0, description="偏移量"),
-    start_date: datetime | None = Query(None, description="开始日期筛选"),
-    end_date: datetime | None = Query(None, description="结束日期筛选"),
-    service: JournalService = Depends(get_journal_service),
+    limit: int = Query(100, ge=1, le=1000, description="返回数量限制"),  # noqa: B008
+    offset: int = Query(0, ge=0, description="偏移量"),  # noqa: B008
+    start_date: datetime | None = Query(None, description="开始日期筛选"),  # noqa: B008
+    end_date: datetime | None = Query(None, description="结束日期筛选"),  # noqa: B008
+    service: JournalService = Depends(get_journal_service),  # noqa: B008
 ):
     """获取日记列表"""
     try:
@@ -53,7 +53,7 @@ async def list_journals(
 @router.get("/api/journals/{journal_id}", response_model=JournalResponse)
 async def get_journal(
     journal_id: int = Path(..., description="日记ID"),
-    service: JournalService = Depends(get_journal_service),
+    service: JournalService = Depends(get_journal_service),  # noqa: B008
 ):
     """获取日记详情"""
     try:
@@ -69,7 +69,7 @@ async def get_journal(
 async def update_journal(
     journal_id: int = Path(..., description="日记ID"),
     journal: JournalUpdate | None = None,
-    service: JournalService = Depends(get_journal_service),
+    service: JournalService = Depends(get_journal_service),  # noqa: B008
 ):
     """更新日记"""
     try:
@@ -84,7 +84,7 @@ async def update_journal(
 @router.delete("/api/journals/{journal_id}", status_code=204)
 async def delete_journal(
     journal_id: int = Path(..., description="日记ID"),
-    service: JournalService = Depends(get_journal_service),
+    service: JournalService = Depends(get_journal_service),  # noqa: B008
 ):
     """删除日记"""
     try:

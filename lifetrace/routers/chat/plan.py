@@ -77,7 +77,7 @@ def _format_todo_context(context: dict[str, Any]) -> str:  # noqa: C901
 @router.post("/plan/questionnaire/stream")
 async def plan_questionnaire_stream(
     request: PlanQuestionnaireRequest,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """Plan功能：生成选择题（流式输出）"""
     try:
@@ -201,7 +201,7 @@ def _build_plan_questionnaire_prompts(
 @router.post("/plan/summary/stream")
 async def plan_summary_stream(
     request: PlanSummaryRequest,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """Plan功能：生成任务总结和子任务（流式输出）"""
     try:

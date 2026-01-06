@@ -38,13 +38,19 @@ export class RecognitionService {
 
 		this.shouldContinue = true; // 开始识别时，标记为应该继续运行
 
+		const win = window as Window & {
+			SpeechRecognition?: typeof window.SpeechRecognition;
+			webkitSpeechRecognition?: typeof window.SpeechRecognition;
+			electronAPI?: unknown;
+			require?: unknown;
+		};
+
 		const SpeechRecognition =
-			(window as any).SpeechRecognition ||
-			(window as any).webkitSpeechRecognition;
+			win.SpeechRecognition || win.webkitSpeechRecognition;
 
 		if (!SpeechRecognition) {
 			// 检查是否在 Electron 环境中
-			const isElectron = (window as any).require || (window as any).electronAPI;
+			const isElectron = Boolean(win.require || win.electronAPI);
 			const error = isElectron
 				? new Error(
 						"Electron 环境不支持 Web Speech API，请使用系统音频模式或浏览器模式",
@@ -199,7 +205,7 @@ export class RecognitionService {
 		if (this.recognition) {
 			try {
 				this.recognition.stop();
-			} catch (e) {
+			} catch (_e) {
 				// 忽略已停止的错误
 			}
 		}

@@ -190,7 +190,7 @@ app.include_router(deepseek.router)
 _voice_router_registered = False
 
 
-def _register_voice_router():
+def _register_voice_router():  # noqa: C901, PLR0915
     """注册语音识别路由（后台加载）"""
     global _voice_router_registered
     if _voice_router_registered:

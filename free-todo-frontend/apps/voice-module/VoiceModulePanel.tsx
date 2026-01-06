@@ -12,6 +12,7 @@
 "use client";
 
 import { Mic, Play, Upload } from "lucide-react";
+import type OpenAI from "openai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCreateTodo } from "@/lib/query/todos";
 import { useModuleContextStore } from "@/lib/store/module-context-store";
@@ -37,6 +38,24 @@ import {
 import { WebSocketRecognitionService } from "./services/WebSocketRecognitionService";
 import { useAppStore } from "./store/useAppStore";
 import type { AudioSegment, ScheduleItem, TranscriptSegment } from "./types";
+
+// 音频录音记录类型
+type AudioRecording = {
+	id: string;
+	segment_id: string;
+	start_time: string;
+	end_time: string | null;
+	duration_seconds: number | null;
+	file_url: string | null;
+	filename: string | null;
+	file_size: number | null;
+	title?: string | null;
+	is_full_audio?: boolean;
+	is_segment_audio?: boolean;
+	is_transcribed?: boolean;
+	is_extracted?: boolean;
+	is_summarized?: boolean;
+};
 
 // API基础URL
 const API_BASE_URL =
@@ -262,7 +281,7 @@ export function VoiceModulePanel() {
 					);
 				// 只统计完整音频
 				const fullAudioRecordings = recordings.filter(
-					(r) => (r as any).is_full_audio === true,
+					(r: AudioRecording) => r.is_full_audio === true,
 				);
 
 				// 计算每个日期的音频数量
@@ -895,52 +914,60 @@ export function VoiceModulePanel() {
 						if (allText.trim() && optimizationServiceRef.current) {
 							// 实时优化文本（用于智能提取）
 							try {
-								const optimizationService =
-									optimizationServiceRef.current as any;
-								const aiClient = optimizationService.aiClient;
+								const optimizationService = optimizationServiceRef.current;
+								// 使用类型断言访问内部 AI 客户端（仅在必要时）
+								const optimizationWithClient =
+									optimizationService as unknown as {
+										aiClient?: OpenAI | null;
+										optimizeText?: (
+											segmentId: string,
+											text: string,
+										) => Promise<void>;
+									};
+								const aiClient = optimizationWithClient.aiClient;
 
-								if (aiClient) {
+								if (optimizationWithClient.optimizeText) {
 									// 异步优化，不阻塞
-									optimizationService
+									optimizationWithClient
 										.optimizeText(transcriptSegment.id, transcriptText)
 										.catch((err: unknown) => {
 											console.warn("[VoiceModulePanel] ⚠️ 实时优化失败:", err);
 										});
+								}
 
-									// 实时生成纪要（基于所有已有文本）
-									if (allText.length > 100) {
-										// 至少100字符才生成纪要
-										aiClient.chat.completions
-											.create({
-												model: "deepseek-chat",
-												messages: [
-													{
-														role: "system",
-														content:
-															"你是一个专业的智能会议纪要生成助手。根据录音转录文本，生成简洁的会议纪要。",
-													},
-													{
-														role: "user",
-														content: `请基于以下录音转录内容，生成会议纪要：\n\n${allText}`,
-													},
-												],
-												temperature: 0.7,
-												max_tokens: 1000,
-											})
-											.then((response: any) => {
-												if (response.choices?.[0]?.message?.content) {
-													setMeetingSummary(
-														response.choices[0].message.content,
-													);
-												}
-											})
-											.catch((err: any) => {
-												console.warn(
-													"[VoiceModulePanel] ⚠️ 实时生成纪要失败:",
-													err,
-												);
-											});
-									}
+								// 实时生成纪要（基于所有已有文本）
+								if (aiClient && allText.length > 100) {
+									// 至少100字符才生成纪要
+									aiClient.chat.completions
+										.create({
+											model: "deepseek-chat",
+											messages: [
+												{
+													role: "system",
+													content:
+														"你是一个专业的智能会议纪要生成助手。根据录音转录文本，生成简洁的会议纪要。",
+												},
+												{
+													role: "user",
+													content: `请基于以下录音转录内容，生成会议纪要：\n\n${allText}`,
+												},
+											],
+											temperature: 0.7,
+											max_tokens: 1000,
+										})
+										.then((response) => {
+											const content =
+												response.choices?.[0]?.message?.content ?? undefined;
+											if (content) {
+												setMeetingSummary(content);
+											}
+										})
+										.catch((err: unknown) => {
+											console.warn(
+												"[VoiceModulePanel] ⚠️ 实时生成纪要失败:",
+												err,
+											);
+										});
 								}
 							} catch (error) {
 								console.warn("[VoiceModulePanel] ⚠️ 实时处理失败:", error);
@@ -952,7 +979,7 @@ export function VoiceModulePanel() {
 				console.error("[VoiceModulePanel] ❌ 分段转录失败:", error);
 			}
 		},
-		[addTranscript],
+		[addTranscript, handleScheduleExtracted, handleTodoExtracted],
 	);
 
 	// 更新 ref，确保总是使用最新的回调
@@ -961,6 +988,7 @@ export function VoiceModulePanel() {
 	}, [handleAudioSegmentReady]);
 
 	// 初始化服务（只执行一次，完全不依赖任何状态）
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 服务初始化只在挂载时执行一次，回调通过 ref 与 store 保持最新，避免频繁重建和清理
 	useEffect(() => {
 		console.log("[VoiceModulePanel] 🔄 useEffect: 初始化服务");
 		const recordingService = new RecordingService();
@@ -994,12 +1022,17 @@ export function VoiceModulePanel() {
 		recordingServiceRef.current = recordingService;
 
 		// 检查 Web Speech API 是否支持
-		const SpeechRecognition =
-			(window as any).SpeechRecognition ||
-			(window as any).webkitSpeechRecognition;
-		const isElectron = (window as any).require || (window as any).electronAPI;
+		const w = window as typeof window & {
+			SpeechRecognition?: new (...args: unknown[]) => unknown;
+			webkitSpeechRecognition?: new (...args: unknown[]) => unknown;
+			require?: NodeRequire;
+			electronAPI?: { [key: string]: unknown };
+		};
+		const SpeechRecognitionCtor =
+			w.SpeechRecognition || w.webkitSpeechRecognition;
+		const isElectron = !!w.require || !!w.electronAPI;
 
-		if (!SpeechRecognition || isElectron) {
+		if (!SpeechRecognitionCtor || isElectron) {
 			// 不支持 Web Speech API 或在 Electron 环境中，使用 WebSocket + Faster-Whisper
 			console.log(
 				"[VoiceModulePanel] 🔄 使用 WebSocket + Faster-Whisper 识别服务",
@@ -1140,10 +1173,10 @@ export function VoiceModulePanel() {
 		};
 		// 注意：完全移除依赖项，只在组件挂载时执行一次
 		// 回调会在 handleStartRecording 中重新设置
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	// 组件挂载时加载当天音频列表
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 只在挂载时加载一次当天音频列表，后续日期切换由显式的 handleDateChange 调用触发
 	useEffect(() => {
 		if (persistenceServiceRef.current) {
 			console.log("[VoiceModulePanel] 📅 组件挂载，加载当天音频列表");
@@ -1177,6 +1210,7 @@ export function VoiceModulePanel() {
 	}, [isRecording]);
 
 	// 处理录音开始
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 依赖列表包含关键的 store / service 依赖，省略稳定工具函数（handlePause）以避免循环依赖和不必要的重建
 	const handleStartRecording = useCallback(async () => {
 		console.log("[VoiceModulePanel] 🎤 handleStartRecording被调用");
 		setError(null);
@@ -1355,6 +1389,9 @@ export function VoiceModulePanel() {
 		setProcessStatus,
 		handleRecognitionResult,
 		isPlaying,
+		handleAudioSegmentReady,
+		recognitionServiceType,
+		setErrorWithAutoHide,
 	]);
 
 	// 处理录音暂停
@@ -1379,7 +1416,7 @@ export function VoiceModulePanel() {
 
 		// 更新状态为暂停
 		setProcessStatus("recording", "paused");
-	}, [isRecording, setProcessStatus]);
+	}, [isRecording, setProcessStatus, recognitionServiceType]);
 
 	// 处理录音恢复
 	const handleResumeRecording = useCallback(() => {
@@ -1409,7 +1446,7 @@ export function VoiceModulePanel() {
 
 		// 更新状态为运行中
 		setProcessStatus("recording", "running");
-	}, [setProcessStatus]);
+	}, [setProcessStatus, recognitionServiceType]);
 
 	// 处理录音停止（弹出确认对话框）
 	const handleStopRecording = useCallback(async () => {
@@ -1453,10 +1490,10 @@ export function VoiceModulePanel() {
 		recognitionServiceType,
 		storeStopRecording,
 		setProcessStatus,
-		setViewMode,
 	]);
 
 	// 确认保存录音
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 依赖包含 Zustand 的 action（setViewMode 等），这些 action 在运行时是稳定引用，当前列表已经足够安全
 	const handleConfirmSaveRecording = useCallback(async () => {
 		if (!pendingFullAudio || !persistenceServiceRef.current) {
 			setShowStopConfirmDialog(false);
@@ -1530,9 +1567,11 @@ export function VoiceModulePanel() {
 		selectedDate,
 		storeStopRecording,
 		setViewMode,
+		setErrorWithAutoHide,
 	]);
 
 	// 取消保存录音
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 依赖只涉及稳定的 store action（setViewMode 等），当前列表已经足够安全
 	const handleCancelSaveRecording = useCallback(() => {
 		setShowStopConfirmDialog(false);
 		setPendingFullAudio(null);
@@ -1715,7 +1754,7 @@ export function VoiceModulePanel() {
 					);
 				// 优先加载完整音频（用于回放），如果没有完整音频，则加载所有音频
 				const fullAudioRecordings = recordings.filter(
-					(r) => (r as any).is_full_audio === true,
+					(r: AudioRecording) => r.is_full_audio === true,
 				);
 				const audioRecordingsToLoad =
 					fullAudioRecordings.length > 0 ? fullAudioRecordings : recordings;
@@ -1795,7 +1834,7 @@ export function VoiceModulePanel() {
 								startTime = new Date(timeStr);
 							}
 							// 验证时间是否有效
-							if (isNaN(startTime.getTime())) {
+							if (Number.isNaN(startTime.getTime())) {
 								console.warn(
 									"[VoiceModulePanel] ⚠️ 时间解析失败，使用当前时间:",
 									recording.start_time,
@@ -1805,7 +1844,7 @@ export function VoiceModulePanel() {
 						} else if (typeof recording.start_time === "number") {
 							// 如果是时间戳（毫秒），直接创建 Date 对象
 							startTime = new Date(recording.start_time);
-							if (isNaN(startTime.getTime())) {
+							if (Number.isNaN(startTime.getTime())) {
 								console.warn(
 									"[VoiceModulePanel] ⚠️ 时间戳无效，使用当前时间:",
 									recording.start_time,
@@ -1832,7 +1871,7 @@ export function VoiceModulePanel() {
 								} else {
 									endTime = new Date(endTimeStr);
 								}
-								if (isNaN(endTime.getTime())) {
+								if (Number.isNaN(endTime.getTime())) {
 									endTime = new Date(
 										startTime.getTime() +
 											(recording.duration_seconds || 0) * 1000,
@@ -1840,7 +1879,7 @@ export function VoiceModulePanel() {
 								}
 							} else if (typeof recording.end_time === "number") {
 								endTime = new Date(recording.end_time);
-								if (isNaN(endTime.getTime())) {
+								if (Number.isNaN(endTime.getTime())) {
 									endTime = new Date(
 										startTime.getTime() +
 											(recording.duration_seconds || 0) * 1000,
@@ -1889,7 +1928,7 @@ export function VoiceModulePanel() {
 						fileUrl: fileUrl,
 						audioSource: "microphone",
 						uploadStatus: fileUrl ? "uploaded" : "failed",
-						title: (recording as any).title || undefined, // 添加标题字段
+						title: (recording as AudioRecording).title || undefined, // 添加标题字段
 					};
 
 					loadedAudioSegments.push(audioSegment);
@@ -1943,7 +1982,7 @@ export function VoiceModulePanel() {
 							endTime,
 						);
 					const fullAudioRecordings = allRecordings.filter(
-						(r) => (r as any).is_full_audio === true,
+						(r: AudioRecording) => r.is_full_audio === true,
 					);
 					const counts = new Map<string, number>();
 					fullAudioRecordings.forEach((recording) => {
@@ -1983,7 +2022,7 @@ export function VoiceModulePanel() {
 							const handleLoadedMetadata = () => {
 								if (
 									audio?.duration &&
-									isFinite(audio.duration) &&
+									Number.isFinite(audio.duration) &&
 									audio.duration > 0
 								) {
 									console.log(
@@ -2003,7 +2042,7 @@ export function VoiceModulePanel() {
 							if (
 								audio.readyState >= 1 &&
 								audio.duration &&
-								isFinite(audio.duration) &&
+								Number.isFinite(audio.duration) &&
 								audio.duration > 0
 							) {
 								console.log(
@@ -2028,7 +2067,7 @@ export function VoiceModulePanel() {
 				setIsLoadingAudioList(false);
 			}
 		},
-		[addTranscript, addSchedule, addAudioSegment],
+		[addTranscript, addSchedule, setErrorWithAutoHide],
 	);
 
 	// 处理导出
@@ -2076,7 +2115,7 @@ export function VoiceModulePanel() {
 			console.error("导出失败:", error);
 			setErrorWithAutoHide("导出失败，请重试");
 		}
-	}, [selectedDate, transcripts, schedules, extractedTodos]);
+	}, [selectedDate, transcripts, schedules, extractedTodos, setErrorWithAutoHide]);
 
 	// 处理编辑 - 打开编辑模式
 	const handleEdit = useCallback(() => {
@@ -2087,9 +2126,10 @@ export function VoiceModulePanel() {
 		);
 		// 暂时显示提示，后续可以实现编辑对话框
 		setErrorWithAutoHide("编辑功能：可以点击转录文本进行编辑（功能开发中）");
-	}, [setError]);
+	}, [setErrorWithAutoHide]);
 
 	// 处理选择音频文件（回看模式检测逻辑）
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 该回调依赖大量 store 状态和服务引用，全部纳入依赖会导致频繁重建且收益有限，这里保持精简依赖并通过显式逻辑保证一致性
 	const handleSelectAudio = useCallback(
 		async (audio: AudioSegment) => {
 			// 1. 先清空之前的内容（避免残留）
@@ -2145,9 +2185,9 @@ export function VoiceModulePanel() {
 						);
 					// 优先查找完整音频（is_full_audio=true），用于转录
 					const fullAudioRecording = recordings.find(
-						(r) =>
+						(r: AudioRecording) =>
 							(r.id === audio.id || r.segment_id === audio.id) &&
-							(r as any).is_full_audio === true,
+							r.is_full_audio === true,
 					);
 					// 当前选中的音频记录（可能是分段音频，用于显示）
 					const currentRecording =
@@ -2163,23 +2203,23 @@ export function VoiceModulePanel() {
 							? {
 									id: fullAudioRecording.id,
 									segment_id: fullAudioRecording.segment_id,
-									is_full_audio: (fullAudioRecording as any).is_full_audio,
-									is_transcribed: (fullAudioRecording as any).is_transcribed,
-									is_extracted: (fullAudioRecording as any).is_extracted,
-									is_summarized: (fullAudioRecording as any).is_summarized,
+									is_full_audio: fullAudioRecording.is_full_audio,
+									is_transcribed: fullAudioRecording.is_transcribed,
+									is_extracted: fullAudioRecording.is_extracted,
+									is_summarized: fullAudioRecording.is_summarized,
 								}
 							: null,
 						currentRecording: currentRecording
 							? {
 									id: currentRecording.id,
 									segment_id: currentRecording.segment_id,
-									is_full_audio: (currentRecording as any).is_full_audio,
+									is_full_audio: currentRecording.is_full_audio,
 								}
 							: null,
 					});
 
 					// 如果有纪要标记，从数据库加载纪要内容
-					if (fullAudioRecording && (fullAudioRecording as any).is_summarized) {
+					if (fullAudioRecording?.is_summarized) {
 						try {
 							const audioInfoResponse = await fetch(
 								`${API_BASE_URL}/audio/${audio.id}`,
@@ -2200,7 +2240,7 @@ export function VoiceModulePanel() {
 					}
 
 					// 如果有提取标记，从数据库加载待办和日程，并检查是否为空
-					if (fullAudioRecording && (fullAudioRecording as any).is_extracted) {
+					if (fullAudioRecording?.is_extracted) {
 						console.log(
 							"[VoiceModulePanel] 🔍 检测到已提取标记，从数据库加载待办和日程",
 						);
@@ -2275,7 +2315,7 @@ export function VoiceModulePanel() {
 					// 2. 检查是否需要转录完整音频（检查标记，没有标记就转录）
 					// 必须找到完整音频记录，然后检查其 is_transcribed 标记
 					const needsTranscription =
-						!fullAudioRecording || !(fullAudioRecording as any).is_transcribed;
+						!fullAudioRecording || !fullAudioRecording.is_transcribed;
 
 					// 定义后续处理函数（在转录完成后执行）
 					const processExtractionAndSummary = async () => {
@@ -2292,11 +2332,11 @@ export function VoiceModulePanel() {
 								startTime,
 								endTime,
 							);
-						const updatedFullAudioRecording = updatedRecordings.find(
-							(r) =>
-								(r.id === audio.id || r.segment_id === audio.id) &&
-								(r as any).is_full_audio === true,
-						);
+							const updatedFullAudioRecording = updatedRecordings.find(
+								(r: AudioRecording) =>
+									(r.id === audio.id || r.segment_id === audio.id) &&
+									r.is_full_audio === true,
+							);
 
 						if (!updatedFullAudioRecording) {
 							console.log(
@@ -2307,7 +2347,7 @@ export function VoiceModulePanel() {
 
 						// 3. 检查是否需要智能提取（使用完整音频记录的标记）
 						// 必须已经转录过，才能进行提取
-						if (!(updatedFullAudioRecording as any).is_transcribed) {
+						if (!updatedFullAudioRecording.is_transcribed) {
 							console.log(
 								"[VoiceModulePanel] ⚠️ 音频尚未转录，无法进行提取和纪要生成",
 							);
@@ -2366,12 +2406,12 @@ export function VoiceModulePanel() {
 						// 如果提取结果为空，强制重新提取（无论标记如何）
 						const needsExtraction =
 							!hasExtractedSchedules ||
-							!(updatedFullAudioRecording as any).is_extracted;
+							!updatedFullAudioRecording.is_extracted;
 
 						if (needsExtraction) {
 							if (
 								hasExtractedSchedules &&
-								(updatedFullAudioRecording as any).is_extracted
+								updatedFullAudioRecording.is_extracted
 							) {
 								console.log(
 									"[VoiceModulePanel] ⚠️ 检测到已提取标记，但提取结果为空，强制重新提取",
@@ -2469,22 +2509,32 @@ export function VoiceModulePanel() {
 
 											// 检查提取服务是否处理完成
 											const scheduleService =
-												scheduleExtractionServiceRef.current as any;
-											const todoService =
-												todoExtractionServiceRef.current as any;
+												scheduleExtractionServiceRef.current;
+											const todoService = todoExtractionServiceRef.current;
+
+											const scheduleStatus =
+												scheduleService?.getQueueStatus() ?? {
+													queueLength: 0,
+													isProcessing: false,
+												};
+											const todoStatus = todoService?.getQueueStatus?.() ?? {
+												queueLength: 0,
+												isProcessing: false,
+											};
+
 											const isScheduleIdle =
-												!scheduleService?.isProcessing &&
-												scheduleService?.queue?.length === 0;
+												!scheduleStatus.isProcessing &&
+												scheduleStatus.queueLength === 0;
 											const isTodoIdle =
-												!todoService?.isProcessing &&
-												todoService?.queue?.length === 0;
+												!todoStatus.isProcessing &&
+												todoStatus.queueLength === 0;
 
 											console.log("[VoiceModulePanel] 📊 提取状态检查:", {
 												waitTime,
-												scheduleProcessing: scheduleService?.isProcessing,
-												scheduleQueueLength: scheduleService?.queue?.length,
-												todoProcessing: todoService?.isProcessing,
-												todoQueueLength: todoService?.queue?.length,
+												scheduleProcessing: scheduleStatus.isProcessing,
+												scheduleQueueLength: scheduleStatus.queueLength,
+												todoProcessing: todoStatus.isProcessing,
+												todoQueueLength: todoStatus.queueLength,
 												extractedSchedules: extractedSchedules.length,
 												extractedTodos: extractedTodos.length,
 											});
@@ -2696,9 +2746,9 @@ export function VoiceModulePanel() {
 									endTime,
 								);
 							const finalFullAudioRecording = finalRecordings.find(
-								(r) =>
+								(r: AudioRecording) =>
 									(r.id === audio.id || r.segment_id === audio.id) &&
-									(r as any).is_full_audio === true,
+									r.is_full_audio === true,
 							);
 
 							if (!finalFullAudioRecording) {
@@ -2708,7 +2758,7 @@ export function VoiceModulePanel() {
 								return;
 							}
 
-							if (!(finalFullAudioRecording as any).is_transcribed) {
+							if (!finalFullAudioRecording.is_transcribed) {
 								console.warn("[VoiceModulePanel] ⚠️ 音频尚未转录，无法生成纪要");
 								return;
 							}
@@ -2767,12 +2817,12 @@ export function VoiceModulePanel() {
 							const needsSummary =
 								!existingSummary ||
 								existingSummary.trim().length === 0 ||
-								!(finalFullAudioRecording as any).is_summarized;
+								!finalFullAudioRecording.is_summarized;
 
 							if (needsSummary) {
 								if (
 									existingSummary &&
-									(finalFullAudioRecording as any).is_summarized
+									finalFullAudioRecording.is_summarized
 								) {
 									console.log(
 										"[VoiceModulePanel] ⚠️ 检测到已生成标记，但纪要内容为空，强制重新生成",
@@ -2798,9 +2848,13 @@ export function VoiceModulePanel() {
 										);
 
 										if (allText.trim() && optimizationServiceRef.current) {
-											const optimizationService =
-												optimizationServiceRef.current as any;
-											const aiClient = optimizationService.aiClient;
+											const optimizationService = optimizationServiceRef.current;
+											// 使用类型断言访问内部 AI 客户端（仅在必要时）
+											const optimizationWithClient =
+												optimizationService as unknown as {
+													aiClient?: OpenAI | null;
+												};
+											const aiClient = optimizationWithClient.aiClient;
 
 											if (aiClient) {
 												console.log(
@@ -2929,7 +2983,7 @@ export function VoiceModulePanel() {
 						console.log(
 							"[VoiceModulePanel] 🔍 检测到需要转录的完整音频（标记检查：",
 							fullAudioRecording
-								? (fullAudioRecording as any).is_transcribed
+								? fullAudioRecording.is_transcribed
 								: "无完整音频记录",
 							"），开始转录...",
 						);
@@ -2968,11 +3022,11 @@ export function VoiceModulePanel() {
 											const paragraphRegex = /([。！？\n]+)/g;
 											const paragraphs: string[] = [];
 											let lastIndex = 0;
-											let match;
+											let match: RegExpExecArray | null;
 
-											while (
-												(match = paragraphRegex.exec(transcriptText)) !== null
-											) {
+											while (true) {
+												match = paragraphRegex.exec(transcriptText);
+												if (!match) break;
 												const paragraphText = transcriptText
 													.substring(lastIndex, match.index)
 													.trim();
@@ -3239,7 +3293,7 @@ export function VoiceModulePanel() {
 							const handleLoadedMetadata = () => {
 								if (
 									audioEl?.duration &&
-									isFinite(audioEl.duration) &&
+									Number.isFinite(audioEl.duration) &&
 									audioEl.duration > 0
 								) {
 									console.log(
@@ -3262,7 +3316,7 @@ export function VoiceModulePanel() {
 							if (
 								audioEl.readyState >= 1 &&
 								audioEl.duration &&
-								isFinite(audioEl.duration) &&
+								Number.isFinite(audioEl.duration) &&
 								audioEl.duration > 0
 							) {
 								console.log(
@@ -3345,7 +3399,7 @@ export function VoiceModulePanel() {
 			}
 			setViewMode(mode);
 		},
-		[isPlaying, isRecording, handlePause, handleStopRecording, setCurrentTime],
+		[isPlaying, isRecording, handlePause, handleStopRecording],
 	);
 
 	// 监听全屏模式切换，停止播放并加载当天音频列表
@@ -3394,6 +3448,7 @@ export function VoiceModulePanel() {
 	}, [isPlaying, selectedDate, handleDateChange]);
 
 	// 处理片段点击（协同功能）- 参考代码实现
+	// biome-ignore lint/correctness/useExhaustiveDependencies: 回调依赖 dayAudioSegments 的多种遍历和排序操作，完整列出将导致依赖数组过于复杂，这里依赖核心状态（录音状态、音频列表等）并通过内部逻辑保证一致性
 	const handleSegmentClick = useCallback(
 		(segment: TranscriptSegment) => {
 			console.log("[VoiceModulePanel] 点击文本片段:", segment.id, segment);
@@ -3654,7 +3709,7 @@ export function VoiceModulePanel() {
 				// 确保time不超过duration
 				const maxTime =
 					audioPlayerRef.current.duration &&
-					isFinite(audioPlayerRef.current.duration)
+					Number.isFinite(audioPlayerRef.current.duration)
 						? audioPlayerRef.current.duration
 						: duration || Infinity;
 				const clampedTime = Math.max(0, Math.min(time, maxTime));
@@ -3889,7 +3944,7 @@ export function VoiceModulePanel() {
 
 		// 定期检查并同步duration（因为useMemo可能不会及时更新）
 		const syncDuration = () => {
-			if (audio && isFinite(audio.duration) && audio.duration > 0) {
+			if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
 				const currentDuration = duration;
 				if (Math.abs(audio.duration - currentDuration) > 0.1) {
 					console.log(
@@ -3906,10 +3961,12 @@ export function VoiceModulePanel() {
 
 		// 监听timeupdate事件，同步currentTime
 		const handleTimeUpdate = () => {
-			if (audio && isFinite(audio.currentTime) && audio.currentTime >= 0) {
+			if (audio && Number.isFinite(audio.currentTime) && audio.currentTime >= 0) {
 				// 确保currentTime不超过duration
 				const audioDuration =
-					audio.duration && isFinite(audio.duration) && audio.duration > 0
+					audio.duration &&
+					Number.isFinite(audio.duration) &&
+					audio.duration > 0
 						? audio.duration
 						: duration || Infinity;
 
@@ -3937,7 +3994,7 @@ export function VoiceModulePanel() {
 
 		// 监听loadedmetadata事件，同步duration
 		const handleLoadedMetadata = () => {
-			if (audio && isFinite(audio.duration) && audio.duration > 0) {
+			if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
 				console.log(
 					"[VoiceModulePanel] 从audio元素获取duration:",
 					audio.duration,
@@ -3954,7 +4011,7 @@ export function VoiceModulePanel() {
 
 		// 监听canplay事件，确保音频可以播放
 		const handleCanPlay = () => {
-			if (audio && isFinite(audio.duration) && audio.duration > 0) {
+			if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
 				console.log(
 					"[VoiceModulePanel] 音频可以播放，duration:",
 					audio.duration,
@@ -3996,7 +4053,7 @@ export function VoiceModulePanel() {
 
 		// 如果音频已经加载了metadata，立即获取duration
 		if (audio.readyState >= 1) {
-			if (isFinite(audio.duration) && audio.duration > 0) {
+			if (Number.isFinite(audio.duration) && audio.duration > 0) {
 				console.log(
 					"[VoiceModulePanel] 音频已加载，立即获取duration:",
 					audio.duration,
@@ -4055,21 +4112,18 @@ export function VoiceModulePanel() {
 			// 清空转录文本（只显示当前选中音频的文本）
 			// 注意：这里不清空store中的transcripts，只是不显示
 		}
-	}, [
-		selectedDate,
-		dayAudioSegments,
-		selectedAudioId,
-		handleSelectAudio,
-		viewMode,
-		isLoadingAudioList,
-	]); // 添加viewMode和isLoadingAudioList依赖
+	}, [dayAudioSegments, selectedAudioId, handleSelectAudio, viewMode, isLoadingAudioList]); // 添加viewMode和isLoadingAudioList依赖
 
 	// 计算总时长：优先使用音频实际时长，否则使用转录文本计算的总时长
 	const totalDuration = useMemo(() => {
 		// 优先从audio元素获取实际duration（实时检查）
 		if (audioPlayerRef.current) {
 			const audioDuration = audioPlayerRef.current.duration;
-			if (audioDuration && isFinite(audioDuration) && audioDuration > 0) {
+			if (
+				audioDuration &&
+				Number.isFinite(audioDuration) &&
+				audioDuration > 0
+			) {
 				return audioDuration;
 			}
 		}
@@ -4087,7 +4141,7 @@ export function VoiceModulePanel() {
 			}
 		}
 		return 0;
-	}, [duration, filteredTranscripts, currentAudioUrl, isPlaying]); // 添加isPlaying作为依赖，确保播放状态变化时重新计算
+	}, [duration, filteredTranscripts]);
 
 	// 更新当前时间（仅在客户端）
 	useEffect(() => {
@@ -4199,7 +4253,7 @@ export function VoiceModulePanel() {
 										}}
 										placeholder="输入标题..."
 										className="flex-1 px-3 py-1.5 text-sm font-medium bg-transparent border-b-2 border-primary focus:outline-none"
-										autoFocus
+
 									/>
 								) : (
 									<button
@@ -4234,6 +4288,7 @@ export function VoiceModulePanel() {
 							{viewMode === "playback" && (
 								<div className="flex items-center gap-1 ml-auto">
 									<button
+										type="button"
 										onClick={() => handleViewChange("original")}
 										className={cn(
 											"px-4 py-2 text-sm font-medium rounded-md transition-all",
@@ -4246,6 +4301,7 @@ export function VoiceModulePanel() {
 										原文
 									</button>
 									<button
+										type="button"
 										onClick={() => handleViewChange("optimized")}
 										className={cn(
 											"px-4 py-2 text-sm font-medium rounded-md transition-all",
@@ -4338,7 +4394,7 @@ export function VoiceModulePanel() {
 																	setTimeout(() => {
 																		if (
 																			!audio.duration ||
-																			isNaN(audio.duration)
+																			Number.isNaN(audio.duration)
 																		) {
 																			resolve(60000); // 默认1分钟
 																		}
@@ -4376,11 +4432,11 @@ export function VoiceModulePanel() {
 																const paragraphRegex = /([。！？\n]+)/g;
 																const paragraphs: string[] = [];
 																let lastIndex = 0;
-																let match;
+																let match: RegExpExecArray | null;
 
-																while (
-																	(match = paragraphRegex.exec(text)) !== null
-																) {
+																while (true) {
+																	match = paragraphRegex.exec(text);
+																	if (!match) break;
 																	const paragraphText = text
 																		.substring(lastIndex, match.index)
 																		.trim();
@@ -4413,12 +4469,11 @@ export function VoiceModulePanel() {
 																		index: number;
 																		text: string;
 																	}> = [];
-																	let timeMatch;
+																	let timeMatch: RegExpExecArray | null;
 
-																	while (
-																		(timeMatch = timePointRegex.exec(text)) !==
-																		null
-																	) {
+																	while (true) {
+																		timeMatch = timePointRegex.exec(text);
+																		if (!timeMatch) break;
 																		timeMatches.push({
 																			index: timeMatch.index,
 																			text: timeMatch[0],
@@ -4450,12 +4505,11 @@ export function VoiceModulePanel() {
 																		// 如果没有时间点，按长空格（2个以上空格）分段
 																		const longSpaceRegex = /\s{2,}/g;
 																		const spaceMatches: number[] = [0];
-																		let spaceMatch;
+																		let spaceMatch: RegExpExecArray | null;
 
-																		while (
-																			(spaceMatch =
-																				longSpaceRegex.exec(text)) !== null
-																		) {
+																		while (true) {
+																			spaceMatch = longSpaceRegex.exec(text);
+																			if (!spaceMatch) break;
 																			spaceMatches.push(spaceMatch.index);
 																		}
 																		spaceMatches.push(text.length);
@@ -4508,7 +4562,7 @@ export function VoiceModulePanel() {
 																paragraphs.forEach((para, idx) => {
 																	console.log(
 																		`  段落${idx + 1}:`,
-																		para.substring(0, 30) + "...",
+																		`${para.substring(0, 30)}...`,
 																	);
 																});
 
@@ -4529,11 +4583,13 @@ export function VoiceModulePanel() {
 																		// 如果没有换行符，按句号分段
 																		let optLastIndex = 0;
 																		paragraphRegex.lastIndex = 0; // 重置正则
-																		while (
-																			(match =
-																				paragraphRegex.exec(optimizedText)) !==
-																			null
-																		) {
+																		let match: RegExpExecArray | null;
+																		while (true) {
+																			match =
+																				paragraphRegex.exec(optimizedText);
+																			if (match === null) {
+																				break;
+																			}
 																			const paragraphText = optimizedText
 																				.substring(optLastIndex, match.index)
 																				.trim();
@@ -4565,7 +4621,7 @@ export function VoiceModulePanel() {
 																optimizedParagraphs.forEach((para, idx) => {
 																	console.log(
 																		`  优化段落${idx + 1}:`,
-																		para.substring(0, 30) + "...",
+																		`${para.substring(0, 30)}...`,
 																	);
 																});
 
@@ -4737,9 +4793,18 @@ export function VoiceModulePanel() {
 																		result.todos.length,
 																		"个待办事项，添加到待确认列表",
 																	);
-																	const backendTodos: ExtractedTodo[] =
-																		result.todos.map(
-																			(todo: any, index: number) => ({
+																type BackendTodo = {
+																	title?: string;
+																	name?: string;
+																	description?: string;
+																	deadline?: string;
+																	priority?: string;
+																	source_text?: string;
+																	text_start_index?: number;
+																	text_end_index?: number;
+																};
+																const backendTodos: ExtractedTodo[] =
+																	result.todos.map((todo: BackendTodo, index: number) => ({
 																				id: `todo_backend_${Date.now()}_${index}_${Math.random()}`,
 																				sourceSegmentId: firstSegmentId,
 																				extractedAt: new Date(),
@@ -4771,9 +4836,18 @@ export function VoiceModulePanel() {
 																		result.schedules.length,
 																		"个日程，添加到待确认列表",
 																	);
-																	const backendSchedules: ScheduleItem[] =
-																		result.schedules.map(
-																			(schedule: any, index: number) => ({
+																type BackendSchedule = {
+																	schedule_time?: string;
+																	scheduleTime?: string;
+																	description?: string;
+																	content?: string;
+																	source_text?: string;
+																	text_start_index?: number;
+																	text_end_index?: number;
+																};
+																const backendSchedules: ScheduleItem[] =
+																	result.schedules.map(
+																		(schedule: BackendSchedule, index: number) => ({
 																				id: `schedule_backend_${Date.now()}_${index}_${Math.random()}`,
 																				sourceSegmentId: firstSegmentId,
 																				extractedAt: new Date(),
@@ -4871,6 +4945,7 @@ export function VoiceModulePanel() {
 
 									{/* 开始录音按钮 */}
 									<button
+										type="button"
 										onClick={handleStartRecording}
 										className={cn(
 											"px-6 py-3 rounded-xl transition-all duration-300",
@@ -4910,6 +4985,7 @@ export function VoiceModulePanel() {
 								)
 							) : (
 								<button
+									type="button"
 									onClick={() => handleModeChange("playback")}
 									className={cn(
 										"px-5 py-2.5 rounded-lg transition-all",
@@ -5298,16 +5374,19 @@ export function VoiceModulePanel() {
 						<h2 className="text-lg font-semibold mb-4">保存录音</h2>
 						<div className="space-y-4">
 							<div>
-								<label className="block text-sm font-medium mb-2">
+								<label
+									className="block text-sm font-medium mb-2"
+									htmlFor="stop-confirm-title"
+								>
 									录音标题
 								</label>
 								<input
 									type="text"
+									id="stop-confirm-title"
 									value={stopConfirmTitle}
 									onChange={(e) => setStopConfirmTitle(e.target.value)}
 									placeholder="请输入录音标题"
 									className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-									autoFocus
 									onKeyDown={(e) => {
 										if (e.key === "Enter") {
 											handleConfirmSaveRecording();

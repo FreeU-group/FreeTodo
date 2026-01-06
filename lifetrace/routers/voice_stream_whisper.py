@@ -320,7 +320,8 @@ class EventDrivenVAD:
 
     def _detect_voice(self, pcm_data: bytes) -> bool:
         """检测是否有语音"""
-        if len(pcm_data) < 2:
+        MIN_PCM_DATA_LENGTH = 2
+        if len(pcm_data) < MIN_PCM_DATA_LENGTH:
             return False
 
         audio_int16 = np.frombuffer(pcm_data, dtype=np.int16)
@@ -387,7 +388,8 @@ class PCMAudioProcessor:
 
         使用简单的RMS（Root Mean Square）音频电平检测
         """
-        if len(pcm_data) < 2:
+        MIN_PCM_DATA_LENGTH = 2
+        if len(pcm_data) < MIN_PCM_DATA_LENGTH:
             return False
 
         # 将PCM Int16转换为numpy数组
@@ -423,7 +425,7 @@ class PCMAudioProcessor:
             elif vad_event == "VOICE_ENDED":
                 self.voice_ended_detected = True
 
-    async def try_process(self) -> dict | None:
+    async def try_process(self) -> dict | None:  # noqa: C901, PLR0911, PLR0912, PLR0915
         """尝试处理音频数据 - 真正的事件驱动实时识别
 
         ⚡ 参考 WhisperLiveKit 架构：
@@ -684,7 +686,8 @@ class PCMAudioProcessor:
         """
         try:
             # 检查数据大小
-            if len(pcm_bytes) < 2:  # 至少 1 个样本（2 bytes）
+            MIN_PCM_BYTES_LENGTH = 2  # 至少 1 个样本（2 bytes）
+            if len(pcm_bytes) < MIN_PCM_BYTES_LENGTH:
                 return None
 
             # 检查字节对齐（Int16 需要 2 字节对齐）
@@ -762,7 +765,10 @@ class PCMAudioProcessor:
                 try:
                     # ⚡ 优化：对于300ms的短音频，降低VAD阈值，避免过滤掉有效语音
                     # 300ms音频太短，如果VAD阈值太高，可能会误判为静音
-                    vad_threshold = 0.3 if audio_duration < 0.5 else 0.5  # 短音频使用更低阈值
+                    SHORT_AUDIO_DURATION_THRESHOLD = 0.5
+                    vad_threshold = (
+                        0.3 if audio_duration < SHORT_AUDIO_DURATION_THRESHOLD else 0.5
+                    )  # 短音频使用更低阈值
 
                     segments, info = model.transcribe(
                         audio_array,
@@ -881,7 +887,9 @@ class PCMAudioProcessor:
 
 
 @router.websocket("/stream")
-async def stream_transcription(websocket: WebSocket):
+async def stream_transcription(  # noqa: C901, PLR0912, PLR0915
+    websocket: WebSocket,
+):
     """
     实时语音识别 WebSocket 端点（使用 Faster-Whisper）
 

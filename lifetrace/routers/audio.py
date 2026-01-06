@@ -23,7 +23,7 @@ AUDIO_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/upload")
 async def upload_audio(
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
     startTime: str = Form(...),
     endTime: str = Form(...),
     segmentId: str = Form(...),

@@ -13,7 +13,7 @@ from .base import _create_llm_stream_generator, logger, router
 @router.post("/stream-with-context")
 async def chat_with_context_stream(
     message: ChatMessageWithContext,
-    chat_service: ChatService = Depends(get_chat_service),
+    chat_service: ChatService = Depends(get_chat_service),  # noqa: B008
 ):
     """带事件上下文的流式聊天接口"""
     try:

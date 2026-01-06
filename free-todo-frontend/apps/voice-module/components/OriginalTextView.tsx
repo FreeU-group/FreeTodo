@@ -28,6 +28,8 @@ interface OriginalTextViewProps {
 		sourceText?: string;
 		textStartIndex?: number;
 		textEndIndex?: number;
+		title?: string;
+		description?: string;
 	}>; // 待办信息，用于高亮
 }
 
@@ -245,7 +247,7 @@ export function OriginalTextView({
 				highlights.length === 0 ||
 				!highlights.some((h) => h.type === "todo")
 			) {
-				const todoTitle = (todo as any).title || (todo as any).description;
+				const todoTitle = todo.title || todo.description;
 				if (todoTitle?.trim()) {
 					const title = todoTitle.trim();
 					const lowerTitle = title.toLowerCase();
@@ -281,34 +283,45 @@ export function OriginalTextView({
 		}
 
 		// 构建高亮文本
-		const parts: Array<{ text: string; highlight?: "schedule" | "todo" }> = [];
+		const parts: Array<{
+			text: string;
+			highlight?: "schedule" | "todo";
+			id: string;
+		}> = [];
 		let lastIndex = 0;
 
 		highlights.forEach((highlight) => {
 			// 添加高亮前的文本
 			if (highlight.start > lastIndex) {
-				parts.push({ text: text.substring(lastIndex, highlight.start) });
+				parts.push({
+					text: text.substring(lastIndex, highlight.start),
+					id: `plain-${lastIndex}-${highlight.start}`,
+				});
 			}
 			// 添加高亮的文本
 			parts.push({
 				text: text.substring(highlight.start, highlight.end),
 				highlight: highlight.type,
+				id: `${highlight.type}-${highlight.start}-${highlight.end}`,
 			});
 			lastIndex = highlight.end;
 		});
 
 		// 添加剩余的文本
 		if (lastIndex < text.length) {
-			parts.push({ text: text.substring(lastIndex) });
+			parts.push({
+				text: text.substring(lastIndex),
+				id: `plain-${lastIndex}-${text.length}`,
+			});
 		}
 
 		return (
 			<>
-				{parts.map((part, index) => {
+				{parts.map((part) => {
 					if (part.highlight === "schedule") {
 						return (
 							<mark
-								key={index}
+								key={part.id}
 								className={cn(
 									"relative inline-block",
 									"bg-gradient-to-r from-amber-100 to-amber-50 dark:from-amber-900/40 dark:to-amber-800/30",
@@ -329,7 +342,7 @@ export function OriginalTextView({
 					} else if (part.highlight === "todo") {
 						return (
 							<mark
-								key={index}
+								key={part.id}
 								className={cn(
 									"relative inline-block",
 									"bg-gradient-to-r from-blue-100 to-blue-50 dark:from-blue-900/40 dark:to-blue-800/30",
@@ -348,7 +361,7 @@ export function OriginalTextView({
 							</mark>
 						);
 					} else {
-						return <span key={index}>{part.text}</span>;
+						return <span key={part.id}>{part.text}</span>;
 					}
 				})}
 			</>
@@ -387,6 +400,14 @@ export function OriginalTextView({
 									isHighlighted && "bg-primary/5",
 								)}
 								onClick={() => onSegmentClick?.(segment)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										onSegmentClick?.(segment);
+									}
+								}}
+								role="button"
+								tabIndex={0}
 							>
 								<div className="flex items-start gap-3">
 									<div className="flex-shrink-0 mt-0.5">

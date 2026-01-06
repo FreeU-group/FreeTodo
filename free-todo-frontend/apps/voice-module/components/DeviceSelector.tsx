@@ -63,6 +63,7 @@ export function DeviceSelector({
 	return (
 		<div className="relative" ref={dropdownRef}>
 			<button
+				type="button"
 				ref={buttonRef}
 				onClick={() => {
 					if (buttonRef.current) {
@@ -108,9 +109,20 @@ export function DeviceSelector({
 							minWidth: "250px",
 						}}
 						onClick={(e) => e.stopPropagation()}
+						onKeyDown={(e) => {
+							if (e.key === "Escape") {
+								e.stopPropagation();
+								setIsOpen(false);
+								setPopupPosition(null);
+							}
+						}}
+						role="dialog"
+						tabIndex={-1}
+						aria-modal="true"
 					>
 						{devices.map((device) => (
 							<button
+								type="button"
 								key={device.deviceId}
 								onClick={() => {
 									onDeviceChange(device.deviceId);

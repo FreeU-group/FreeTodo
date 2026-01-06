@@ -47,7 +47,7 @@ export function MeetingPlayer({
 	// 格式化时间显示
 	const formatTime = (seconds: number): string => {
 		// 检查是否为有效数字
-		if (!Number.isFinite(seconds) || isNaN(seconds) || seconds < 0) {
+		if (!Number.isFinite(seconds) || Number.isNaN(seconds) || seconds < 0) {
 			return "0:00";
 		}
 		const hours = Math.floor(seconds / 3600);
@@ -101,6 +101,7 @@ export function MeetingPlayer({
 			<div className="flex-1 flex flex-col items-center justify-center p-8">
 				{/* 大播放按钮 */}
 				<button
+					type="button"
 					onClick={isPlaying ? onPause : onPlay}
 					className={cn(
 						"w-24 h-24 rounded-full transition-all mb-8",
@@ -124,6 +125,32 @@ export function MeetingPlayer({
 						ref={progressRef}
 						className="w-full h-2 bg-muted rounded-full cursor-pointer relative group"
 						onClick={handleProgressClick}
+						onKeyDown={(e) => {
+							const step = Math.max(duration * 0.01, 1);
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								handleProgressClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+							} else if (e.key === "ArrowLeft") {
+								e.preventDefault();
+								onSeek(Math.max(0, currentTime - step));
+							} else if (e.key === "ArrowRight") {
+								e.preventDefault();
+								onSeek(Math.min(duration, currentTime + step));
+							} else if (e.key === "Home") {
+								e.preventDefault();
+								onSeek(0);
+							} else if (e.key === "End") {
+								e.preventDefault();
+								onSeek(duration);
+							}
+						}}
+						role="slider"
+						tabIndex={0}
+						aria-label="播放进度"
+						aria-valuemin={0}
+						aria-valuemax={duration || 0}
+						aria-valuenow={currentTime}
+						aria-valuetext={formatTime(currentTime)}
 					>
 						<div className="absolute inset-0 bg-muted rounded-full" />
 						<div
@@ -147,6 +174,7 @@ export function MeetingPlayer({
 				{/* 播放控制 */}
 				<div className="flex items-center gap-4 mt-6">
 					<button
+						type="button"
 						onClick={() => onSkip(-15)}
 						className={cn(
 							"p-2 rounded-md hover:bg-muted transition-colors",
@@ -158,6 +186,7 @@ export function MeetingPlayer({
 					</button>
 
 					<button
+						type="button"
 						onClick={() => onSkip(15)}
 						className={cn(
 							"p-2 rounded-md hover:bg-muted transition-colors",
@@ -187,6 +216,7 @@ export function MeetingPlayer({
 					</select>
 
 					<button
+						type="button"
 						className={cn(
 							"p-2 rounded-md hover:bg-muted transition-colors",
 							"text-muted-foreground hover:text-foreground",

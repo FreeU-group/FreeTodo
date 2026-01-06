@@ -53,7 +53,9 @@ def get_funasr_model():
 
 
 @router.websocket("/stream")
-async def stream_transcription(websocket: WebSocket):
+async def stream_transcription(  # noqa: C901, PLR0912, PLR0915
+    websocket: WebSocket,
+):
     """
     实时语音识别 WebSocket 端点
 

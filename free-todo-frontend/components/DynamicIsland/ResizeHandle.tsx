@@ -170,6 +170,20 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 				} as React.CSSProperties
 			}
 			onMouseDown={handleMouseDown}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					// 模拟一次鼠标按下，开始拖拽
+					handleMouseDown({
+						button: 0,
+						clientX: 0,
+						clientY: 0,
+					} as unknown as React.MouseEvent)
+				}
+			}}
+			role="button"
+			tabIndex={0}
+			aria-label="调整窗口大小"
 			className="bg-transparent hover:bg-blue-500/20 transition-colors"
 		/>
 	);

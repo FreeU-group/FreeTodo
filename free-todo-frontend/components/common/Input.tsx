@@ -20,15 +20,17 @@ export default function Input({ className, ...props }: InputProps) {
 
 interface FormFieldProps extends InputProps {
 	label: string;
+	id?: string;
 }
 
-export function FormField({ label, className, ...props }: FormFieldProps) {
+export function FormField({ label, className, id, ...props }: FormFieldProps) {
+	const inputId = id ?? props.name ?? `field-${label.replace(/\s+/g, "-")}`;
 	return (
 		<div className="flex flex-col gap-1 text-sm">
-			<label className="text-muted-foreground">
+			<label className="text-muted-foreground" htmlFor={inputId}>
 				<span className="mb-1 block">{label}</span>
-				<Input className={className} {...props} />
 			</label>
+			<Input id={inputId} className={className} {...props} />
 		</div>
 	);
 }

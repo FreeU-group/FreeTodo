@@ -39,7 +39,9 @@ class BatchSaveResponse(BaseModel):
 
 
 @router.post("/batch", response_model=BatchSaveResponse)
-async def batch_save_transcripts(request: BatchSaveRequest):
+async def batch_save_transcripts(  # noqa: C901, PLR0912, PLR0915
+    request: BatchSaveRequest,
+):
     """
     批量保存转录文本
 

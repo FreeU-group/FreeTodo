@@ -264,7 +264,7 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 					// 绘制文字背景（提高可读性）
 					const description =
 						schedule.description.length > 20
-							? schedule.description.substring(0, 20) + "..."
+						? `${schedule.description.substring(0, 20)}...`
 							: schedule.description;
 					ctx.font = "bold 12px sans-serif"; // 增大字体到12px，加粗
 					const textWidth = ctx.measureText(description).width;
@@ -413,7 +413,6 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 		isRecording,
 		analyser,
 		timeToPixel,
-		pixelsPerSecond,
 		getTimeInterval,
 	]);
 
@@ -495,6 +494,7 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 			onMouseMove={handleMouseMove}
 			onMouseUp={handleMouseUp}
 			onMouseLeave={handleMouseUp}
+			role="application"
 		>
 			<div className="absolute top-0 left-0 right-0 h-10 bg-card/90 backdrop-blur-sm border-b border-border z-20 flex items-center justify-between px-4">
 				<div className="text-sm text-foreground font-mono font-semibold">
@@ -510,6 +510,7 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 				</div>
 				<div className="flex items-center gap-2">
 					<button
+						type="button"
 						onClick={() => onZoomChange(1)}
 						className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
 							timeline.zoomLevel === 1
@@ -520,6 +521,7 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 						1小时
 					</button>
 					<button
+						type="button"
 						onClick={() => onZoomChange(2)}
 						className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
 							timeline.zoomLevel === 2
@@ -530,6 +532,7 @@ const WaveformTimeline: React.FC<WaveformTimelineProps> = ({
 						6小时
 					</button>
 					<button
+						type="button"
 						onClick={() => onZoomChange(3)}
 						className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
 							timeline.zoomLevel === 3

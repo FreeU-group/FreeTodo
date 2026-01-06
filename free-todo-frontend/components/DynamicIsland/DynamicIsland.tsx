@@ -149,7 +149,10 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 	// 处理窗口缩放（用于自定义缩放把手）
 	const handleResize = useCallback(
 		(deltaX: number, deltaY: number, position: string) => {
-			const electronAPI = (window as any).electronAPI;
+			const w = window as typeof window & {
+				electronAPI?: { resizeWindow?: (dx: number, dy: number, pos: string) => void };
+			};
+			const electronAPI = w.electronAPI;
 			if (electronAPI?.resizeWindow) {
 				console.log("[DynamicIsland] 缩放窗口:", { deltaX, deltaY, position });
 				electronAPI.resizeWindow(deltaX, deltaY, position);
@@ -164,9 +167,14 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 	useEffect(() => {
 		// Helper to safely call Electron API
 		const setIgnoreMouse = (ignore: boolean) => {
-			if ((window as any).require) {
+			const w = window as typeof window & {
+				require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+				electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
+			};
+
+			if (w.require) {
 				try {
-					const { ipcRenderer } = (window as any).require("electron");
+					const { ipcRenderer } = w.require("electron") ?? {};
 					if (ignore) {
 						// forward: true lets the mouse move event still reach the browser
 						// so we can detect when to turn it back on.
@@ -179,9 +187,9 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 				} catch (e) {
 					console.error("Electron IPC failed", e);
 				}
-			} else if ((window as any).electronAPI) {
+			} else if (w.electronAPI) {
 				try {
-					(window as any).electronAPI?.setIgnoreMouseEvents?.(
+					w.electronAPI?.setIgnoreMouseEvents?.(
 						ignore,
 						ignore ? { forward: true } : {},
 					);
@@ -251,9 +259,14 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 				// 鼠标进入区域，展开
 				setIsHovered(true);
 				const setIgnoreMouse = (ignore: boolean) => {
-					if ((window as any).require) {
+					const w = window as typeof window & {
+						require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+						electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
+					};
+
+					if (w.require) {
 						try {
-							const { ipcRenderer } = (window as any).require("electron");
+							const { ipcRenderer } = w.require("electron") ?? {};
 							ipcRenderer.send(
 								"set-ignore-mouse-events",
 								ignore,
@@ -262,9 +275,9 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 						} catch (e) {
 							console.error("Electron IPC failed", e);
 						}
-					} else if ((window as any).electronAPI) {
+					} else if (w.electronAPI) {
 						try {
-							(window as any).electronAPI?.setIgnoreMouseEvents?.(
+							w.electronAPI?.setIgnoreMouseEvents?.(
 								ignore,
 								ignore ? { forward: true } : {},
 							);
@@ -281,18 +294,23 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 				// 鼠标移出区域，折叠
 				setIsHovered(false);
 				const setIgnoreMouse = (ignore: boolean) => {
-					if ((window as any).require) {
+					const w = window as typeof window & {
+						require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+						electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
+					};
+
+					if (w.require) {
 						try {
-							const { ipcRenderer } = (window as any).require("electron");
+							const { ipcRenderer } = w.require("electron") ?? {};
 							ipcRenderer.send("set-ignore-mouse-events", ignore, {
 								forward: true,
 							});
 						} catch (e) {
 							console.error("Electron IPC failed", e);
 						}
-					} else if ((window as any).electronAPI) {
+					} else if (w.electronAPI) {
 						try {
-							(window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, {
+							w.electronAPI?.setIgnoreMouseEvents?.(ignore, {
 								forward: true,
 							});
 						} catch (e) {
@@ -333,9 +351,14 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 		if (mode !== IslandMode.FULLSCREEN && mode !== IslandMode.PANEL) {
 			setIsHovered(true);
 			const setIgnoreMouse = (ignore: boolean) => {
-				if ((window as any).require) {
+				const w = window as typeof window & {
+					require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+					electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
+				};
+
+				if (w.require) {
 					try {
-						const { ipcRenderer } = (window as any).require("electron");
+						const { ipcRenderer } = w.require("electron") ?? {};
 						ipcRenderer.send(
 							"set-ignore-mouse-events",
 							ignore,
@@ -344,11 +367,11 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 					} catch (e) {
 						console.error("Electron IPC failed", e);
 					}
-				} else if ((window as any).electronAPI) {
+				} else if (w.electronAPI) {
 					try {
-						(window as any).electronAPI?.setIgnoreMouseEvents?.(
+						w.electronAPI.setIgnoreMouseEvents?.(
 							ignore,
-							ignore ? { forward: true } : {},
+							ignore ? { forward: true } : undefined,
 						);
 					} catch (e) {
 						console.error("Electron API failed", e);
@@ -371,18 +394,23 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 		if (mode !== IslandMode.FULLSCREEN && mode !== IslandMode.PANEL) {
 			setIsHovered(false);
 			const setIgnoreMouse = (ignore: boolean) => {
-				if ((window as any).require) {
+				const w = window as typeof window & {
+					require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+					electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
+				};
+
+				if (w.require) {
 					try {
-						const { ipcRenderer } = (window as any).require("electron");
+						const { ipcRenderer } = w.require("electron") ?? {};
 						ipcRenderer.send("set-ignore-mouse-events", ignore, {
 							forward: true,
 						});
 					} catch (e) {
 						console.error("Electron IPC failed", e);
 					}
-				} else if ((window as any).electronAPI) {
+				} else if (w.electronAPI) {
 					try {
-						(window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, {
+						w.electronAPI?.setIgnoreMouseEvents?.(ignore, {
 							forward: true,
 						});
 					} catch (e) {
@@ -405,12 +433,19 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 			switch (e.key) {
 				case "1": {
 					// 切换到悬浮模式
-					const electronAPI = (window as any).electronAPI;
-					if (electronAPI) {
-						await electronAPI.collapseWindow?.();
+					const w = window as typeof window & {
+						electronAPI?: {
+							collapseWindow?: () => Promise<void> | void;
+							setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void;
+							expandWindow?: () => Promise<void> | void;
+							expandWindowFull?: () => Promise<void> | void;
+						};
+					};
+					if (w.electronAPI) {
+						await w.electronAPI.collapseWindow?.();
 						// 折叠回灵动岛时，重新开启点击穿透（延迟确保窗口状态已更新）
 						setTimeout(() => {
-							electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
+							w.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
 						}, 150);
 					}
 					onModeChange?.(IslandMode.FLOAT);
@@ -418,19 +453,23 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 				}
 				case "4": {
 					// 切换到Panel模式（使用默认位置，简单可靠）
-					const electronAPI2 = (window as any).electronAPI;
-					if (electronAPI2) {
+					const w = window as typeof window & {
+						electronAPI?: { expandWindow?: () => Promise<void> | void };
+					};
+					if (w.electronAPI) {
 						// 直接使用默认位置，不计算相对位置，避免位置错误
-						await electronAPI2.expandWindow?.();
+						await w.electronAPI.expandWindow?.();
 					}
 					onModeChange?.(IslandMode.PANEL);
 					break;
 				}
 				case "5": {
 					// 切换到全屏模式
-					const electronAPI4 = (window as any).electronAPI;
-					if (electronAPI4) {
-						await electronAPI4.expandWindowFull?.();
+					const w = window as typeof window & {
+						electronAPI?: { expandWindowFull?: () => Promise<void> | void };
+					};
+					if (w.electronAPI) {
+						await w.electronAPI.expandWindowFull?.();
 					}
 					onModeChange?.(IslandMode.FULLSCREEN);
 					break;
@@ -438,12 +477,17 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 				case "Escape":
 					// Escape 键：从全屏/Panel模式返回悬浮模式
 					if (mode === IslandMode.FULLSCREEN || mode === IslandMode.PANEL) {
-						const electronAPI3 = (window as any).electronAPI;
-						if (electronAPI3) {
-							await electronAPI3.collapseWindow?.();
+						const w = window as typeof window & {
+							electronAPI?: {
+								collapseWindow?: () => Promise<void> | void;
+								setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void;
+							};
+						};
+						if (w.electronAPI) {
+							await w.electronAPI.collapseWindow?.();
 							// 折叠回灵动岛时，重新开启点击穿透（延迟确保窗口状态已更新）
 							setTimeout(() => {
-								electronAPI3?.setIgnoreMouseEvents?.(true, { forward: true });
+								w.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
 							}, 150);
 						}
 						onModeChange?.(IslandMode.FLOAT);
@@ -528,22 +572,27 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 				// 立即取消点击穿透，确保可以捕获鼠标事件
 				setIsHovered(true);
 				const setIgnoreMouse = (ignore: boolean) => {
-					if ((window as any).require) {
+					const w = window as typeof window & {
+						require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+						electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
+					};
+
+					if (w.require) {
 						try {
-							const { ipcRenderer } = (window as any).require("electron");
-							ipcRenderer.send(
+							const { ipcRenderer } = w.require("electron") ?? {};
+							ipcRenderer.send?.(
 								"set-ignore-mouse-events",
 								ignore,
-								ignore ? { forward: true } : {},
+								ignore ? { forward: true } : undefined,
 							);
 						} catch (e) {
 							console.error("Electron IPC failed", e);
 						}
-					} else if ((window as any).electronAPI) {
+					} else if (w.electronAPI) {
 						try {
-							(window as any).electronAPI?.setIgnoreMouseEvents?.(
+							w.electronAPI.setIgnoreMouseEvents?.(
 								ignore,
-								ignore ? { forward: true } : {},
+								ignore ? { forward: true } : undefined,
 							);
 						} catch (e) {
 							console.error("Electron API failed", e);
@@ -582,22 +631,27 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
 		// 确保在拖拽过程中点击穿透保持被取消状态
 		const setIgnoreMouse = (ignore: boolean) => {
-			if ((window as any).require) {
+			const w = window as typeof window & {
+				require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+				electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
+			};
+
+			if (w.require) {
 				try {
-					const { ipcRenderer } = (window as any).require("electron");
-					ipcRenderer.send(
+					const { ipcRenderer } = w.require("electron") ?? {};
+					ipcRenderer.send?.(
 						"set-ignore-mouse-events",
 						ignore,
-						ignore ? { forward: true } : {},
+						ignore ? { forward: true } : undefined,
 					);
 				} catch (e) {
 					console.error("Electron IPC failed", e);
 				}
-			} else if ((window as any).electronAPI) {
+			} else if (w.electronAPI) {
 				try {
-					(window as any).electronAPI?.setIgnoreMouseEvents?.(
+					w.electronAPI.setIgnoreMouseEvents?.(
 						ignore,
-						ignore ? { forward: true } : {},
+						ignore ? { forward: true } : undefined,
 					);
 				} catch (e) {
 					console.error("Electron API failed", e);
@@ -663,27 +717,30 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
 				if (!isInside && mode === IslandMode.FLOAT) {
 					setIsHovered(false);
-					const setIgnoreMouse = (ignore: boolean) => {
-						if ((window as any).require) {
-							try {
-								const { ipcRenderer } = (window as any).require("electron");
-								ipcRenderer.send("set-ignore-mouse-events", ignore, {
-									forward: true,
-								});
-							} catch (e) {
-								console.error("Electron IPC failed", e);
-							}
-						} else if ((window as any).electronAPI) {
-							try {
-								(window as any).electronAPI?.setIgnoreMouseEvents?.(ignore, {
-									forward: true,
-								});
-							} catch (e) {
-								console.error("Electron API failed", e);
-							}
-						}
+					const w = window as typeof window & {
+						require?: (module: string) => { ipcRenderer?: { send: (...args: unknown[]) => void } };
+						electronAPI?: { setIgnoreMouseEvents?: (ignore: boolean, options?: { forward?: boolean }) => void };
 					};
-					setIgnoreMouse(true); // 恢复点击穿透
+
+					if (w.require) {
+						try {
+							const { ipcRenderer } = w.require("electron") ?? {};
+							ipcRenderer.send?.("set-ignore-mouse-events", true, {
+								forward: true,
+							});
+						} catch (e) {
+							console.error("Electron IPC failed", e);
+						}
+					} else if (w.electronAPI) {
+						try {
+							w.electronAPI.setIgnoreMouseEvents?.(true, {
+								forward: true,
+							});
+						} catch (e) {
+							console.error("Electron API failed", e);
+						}
+					}
+
 					console.log(
 						"[DynamicIsland] Drag ended, mouse outside, click-through enabled",
 					);
@@ -808,17 +865,26 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 								style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
 							>
 								<button
+									type="button"
 									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
 									title="退出全屏"
 									onClick={async (e) => {
 										e.stopPropagation();
 										try {
-											const electronAPI = (window as any).electronAPI;
-											if (electronAPI?.expandWindow) {
-												await electronAPI.expandWindow();
+											const w = window as typeof window & {
+												electronAPI?: {
+													expandWindow?: () => Promise<void> | void;
+													setIgnoreMouseEvents?: (
+														ignore: boolean,
+														options?: { forward?: boolean },
+													) => void;
+												};
+											};
+											if (w.electronAPI?.expandWindow) {
+												await w.electronAPI.expandWindow();
 											}
 											// 全屏切回 Panel 后，仍然保持可交互（不忽略鼠标）
-											electronAPI?.setIgnoreMouseEvents?.(false);
+											w.electronAPI?.setIgnoreMouseEvents?.(false);
 											onModeChange?.(IslandMode.PANEL);
 										} catch (error) {
 											console.error("[DynamicIsland] 退出全屏失败:", error);
@@ -828,17 +894,26 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 									<Minimize2 size={15} />
 								</button>
 								<button
+									type="button"
 									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
 									title="折叠到灵动岛"
 									onClick={async (e) => {
 										e.stopPropagation();
 										try {
-											const electronAPI = (window as any).electronAPI;
-											if (electronAPI?.collapseWindow) {
-												await electronAPI.collapseWindow();
+											const w = window as typeof window & {
+												electronAPI?: {
+													collapseWindow?: () => Promise<void> | void;
+													setIgnoreMouseEvents?: (
+														ignore: boolean,
+														options?: { forward?: boolean },
+													) => void;
+												};
+											};
+											if (w.electronAPI?.collapseWindow) {
+												await w.electronAPI.collapseWindow();
 											}
 											// 折叠回灵动岛时，重新开启点击穿透，避免挡住桌面
-											electronAPI?.setIgnoreMouseEvents?.(true, {
+											w.electronAPI?.setIgnoreMouseEvents?.(true, {
 												forward: true,
 											});
 											onModeChange?.(IslandMode.FLOAT);
@@ -919,14 +994,19 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 								style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
 							>
 								<button
+									type="button"
 									className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
 									title="展开为全屏"
 									onClick={async (e) => {
 										e.stopPropagation();
 										try {
-											const electronAPI = (window as any).electronAPI;
-											if (electronAPI?.expandWindowFull) {
-												await electronAPI.expandWindowFull();
+											const w = window as typeof window & {
+												electronAPI?: {
+													expandWindowFull?: () => Promise<void> | void;
+												};
+											};
+											if (w.electronAPI?.expandWindowFull) {
+												await w.electronAPI.expandWindowFull();
 											}
 											onModeChange?.(IslandMode.FULLSCREEN);
 										} catch (error) {
@@ -937,17 +1017,26 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 									<Maximize2 size={14} />
 								</button>
 								<button
+									type="button"
 									className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
 									title="折叠到灵动岛"
 									onClick={async (e) => {
 										e.stopPropagation();
 										try {
-											const electronAPI = (window as any).electronAPI;
-											if (electronAPI?.collapseWindow) {
-												await electronAPI.collapseWindow();
+											const w = window as typeof window & {
+												electronAPI?: {
+													collapseWindow?: () => Promise<void> | void;
+													setIgnoreMouseEvents?: (
+														ignore: boolean,
+														options?: { forward?: boolean },
+													) => void;
+												};
+											};
+											if (w.electronAPI?.collapseWindow) {
+												await w.electronAPI.collapseWindow();
 											}
 											// 折叠回灵动岛时，重新开启点击穿透，避免挡住桌面
-											electronAPI?.setIgnoreMouseEvents?.(true, {
+											w.electronAPI?.setIgnoreMouseEvents?.(true, {
 												forward: true,
 											});
 										} finally {
@@ -1004,7 +1093,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 						borderRadius: layoutState.borderRadius
 							? `${layoutState.borderRadius}px`
 							: undefined,
-						userSelect: "none" as any,
+						userSelect: "none",
 						zIndex: 99999,
 						backgroundColor: isDark
 							? "#0a0a0a"
@@ -1042,9 +1131,10 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 					></div>
 
 				{/* 内容区域 */}
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: onContextMenu is not a true interaction, it's for custom context menu */}
 				<div
 					className={`absolute inset-0 w-full h-full font-sans antialiased overflow-hidden ${isDark ? "text-white" : "text-[oklch(var(--foreground))]"}`}
-					// 右键打开自定义菜单，屏蔽浏览器/系统默认菜单（包括“退出应用”等文字）
+					// 右键打开自定义菜单，屏蔽浏览器/系统默认菜单（包括"退出应用"等文字）
 					onContextMenu={handleOpenContextMenu}
 				>
 					{mode === IslandMode.FLOAT ? (
@@ -1056,6 +1146,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 						>
 							<div
 								className="w-full h-full pointer-events-auto"
+								role="group"
 								onMouseDown={(e) => {
 									// 如果点击的是按钮，阻止拖拽和事件冒泡
 									const target = e.target as HTMLElement;
@@ -1079,10 +1170,12 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 									isCollapsed={!isHovered}
 									onOpenPanel={async () => {
 										// 完全按照"4键"的逻辑：切换到Panel模式（使用默认位置，简单可靠）
-										const electronAPI2 = (window as any).electronAPI;
-										if (electronAPI2) {
+										const w = window as typeof window & {
+											electronAPI?: { expandWindow?: () => Promise<void> | void };
+										};
+										if (w.electronAPI?.expandWindow) {
 											// 直接使用默认位置，不计算相对位置，避免位置错误
-											await electronAPI2.expandWindow?.();
+											await w.electronAPI.expandWindow();
 										}
 										onModeChange?.(IslandMode.PANEL);
 									}}
@@ -1102,8 +1195,10 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 				position={contextMenuPosition}
 				onClose={handleCloseContextMenu}
 				onQuit={() => {
-					const electronAPI = (window as any).electronAPI;
-					electronAPI?.quit?.();
+					const w = window as typeof window & {
+						electronAPI?: { quit?: () => void };
+					};
+					w.electronAPI?.quit?.();
 				}}
 			/>
 		</div>

@@ -15,25 +15,23 @@ export default function MessageContent({
 	isStreaming,
 	className,
 }: MessageContentProps) {
-	// 这里不再做 markdown 解析，EventsPage 已经把 markdown 转成 HTML 传入时会走另一条逻辑
+	const baseClass = cn(
+		"whitespace-pre-wrap break-words text-foreground",
+		isStreaming && "animate-pulse",
+		className,
+	);
+
 	if (isMarkdown) {
+		// 简单安全处理：按行拆分渲染，避免直接注入 HTML
+		const lines = content.split(/\r?\n/);
 		return (
-			<div
-				className={cn("prose prose-sm max-w-none text-foreground", className)}
-				dangerouslySetInnerHTML={{ __html: content }}
-			/>
+			<div className={cn("prose prose-sm max-w-none text-foreground", className)}>
+				{lines.map((line, index) => (
+					<p key={`${index}-${line.slice(0, 8)}`}>{line}</p>
+				))}
+			</div>
 		);
 	}
 
-	return (
-		<p
-			className={cn(
-				"whitespace-pre-wrap break-words text-foreground",
-				isStreaming && "animate-pulse",
-				className,
-			)}
-		>
-			{content}
-		</p>
-	);
+	return <p className={baseClass}>{content}</p>;
 }

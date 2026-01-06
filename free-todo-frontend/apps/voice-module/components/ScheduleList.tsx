@@ -58,6 +58,12 @@ export function ScheduleList({
 						<div
 							key={schedule.id}
 							onClick={() => onScheduleClick?.(schedule)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === " ") {
+									e.preventDefault();
+									onScheduleClick?.(schedule);
+								}
+							}}
 							className={cn(
 								"group relative p-4 rounded-lg border transition-all cursor-pointer",
 								"hover:shadow-md hover:scale-[1.02]",
@@ -66,6 +72,8 @@ export function ScheduleList({
 									: "bg-gradient-to-br from-amber-50/50 to-amber-100/30 dark:from-amber-900/20 dark:to-amber-800/10 border-amber-300/50 dark:border-amber-700/50",
 								"hover:border-amber-400/70 dark:hover:border-amber-600/70",
 							)}
+							role="button"
+							tabIndex={0}
 						>
 							<div className="flex items-start gap-3">
 								<div

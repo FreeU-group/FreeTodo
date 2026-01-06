@@ -130,7 +130,7 @@ def get_active_window_screen() -> int | None:
         return None
 
 
-def _get_macos_active_window_screen() -> int | None:
+def _get_macos_active_window_screen() -> int | None:  # noqa: C901, PLR0911
     """获取macOS活跃窗口所在的屏幕ID"""
     try:
         from AppKit import NSScreen, NSWorkspace
@@ -160,7 +160,11 @@ def _get_macos_active_window_screen() -> int | None:
                     # 优先选择有标题的窗口（主窗口）
                     bounds = window.get("kCGWindowBounds", {})
                     # 忽略太小的窗口（可能是菜单、工具栏等）
-                    if bounds.get("Height", 0) > 100 and bounds.get("Width", 0) > 100:
+                    MIN_WINDOW_SIZE = 100
+                    if (
+                        bounds.get("Height", 0) > MIN_WINDOW_SIZE
+                        and bounds.get("Width", 0) > MIN_WINDOW_SIZE
+                    ):
                         active_window_bounds = bounds
                         break
 
@@ -262,7 +266,7 @@ def _get_windows_active_window_screen() -> int | None:
     return None
 
 
-def _get_linux_active_window_screen() -> int | None:
+def _get_linux_active_window_screen() -> int | None:  # noqa: C901
     """获取Linux活跃窗口所在的屏幕ID"""
     try:
         import subprocess
@@ -365,9 +369,10 @@ def format_file_size(size_bytes: int) -> str:
         return "0 B"
 
     size_names = ["B", "KB", "MB", "GB", "TB"]
+    BYTES_PER_KB = 1024
     i = 0
-    while size_bytes >= 1024 and i < len(size_names) - 1:
-        size_bytes /= 1024.0
+    while size_bytes >= BYTES_PER_KB and i < len(size_names) - 1:
+        size_bytes /= float(BYTES_PER_KB)
         i += 1
 
     return f"{size_bytes:.1f} {size_names[i]}"

@@ -23,6 +23,7 @@ export function ModeSwitcher({
 		<div className="flex items-center gap-2">
 			{/* 回看模式按钮 */}
 			<button
+				type="button"
 				onClick={() => onModeChange("playback")}
 				className={cn(
 					"flex items-center gap-2 px-4 py-2 rounded-lg transition-all",
@@ -38,6 +39,7 @@ export function ModeSwitcher({
 
 			{/* 录音模式按钮 */}
 			<button
+				type="button"
 				onClick={() => onModeChange("recording")}
 				className={cn(
 					"flex items-center gap-2 px-4 py-2 rounded-lg transition-all",

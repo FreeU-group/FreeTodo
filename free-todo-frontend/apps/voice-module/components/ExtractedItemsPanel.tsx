@@ -70,6 +70,14 @@ export function ExtractedItemsPanel({
 			<div
 				className="flex items-center justify-between px-0 py-3 cursor-pointer hover:opacity-80 transition-opacity"
 				onClick={() => setIsExpanded(!isExpanded)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						setIsExpanded(!isExpanded);
+					}
+				}}
+				role="button"
+				tabIndex={0}
 			>
 				<div className="flex items-center gap-2">
 					<div className="flex items-center gap-1.5">
@@ -120,6 +128,14 @@ export function ExtractedItemsPanel({
 											key={todo.id}
 											className="group relative py-3 border-b border-border/50 last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
 											onClick={() => segment && onSegmentClick?.(segment)}
+											onKeyDown={(e) => {
+												if ((e.key === "Enter" || e.key === " ") && segment) {
+													e.preventDefault();
+													onSegmentClick?.(segment);
+												}
+											}}
+											role="button"
+											tabIndex={0}
 										>
 											<div className="flex items-start gap-3">
 												<div className="flex-shrink-0 mt-0.5">
@@ -236,6 +252,14 @@ export function ExtractedItemsPanel({
 										key={schedule.id}
 										className="group relative py-3 border-b border-border/50 last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
 										onClick={() => segment && onSegmentClick?.(segment)}
+										onKeyDown={(e) => {
+											if ((e.key === "Enter" || e.key === " ") && segment) {
+												e.preventDefault();
+												onSegmentClick?.(segment);
+											}
+										}}
+										role="button"
+										tabIndex={0}
 									>
 										<div className="flex items-start gap-3">
 											<div className="flex-shrink-0 mt-0.5">

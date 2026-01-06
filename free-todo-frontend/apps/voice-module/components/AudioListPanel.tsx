@@ -42,7 +42,7 @@ export function AudioListPanel({
 	// 格式化时间显示（确保使用本地时间）
 	const formatTime = (date: Date): string => {
 		// 确保日期对象有效
-		if (!date || isNaN(date.getTime())) {
+		if (!date || Number.isNaN(date.getTime())) {
 			return "00:00";
 		}
 		// 使用本地时间（getHours 和 getMinutes 已经是本地时间）
@@ -150,12 +150,22 @@ export function AudioListPanel({
 
 	// 即使没有音频也显示面板，显示空状态
 
+	const handleHeaderKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" || e.key === " ") {
+			e.preventDefault();
+			setIsExpanded(!isExpanded);
+		}
+	};
+
 	return (
 		<div className="overflow-hidden">
 			{/* 头部 - 与智能纪要保持一致 */}
 			<div
 				className="flex items-center justify-between px-0 py-3 cursor-pointer hover:opacity-80 transition-opacity"
 				onClick={() => setIsExpanded(!isExpanded)}
+				onKeyDown={handleHeaderKeyDown}
+				role="button"
+				tabIndex={0}
 			>
 				<div className="flex items-center gap-2">
 					<div className="flex items-center gap-1.5">
@@ -202,6 +212,25 @@ export function AudioListPanel({
 								// 使用index作为fallback确保key唯一
 								const uniqueKey = `${audio.id}_${index}`;
 
+								const handleItemKeyDown = (e: React.KeyboardEvent) => {
+									if (!isEditing && (e.key === "Enter" || e.key === " ")) {
+										e.preventDefault();
+										onSelectAudio(audio);
+									}
+								};
+
+								const interactiveProps = !isEditing
+									? {
+											onClick: () => onSelectAudio(audio),
+											onKeyDown: handleItemKeyDown,
+											onContextMenu: (e: React.MouseEvent) => {
+												handleContextMenu(e, audio);
+											},
+											role: "button" as const,
+											tabIndex: 0,
+										}
+									: {};
+
 								return (
 									<div
 										key={uniqueKey}
@@ -210,12 +239,7 @@ export function AudioListPanel({
 											isSelected && "bg-primary/5",
 											!isEditing && "cursor-pointer",
 										)}
-										onClick={() => !isEditing && onSelectAudio(audio)}
-										onContextMenu={(e) => {
-											if (!isEditing) {
-												handleContextMenu(e, audio);
-											}
-										}}
+										{...interactiveProps}
 									>
 										<div className="flex items-start gap-3">
 											<div className="flex-shrink-0 mt-0.5">
@@ -317,7 +341,14 @@ export function AudioListPanel({
 							top: `${contextMenu.y}px`,
 						}}
 						onClick={(e) => e.stopPropagation()}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.stopPropagation();
+							}
+						}}
 						onContextMenu={(e) => e.preventDefault()}
+						role="menu"
+						tabIndex={0}
 					>
 						<button
 							type="button"

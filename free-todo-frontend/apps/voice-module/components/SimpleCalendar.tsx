@@ -115,6 +115,7 @@ export function SimpleCalendar({
 			{/* 月份导航 */}
 			<div className="flex items-center justify-between mb-4">
 				<button
+					type="button"
 					onClick={goToPreviousMonth}
 					className="p-1 rounded hover:bg-muted transition-colors"
 				>
@@ -126,6 +127,7 @@ export function SimpleCalendar({
 					</span>
 				</div>
 				<button
+					type="button"
 					onClick={goToNextMonth}
 					className="p-1 rounded hover:bg-muted transition-colors"
 				>
@@ -147,9 +149,14 @@ export function SimpleCalendar({
 
 			{/* 日期网格 */}
 			<div className="grid grid-cols-7 gap-1">
-				{monthDays.map((date, index) => {
+				{(() => {
+					let placeholderId = 0;
+					return monthDays.map((date) => {
 					if (!date) {
-						return <div key={`empty-${index}`} className="aspect-square" />;
+						placeholderId += 1;
+						return (
+							<div key={`empty-${currentMonth.getTime()}-${placeholderId}`} className="aspect-square" />
+						);
 					}
 
 					const isTodayDate = isToday(date);
@@ -158,6 +165,7 @@ export function SimpleCalendar({
 
 					return (
 						<button
+							type="button"
 							key={date.toISOString()}
 							onClick={() => onDateSelect(date)}
 							className={cn(
@@ -184,12 +192,14 @@ export function SimpleCalendar({
 							)}
 						</button>
 					);
-				})}
+					});
+				})()}
 			</div>
 
 			{/* 今天按钮 */}
 			<div className="mt-4 pt-4 border-t border-border">
 				<button
+					type="button"
 					onClick={goToToday}
 					className="w-full px-3 py-2 text-sm rounded-md bg-muted/50 hover:bg-muted transition-colors text-foreground"
 				>

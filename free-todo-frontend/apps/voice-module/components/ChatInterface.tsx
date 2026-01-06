@@ -20,6 +20,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 	const [input, setInput] = useState("");
 	const bottomRef = useRef<HTMLDivElement>(null);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll when messages update
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
@@ -42,6 +43,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 						stroke="currentColor"
 						viewBox="0 0 24 24"
 					>
+						<title>聊天图标</title>
 						<path
 							strokeLinecap="round"
 							strokeLinejoin="round"
@@ -180,6 +182,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 							stroke="currentColor"
 							viewBox="0 0 24 24"
 						>
+							<title>发送</title>
 							<path
 								strokeLinecap="round"
 								strokeLinejoin="round"

@@ -6,9 +6,17 @@ import { IslandMode } from "@/components/DynamicIsland";
  */
 function isElectronEnvironment(): boolean {
 	if (typeof window === "undefined") return false;
+
+	// 扩展 window 类型以安全访问 Electron API
+	const w = window as typeof window & {
+		electronAPI?: unknown;
+		require?: (module: string) => unknown;
+	};
+
 	return !!(
-		(window as any).electronAPI ||
-		(window as any).require?.("electron") ||
+		w.electronAPI ||
+		// require 仅在 Electron preload 中存在
+		w.require?.("electron") ||
 		navigator.userAgent.includes("Electron")
 	);
 }

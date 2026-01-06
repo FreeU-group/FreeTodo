@@ -144,6 +144,14 @@ export function MeetingSummary({
 											key={todo.id}
 											className="group relative py-3 border-b border-border/50 last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
 											onClick={() => segment && onSegmentClick?.(segment)}
+											onKeyDown={(e) => {
+												if ((e.key === "Enter" || e.key === " ") && segment) {
+													e.preventDefault();
+													onSegmentClick?.(segment);
+												}
+											}}
+											role="button"
+											tabIndex={0}
 										>
 											<div className="flex items-start gap-3">
 												<div className="flex-shrink-0 mt-0.5">
@@ -189,6 +197,14 @@ export function MeetingSummary({
 											key={schedule.id}
 											className="group relative py-3 border-b border-border/50 last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
 											onClick={() => segment && onSegmentClick?.(segment)}
+											onKeyDown={(e) => {
+												if ((e.key === "Enter" || e.key === " ") && segment) {
+													e.preventDefault();
+													onSegmentClick?.(segment);
+												}
+											}}
+											role="button"
+											tabIndex={0}
 										>
 											<div className="flex items-start gap-3">
 												<div className="flex-shrink-0 mt-0.5">

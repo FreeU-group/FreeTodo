@@ -211,8 +211,20 @@ export function EditModeMessage({
 
 	const noTodosMessage = t("noLinkedTodos");
 
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" || e.key === " ") {
+			handleCloseDropdowns();
+		}
+	};
+
 	return (
-		<div className="space-y-4" onClick={handleCloseDropdowns}>
+		<div
+			className="space-y-4"
+			onClick={handleCloseDropdowns}
+			onKeyDown={handleKeyDown}
+			role="button"
+			tabIndex={0}
+		>
 			{blocks.map((block) => {
 				const state = blockStates[block.id] || {
 					selectedTodoId: null,
@@ -257,6 +269,13 @@ export function EditModeMessage({
 									<div
 										className="relative"
 										onClick={(e) => e.stopPropagation()}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.stopPropagation();
+											}
+										}}
+										role="button"
+										tabIndex={0}
 									>
 										<button
 											type="button"

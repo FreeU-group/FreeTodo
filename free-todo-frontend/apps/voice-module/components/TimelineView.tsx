@@ -75,7 +75,7 @@ export function TimelineView({
 							highlightedSegmentId === segment.id || isNearCurrentTime(segment);
 						const text = segment.optimizedText || segment.rawText || "";
 						const previewText =
-							text.length > 50 ? text.substring(0, 50) + "..." : text;
+							text.length > 50 ? `${text.substring(0, 50)}...` : text;
 
 						return (
 							<div
@@ -86,6 +86,14 @@ export function TimelineView({
 									isHighlighted && "bg-primary/5 border border-primary/20",
 								)}
 								onClick={() => onSegmentClick?.(segment)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										onSegmentClick?.(segment);
+									}
+								}}
+								role="button"
+								tabIndex={0}
 							>
 								{/* 时间轴节点 */}
 								<div className="flex flex-col items-center shrink-0">

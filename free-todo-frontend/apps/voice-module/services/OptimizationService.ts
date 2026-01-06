@@ -81,7 +81,7 @@ export class OptimizationService {
 
 			try {
 				new URL(baseURL);
-			} catch (urlError) {
+			} catch (_urlError) {
 				console.error("[OptimizationService] Invalid baseURL:", baseURL);
 				baseURL = "http://localhost:3000/api/deepseek";
 			}
@@ -208,10 +208,14 @@ export class OptimizationService {
 				temperature: 0.3,
 			});
 
+			type ChatCompletionResponse = {
+				choices?: Array<{ message?: { content?: string } }>;
+			};
+
 			const response = (await Promise.race([
 				apiPromise,
 				timeoutPromise,
-			])) as any;
+			])) as ChatCompletionResponse;
 			const optimizedText =
 				response.choices?.[0]?.message?.content?.trim() || segment.rawText;
 			const containsSchedule = optimizedText.includes("[SCHEDULE:");

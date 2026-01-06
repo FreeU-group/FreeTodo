@@ -12,12 +12,27 @@ import {
 import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
+type ExtractedTodo = {
+	id?: string;
+	title: string;
+	description?: string;
+	deadline?: string;
+	priority?: "high" | "medium" | "low" | string;
+};
+
+type ExtractedSchedule = {
+	id?: string;
+	schedule_time: string;
+	description: string;
+	status?: string;
+};
+
 interface FileUploadPanelProps {
 	onTranscriptionComplete?: (result: {
 		transcript: string;
 		optimized_text?: string;
-		todos: any[];
-		schedules: any[];
+		todos: ExtractedTodo[];
+		schedules: ExtractedSchedule[];
 	}) => void;
 }
 
@@ -30,8 +45,8 @@ export function FileUploadPanel({
 	const [result, setResult] = useState<{
 		transcript: string;
 		optimized_text?: string;
-		todos: any[];
-		schedules: any[];
+		todos: ExtractedTodo[];
+		schedules: ExtractedSchedule[];
 		processing_time?: number;
 	} | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -124,7 +139,7 @@ export function FileUploadPanel({
 						setUploadProgress(100);
 						setResult(response);
 						onTranscriptionComplete?.(response);
-					} catch (e) {
+					} catch (_e) {
 						setError("解析响应失败");
 					}
 				} else {
@@ -237,6 +252,14 @@ export function FileUploadPanel({
 						onDragLeave={handleDragLeave}
 						onDrop={handleDrop}
 						onClick={() => !uploading && fileInputRef.current?.click()}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								!uploading && fileInputRef.current?.click();
+							}
+						}}
+						role="button"
+						tabIndex={0}
 					>
 						<input
 							ref={fileInputRef}
@@ -333,9 +356,11 @@ export function FileUploadPanel({
 									<span>提取的待办 ({result.todos.length})</span>
 								</h4>
 								<div className="space-y-2">
-									{result.todos.map((todo: any, index: number) => (
+									{result.todos.map((todo, index) => {
+										const key = todo.id ?? `${todo.title}-${todo.deadline ?? index}`;
+										return (
 										<div
-											key={index}
+											key={key}
 											className="p-3 rounded-lg border border-border bg-background"
 										>
 											<p className="text-sm font-medium">{todo.title}</p>
@@ -358,7 +383,8 @@ export function FileUploadPanel({
 														: "中优先级"}
 											</span>
 										</div>
-									))}
+										);
+									})}
 								</div>
 							</div>
 						)}
@@ -371,9 +397,13 @@ export function FileUploadPanel({
 									<span>提取的日程 ({result.schedules.length})</span>
 								</h4>
 								<div className="space-y-2">
-									{result.schedules.map((schedule: any, index: number) => (
+									{result.schedules.map((schedule, index) => {
+										const key =
+											schedule.id ??
+											`${schedule.description}-${schedule.schedule_time}-${index}`;
+										return (
 										<div
-											key={index}
+											key={key}
 											className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/5"
 										>
 											<p className="text-sm font-mono font-semibold text-amber-600 dark:text-amber-400">
@@ -383,7 +413,8 @@ export function FileUploadPanel({
 											</p>
 											<p className="text-sm mt-1">{schedule.description}</p>
 										</div>
-									))}
+										);
+									})}
 								</div>
 							</div>
 						)}

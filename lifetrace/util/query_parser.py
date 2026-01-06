@@ -192,7 +192,7 @@ class QueryParser:
 
         return start_date, end_date
 
-    def _extract_app_names(self, query: str) -> list[str] | None:
+    def _extract_app_names(self, query: str) -> list[str] | None:  # noqa: C901
         """提取应用名称"""
         friendly_app_names = []
 
@@ -328,7 +328,9 @@ class QueryParser:
 
 只返回JSON，不要其他解释。"""
 
-    def _build_query_conditions(self, parsed_data: dict[str, Any]) -> QueryConditions:
+    def _build_query_conditions(  # noqa: C901, PLR0912
+        self, parsed_data: dict[str, Any]
+    ) -> QueryConditions:
         """从解析数据构建查询条件"""
         conditions = QueryConditions()
 

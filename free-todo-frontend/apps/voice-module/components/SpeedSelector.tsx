@@ -41,6 +41,7 @@ export function SpeedSelector({ speed, onSpeedChange }: SpeedSelectorProps) {
 		<div className="relative" ref={dropdownRef}>
 			{/* 按钮 */}
 			<button
+				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				className={cn(
 					"flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all",
@@ -63,6 +64,7 @@ export function SpeedSelector({ speed, onSpeedChange }: SpeedSelectorProps) {
 				<div className="absolute bottom-full left-0 mb-2 w-24 bg-background border border-border/60 rounded-lg shadow-xl z-[100] overflow-hidden backdrop-blur-sm">
 					{SPEED_OPTIONS.map((option) => (
 						<button
+							type="button"
 							key={option}
 							onClick={() => {
 								onSpeedChange(option);

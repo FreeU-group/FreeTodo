@@ -107,11 +107,11 @@ export function setupAudioIpcHandlers(): void {
 					});
 				});
 			});
-		} catch (error: any) {
+		} catch (error) {
 			console.error("检查虚拟音频设备失败:", error);
 			return {
 				available: false,
-				message: `检查失败: ${error.message}`,
+				message: `检查失败: ${error instanceof Error ? error.message : String(error)}`,
 				platform: process.platform,
 			};
 		}
@@ -190,11 +190,11 @@ export function setupAudioIpcHandlers(): void {
 					});
 				});
 			});
-		} catch (error: any) {
+		} catch (error) {
 			console.error("设置虚拟音频设备失败:", error);
 			return {
 				success: false,
-				message: `设置失败: ${error.message}`,
+				message: `设置失败: ${error instanceof Error ? error.message : String(error)}`,
 				platform: process.platform,
 			};
 		}
@@ -284,7 +284,12 @@ export async function autoSetupVirtualAudio(): Promise<void> {
 			return;
 		}
 
-		const status: any = await new Promise((resolve) => {
+		const status: {
+			available: boolean;
+			message: string;
+			details: string;
+			platform: NodeJS.Platform;
+		} = await new Promise((resolve) => {
 			const proc = spawn(command[0], command.slice(1), {
 				cwd: path.dirname(scriptPath),
 				timeout: 10000,
@@ -306,7 +311,7 @@ export async function autoSetupVirtualAudio(): Promise<void> {
 				resolve({
 					available,
 					message: available ? "虚拟音频设备已配置" : "虚拟音频设备未配置",
-					details: stdout || stderr,
+					details: stdout || stderr || "",
 					platform,
 				});
 			});
@@ -315,6 +320,7 @@ export async function autoSetupVirtualAudio(): Promise<void> {
 				resolve({
 					available: false,
 					message: `检查失败: ${error.message}`,
+					details: "",
 					platform,
 				});
 			});
@@ -324,7 +330,11 @@ export async function autoSetupVirtualAudio(): Promise<void> {
 			logToFile("虚拟音频设备未配置，尝试自动配置...");
 			// 尝试自动配置（Linux 可以自动加载模块）
 			if (process.platform === "linux") {
-				const setupResult: any = await new Promise((resolve) => {
+				const setupResult: {
+					success: boolean;
+					message: string;
+					details?: string;
+				} = await new Promise((resolve) => {
 					const linuxScriptPath = path.join(
 						__dirname,
 						"../../scripts/audio/setup_virtual_audio_linux.sh",
@@ -349,7 +359,7 @@ export async function autoSetupVirtualAudio(): Promise<void> {
 						resolve({
 							success: code === 0,
 							message: code === 0 ? "虚拟音频设备配置成功" : "配置失败",
-							details: stdout || stderr,
+							details: stdout || stderr || "",
 						});
 					});
 
@@ -357,6 +367,7 @@ export async function autoSetupVirtualAudio(): Promise<void> {
 						resolve({
 							success: false,
 							message: `配置失败: ${error.message}`,
+							details: "",
 						});
 					});
 				});
@@ -378,7 +389,11 @@ export async function autoSetupVirtualAudio(): Promise<void> {
 		} else {
 			logToFile("✅ 虚拟音频设备已配置");
 		}
-	} catch (error: any) {
-		logToFile(`检查虚拟音频设备时出错: ${error.message}`);
+	} catch (error) {
+		logToFile(
+			`检查虚拟音频设备时出错: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		);
 	}
 }

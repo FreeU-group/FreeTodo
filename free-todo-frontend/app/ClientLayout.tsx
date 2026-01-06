@@ -10,7 +10,7 @@ import { QueryProvider } from "@/lib/query/provider";
 
 interface ClientLayoutProps {
 	children: React.ReactNode;
-	messages: any;
+	messages: IntlMessages;
 	locale: string;
 }
 
@@ -32,6 +32,7 @@ export function ClientLayout({
 			<head>
 				{/* 在 head 中直接注入透明背景样式，确保在页面渲染前就生效 */}
 				<style
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: Electron透明背景需要内联样式
 					dangerouslySetInnerHTML={{
 						__html: `
 						html, body, #__next, #__next > div {

@@ -153,7 +153,7 @@ class WhisperLiveKitClient:
             logger.error(f"发送音频数据失败: {e}")
             self.is_connected = False
 
-    async def receive_result(self) -> dict | None:
+    async def receive_result(self) -> dict | None:  # noqa: C901
         """接收识别结果
 
         WhisperLiveKit 返回格式参考：
@@ -249,7 +249,9 @@ class WhisperLiveKitClient:
 
 
 @router.websocket("/stream-whisperlivekit")
-async def stream_transcription_whisperlivekit(websocket: WebSocket):
+async def stream_transcription_whisperlivekit(  # noqa: C901, PLR0912, PLR0915
+    websocket: WebSocket,
+):
     """
     实时语音识别 WebSocket 端点（完全使用 WhisperLiveKit）
 

@@ -86,6 +86,14 @@ export const FloatContent: React.FC<{
 						onStopRecording();
 					}
 				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onToggleRecording?.();
+					}
+				}}
+				role="button"
+				tabIndex={0}
 				title={
 					isRecording
 						? isPaused
@@ -125,6 +133,14 @@ export const FloatContent: React.FC<{
 					e.stopPropagation();
 					onScreenshot?.();
 				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onScreenshot?.();
+					}
+				}}
+				role="button"
+				tabIndex={0}
 				title={
 					screenshotEnabled ? "截屏已开启，单击关闭" : "截屏已关闭，单击开启"
 				}

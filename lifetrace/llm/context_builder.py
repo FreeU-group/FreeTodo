@@ -52,7 +52,9 @@ class ContextBuilder:
         logger.info(f"上下文构建完成，包含 {len(retrieved_data)} 条记录")
         return context
 
-    def build_summary_context(self, query: str, retrieved_data: list[dict[str, Any]]) -> str:
+    def build_summary_context(  # noqa: C901
+        self, query: str, retrieved_data: list[dict[str, Any]]
+    ) -> str:
         """
         构建用于总结的上下文文本
 
@@ -98,8 +100,9 @@ class ContextBuilder:
                 screenshot_id = record.get("screenshot_id") or record.get("id")  # 获取截图ID
 
                 # 截断过长的文本
-                if len(ocr_text) > 200:
-                    ocr_text = ocr_text[:200] + "..."
+                MAX_OCR_TEXT_LENGTH = 200
+                if len(ocr_text) > MAX_OCR_TEXT_LENGTH:
+                    ocr_text = ocr_text[:MAX_OCR_TEXT_LENGTH] + "..."
 
                 record_text = f"{i + 1}. 时间: {timestamp}"
                 if window_title:
@@ -110,8 +113,9 @@ class ContextBuilder:
 
                 context_parts.append(record_text)
 
-            if len(records) > 5:
-                context_parts.append(f"   ... 还有 {len(records) - 5} 条记录")
+            MAX_RECORDS_TO_SHOW = 5
+            if len(records) > MAX_RECORDS_TO_SHOW:
+                context_parts.append(f"   ... 还有 {len(records) - MAX_RECORDS_TO_SHOW} 条记录")
 
             context_parts.append("")
 
@@ -169,8 +173,9 @@ class ContextBuilder:
             screenshot_id = record.get("screenshot_id") or record.get("id")  # 获取截图ID
 
             # 截断过长的文本
-            if len(ocr_text) > 150:
-                ocr_text = ocr_text[:150] + "..."
+            MAX_OCR_TEXT_LENGTH_STATS = 150
+            if len(ocr_text) > MAX_OCR_TEXT_LENGTH_STATS:
+                ocr_text = ocr_text[:MAX_OCR_TEXT_LENGTH_STATS] + "..."
 
             # 构建包含截图ID的上下文信息
             id_info = f" (截图ID: {screenshot_id})" if screenshot_id else ""
@@ -186,7 +191,7 @@ class ContextBuilder:
 
         return context_text
 
-    def build_statistics_context(
+    def build_statistics_context(  # noqa: C901, PLR0912, PLR0915
         self, query: str, retrieved_data: list[dict[str, Any]], stats: dict[str, Any]
     ) -> str:
         """
@@ -374,9 +379,10 @@ class ContextBuilder:
             context["detailed_records"] = detailed_records
 
         # 如果还是太长，截断OCR文本
+        MAX_OCR_TEXT_LENGTH_DETAILED = 100
         for record in context.get("detailed_records", []):
-            if "ocr_text" in record and len(record["ocr_text"]) > 100:
-                record["ocr_text"] = record["ocr_text"][:100] + "..."
+            if "ocr_text" in record and len(record["ocr_text"]) > MAX_OCR_TEXT_LENGTH_DETAILED:
+                record["ocr_text"] = record["ocr_text"][:MAX_OCR_TEXT_LENGTH_DETAILED] + "..."
 
         logger.warning(f"上下文过长，已截断至 {len(json.dumps(context, ensure_ascii=False))} 字符")
         return context

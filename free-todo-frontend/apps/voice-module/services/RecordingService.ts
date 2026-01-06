@@ -96,9 +96,18 @@ export class RecordingService {
 			});
 
 			// 创建 AudioContext 用于波形分析
-			const AudioContextClass =
-				window.AudioContext || (window as any).webkitAudioContext;
+			const win = window as Window & {
+				AudioContext?: typeof AudioContext;
+				webkitAudioContext?: typeof AudioContext;
+			};
+			const AudioContextClass = win.AudioContext || win.webkitAudioContext;
+			if (!AudioContextClass) {
+				throw new Error("AudioContext is not supported in this environment");
+			}
 			this.audioContext = new AudioContextClass();
+			if (!this.audioContext) {
+				throw new Error("Failed to initialize AudioContext");
+			}
 			this.analyser = this.audioContext.createAnalyser();
 			this.analyser.fftSize = 512;
 

@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(
     project: ProjectCreate,
-    service: ProjectService = Depends(get_project_service),
+    service: ProjectService = Depends(get_project_service),  # noqa: B008
 ):
     """
     创建新项目
@@ -46,7 +46,7 @@ async def get_projects(
     limit: int = Query(100, ge=1, le=1000, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
     status: str | None = Query(None, description="项目状态筛选（active/archived/completed）"),
-    service: ProjectService = Depends(get_project_service),
+    service: ProjectService = Depends(get_project_service),  # noqa: B008
 ):
     """
     获取所有项目列表
@@ -69,7 +69,7 @@ async def get_projects(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: int,
-    service: ProjectService = Depends(get_project_service),
+    service: ProjectService = Depends(get_project_service),  # noqa: B008
 ):
     """
     获取单个项目详情
@@ -93,7 +93,7 @@ async def get_project(
 async def update_project(
     project_id: int,
     project: ProjectUpdate,
-    service: ProjectService = Depends(get_project_service),
+    service: ProjectService = Depends(get_project_service),  # noqa: B008
 ):
     """
     更新项目
@@ -117,7 +117,7 @@ async def update_project(
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(
     project_id: int,
-    service: ProjectService = Depends(get_project_service),
+    service: ProjectService = Depends(get_project_service),  # noqa: B008
 ):
     """
     删除项目
@@ -141,7 +141,7 @@ async def delete_project(
 @router.post("/{project_id}/generate-tasks", response_model=GenerateTasksResponse)
 async def generate_tasks(
     project_id: int,
-    service: ProjectService = Depends(get_project_service),
+    service: ProjectService = Depends(get_project_service),  # noqa: B008
 ):
     """
     AI任务拆解：根据项目信息自动生成任务列表

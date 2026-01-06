@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["time-allocation"])
 
 
 @router.get("/time-allocation", response_model=TimeAllocationResponse)
-async def get_time_allocation(
+async def get_time_allocation(  # noqa: C901, PLR0911
     start_date: str | None = Query(None, description="开始日期, YYYY-MM-DD 格式"),
     end_date: str | None = Query(None, description="结束日期, YYYY-MM-DD 格式"),
     days: int = Query(None, description="统计天数 (弃用, 仅用于兼容)", ge=1, le=365),
@@ -48,7 +48,7 @@ async def get_time_allocation(
         app_details = []
 
         # 应用分类逻辑（优先匹配社交类应用）
-        def categorize_app(app_name: str) -> str:
+        def categorize_app(app_name: str) -> str:  # noqa: PLR0911
             if not app_name:
                 return "other"
 

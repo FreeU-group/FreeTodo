@@ -34,7 +34,9 @@ class ChatCompletionRequest(BaseModel):
 
 
 @router.post("/chat/completions")
-async def chat_completions(request: ChatCompletionRequest):
+async def chat_completions(  # noqa: C901, PLR0915
+    request: ChatCompletionRequest,
+):
     """OpenAI 兼容的聊天完成接口（支持流式和非流式）"""
     try:
         # 直接使用 LLMClient，避免依赖 RAG 服务（可能初始化较慢）

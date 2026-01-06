@@ -238,8 +238,8 @@
 	html[data-electron="true"] #__next,
 	html[data-electron="true"] #__next > div,
 	html[data-electron="true"] #__next > div > div {
-		background-color: transparent !important;
-		background: transparent !important;
+		background-color: transparent;
+		background-image: none;
 	}
 
 	/* 默认情况下，如果检测到 Electron user agent，也设置透明 */

@@ -65,7 +65,7 @@ export function CompactPlayer({
 	// 格式化时间显示
 	const formatTime = (seconds: number): string => {
 		// 检查是否为有效数字
-		if (!Number.isFinite(seconds) || isNaN(seconds) || seconds < 0) {
+		if (!Number.isFinite(seconds) || Number.isNaN(seconds) || seconds < 0) {
 			return "0:00";
 		}
 
@@ -140,7 +140,7 @@ export function CompactPlayer({
 
 	// 计算进度百分比，确保即使duration为0也能正确显示
 	const progress =
-		duration > 0 && isFinite(duration)
+		duration > 0 && Number.isFinite(duration)
 			? Math.min(100, Math.max(0, (currentTime / duration) * 100))
 			: 0;
 
@@ -173,6 +173,7 @@ export function CompactPlayer({
 				{/* 播放控制 */}
 				<div className="flex items-center gap-3 mb-3">
 					<button
+						type="button"
 						onClick={() => onSkip(-15)}
 						className={cn(
 							"p-2 rounded-lg transition-all duration-200",
@@ -188,6 +189,7 @@ export function CompactPlayer({
 					</button>
 
 					<button
+						type="button"
 						onClick={isPlaying ? onPause : onPlay}
 						className={cn(
 							"p-3 rounded-full transition-all duration-300",
@@ -208,6 +210,7 @@ export function CompactPlayer({
 					</button>
 
 					<button
+						type="button"
 						onClick={() => onSkip(15)}
 						className={cn(
 							"p-2 rounded-lg transition-all duration-200",
@@ -258,6 +261,25 @@ export function CompactPlayer({
 						ref={progressRef}
 						className="w-full h-2 bg-muted/50 rounded-full cursor-pointer relative group overflow-visible"
 						onClick={handleProgressClick}
+						onKeyDown={(e) => {
+							const step = Math.max(duration * 0.01, 1);
+							if (e.key === "Enter" || e.key === " ") {
+								e.preventDefault();
+								handleProgressClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+							} else if (e.key === "ArrowLeft") {
+								e.preventDefault();
+								onSeek(Math.max(0, currentTime - step));
+							} else if (e.key === "ArrowRight") {
+								e.preventDefault();
+								onSeek(Math.min(duration, currentTime + step));
+							} else if (e.key === "Home") {
+								e.preventDefault();
+								onSeek(0);
+							} else if (e.key === "End") {
+								e.preventDefault();
+								onSeek(duration);
+							}
+						}}
 						onMouseEnter={() => setIsHovering(true)}
 						onMouseLeave={() => {
 							setIsHovering(false);
@@ -271,6 +293,13 @@ export function CompactPlayer({
 							}
 						}}
 						onMouseMove={handleProgressMouseMove}
+						role="slider"
+						tabIndex={0}
+						aria-label="播放进度"
+						aria-valuemin={0}
+						aria-valuemax={duration || 0}
+						aria-valuenow={currentTime}
+						aria-valuetext={formatTime(currentTime)}
 					>
 						{/* 背景渐变 */}
 						<div className="absolute inset-0 bg-gradient-to-r from-muted via-muted/80 to-muted rounded-full z-0" />

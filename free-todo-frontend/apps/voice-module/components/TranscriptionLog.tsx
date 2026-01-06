@@ -1,6 +1,5 @@
 "use client";
 
-import type React from "react";
 import { useEffect, useRef } from "react";
 import type { TranscriptSegment } from "../types";
 
@@ -15,16 +14,17 @@ interface TranscriptionLogProps {
 	isRecording?: boolean;
 }
 
-const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
+export function TranscriptionLog({
 	segments,
 	onSegmentClick,
 	isRecording,
-}) => {
+}: TranscriptionLogProps) {
 	const bottomRef = useRef<HTMLDivElement>(null);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on updates
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [segments]);
+	}, [segments.length]);
 
 	const formatTime = (date: Date) => {
 		return date.toLocaleTimeString([], {
@@ -42,6 +42,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 		return (
 			<span>
 				{parts.map((part, idx) => {
+					const key = `${part}-${idx}`;
 					if (part.startsWith("[SCHEDULE:") && part.endsWith("]")) {
 						const content = part
 							.replace("[SCHEDULE:", "")
@@ -49,7 +50,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 							.trim();
 						return (
 							<span
-								key={idx}
+								key={key}
 								className="bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1 rounded border-b border-amber-500/50 font-medium"
 							>
 								{content}
@@ -57,7 +58,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 						);
 					}
 					return (
-						<span key={idx} className="text-foreground">
+						<span key={key} className="text-foreground">
 							{part}
 						</span>
 					);
@@ -76,6 +77,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 						stroke="currentColor"
 						viewBox="0 0 24 24"
 					>
+						<title>等待转录</title>
 						<path
 							strokeLinecap="round"
 							strokeLinejoin="round"
@@ -91,17 +93,34 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 			{segments.map((segment) => (
 				<div
 					key={segment.id}
-					onClick={() =>
-						!isRecording &&
+					onClick={() => {
+						if (isRecording) return;
 						onSegmentClick(
 							segment.audioStart,
 							segment.audioEnd,
-							segment.id, // 传递 transcript.id 而不是 segmentId
+							segment.id,
 							segment.absoluteStart
 								? segment.absoluteStart.getTime()
 								: undefined,
-						)
-					}
+						);
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							if (isRecording) return;
+							onSegmentClick(
+								segment.audioStart,
+								segment.audioEnd,
+								segment.id,
+								segment.absoluteStart
+									? segment.absoluteStart.getTime()
+									: undefined,
+							);
+						}
+					}}
+					role="button"
+					tabIndex={0}
+					aria-disabled={isRecording}
 					className={`flex gap-3 group animate-in fade-in slide-in-from-bottom-2 duration-300 p-3 rounded-lg transition-all border
                 ${isRecording ? "opacity-70 cursor-not-allowed border-transparent" : "cursor-pointer hover:bg-muted/40 hover:shadow-sm border-transparent hover:border-border/50"}
                 ${segment.containsSchedule ? "bg-amber-500/5 border-amber-500/20" : ""}
@@ -123,6 +142,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 											fill="currentColor"
 											viewBox="0 0 20 20"
 										>
+											<title>正在识别</title>
 											<path
 												fillRule="evenodd"
 												d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
@@ -155,6 +175,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 											fill="none"
 											viewBox="0 0 24 24"
 										>
+											<title>优化中</title>
 											<circle
 												className="opacity-25"
 												cx="12"
@@ -188,6 +209,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 												stroke="currentColor"
 												viewBox="0 0 24 24"
 											>
+												<title>已上传</title>
 												<path
 													strokeLinecap="round"
 													strokeLinejoin="round"
@@ -204,6 +226,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 												fill="none"
 												viewBox="0 0 24 24"
 											>
+												<title>上传中</title>
 												<circle
 													className="opacity-25"
 													cx="12"
@@ -228,6 +251,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 												stroke="currentColor"
 												viewBox="0 0 24 24"
 											>
+												<title>上传失败</title>
 												<path
 													strokeLinecap="round"
 													strokeLinejoin="round"
@@ -245,6 +269,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 												stroke="currentColor"
 												viewBox="0 0 24 24"
 											>
+												<title>播放</title>
 												<path
 													strokeLinecap="round"
 													strokeLinejoin="round"
@@ -272,6 +297,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 												stroke="currentColor"
 												viewBox="0 0 24 24"
 											>
+												<title>日程</title>
 												<path
 													strokeLinecap="round"
 													strokeLinejoin="round"
@@ -290,6 +316,7 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 												stroke="currentColor"
 												viewBox="0 0 24 24"
 											>
+												<title>待办</title>
 												<path
 													strokeLinecap="round"
 													strokeLinejoin="round"
@@ -309,6 +336,6 @@ const TranscriptionLog: React.FC<TranscriptionLogProps> = ({
 			<div ref={bottomRef} />
 		</div>
 	);
-};
+}
 
 export default TranscriptionLog;

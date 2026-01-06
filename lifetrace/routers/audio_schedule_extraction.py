@@ -244,11 +244,26 @@ def _parse_schedule_time(text: str, base_time: datetime) -> datetime | None:
         (r"^(\d{1,2})点$", 0, None, True),
     ]
 
+    PATTERN_CONFIG_INDEX_OFFSET = 1
+    PATTERN_CONFIG_INDEX_HOUR_OFFSET = 2
+    PATTERN_CONFIG_INDEX_TIME_ONLY = 3
     for pattern_config in time_patterns:
         pattern = pattern_config[0]
-        offset = pattern_config[1] if len(pattern_config) > 1 else 0
-        hour_offset = pattern_config[2] if len(pattern_config) > 2 else 0
-        is_time_only = pattern_config[3] if len(pattern_config) > 3 else False
+        offset = (
+            pattern_config[PATTERN_CONFIG_INDEX_OFFSET]
+            if len(pattern_config) > PATTERN_CONFIG_INDEX_OFFSET
+            else 0
+        )
+        hour_offset = (
+            pattern_config[PATTERN_CONFIG_INDEX_HOUR_OFFSET]
+            if len(pattern_config) > PATTERN_CONFIG_INDEX_HOUR_OFFSET
+            else 0
+        )
+        is_time_only = (
+            pattern_config[PATTERN_CONFIG_INDEX_TIME_ONLY]
+            if len(pattern_config) > PATTERN_CONFIG_INDEX_TIME_ONLY
+            else False
+        )
 
         match = re.match(pattern, text)
         if match:

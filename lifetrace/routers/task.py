@@ -29,7 +29,7 @@ router = APIRouter(tags=["tasks"])
 async def create_task(
     project_id: int = Path(..., description="项目ID"),
     task: TaskCreate = None,
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     创建新任务
@@ -55,7 +55,7 @@ async def get_project_tasks(
     project_id: int = Path(..., description="项目ID"),
     limit: int = Query(100, ge=1, le=1000, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     获取项目的任务列表
@@ -84,7 +84,7 @@ async def get_project_tasks(
 async def get_task(
     project_id: int = Path(..., description="项目ID"),
     task_id: int = Path(..., description="任务ID"),
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     获取单个任务详情
@@ -113,7 +113,7 @@ async def update_task(
     project_id: int = Path(..., description="项目ID"),
     task_id: int = Path(..., description="任务ID"),
     task: TaskUpdate = None,
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     更新任务
@@ -142,7 +142,7 @@ async def update_task(
 async def delete_task(
     project_id: int = Path(..., description="项目ID"),
     task_id: int = Path(..., description="任务ID"),
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     删除任务
@@ -171,7 +171,7 @@ async def delete_task(
 async def batch_delete_tasks(
     project_id: int = Path(..., description="项目ID"),
     request: TaskBatchDeleteRequest = None,
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     批量删除任务
@@ -201,7 +201,7 @@ async def get_task_progress(
     task_id: int = Path(..., description="任务ID"),
     limit: int = Query(10, ge=1, le=100, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     获取任务的进展记录列表
@@ -231,7 +231,7 @@ async def get_task_progress(
 async def get_task_progress_latest(
     project_id: int = Path(..., description="项目ID"),
     task_id: int = Path(..., description="任务ID"),
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     获取任务最新的进展记录
@@ -259,7 +259,7 @@ async def get_task_progress_latest(
 async def generate_task_summary(
     project_id: int = Path(..., description="项目ID"),
     task_id: int = Path(..., description="任务ID"),
-    service: TaskService = Depends(get_task_service),
+    service: TaskService = Depends(get_task_service),  # noqa: B008
 ):
     """
     手动触发生成任务进展摘要

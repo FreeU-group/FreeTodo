@@ -21,7 +21,7 @@ async def list_events(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     app_name: str | None = Query(None),
-    service: EventService = Depends(get_event_service),
+    service: EventService = Depends(get_event_service),  # noqa: B008
 ):
     """获取事件列表（事件=前台应用使用阶段），用于事件级别展示与检索，同时返回总数"""
     try:
@@ -45,7 +45,7 @@ async def count_events(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     app_name: str | None = Query(None),
-    service: EventService = Depends(get_event_service),
+    service: EventService = Depends(get_event_service),  # noqa: B008
 ):
     """获取事件总数"""
     try:
@@ -64,7 +64,7 @@ async def count_events(
 @router.get("/{event_id}", response_model=EventDetailResponse)
 async def get_event_detail(
     event_id: int,
-    service: EventService = Depends(get_event_service),
+    service: EventService = Depends(get_event_service),  # noqa: B008
 ):
     """获取事件详情（包含该事件下的截图列表）"""
     try:
@@ -79,7 +79,7 @@ async def get_event_detail(
 @router.get("/{event_id}/context")
 async def get_event_context(
     event_id: int,
-    service: EventService = Depends(get_event_service),
+    service: EventService = Depends(get_event_service),  # noqa: B008
 ):
     """获取事件的OCR文本上下文"""
     try:
@@ -94,7 +94,7 @@ async def get_event_context(
 @router.post("/{event_id}/generate-summary")
 async def generate_event_summary(
     event_id: int,
-    service: EventService = Depends(get_event_service),
+    service: EventService = Depends(get_event_service),  # noqa: B008
 ):
     """手动触发单个事件的摘要生成"""
     try:

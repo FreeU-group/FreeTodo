@@ -4,7 +4,7 @@
  */
 
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { SimpleCalendar } from "./SimpleCalendar";
@@ -61,18 +61,18 @@ export function DateSelector({
 	};
 
 	// 切换到前一天
-	const goToPreviousDay = () => {
+	const goToPreviousDay = useCallback(() => {
 		const prevDate = new Date(selectedDate);
 		prevDate.setDate(prevDate.getDate() - 1);
 		onDateChange(prevDate);
-	};
+	}, [onDateChange, selectedDate]);
 
 	// 切换到后一天
-	const goToNextDay = () => {
+	const goToNextDay = useCallback(() => {
 		const nextDate = new Date(selectedDate);
 		nextDate.setDate(nextDate.getDate() + 1);
 		onDateChange(nextDate);
-	};
+	}, [onDateChange, selectedDate]);
 
 	// 检查日期是否有录音
 	const hasRecording = (date: Date): boolean => {
@@ -117,12 +117,13 @@ export function DateSelector({
 
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [selectedDate, onDateChange]);
+	}, [goToNextDay, goToPreviousDay]);
 
 	return (
 		<div className="relative flex items-center gap-2">
 			{/* 日期选择 */}
 			<button
+				type="button"
 				onClick={goToPreviousDay}
 				className={cn(
 					"p-1.5 rounded-md hover:bg-muted transition-colors",
@@ -134,6 +135,7 @@ export function DateSelector({
 			</button>
 
 			<button
+				type="button"
 				ref={buttonRef}
 				onClick={() => {
 					if (buttonRef.current) {
@@ -160,6 +162,7 @@ export function DateSelector({
 			</button>
 
 			<button
+				type="button"
 				onClick={goToNextDay}
 				className={cn(
 					"p-1.5 rounded-md hover:bg-muted transition-colors",
@@ -172,6 +175,7 @@ export function DateSelector({
 
 			{/* 快速跳转到今天 */}
 			<button
+				type="button"
 				onClick={() => onDateChange(new Date())}
 				className={cn(
 					"px-3 py-1.5 text-xs rounded-md",
@@ -185,6 +189,7 @@ export function DateSelector({
 			{/* 操作按钮 */}
 			{onEdit && (
 				<button
+					type="button"
 					onClick={onEdit}
 					className={cn(
 						"px-3 py-1.5 text-xs rounded-md",
@@ -197,6 +202,7 @@ export function DateSelector({
 			)}
 			{onExport && (
 				<button
+					type="button"
 					onClick={onExport}
 					className={cn(
 						"px-3 py-1.5 text-xs rounded-md",
@@ -221,6 +227,16 @@ export function DateSelector({
 							left: `${popupPosition.left}px`,
 						}}
 						onClick={(e) => e.stopPropagation()}
+						onKeyDown={(e) => {
+							if (e.key === "Escape") {
+								e.stopPropagation();
+								setIsCalendarOpen(false);
+								setPopupPosition(null);
+							}
+						}}
+						role="dialog"
+						tabIndex={-1}
+						aria-modal="true"
 					>
 						<SimpleCalendar
 							selectedDate={selectedDate}

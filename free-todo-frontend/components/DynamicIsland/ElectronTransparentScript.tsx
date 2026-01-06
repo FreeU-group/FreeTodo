@@ -10,10 +10,16 @@ import { useEffect } from "react";
 export function ElectronTransparentScript() {
 	useEffect(() => {
 		// 检测是否在 Electron 环境中
+		const win = typeof window !== "undefined"
+			? (window as Window & {
+					electronAPI?: { transparentBackgroundReady?: () => void };
+					require?: (module: string) => { ipcRenderer?: { send: (channel: string) => void } };
+				})
+			: undefined;
 		const isElectron =
-			typeof window !== "undefined" &&
-			((window as any).electronAPI ||
-				(window as any).require?.("electron") ||
+			!!win &&
+			(win.electronAPI ||
+				win.require?.("electron") ||
 				navigator.userAgent.includes("Electron"));
 
 		if (!isElectron) {
@@ -46,17 +52,17 @@ export function ElectronTransparentScript() {
 		body.classList.remove("bg-background");
 
 		// 通知 Electron 主进程透明背景已设置
-		if ((window as any).require) {
+		if (win?.require) {
 			try {
-				const { ipcRenderer } = (window as any).require("electron");
-				ipcRenderer.send("transparent-background-ready");
-			} catch (e) {
+				const { ipcRenderer } = win.require("electron") ?? {};
+				ipcRenderer?.send("transparent-background-ready");
+			} catch (_e) {
 				// 忽略错误
 			}
-		} else if ((window as any).electronAPI) {
+		} else if (win?.electronAPI) {
 			try {
-				(window as any).electronAPI?.transparentBackgroundReady?.();
-			} catch (e) {
+				win.electronAPI?.transparentBackgroundReady?.();
+			} catch (_e) {
 				// 忽略错误
 			}
 		}

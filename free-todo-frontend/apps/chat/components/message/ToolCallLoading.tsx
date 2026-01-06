@@ -18,6 +18,7 @@ export function ToolCallLoading({
 
 	// 工具名称映射（使用本地化）
 	const displayName =
+		// biome-ignore lint/suspicious/noExplicitAny: next-intl 的 t 函数需要动态键
 		t(`toolNames.${toolName}` as any, { defaultValue: toolName }) || toolName;
 
 	return (

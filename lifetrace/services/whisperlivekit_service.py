@@ -37,7 +37,7 @@ class WhisperLiveKitService:
         self.server_port = settings.get("speech_recognition", {}).get("server_port", 8002)
         self.server_host = settings.get("speech_recognition", {}).get("server_host", "localhost")
 
-    async def start_server(self) -> bool:
+    async def start_server(self) -> bool:  # noqa: C901, PLR0911, PLR0912, PLR0915
         """启动 WhisperLiveKit 服务器"""
         if self.is_running:
             logger.info("WhisperLiveKit 服务器已在运行")

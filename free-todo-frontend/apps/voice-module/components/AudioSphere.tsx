@@ -296,7 +296,7 @@ export function AudioSphere({
 				animationFrameRef.current = null;
 			}
 		};
-	}, [isRecording, analyser]);
+		}, [isRecording, analyser, size]);
 
 	// 设置画布大小
 	useEffect(() => {

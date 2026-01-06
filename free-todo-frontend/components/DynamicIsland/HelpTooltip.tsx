@@ -10,6 +10,7 @@ export function HelpTooltip() {
 	return (
 		<>
 			<button
+				type="button"
 				onClick={() => setIsOpen(true)}
 				className="absolute top-4 left-4 z-[10000] w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/60 hover:text-white transition-colors backdrop-blur-md border border-white/10"
 				title="操作说明"
@@ -38,6 +39,7 @@ export function HelpTooltip() {
 									灵动岛操作说明
 								</h3>
 								<button
+									type="button"
 									onClick={() => setIsOpen(false)}
 									className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/60 hover:text-white transition-colors"
 								>

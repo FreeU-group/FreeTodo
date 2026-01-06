@@ -8,11 +8,33 @@ const API_BASE_URL =
 /**
  * 数据持久化服务 - 负责数据上传和保存
  */
+type UploadQueueItem =
+	| {
+			type: "audio";
+			data: {
+				blob: Blob;
+				metadata: {
+					startTime: Date;
+					endTime: Date;
+					segmentId: string;
+					isSegmentAudio?: boolean;
+					title?: string;
+					recordingId?: string;
+				};
+				retries?: number;
+			};
+	  }
+	| {
+			type: "transcript";
+			data: { segment: TranscriptSegment; retries?: number };
+	  }
+	| {
+			type: "schedule";
+			data: { schedule: ScheduleItem; retries?: number };
+	  };
+
 export class PersistenceService {
-	private uploadQueue: Array<{
-		type: "audio" | "transcript" | "schedule";
-		data: any;
-	}> = [];
+	private uploadQueue: UploadQueueItem[] = [];
 	private isUploading: boolean = false;
 	private batchSize: number = 10;
 	private uploadDelay: number = 2000;
@@ -192,7 +214,10 @@ export class PersistenceService {
 					typeof segment.audioEnd !== "number"
 				)
 					return false;
-				if (!isFinite(segment.audioStart) || !isFinite(segment.audioEnd))
+				if (
+					!Number.isFinite(segment.audioStart) ||
+					!Number.isFinite(segment.audioEnd)
+				)
 					return false;
 
 				const audioStart = Math.round(segment.audioStart);
@@ -340,13 +365,28 @@ export class PersistenceService {
 				throw new Error(`Query transcripts failed: ${response.statusText}`);
 			}
 
-			const data = await response.json();
+			const data: {
+				transcripts: Array<{
+					id: string;
+					timestamp: string;
+					rawText: string;
+					optimizedText?: string | null;
+					containsSchedule?: boolean;
+					containsTodo?: boolean;
+					audioStart?: number;
+					audioEnd?: number;
+					audioFileId?: string;
+					segmentId?: string;
+					absoluteStart?: string;
+					absoluteEnd?: string;
+				}>;
+			} = await response.json();
 
-			return data.transcripts.map((t: any) => ({
+			return data.transcripts.map((t) => ({
 				id: t.id,
 				timestamp: new Date(t.timestamp),
 				rawText: t.rawText,
-				optimizedText: t.optimizedText,
+				optimizedText: t.optimizedText ?? undefined,
 				isOptimized: !!t.optimizedText,
 				isInterim: false, // 导入的转录都是最终结果
 				containsSchedule: t.containsSchedule || false,
@@ -409,9 +449,18 @@ export class PersistenceService {
 				throw new Error(`Query schedules failed: ${response.statusText}`);
 			}
 
-			const data = await response.json();
+			const data: {
+				schedules: Array<{
+					id: string;
+					sourceSegmentId: string;
+					extractedAt: string;
+					scheduleTime: string;
+					description: string;
+					status: "pending" | "confirmed" | "cancelled" | string;
+				}>;
+			} = await response.json();
 
-			return data.schedules.map((s: any) => ({
+			return data.schedules.map((s) => ({
 				id: s.id,
 				sourceSegmentId: s.sourceSegmentId,
 				extractedAt: new Date(s.extractedAt),
@@ -605,24 +654,27 @@ export class PersistenceService {
 
 		try {
 			const audioItems = this.uploadQueue.filter(
-				(item) => item.type === "audio",
+				(item): item is Extract<UploadQueueItem, { type: "audio" }> =>
+					item.type === "audio",
 			);
 			const transcriptItems = this.uploadQueue.filter(
-				(item) => item.type === "transcript",
+				(item): item is Extract<UploadQueueItem, { type: "transcript" }> =>
+					item.type === "transcript",
 			);
 			const scheduleItems = this.uploadQueue.filter(
-				(item) => item.type === "schedule",
+				(item): item is Extract<UploadQueueItem, { type: "schedule" }> =>
+					item.type === "schedule",
 			);
 
 			// 处理音频上传（逐个处理）
 			for (const item of audioItems.slice(0, 1)) {
-				const { blob, metadata, retries } = item.data;
+				const { blob, metadata, retries = 0 } = item.data;
 				if (retries < 3) {
 					const id = await this.uploadAudio(blob, metadata);
 					if (id) {
 						this.uploadQueue = this.uploadQueue.filter((i) => i !== item);
 					} else {
-						item.data.retries = (retries || 0) + 1;
+						item.data.retries = retries + 1;
 					}
 				} else {
 					this.uploadQueue = this.uploadQueue.filter((i) => i !== item);
@@ -637,7 +689,7 @@ export class PersistenceService {
 
 				await this.saveTranscripts(segments);
 				this.uploadQueue = this.uploadQueue.filter(
-					(item) => !transcriptItems.includes(item),
+					(item) => item.type !== "transcript",
 				);
 			}
 
@@ -649,7 +701,7 @@ export class PersistenceService {
 
 				await this.saveSchedules(schedules);
 				this.uploadQueue = this.uploadQueue.filter(
-					(item) => !scheduleItems.includes(item),
+					(item) => item.type !== "schedule",
 				);
 			}
 		} catch (error) {

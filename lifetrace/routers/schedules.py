@@ -101,7 +101,7 @@ async def save_schedules(request: BatchSaveRequest):
 
 
 @router.get("")
-async def query_schedules(
+async def query_schedules(  # noqa: C901
     startTime: str | None = Query(None, description="开始时间（ISO 格式）"),
     endTime: str | None = Query(None, description="结束时间（ISO 格式）"),
     audioFileId: str | None = Query(None, description="音频文件ID（sourceSegmentId）"),

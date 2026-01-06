@@ -149,8 +149,8 @@ export class WebSocketRecognitionService {
 							const backendEndTime = Number(data.endTime);
 
 							if (
-								!isNaN(backendStartTime) &&
-								!isNaN(backendEndTime) &&
+								!Number.isNaN(backendStartTime) &&
+								!Number.isNaN(backendEndTime) &&
 								backendEndTime >= backendStartTime
 							) {
 								startTime = backendStartTime;
@@ -281,7 +281,9 @@ export class WebSocketRecognitionService {
 		try {
 			// ⚡ WhisperLiveKit 优化：创建 AudioContext，采样率设为 16kHz
 			const AudioContextClass =
-				window.AudioContext || (window as any).webkitAudioContext;
+				window.AudioContext ||
+				(window as unknown as { webkitAudioContext?: typeof AudioContext })
+					.webkitAudioContext;
 			this.audioContext = new AudioContextClass({
 				sampleRate: 16000, // 16kHz，WhisperLiveKit 标准采样率
 				latencyHint: "interactive", // 最低延迟模式
@@ -363,7 +365,7 @@ export class WebSocketRecognitionService {
 		if (this.scriptProcessor) {
 			try {
 				this.scriptProcessor.disconnect();
-			} catch (e) {
+			} catch (_e) {
 				console.log("ScriptProcessor already disconnected");
 			}
 			this.scriptProcessor = null;
@@ -372,7 +374,7 @@ export class WebSocketRecognitionService {
 		if (this.source) {
 			try {
 				this.source.disconnect();
-			} catch (e) {
+			} catch (_e) {
 				console.log("Source already disconnected");
 			}
 			this.source = null;
@@ -381,7 +383,7 @@ export class WebSocketRecognitionService {
 		if (this.audioContext) {
 			try {
 				this.audioContext.close();
-			} catch (e) {
+			} catch (_e) {
 				console.log("AudioContext already closed");
 			}
 			this.audioContext = null;
@@ -394,7 +396,7 @@ export class WebSocketRecognitionService {
 					this.ws.send("EOS");
 				}
 				this.ws.close();
-			} catch (e) {
+			} catch (_e) {
 				// 已经关闭，静默处理
 			}
 			this.ws = null;

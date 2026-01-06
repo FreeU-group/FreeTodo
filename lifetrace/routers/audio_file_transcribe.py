@@ -147,8 +147,8 @@ def optimize_text_with_llm(text: str) -> str | None:
 
 
 @router.post("/transcribe-file")
-async def transcribe_file(
-    file: UploadFile = File(...),
+async def transcribe_file(  # noqa: C901, PLR0912, PLR0915
+    file: UploadFile = File(...),  # noqa: B008
     optimize: bool = Form(True, description="是否优化文本"),
     extract_todos: bool = Form(True, description="是否提取待办"),
     extract_schedules: bool = Form(True, description="是否提取日程"),

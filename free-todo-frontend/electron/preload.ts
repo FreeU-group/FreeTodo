@@ -42,7 +42,7 @@ export interface NotificationData {
 		// 通知主进程透明背景已设置
 		try {
 			ipcRenderer.send("transparent-background-ready");
-		} catch (e) {
+		} catch (_e) {
 			// 忽略错误
 		}
 	}

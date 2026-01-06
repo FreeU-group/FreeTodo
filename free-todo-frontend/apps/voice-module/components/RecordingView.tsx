@@ -82,9 +82,10 @@ export function RecordingView({
 
 	// 自动滚动到底部
 	const bottomRef = useRef<HTMLDivElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll when list changes
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [validSegments]);
+	}, [validSegments.length]);
 
 	// 渲染高亮文本（高亮标记格式和提取的日程/待办文字）
 	const renderOptimizedText = (text: string, segmentId: string) => {
@@ -105,19 +106,22 @@ export function RecordingView({
 		const schedulePattern = /\[SCHEDULE:\s*([^\]]+)\]/g;
 		const todoPattern = /\[TODO:\s*([^|]+)(?:\|[^\]]+)?\]/g;
 
-		let match;
-		while ((match = schedulePattern.exec(text)) !== null) {
+		for (;;) {
+			const m = schedulePattern.exec(text);
+			if (!m) break;
 			highlights.push({
-				start: match.index,
-				end: match.index + match[0].length,
+				start: m.index,
+				end: m.index + m[0].length,
 				type: "schedule",
 			});
 		}
 
-		while ((match = todoPattern.exec(text)) !== null) {
+		for (;;) {
+			const m = todoPattern.exec(text);
+			if (!m) break;
 			highlights.push({
-				start: match.index,
-				end: match.index + match[0].length,
+				start: m.index,
+				end: m.index + m[0].length,
 				type: "todo",
 			});
 		}
@@ -227,31 +231,42 @@ export function RecordingView({
 		}
 
 		// 构建高亮文本
-		const parts: Array<{ text: string; highlight?: "schedule" | "todo" }> = [];
+		const parts: Array<{
+			text: string;
+			highlight?: "schedule" | "todo";
+			id: string;
+		}> = [];
 		let lastIndex = 0;
 
 		mergedHighlights.forEach((highlight) => {
 			if (highlight.start > lastIndex) {
-				parts.push({ text: text.substring(lastIndex, highlight.start) });
+				parts.push({
+					text: text.substring(lastIndex, highlight.start),
+					id: `plain-${lastIndex}-${highlight.start}`,
+				});
 			}
 			parts.push({
 				text: text.substring(highlight.start, highlight.end),
 				highlight: highlight.type,
+				id: `${highlight.type}-${highlight.start}-${highlight.end}`,
 			});
 			lastIndex = highlight.end;
 		});
 
 		if (lastIndex < text.length) {
-			parts.push({ text: text.substring(lastIndex) });
+			parts.push({
+				text: text.substring(lastIndex),
+				id: `plain-${lastIndex}-${text.length}`,
+			});
 		}
 
 		return (
 			<span>
-				{parts.map((part, idx) => {
+				{parts.map((part) => {
 					if (part.highlight === "schedule") {
 						return (
 							<span
-								key={idx}
+								key={part.id}
 								className="bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1 rounded border-b border-amber-500/50 font-medium"
 							>
 								{part.text}
@@ -260,7 +275,7 @@ export function RecordingView({
 					} else if (part.highlight === "todo") {
 						return (
 							<span
-								key={idx}
+								key={part.id}
 								className="bg-blue-500/20 text-blue-600 dark:text-blue-400 px-1 rounded border-b border-blue-500/50 font-medium"
 							>
 								{part.text}
@@ -268,7 +283,7 @@ export function RecordingView({
 						);
 					}
 					return (
-						<span key={idx} className="text-foreground">
+						<span key={part.id} className="text-foreground">
 							{part.text}
 						</span>
 					);
@@ -318,7 +333,7 @@ export function RecordingView({
 					{isRecording && (
 						<div className="px-3 py-2 bg-primary/10 rounded-lg border border-primary/20 flex items-center gap-2 text-xs text-primary">
 							<span>点击发言人可编辑，录音结束可智能区分发言人</span>
-							<button className="text-primary/60 hover:text-primary">×</button>
+							<button type="button" className="text-primary/60 hover:text-primary">×</button>
 						</div>
 					)}
 				</div>
@@ -375,6 +390,14 @@ export function RecordingView({
 													: "bg-background border-border/50",
 										)}
 										onClick={() => onSegmentClick?.(segment)}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.preventDefault();
+												onSegmentClick?.(segment);
+											}
+										}}
+										role="button"
+										tabIndex={0}
 									>
 										{/* 时间戳和发言人 */}
 										<div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
@@ -390,6 +413,7 @@ export function RecordingView({
 														fill="currentColor"
 														viewBox="0 0 20 20"
 													>
+														<title>识别中</title>
 														<path
 															fillRule="evenodd"
 															d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z"
@@ -490,6 +514,7 @@ export function RecordingView({
 								? // 暂停状态：显示恢复按钮
 									onResume && (
 										<button
+											type="button"
 											onClick={onResume}
 											className={cn(
 												"px-5 py-2.5 rounded-lg text-sm font-medium transition-all",
@@ -507,6 +532,7 @@ export function RecordingView({
 								: // 录音中：显示暂停按钮
 									onPause && (
 										<button
+											type="button"
 											onClick={onPause}
 											className={cn(
 												"px-5 py-2.5 rounded-lg text-sm font-medium transition-all",
@@ -523,6 +549,7 @@ export function RecordingView({
 									)}
 							{onStop && (
 								<button
+									type="button"
 									onClick={onStop}
 									className={cn(
 										"px-5 py-2.5 rounded-lg text-sm font-medium transition-all",

@@ -42,7 +42,7 @@ def get_db_base() -> DatabaseBase:
 
 
 def get_db_session(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> Generator[Session]:
     """获取数据库会话 - 请求级别生命周期"""
     session = db_base.SessionLocal()
@@ -60,14 +60,14 @@ def get_db_session(
 
 
 def get_todo_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> ITodoRepository:
     """获取 Todo 仓库实例"""
     return SqlTodoRepository(db_base)
 
 
 def get_todo_service(
-    repo: ITodoRepository = Depends(get_todo_repository),
+    repo: ITodoRepository = Depends(get_todo_repository),  # noqa: B008
 ) -> TodoService:
     """获取 Todo 服务实例"""
     return TodoService(repo)
@@ -77,14 +77,14 @@ def get_todo_service(
 
 
 def get_journal_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> IJournalRepository:
     """获取 Journal 仓库实例"""
     return SqlJournalRepository(db_base)
 
 
 def get_journal_service(
-    repo: IJournalRepository = Depends(get_journal_repository),
+    repo: IJournalRepository = Depends(get_journal_repository),  # noqa: B008
 ) -> JournalService:
     """获取 Journal 服务实例"""
     return JournalService(repo)
@@ -94,22 +94,22 @@ def get_journal_service(
 
 
 def get_event_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> IEventRepository:
     """获取 Event 仓库实例"""
     return SqlEventRepository(db_base)
 
 
 def get_ocr_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> IOcrRepository:
     """获取 OCR 仓库实例"""
     return SqlOcrRepository(db_base)
 
 
 def get_event_service(
-    event_repo: IEventRepository = Depends(get_event_repository),
-    ocr_repo: IOcrRepository = Depends(get_ocr_repository),
+    event_repo: IEventRepository = Depends(get_event_repository),  # noqa: B008
+    ocr_repo: IOcrRepository = Depends(get_ocr_repository),  # noqa: B008
 ) -> EventService:
     """获取 Event 服务实例"""
     return EventService(event_repo, ocr_repo)
@@ -119,15 +119,15 @@ def get_event_service(
 
 
 def get_activity_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> IActivityRepository:
     """获取 Activity 仓库实例"""
     return SqlActivityRepository(db_base)
 
 
 def get_activity_service(
-    activity_repo: IActivityRepository = Depends(get_activity_repository),
-    event_repo: IEventRepository = Depends(get_event_repository),
+    activity_repo: IActivityRepository = Depends(get_activity_repository),  # noqa: B008
+    event_repo: IEventRepository = Depends(get_event_repository),  # noqa: B008
 ) -> ActivityService:
     """获取 Activity 服务实例"""
     return ActivityService(activity_repo, event_repo)
@@ -137,30 +137,30 @@ def get_activity_service(
 
 
 def get_project_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> IProjectRepository:
     """获取 Project 仓库实例"""
     return SqlProjectRepository(db_base)
 
 
 def get_task_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> ITaskRepository:
     """获取 Task 仓库实例"""
     return SqlTaskRepository(db_base)
 
 
 def get_project_service(
-    project_repo: IProjectRepository = Depends(get_project_repository),
-    task_repo: ITaskRepository = Depends(get_task_repository),
+    project_repo: IProjectRepository = Depends(get_project_repository),  # noqa: B008
+    task_repo: ITaskRepository = Depends(get_task_repository),  # noqa: B008
 ) -> ProjectService:
     """获取 Project 服务实例"""
     return ProjectService(project_repo, task_repo)
 
 
 def get_task_service(
-    task_repo: ITaskRepository = Depends(get_task_repository),
-    project_repo: IProjectRepository = Depends(get_project_repository),
+    task_repo: ITaskRepository = Depends(get_task_repository),  # noqa: B008
+    project_repo: IProjectRepository = Depends(get_project_repository),  # noqa: B008
 ) -> TaskService:
     """获取 Task 服务实例"""
     return TaskService(task_repo, project_repo)
@@ -170,14 +170,14 @@ def get_task_service(
 
 
 def get_chat_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
+    db_base: DatabaseBase = Depends(get_db_base),  # noqa: B008
 ) -> IChatRepository:
     """获取 Chat 仓库实例"""
     return SqlChatRepository(db_base)
 
 
 def get_chat_service(
-    repo: IChatRepository = Depends(get_chat_repository),
+    repo: IChatRepository = Depends(get_chat_repository),  # noqa: B008
 ) -> ChatService:
     """获取 Chat 服务实例"""
     return ChatService(repo)

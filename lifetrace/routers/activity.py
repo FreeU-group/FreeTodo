@@ -25,7 +25,7 @@ async def list_activities(
     offset: int = Query(0, ge=0),
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
-    service: ActivityService = Depends(get_activity_service),
+    service: ActivityService = Depends(get_activity_service),  # noqa: B008
 ):
     """获取活动列表（活动=聚合的事件窗口）"""
     try:
@@ -46,7 +46,7 @@ async def list_activities(
 @router.get("/{activity_id}/events", response_model=ActivityEventsResponse)
 async def get_activity_events(
     activity_id: int,
-    service: ActivityService = Depends(get_activity_service),
+    service: ActivityService = Depends(get_activity_service),  # noqa: B008
 ):
     """获取指定活动关联的事件ID列表"""
     try:
@@ -59,7 +59,7 @@ async def get_activity_events(
 @router.post("/manual", response_model=ManualActivityCreateResponse, status_code=201)
 async def create_activity_manual(
     request: ManualActivityCreateRequest,
-    service: ActivityService = Depends(get_activity_service),
+    service: ActivityService = Depends(get_activity_service),  # noqa: B008
 ):
     """手动聚合指定事件集合为活动
 

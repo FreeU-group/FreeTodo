@@ -81,6 +81,7 @@ export function AudioFileSelector({
 	return (
 		<div className="relative">
 			<button
+				type="button"
 				ref={buttonRef}
 				onClick={() => {
 					if (buttonRef.current) {
@@ -130,9 +131,17 @@ export function AudioFileSelector({
 							width: `${Math.max(popupPosition.width, 280)}px`,
 						}}
 						onClick={(e) => e.stopPropagation()}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" || e.key === " ") {
+								e.stopPropagation();
+							}
+						}}
+						role="button"
+						tabIndex={0}
 					>
 						{audioSegments.map((audio) => (
 							<button
+								type="button"
 								key={audio.id}
 								onClick={() => {
 									onSelectAudio(audio);

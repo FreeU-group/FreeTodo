@@ -155,8 +155,12 @@ class ImprovedVAD:
             )
         else:
             # 麦克风音频：使用原有逻辑
+            MIN_ZCR_THRESHOLD = 0.1
+            MIN_SPECTRAL_ENERGY_THRESHOLD = 1000
             voice_detected = rms > self.threshold or (
-                rms > self.threshold * 0.5 and zcr > 0.1 and spectral_energy > 1000
+                rms > self.threshold * 0.5
+                and zcr > MIN_ZCR_THRESHOLD
+                and spectral_energy > MIN_SPECTRAL_ENERGY_THRESHOLD
             )
 
         return voice_detected
@@ -182,7 +186,7 @@ class StreamingPolicy:
         self.max_chunk_duration = max_chunk_duration
         self.silence_threshold = silence_threshold
 
-    def should_commit(
+    def should_commit(  # noqa: C901, PLR0911
         self,
         audio_duration: float,
         has_silence: bool,
@@ -306,7 +310,8 @@ class WhisperLiveKitNativeProcessor:
         self.pcm_buffer.extend(data)
 
         # 转换为 numpy 进行 VAD 检测
-        if len(data) >= 2:
+        MIN_PCM_DATA_LENGTH = 2
+        if len(data) >= MIN_PCM_DATA_LENGTH:
             audio_int16 = np.frombuffer(data, dtype=np.int16)
             audio_float = audio_int16.astype(np.float32) / 32768.0
 
@@ -319,7 +324,9 @@ class WhisperLiveKitNativeProcessor:
                 elif vad_event == "VOICE_ENDED":
                     self.voice_ended_detected = True
 
-    async def try_process(self, model) -> dict | None:
+    async def try_process(  # noqa: C901, PLR0912, PLR0915
+        self, model
+    ) -> dict | None:
         """尝试处理音频数据 - WhisperLiveKit 核心算法
 
         ⚡ 关键优化：确保实时处理，不等待
@@ -405,7 +412,9 @@ class WhisperLiveKitNativeProcessor:
                     )
                     # ⚡ 系统音频：即使质量低也尝试处理（可能包含有效语音，只是音量低）
                     # 但如果实在太低（RMS < 0.00001），则跳过（可能是完全静音）
-                    if audio_rms < 0.00001 and audio_max < 0.0001:
+                    MIN_AUDIO_RMS_THRESHOLD = 0.00001
+                    MIN_AUDIO_MAX_THRESHOLD = 0.0001
+                    if audio_rms < MIN_AUDIO_RMS_THRESHOLD and audio_max < MIN_AUDIO_MAX_THRESHOLD:
                         logger.debug(
                             f"⚠️ 系统音频完全静音，跳过处理: rms={audio_rms:.9f}, max={audio_max:.9f}"
                         )
@@ -478,7 +487,7 @@ class WhisperLiveKitNativeProcessor:
         finally:
             self.is_processing = False
 
-    async def _transcribe(
+    async def _transcribe(  # noqa: C901, PLR0911, PLR0912
         self, model, audio_array: np.ndarray, voice_ended: bool = False
     ) -> dict | None:
         """使用 Faster-Whisper 进行转录（参考 WhisperLiveKit 参数）
@@ -545,7 +554,8 @@ class WhisperLiveKitNativeProcessor:
                 # 检查是否有重复模式（如"认认认认..."或"快快快快..."）
                 # 中文：检查连续重复的字符
                 chars = list(text)
-                if len(chars) > 3:
+                MIN_CHARS_FOR_REPEAT_CHECK = 3
+                if len(chars) > MIN_CHARS_FOR_REPEAT_CHECK:
                     repeat_count = 0
                     max_repeat = 0
                     for i in range(1, len(chars)):
@@ -556,12 +566,14 @@ class WhisperLiveKitNativeProcessor:
                             repeat_count = 0
 
                     # ⚡ 如果连续重复超过3个字符，认为是错误识别
-                    if max_repeat >= 3:
+                    MAX_REPEAT_CHARS = 3
+                    if max_repeat >= MAX_REPEAT_CHARS:
                         logger.warning(f"检测到重复文本，可能识别错误: {text[:50]}...")
                         return None  # 过滤掉重复文本
 
                     # ⚡ 额外检查：如果整个文本都是同一个字符，过滤掉
-                    if len(set(chars)) == 1 and len(chars) > 2:
+                    MIN_SINGLE_CHAR_LENGTH = 2
+                    if len(set(chars)) == 1 and len(chars) > MIN_SINGLE_CHAR_LENGTH:
                         logger.warning(f"检测到单一字符重复，可能识别错误: {text[:50]}...")
                         return None
 
@@ -582,7 +594,8 @@ class WhisperLiveKitNativeProcessor:
             # 这样可以确保实时性，不丢失识别结果
             if not should_commit:
                 # 如果文本长度 >= 1，强制提交部分结果（实时性优先）
-                if len(text) >= 1 and audio_duration >= 0.1:  # 至少 0.1秒
+                MIN_AUDIO_DURATION_FOR_FORCE_COMMIT = 0.1  # 至少 0.1秒
+                if len(text) >= 1 and audio_duration >= MIN_AUDIO_DURATION_FOR_FORCE_COMMIT:
                     should_commit = True
                     is_final = False
                 else:
@@ -602,7 +615,8 @@ class WhisperLiveKitNativeProcessor:
         if len(self.pcm_buffer) >= self.min_samples:
             # 处理剩余数据
             pcm_bytes = bytes(self.pcm_buffer)
-            if len(pcm_bytes) >= 2:
+            MIN_PCM_BYTES_LENGTH = 2
+            if len(pcm_bytes) >= MIN_PCM_BYTES_LENGTH:
                 audio_int16 = np.frombuffer(pcm_bytes, dtype=np.int16)
                 audio_float = audio_int16.astype(np.float32) / 32768.0
                 audio_with_context = self.incremental_context.get_context_audio(audio_float)
@@ -615,7 +629,9 @@ class WhisperLiveKitNativeProcessor:
 
 
 @router.websocket("/stream")
-async def stream_transcription_native(websocket: WebSocket):
+async def stream_transcription_native(  # noqa: C901, PLR0912, PLR0915
+    websocket: WebSocket,
+):
     """
     实时语音识别 WebSocket 端点 - 直接实现 WhisperLiveKit 核心技术
 
@@ -675,7 +691,8 @@ async def stream_transcription_native(websocket: WebSocket):
                 await asyncio.sleep(keepalive_interval)
 
                 # ⚡ 检查：如果超过 60 秒没有收到 pong，认为连接已断开
-                if time.time() - last_pong_time > 60.0:
+                PONG_TIMEOUT_SECONDS = 60.0
+                if time.time() - last_pong_time > PONG_TIMEOUT_SECONDS:
                     logger.warning("超过 60 秒未收到 pong，连接可能已断开")
                     break
 
@@ -705,8 +722,9 @@ async def stream_transcription_native(websocket: WebSocket):
                 except TimeoutError:
                     # ⚡ 超时检查：如果长时间没有数据，检查连接状态
                     # 注意：last_pong_time 在外部作用域，可以直接访问
+                    PONG_TIMEOUT_SECONDS = 60.0
                     time_since_last_pong = time.time() - last_pong_time
-                    if time_since_last_pong > 60.0:
+                    if time_since_last_pong > PONG_TIMEOUT_SECONDS:
                         logger.warning(
                             f"超过 60 秒未收到 pong ({time_since_last_pong:.1f}秒)，连接可能已断开"
                         )

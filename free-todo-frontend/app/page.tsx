@@ -23,13 +23,22 @@ import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
 
 /**
+ * Electron 窗口接口扩展
+ */
+interface ElectronWindow extends Window {
+	electronAPI?: Window["electronAPI"];
+	require?: (module: string) => unknown;
+}
+
+/**
  * 检测是否在 Electron 环境中
  */
 function isElectronEnvironment(): boolean {
 	if (typeof window === "undefined") return false;
+	const win = window as ElectronWindow;
 	return !!(
-		(window as any).electronAPI ||
-		(window as any).require?.("electron") ||
+		win.electronAPI ||
+		win.require?.("electron") ||
 		navigator.userAgent.includes("Electron")
 	);
 }
