@@ -55,7 +55,7 @@ function formatCurrentTime(t: ReturnType<typeof useTranslations>): {
 	return { time, date };
 }
 
-export function DynamicIsland() {
+export function HeaderDynamicIsland() {
 	const {
 		currentNotification,
 		isExpanded,
@@ -420,3 +420,4 @@ export function DynamicIsland() {
 		</div>
 	);
 }
+
