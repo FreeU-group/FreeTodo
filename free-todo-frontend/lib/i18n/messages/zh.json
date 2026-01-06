@@ -218,7 +218,7 @@
 	},
 	"chat": {
 		"greetings": {
-			"title": "FreeTodo，放手去做",
+			"title": "Free Todo，放手去做",
 			"subtitle": "智能待办助手，帮你拆解任务、规划优先级、提升效率"
 		},
 		"planModeInputPlaceholder": "例如：帮我规划周末搬家需要做的事",
