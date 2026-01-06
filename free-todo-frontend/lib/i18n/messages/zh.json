@@ -57,6 +57,8 @@
 		"costTrackingPlaceholder": "占位：在这里查看费用统计",
 		"achievementsLabel": "成就",
 		"achievementsPlaceholder": "占位：在这里接入成就组件",
+		"voiceModuleLabel": "语音模块",
+		"voiceModulePlaceholder": "7×24 智能录音助手，支持持续录音、语音识别和日程提取",
 		"screenshotsLabel": "截图管理（调试）",
 		"screenshotsPlaceholder": "事件时间轴与截图展示（仅开发模式可见）",
 		"debugShotsLabel": "截图管理（调试）",
@@ -160,6 +162,7 @@
 				"vision_assistant": "自动待办检测",
 				"workspace_assistant": "工作区助手",
 				"plan_assistant": "计划助手",
+				"voice_module": "语音模块",
 				"unknown": "未知功能"
 			}
 		}
@@ -174,6 +177,7 @@
 		"settings": "设置",
 		"costTracking": "费用",
 		"achievements": "成就",
+		"voiceModule": "语音模块",
 		"screenshots": "截图",
 		"debugShots": "截图调试",
 		"unassigned": "未分配"
@@ -301,6 +305,7 @@
 		"noResponseReceived": "没有收到回复，请稍后再试。",
 		"addedTodos": "已添加 {count} 条待办到列表。",
 		"errorOccurred": "出错了，请稍后再试。",
+		"promptNotLoaded": "提示词正在加载中，请稍候...",
 		"breakdownSummary": {
 			"title": "任务拆分结果",
 			"description": "根据您的回答，我们已将任务拆分为以下子任务：",
@@ -356,6 +361,13 @@
 			"toggle": "切换联网搜索",
 			"enabled": "联网搜索已启用",
 			"disabled": "联网搜索已禁用"
+		},
+		"toolCall": {
+			"using": "正在使用 {toolName}...",
+			"searchQueryLabel": "搜索关键词:",
+			"toolNames": {
+				"web_search": "联网搜索"
+			}
 		},
 		"sources": "来源",
 		"todoContext": {

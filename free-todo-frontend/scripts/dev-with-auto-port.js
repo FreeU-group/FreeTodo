@@ -15,6 +15,8 @@
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
 
 // 默认端口配置（开发版使用不同的默认端口，避免与 Build 版冲突）
 const DEFAULT_FRONTEND_PORT = 3001;
@@ -107,6 +109,25 @@ async function isFreeTodoBackend(port) {
 }
 
 /**
+ * 清理 Next.js 开发服务器的锁文件
+ * 解决 "Unable to acquire lock" 错误
+ */
+function cleanupNextLockFile() {
+	const lockFilePath = path.join(__dirname, "..", ".next", "dev", "lock");
+	try {
+		if (fs.existsSync(lockFilePath)) {
+			fs.unlinkSync(lockFilePath);
+			console.log("🧹 已清理 Next.js 锁文件");
+		}
+	} catch (error) {
+		// 忽略删除失败的错误（可能文件不存在或无权限）
+		if (error.code !== "ENOENT") {
+			console.log(`⚠️  清理锁文件失败: ${error.message}`);
+		}
+	}
+}
+
+/**
  * 查找运行中的 FreeTodo 后端端口
  * @returns {Promise<number|null>} - 运行中的 FreeTodo 后端端口，或 null
  */
@@ -131,6 +152,9 @@ async function main() {
 	console.log("🚀 启动开发服务器...\n");
 
 	try {
+		// 0. 清理可能残留的锁文件（解决 "Unable to acquire lock" 错误）
+		cleanupNextLockFile();
+
 		// 1. 查找可用的前端端口
 		const frontendPort = await findAvailablePort(DEFAULT_FRONTEND_PORT);
 		console.log(`✅ 前端端口: ${frontendPort}`);
@@ -167,19 +191,70 @@ async function main() {
 			},
 		);
 
+		// 清理函数：确保子进程完全关闭
+		// 参考后端：等待子进程优雅退出，而不是立即强制终止
+		let isCleaningUp = false;
+		const cleanup = () => {
+			if (isCleaningUp) {
+				return; // 防止重复调用
+			}
+			isCleaningUp = true;
+			console.log("\n🛑 正在关闭开发服务器...");
+
+			if (nextProcess && !nextProcess.killed) {
+				// 先尝试优雅关闭（发送 SIGTERM）
+				nextProcess.kill("SIGTERM");
+
+				// 等待子进程退出
+				nextProcess.once("exit", (code, signal) => {
+					console.log(
+						`✅ 开发服务器已关闭 (code: ${code}, signal: ${signal || "none"})`,
+					);
+					process.exit(0);
+				});
+
+				// 设置超时，如果 5 秒内没有关闭，强制终止
+				const forceKillTimeout = setTimeout(() => {
+					if (nextProcess && !nextProcess.killed) {
+						console.log("⚠️  子进程未响应，强制终止...");
+						try {
+							nextProcess.kill("SIGKILL");
+						} catch (error) {
+							console.error(`强制终止失败: ${error.message}`);
+						}
+						// 即使强制终止失败，也退出主进程
+						setTimeout(() => process.exit(0), 500);
+					} else {
+						// 进程已经退出，但 exit 事件可能还没触发，直接退出
+						process.exit(0);
+					}
+				}, 5000);
+
+				// 如果子进程正常退出，清除超时
+				nextProcess.once("exit", () => {
+					clearTimeout(forceKillTimeout);
+				});
+			} else {
+				// 没有子进程，直接退出
+				process.exit(0);
+			}
+		};
+
 		// 处理进程信号
 		process.on("SIGINT", () => {
-			nextProcess.kill("SIGINT");
-			process.exit(0);
+			cleanup();
 		});
 
 		process.on("SIGTERM", () => {
-			nextProcess.kill("SIGTERM");
-			process.exit(0);
+			cleanup();
 		});
 
+		// 如果子进程意外退出，也清理并退出
 		nextProcess.on("exit", (code) => {
-			process.exit(code || 0);
+			if (!isCleaningUp) {
+				// 只有在非清理状态下才退出（清理状态下由 cleanup 处理）
+				process.exit(code || 0);
+			}
 		});
 	} catch (error) {
 		console.error(`❌ 启动失败: ${error.message}`);
