@@ -157,13 +157,13 @@ repos:
     hooks:
       # Run the linter.
       - id: ruff
-        language_version: python3.13
+        language_version: python3.12
         files: ^lifetrace/
         types_or: [ python, pyi ]
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
-        language_version: python3.13
+        language_version: python3.12
         files: ^lifetrace/
         types_or: [ python, pyi ]
   # Biome for frontend (JavaScript/TypeScript)
@@ -178,7 +178,7 @@ repos:
 **主要配置**：
 - `files: ^lifetrace/` - 只检查 `lifetrace/` 目录下的 Python 文件
 - `files: ^frontend/` - 只检查 `frontend/` 目录下的前端文件
-- `language_version: python3.13` - 指定 Python 版本
+- `language_version: python3.12` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
 - `additional_dependencies` - 为 Biome 指定依赖版本
 
