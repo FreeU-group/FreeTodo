@@ -177,3 +177,21 @@ tavily:
   max_results: 5 # 最大返回结果数
   include_domains: [] # 包含的域名列表（可选）
   exclude_domains: [] # 排除的域名列表（可选）
+
+# 语音识别配置（WhisperLiveKit）
+speech_recognition:
+  # WhisperLiveKit 配置
+  whisper_model_size: base  # 模型大小: tiny, base, small, medium, large-v3
+  whisper_device: cpu        # 设备: cpu, cuda
+  language: auto             # 语言代码: auto (自动检测), zh (中文), en (英文), 等
+                             # 注意: WhisperLiveKit 可能不支持 zh-cn，建议使用 auto
+  # WhisperLiveKit 服务器配置
+  server_port: 8002         # WhisperLiveKit 服务器端口（避免与主服务器冲突）
+  server_host: localhost     # WhisperLiveKit 服务器主机
+  # 自动启动服务器
+  auto_start_server: true   # 是否自动启动 WhisperLiveKit 服务器
+
+# UI 配置
+ui:
+  cost_tracking:
+    enabled: true
