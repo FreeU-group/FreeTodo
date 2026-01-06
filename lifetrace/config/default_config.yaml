@@ -37,7 +37,7 @@ jobs:
   recorder:
     id: recorder # 任务ID
     name: '屏幕录制' # 任务显示名称（中文）
-    enabled: true # 是否启用录制器任务
+    enabled: false # 是否启用录制器任务（默认关闭，需用户手动开启）
     interval: 10 # 截图间隔（秒）
     params:
       screens: all # 截图屏幕：all 或屏幕编号列表
@@ -54,11 +54,11 @@ jobs:
   auto_todo_detection:
     id: auto_todo_detection # 任务ID
     name: 自动待办检测 # 任务显示名称（中文）
-    enabled: true # 是否启用自动待办检测（默认开启）
+    enabled: false # 是否启用自动待办检测（默认关闭，需用户手动开启）
   ocr:
     id: ocr # 任务ID
     name: OCR识别 # 任务显示名称（中文）
-    enabled: true # 是否启用OCR任务
+    enabled: false # 是否启用OCR任务（默认关闭，需用户手动开启）
     interval: 10 # 数据库检查间隔（秒）
     params:
       use_gpu: false
@@ -83,7 +83,7 @@ jobs:
   activity_aggregator:
     id: activity_aggregator # 任务ID
     name: 活动聚合 # 任务显示名称（中文）
-    enabled: true # 是否启用活动聚合任务
+    enabled: false # 是否启用活动聚合任务（默认关闭，需用户手动开启）
     interval: 900 # 检查间隔（秒），默认15分钟
   clean_data:
     id: clean_data # 任务ID
@@ -97,7 +97,7 @@ jobs:
   deadline_reminder:
     id: deadline_reminder # 任务ID
     name: DDL提醒 # 任务显示名称（中文）
-    enabled: true # 是否启用 DDL 提醒任务（默认开启）
+    enabled: false # 是否启用 DDL 提醒任务（默认关闭，需用户手动开启）
     interval: 30 # 检查间隔（秒），默认30秒检查一次
     params:
       reminder_window_minutes: 5 # 提醒时间窗口（分钟），在 DDL 前多少分钟提醒

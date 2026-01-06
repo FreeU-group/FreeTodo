@@ -325,9 +325,6 @@ export function SettingsPanel() {
 					</div>
 				</SettingsSection>
 
-				{/* 定时任务管理 */}
-				<SchedulerSection loading={loading} />
-
 				{/* 开发者选项（整栏可折叠） */}
 				<CollapsibleSection
 					title={tSettings("developerSectionTitle")}
@@ -340,8 +337,13 @@ export function SettingsPanel() {
 						title={tSettings("developerSectionTitle")}
 						description={tSettings("developerSectionDescription")}
 					>
+						{/* 定时任务管理（开发者选项中的第一项） */}
+						<SchedulerSection loading={loading} />
+
 						{/* Dify 配置（不再单独折叠） */}
-						<DifyConfigSection config={config} loading={loading} />
+						<div className="mt-4">
+							<DifyConfigSection config={config} loading={loading} />
+						</div>
 
 						{/* 屏幕录制设置（黑名单等） */}
 						<div className="mt-4">
