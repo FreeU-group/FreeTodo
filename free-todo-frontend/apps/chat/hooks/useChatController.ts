@@ -73,7 +73,6 @@ export const useChatController = ({
 		chatMode,
 		conversationId,
 		historyOpen,
-		webSearchEnabled,
 		setChatMode,
 		setConversationId,
 		setHistoryOpen,
@@ -211,12 +210,8 @@ export const useChatController = ({
 		const userLabel = t("userInput");
 
 		// Build payload message based on chat mode
-		// 如果启用了联网搜索，也要包含待办上下文，以便更好地理解用户意图
 		let payloadMessage: string;
-		if (webSearchEnabled) {
-			// 联网搜索模式：包含待办上下文，帮助理解用户意图
-			payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
-		} else if (chatMode === "plan") {
+		if (chatMode === "plan") {
 			payloadMessage = `${planSystemPrompt}\n\n${userLabel}: ${text}`;
 		} else if (chatMode === "edit") {
 			// Edit mode: combine todo context with edit system prompt
@@ -225,7 +220,7 @@ export const useChatController = ({
 			// Dify 测试模式：直接把用户输入作为消息，避免额外的前置 system prompt 干扰
 			payloadMessage = text;
 		} else {
-			// Ask mode: just todo context
+			// Ask mode: 包含待办上下文，帮助理解用户意图
 			payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
 		}
 		const userMessage: ChatMessage = {
@@ -249,12 +244,14 @@ export const useChatController = ({
 		let assistantContent = "";
 
 		try {
-			// 如果启用了联网搜索，优先使用 web_search 模式
-			const modeForBackend = webSearchEnabled
-				? "web_search"
-				: chatMode === "difyTest"
+			// 根据聊天模式选择后端模式
+			// ask 模式使用 agent（Agent会自动判断是否需要使用工具）
+			const modeForBackend =
+				chatMode === "difyTest"
 					? "dify_test"
-					: chatMode;
+					: chatMode === "ask"
+						? "agent"
+						: chatMode;
 
 			await sendChatMessageStream(
 				{
@@ -262,7 +259,7 @@ export const useChatController = ({
 					conversationId: conversationId || undefined,
 					// 当发送格式化消息（包含todo上下文）时，设置useRag=false
 					// 因为前端已经构建了完整的prompt，后端只需要解析并保存用户输入部分
-					// 联网搜索模式也使用 useRag=false，因为搜索逻辑在后端独立处理
+					// agent 模式使用 useRag=false，因为工具调用逻辑在后端独立处理
 					useRag: false,
 					mode: modeForBackend,
 				},
@@ -391,7 +388,6 @@ export const useChatController = ({
 		tCommon,
 		todos,
 		setConversationId,
-		webSearchEnabled,
 	]);
 
 	const handleKeyDown = useCallback(

@@ -1,20 +1,97 @@
 import { useMemo } from "react";
 import type { Todo } from "@/lib/types";
 import { sortTodosByOrder, sortTodosByOriginalOrder } from "@/lib/utils";
+import type { DueTimeFilter, TodoFilterState } from "../components/TodoFilter";
 
 export type OrderedTodo = {
 	todo: Todo;
 	depth: number;
 };
 
+function isDueTimeMatch(todo: Todo, dueTimeFilter: DueTimeFilter): boolean {
+	if (!todo.deadline) {
+		// If no deadline, only match "all" or "future"
+		return dueTimeFilter === "all" || dueTimeFilter === "future";
+	}
+
+	const deadline = new Date(todo.deadline);
+	const now = new Date();
+
+	// Normalize to date only (remove time)
+	const deadlineDate = new Date(
+		deadline.getFullYear(),
+		deadline.getMonth(),
+		deadline.getDate(),
+	);
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	const tomorrow = new Date(today);
+	tomorrow.setDate(tomorrow.getDate() + 1);
+
+	// Calculate start of week (Monday)
+	const startOfWeek = new Date(today);
+	const dayOfWeek = startOfWeek.getDay();
+	const diff = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+	startOfWeek.setDate(diff);
+	startOfWeek.setHours(0, 0, 0, 0);
+
+	// Calculate end of week (Sunday end of day)
+	const endOfWeek = new Date(startOfWeek);
+	endOfWeek.setDate(endOfWeek.getDate() + 6);
+	endOfWeek.setHours(23, 59, 59, 999);
+
+	// Calculate start and end of month
+	const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+	const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+	endOfMonth.setHours(23, 59, 59, 999);
+
+	switch (dueTimeFilter) {
+		case "all":
+			return true;
+		case "overdue":
+			return deadlineDate < today;
+		case "today":
+			return deadlineDate.getTime() === today.getTime();
+		case "tomorrow":
+			return deadlineDate.getTime() === tomorrow.getTime();
+		case "thisWeek":
+			return deadlineDate >= startOfWeek && deadlineDate <= endOfWeek;
+		case "thisMonth":
+			return deadlineDate >= startOfMonth && deadlineDate <= endOfMonth;
+		case "future":
+			return deadlineDate > today;
+		default:
+			return true;
+	}
+}
+
 export function useOrderedTodos(
 	todos: Todo[],
 	searchQuery: string,
 	collapsedTodoIds?: Set<number>,
+	filter?: TodoFilterState,
 ) {
 	return useMemo(() => {
 		let result = todos;
 
+		// Apply filters
+		if (filter) {
+			// Status filter
+			if (filter.status !== "all") {
+				result = result.filter((todo) => todo.status === filter.status);
+			}
+
+			// Tag filter
+			if (filter.tag !== "all") {
+				result = result.filter((todo) => todo.tags?.includes(filter.tag));
+			}
+
+			// Due time filter
+			if (filter.dueTime !== "all") {
+				result = result.filter((todo) => isDueTimeMatch(todo, filter.dueTime));
+			}
+		}
+
+		// Apply search query
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase();
 			result = result.filter(
@@ -69,5 +146,5 @@ export function useOrderedTodos(
 		traverse(roots, 0, true);
 
 		return { filteredTodos: result, orderedTodos: ordered };
-	}, [todos, searchQuery, collapsedTodoIds]);
+	}, [todos, searchQuery, collapsedTodoIds, filter]);
 }

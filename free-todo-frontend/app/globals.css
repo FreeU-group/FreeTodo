@@ -274,4 +274,26 @@
 	[data-panel="panelC"].scrollbar-visible * {
 		scrollbar-color: oklch(var(--border)) transparent;
 	}
+
+	/* Text-shaped shimmer loading */
+	.shimmer-text {
+		@apply bg-clip-text text-transparent;
+		background-image: linear-gradient(
+			90deg,
+			rgba(148, 163, 184, 0.2),
+			rgba(148, 163, 184, 0.9),
+			rgba(148, 163, 184, 0.2)
+		);
+		background-size: 200% 100%;
+		animation: shimmer-text-move 1.5s linear infinite;
+	}
+
+	@keyframes shimmer-text-move {
+		0% {
+			background-position: 200% 0;
+		}
+		100% {
+			background-position: -200% 0;
+		}
+	}
 }
