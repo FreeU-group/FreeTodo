@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { BreakdownStageRenderer } from "@/apps/chat/components/breakdown/BreakdownStageRenderer";
 import { ChatInputSection } from "@/apps/chat/components/input/ChatInputSection";
+import { PromptSuggestions } from "@/apps/chat/components/input/PromptSuggestions";
 import { HeaderBar } from "@/apps/chat/components/layout/HeaderBar";
 import { HistoryDrawer } from "@/apps/chat/components/layout/HistoryDrawer";
 import { MessageList } from "@/apps/chat/components/message/MessageList";
@@ -82,6 +83,15 @@ export function ChatPanel() {
 		[tPage],
 	);
 
+	// 判断是否显示首页（用于在输入框上方显示建议按钮）
+	const shouldShowSuggestions = useMemo(() => {
+		const messages = chatController.messages;
+		if (messages.length === 0) return true;
+		if (messages.length === 1 && messages[0].role === "assistant") return true;
+		if (messages.every((msg) => msg.role === "assistant")) return true;
+		return false;
+	}, [chatController.messages]);
+
 	return (
 		<div className="flex h-full flex-col bg-background">
 			<HeaderBar
@@ -140,9 +150,15 @@ export function ChatPanel() {
 					effectiveTodos={chatController.effectiveTodos}
 					onUpdateTodo={updateTodoMutation.mutateAsync}
 					isUpdating={updateTodoMutation.isPending}
-					onSelectPrompt={handleSelectPrompt}
 				/>
 			)}
+
+			{/* 首页时在输入框上方显示建议按钮 */}
+			{shouldShowSuggestions &&
+				(breakdownQuestionnaire.stage === "idle" ||
+					breakdownQuestionnaire.stage === "completed") && (
+					<PromptSuggestions onSelect={handleSelectPrompt} className="pb-4" />
+				)}
 
 			<ChatInputSection
 				chatMode={chatController.chatMode}

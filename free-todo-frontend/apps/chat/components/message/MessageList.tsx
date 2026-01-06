@@ -3,7 +3,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { PromptSuggestions } from "@/apps/chat/components/input/PromptSuggestions";
+import { WelcomeGreetings } from "@/apps/chat/components/layout/WelcomeGreetings";
 import { EditModeMessage } from "@/apps/chat/components/message/EditModeMessage";
 import { MessageTodoExtractionPanel } from "@/apps/chat/components/message/MessageTodoExtractionPanel";
 import { ToolCallLoading } from "@/apps/chat/components/message/ToolCallLoading";
@@ -32,7 +32,6 @@ type MessageListProps = {
 		input: UpdateTodoInput;
 	}) => Promise<Todo>;
 	isUpdating?: boolean;
-	onSelectPrompt?: (prompt: string) => void;
 };
 
 export function MessageList({
@@ -44,7 +43,6 @@ export function MessageList({
 	effectiveTodos = [],
 	onUpdateTodo,
 	isUpdating = false,
-	onSelectPrompt,
 }: MessageListProps) {
 	const t = useTranslations("chat");
 	const tCommon = useTranslations("common");
@@ -233,11 +231,11 @@ export function MessageList({
 		return () => cancelAnimationFrame(frameId);
 	}, [messages, isStreaming, scrollToBottom]);
 
-	// 如果应该显示预设按钮，则显示预设按钮而不是消息列表
-	if (shouldShowSuggestions && onSelectPrompt) {
+	// 如果应该显示首页，则显示欢迎界面而不是消息列表
+	if (shouldShowSuggestions) {
 		return (
 			<div className="flex-1 overflow-y-auto" ref={messageListRef}>
-				<PromptSuggestions onSelect={onSelectPrompt} />
+				<WelcomeGreetings />
 			</div>
 		);
 	}
