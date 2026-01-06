@@ -234,17 +234,23 @@
 
 	.code-block-pre {
 		@apply m-0 border-0;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		background: transparent !important;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		border: none !important;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		box-shadow: none !important;
 	}
 
 	.code-block-pre code {
 		@apply block text-sm font-mono p-4 overflow-x-auto border-0;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		background: transparent !important;
 		color: #24292f;
 		line-height: 1.45;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		border: none !important;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		box-shadow: none !important;
 	}
 
@@ -304,13 +310,17 @@
 	}
 
 	.dark .code-block-pre {
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		background: transparent !important;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		border: none !important;
 	}
 
 	.dark .code-block-pre code {
 		color: #e6edf3;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		background: transparent !important;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		border: none !important;
 	}
 
@@ -363,17 +373,22 @@
 	.markdown-content pre,
 	.markdown-content pre code,
 	.markdown-content .hljs {
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		border: none !important;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		box-shadow: none !important;
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		margin: 0 !important;
 	}
 
 	.markdown-content .hljs {
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		background: transparent !important;
 	}
 
 	/* 移除可能的默认 pre 样式 */
 	.markdown-content pre {
+		/* biome-ignore lint/complexity/noImportantStyles: Required to override third-party styles */
 		background: transparent !important;
 	}
 

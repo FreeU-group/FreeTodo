@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Button from "@/components/common/Button";
 import {
 	Card,
@@ -38,10 +38,10 @@ export default function AppUsagePage() {
 	const [startDate, setStartDate] = useState("");
 	const [endDate, setEndDate] = useState("");
 
-	const loadUsageData = async () => {
+	const loadUsageData = useCallback(async () => {
 		setLoading(true);
 		try {
-			const params: any = {};
+			const params: { start_date?: string; end_date?: string } = {};
 			if (startDate) params.start_date = startDate;
 			if (endDate) params.end_date = endDate;
 
@@ -52,7 +52,7 @@ export default function AppUsagePage() {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [endDate, startDate]);
 
 	const handleSearch = (e: React.FormEvent) => {
 		e.preventDefault();
@@ -69,7 +69,7 @@ export default function AppUsagePage() {
 		setStartDate(formatDate(weekAgo));
 
 		loadUsageData();
-	}, []);
+	}, [loadUsageData]);
 
 	return (
 		<div className="container mx-auto px-4 py-8">
@@ -119,9 +119,9 @@ export default function AppUsagePage() {
 						</div>
 					) : (
 						<div className="space-y-4">
-							{usageData.map((app, index) => (
+							{usageData.map((app) => (
 								<div
-									key={index}
+									key={app.app_name}
 									className="rounded-lg border border-border p-4"
 								>
 									<div className="mb-2 flex items-center justify-between">

@@ -108,6 +108,7 @@ export default function ProjectCard({
 			<CardFooter className="flex justify-end gap-2">
 				{onEdit && (
 					<button
+						type="button"
 						onClick={handleEdit}
 						className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
 					>
@@ -117,6 +118,7 @@ export default function ProjectCard({
 				)}
 				{!isArchived && onArchive && (
 					<button
+						type="button"
 						onClick={handleArchive}
 						className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
 					>
@@ -126,6 +128,7 @@ export default function ProjectCard({
 				)}
 				{isArchived && onRestore && (
 					<button
+						type="button"
 						onClick={handleRestore}
 						className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
 					>
@@ -135,6 +138,7 @@ export default function ProjectCard({
 				)}
 				{isArchived && onDelete && (
 					<button
+						type="button"
 						onClick={handleDelete}
 						className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-md transition-colors"
 					>

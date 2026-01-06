@@ -96,6 +96,7 @@ export default function TaskStatusSelect({
 		<div ref={dropdownRef} className="relative">
 			{/* 当前状态按钮 */}
 			<button
+				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				className={cn(
 					"flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
@@ -117,6 +118,7 @@ export default function TaskStatusSelect({
 							const OptionIcon = option.icon;
 							return (
 								<button
+									type="button"
 									key={option.value}
 									onClick={() => handleStatusChange(option.value)}
 									className={cn(

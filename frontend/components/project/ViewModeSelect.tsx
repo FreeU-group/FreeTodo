@@ -73,6 +73,7 @@ export default function ViewModeSelect({
 		<div ref={dropdownRef} className="relative">
 			{/* 当前视图按钮 */}
 			<button
+				type="button"
 				onClick={() => setIsOpen(!isOpen)}
 				className={cn(
 					"flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors",
@@ -94,6 +95,7 @@ export default function ViewModeSelect({
 							const OptionIcon = option.icon;
 							return (
 								<button
+									type="button"
 									key={option.value}
 									onClick={() => handleViewChange(option.value)}
 									className={cn(

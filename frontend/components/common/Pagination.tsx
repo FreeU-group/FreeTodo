@@ -79,9 +79,15 @@ export default function Pagination({
 			<div className="flex items-center gap-1">
 				{pageNumbers.map((page, index) => {
 					if (page === "...") {
+						const prev = pageNumbers[index - 1];
+						const next = pageNumbers[index + 1];
+						const key =
+							typeof prev === "number" && typeof next === "number"
+								? `ellipsis-${prev}-${next}`
+								: `ellipsis-${index}-${pageNumbers.length}`;
 						return (
 							<span
-								key={`ellipsis-${index}`}
+								key={key}
 								className="px-2 font-semibold text-muted-foreground"
 							>
 								⋯

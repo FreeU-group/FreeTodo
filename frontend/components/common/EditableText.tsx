@@ -83,10 +83,7 @@ export default function EditableText({
 
 	if (isEditing) {
 		return (
-			<div
-				className="flex items-center gap-2"
-				onClick={(e) => e.stopPropagation()}
-			>
+			<div className="flex items-center gap-2">
 				<input
 					ref={inputRef}
 					type="text"
@@ -103,6 +100,7 @@ export default function EditableText({
 					)}
 				/>
 				<button
+					type="button"
 					onClick={handleSave}
 					disabled={isSaving}
 					className="p-1 hover:bg-accent rounded transition-colors text-green-600 hover:text-green-700"
@@ -111,6 +109,7 @@ export default function EditableText({
 					<Check className="h-4 w-4" />
 				</button>
 				<button
+					type="button"
 					onClick={handleCancel}
 					disabled={isSaving}
 					className="p-1 hover:bg-accent rounded transition-colors text-muted-foreground hover:text-foreground"
@@ -123,18 +122,20 @@ export default function EditableText({
 	}
 
 	return (
-		<div
+		<button
+			type="button"
 			className={cn(
 				"group/editable relative inline-flex items-center gap-2 cursor-pointer",
 				disabled && "cursor-not-allowed opacity-50",
 				className,
 			)}
 			onClick={handleStartEdit}
+			disabled={disabled}
 		>
 			<span className="truncate">{value}</span>
 			{showEditIcon && !disabled && (
 				<Edit2 className="h-3.5 w-3.5 opacity-0 group-hover/editable:opacity-100 transition-opacity text-muted-foreground" />
 			)}
-		</div>
+		</button>
 	);
 }

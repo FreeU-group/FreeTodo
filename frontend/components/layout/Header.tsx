@@ -118,6 +118,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 					{/* 主题切换 */}
 					<div className="relative" ref={themeMenuRef}>
 						<button
+							type="button"
 							onClick={() => setShowThemeMenu(!showThemeMenu)}
 							className="rounded-lg p-2 text-foreground transition-colors hover:bg-muted"
 							aria-label={t.layout.currentTheme}
@@ -129,6 +130,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 							<div className="absolute right-0 mt-2 w-36 rounded-lg border bg-background shadow-lg">
 								<div className="py-1">
 									<button
+										type="button"
 										onClick={() => handleThemeChange("light")}
 										className={`flex w-full items-center space-x-2 px-4 py-2 text-sm hover:bg-muted ${
 											theme === "light"
@@ -140,6 +142,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 										<span>{t.theme.light}</span>
 									</button>
 									<button
+										type="button"
 										onClick={() => handleThemeChange("dark")}
 										className={`flex w-full items-center space-x-2 px-4 py-2 text-sm hover:bg-muted ${
 											theme === "dark"
@@ -151,6 +154,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 										<span>{t.theme.dark}</span>
 									</button>
 									<button
+										type="button"
 										onClick={() => handleThemeChange("system")}
 										className={`flex w-full items-center space-x-2 px-4 py-2 text-sm hover:bg-muted ${
 											theme === "system"
@@ -169,6 +173,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 					{/* 语言切换 */}
 					<div className="relative" ref={languageMenuRef}>
 						<button
+							type="button"
 							onClick={() => setShowLanguageMenu(!showLanguageMenu)}
 							className="rounded-lg p-2 text-foreground transition-colors hover:bg-muted"
 							aria-label={t.layout.currentLanguage}
@@ -180,6 +185,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 							<div className="absolute right-0 mt-2 w-32 rounded-lg border bg-background shadow-lg">
 								<div className="py-1">
 									<button
+										type="button"
 										onClick={() => handleLanguageChange("zh")}
 										className={`flex w-full items-center px-4 py-2 text-sm hover:bg-muted ${
 											locale === "zh"
@@ -190,6 +196,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 										{t.language.zh}
 									</button>
 									<button
+										type="button"
 										onClick={() => handleLanguageChange("en")}
 										className={`flex w-full items-center px-4 py-2 text-sm hover:bg-muted ${
 											locale === "en"
@@ -206,6 +213,7 @@ export default function Header({ onSettingsClick }: HeaderProps) {
 
 					{/* 设置按钮 */}
 					<button
+						type="button"
 						onClick={onSettingsClick}
 						className="rounded-lg p-2 text-foreground transition-colors hover:bg-muted"
 						aria-label={t.ariaLabel.settings}

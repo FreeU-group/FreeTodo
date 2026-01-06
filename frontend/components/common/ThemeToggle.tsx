@@ -29,6 +29,7 @@ export default function ThemeToggle() {
 
 	return (
 		<button
+			type="button"
 			onClick={() => {
 				const currentIndex = themes.findIndex(
 					(themeItem) => themeItem.value === theme,

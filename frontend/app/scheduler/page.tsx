@@ -10,7 +10,7 @@ import {
 	Trash2,
 	XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
@@ -48,7 +48,7 @@ export default function SchedulerPage() {
 	const [intervalHours, setIntervalHours] = useState<string>("");
 
 	// 加载任务列表
-	const loadJobs = async () => {
+	const loadJobs = useCallback(async () => {
 		try {
 			setLoading(true);
 			setError(null);
@@ -60,23 +60,23 @@ export default function SchedulerPage() {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [t.common.unknownError]);
 
 	// 加载调度器状态
-	const loadStatus = async () => {
+	const loadStatus = useCallback(async () => {
 		try {
 			const response = await api.getSchedulerStatus();
 			setStatus(response.data);
 		} catch (err) {
 			console.error("加载状态失败:", err);
 		}
-	};
+	}, []);
 
 	// 初始加载
 	useEffect(() => {
 		loadJobs();
 		loadStatus();
-	}, []);
+	}, [loadJobs, loadStatus]);
 
 	// 暂停任务
 	const handlePauseJob = async (jobId: string) => {
@@ -151,9 +151,13 @@ export default function SchedulerPage() {
 	const handleUpdateInterval = async () => {
 		if (!editingJob) return;
 
-		const seconds = intervalSeconds ? parseInt(intervalSeconds) : undefined;
-		const minutes = intervalMinutes ? parseInt(intervalMinutes) : undefined;
-		const hours = intervalHours ? parseInt(intervalHours) : undefined;
+		const seconds = intervalSeconds
+			? parseInt(intervalSeconds, 10)
+			: undefined;
+		const minutes = intervalMinutes
+			? parseInt(intervalMinutes, 10)
+			: undefined;
+		const hours = intervalHours ? parseInt(intervalHours, 10) : undefined;
 
 		if (!seconds && !minutes && !hours) {
 			setError(t.scheduler.intervalRequired);
@@ -255,6 +259,7 @@ export default function SchedulerPage() {
 						<span className="text-red-800 dark:text-red-200">{error}</span>
 					</div>
 					<button
+						type="button"
 						onClick={() => setError(null)}
 						className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200"
 					>
@@ -271,6 +276,7 @@ export default function SchedulerPage() {
 						</span>
 					</div>
 					<button
+						type="button"
 						onClick={() => setSuccess(null)}
 						className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
 					>
@@ -328,6 +334,7 @@ export default function SchedulerPage() {
 			{/* 操作按钮 */}
 			<div className="mb-4 flex justify-end gap-2">
 				<button
+					type="button"
 					onClick={handlePauseAll}
 					className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-yellow-600 dark:text-yellow-400 hover:border-yellow-400 dark:hover:border-yellow-500"
 				>
@@ -335,6 +342,7 @@ export default function SchedulerPage() {
 					{t.scheduler.pauseAll}
 				</button>
 				<button
+					type="button"
 					onClick={handleResumeAll}
 					className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-green-600 dark:text-green-400 hover:border-green-400 dark:hover:border-green-500"
 				>
@@ -342,6 +350,7 @@ export default function SchedulerPage() {
 					{t.scheduler.resumeAll}
 				</button>
 				<button
+					type="button"
 					onClick={() => {
 						loadJobs();
 						loadStatus();
@@ -436,6 +445,7 @@ export default function SchedulerPage() {
 										<td className="px-6 py-4 whitespace-nowrap text-right">
 											<div className="flex items-center justify-end gap-2">
 												<button
+													type="button"
 													onClick={() => handleOpenEditDialog(job)}
 													className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
 													title={t.scheduler.edit}
@@ -444,6 +454,7 @@ export default function SchedulerPage() {
 												</button>
 												{job.pending ? (
 													<button
+														type="button"
 														onClick={() => handlePauseJob(job.id)}
 														className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
 														title={t.scheduler.pause}
@@ -452,6 +463,7 @@ export default function SchedulerPage() {
 													</button>
 												) : (
 													<button
+														type="button"
 														onClick={() => handleResumeJob(job.id)}
 														className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
 														title={t.scheduler.resume}
@@ -460,6 +472,7 @@ export default function SchedulerPage() {
 													</button>
 												)}
 												<button
+													type="button"
 													onClick={() => handleDeleteJob(job.id)}
 													className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
 													title={t.common.delete}
@@ -491,11 +504,15 @@ export default function SchedulerPage() {
 							</p>
 							<div className="space-y-4">
 								<div>
-									<label className="block text-sm font-medium mb-1">
+											<label
+												className="block text-sm font-medium mb-1"
+												htmlFor="interval-hours"
+											>
 										{t.scheduler.hours}
 									</label>
 									<input
 										type="number"
+												id="interval-hours"
 										value={intervalHours}
 										onChange={(e) => setIntervalHours(e.target.value)}
 										min="0"
@@ -503,11 +520,15 @@ export default function SchedulerPage() {
 									/>
 								</div>
 								<div>
-									<label className="block text-sm font-medium mb-1">
+											<label
+												className="block text-sm font-medium mb-1"
+												htmlFor="interval-minutes"
+											>
 										{t.scheduler.minutes}
 									</label>
 									<input
 										type="number"
+												id="interval-minutes"
 										value={intervalMinutes}
 										onChange={(e) => setIntervalMinutes(e.target.value)}
 										min="0"
@@ -516,11 +537,15 @@ export default function SchedulerPage() {
 									/>
 								</div>
 								<div>
-									<label className="block text-sm font-medium mb-1">
+											<label
+												className="block text-sm font-medium mb-1"
+												htmlFor="interval-seconds"
+											>
 										{t.scheduler.seconds}
 									</label>
 									<input
 										type="number"
+												id="interval-seconds"
 										value={intervalSeconds}
 										onChange={(e) => setIntervalSeconds(e.target.value)}
 										min="0"
@@ -532,12 +557,14 @@ export default function SchedulerPage() {
 						</div>
 						<div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
 							<button
+								type="button"
 								onClick={handleCloseEditDialog}
 								className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
 							>
 								{t.common.cancel}
 							</button>
 							<button
+								type="button"
 								onClick={handleUpdateInterval}
 								className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
 							>

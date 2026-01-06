@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
@@ -70,33 +70,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 		llmModel: "qwen3-max",
 	}); // 记录初始 LLM 配置
 
-	// 加载配置
-	useEffect(() => {
-		if (isOpen) {
-			loadConfig();
-			// 从 localStorage 读取定时任务显示设置
-			const savedScheduler = localStorage.getItem("showScheduler");
-			const savedSchedulerValue = savedScheduler === "true";
-			setShowScheduler(savedSchedulerValue);
-			setInitialShowScheduler(savedSchedulerValue); // 记录初始值
-
-			// 从 localStorage 读取费用统计显示设置
-			const savedCostTracking = localStorage.getItem("showCostTracking");
-			const savedCostTrackingValue = savedCostTracking === "true";
-			setShowCostTracking(savedCostTrackingValue);
-			setInitialShowCostTracking(savedCostTrackingValue); // 记录初始值
-
-			// 从 localStorage 读取项目管理显示设置
-			const savedProjectManagement = localStorage.getItem(
-				"showProjectManagement",
-			);
-			const savedProjectManagementValue = savedProjectManagement === "true";
-			setShowProjectManagement(savedProjectManagementValue);
-			setInitialShowProjectManagement(savedProjectManagementValue); // 记录初始值
-		}
-	}, [isOpen]);
-
-	const loadConfig = async () => {
+	const loadConfig = useCallback(async () => {
 		setLoading(true);
 		try {
 			const response = await api.getConfig();
@@ -144,7 +118,33 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, []);
+
+	// 加载配置
+	useEffect(() => {
+		if (isOpen) {
+			loadConfig();
+			// 从 localStorage 读取定时任务显示设置
+			const savedScheduler = localStorage.getItem("showScheduler");
+			const savedSchedulerValue = savedScheduler === "true";
+			setShowScheduler(savedSchedulerValue);
+			setInitialShowScheduler(savedSchedulerValue); // 记录初始值
+
+			// 从 localStorage 读取费用统计显示设置
+			const savedCostTracking = localStorage.getItem("showCostTracking");
+			const savedCostTrackingValue = savedCostTracking === "true";
+			setShowCostTracking(savedCostTrackingValue);
+			setInitialShowCostTracking(savedCostTrackingValue); // 记录初始值
+
+			// 从 localStorage 读取项目管理显示设置
+			const savedProjectManagement = localStorage.getItem(
+				"showProjectManagement",
+			);
+			const savedProjectManagementValue = savedProjectManagement === "true";
+			setShowProjectManagement(savedProjectManagementValue);
+			setInitialShowProjectManagement(savedProjectManagementValue); // 记录初始值
+		}
+	}, [isOpen, loadConfig]);
 
 	const handleTest = async () => {
 		if (!settings.llmApiKey || !settings.llmBaseUrl) {
@@ -195,7 +195,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 					settings.llmBaseUrl !== initialLlmConfig.llmBaseUrl ||
 					settings.llmModel !== initialLlmConfig.llmModel);
 
-			let response;
+			let response: Awaited<ReturnType<typeof api.saveConfig>>;
 			if (hasLlmConfig) {
 				// 如果有 LLM 配置，使用 save-and-init-llm 接口
 				// 该接口会保存配置并重新初始化 LLM 客户端
@@ -391,19 +391,39 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
 	return (
 		<div
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="settings-modal-title"
 			className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50"
 			onClick={onClose}
+			onKeyDown={(e) => {
+				if (e.key === "Escape") {
+					e.stopPropagation();
+					onClose();
+				}
+			}}
 		>
 			<div
+				role="document"
+				tabIndex={-1}
 				className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg bg-background shadow-xl"
 				onClick={(e) => e.stopPropagation()}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.stopPropagation();
+					}
+				}}
 			>
 				{/* Header */}
 				<div className="sticky top-0 flex items-center justify-between border-b bg-background px-4 py-3">
-					<h2 className="text-lg font-bold text-foreground">
+					<h2
+						id="settings-modal-title"
+						className="text-lg font-bold text-foreground"
+					>
 						{t.settings.title}
 					</h2>
 					<button
+						type="button"
 						onClick={onClose}
 						className="rounded-lg p-1 text-foreground transition-colors hover:bg-muted"
 						aria-label={t.common.close}
@@ -443,11 +463,15 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 								<CardContent>
 									<div className="space-y-3">
 										<div>
-											<label className="mb-1 block text-sm font-medium text-foreground">
+											<label
+												htmlFor="llm-api-key"
+												className="mb-1 block text-sm font-medium text-foreground"
+											>
 												{t.settings.apiKey}{" "}
 												<span className="text-red-500">*</span>
 											</label>
 											<Input
+												id="llm-api-key"
 												type="password"
 												className="px-3 py-2 h-9"
 												placeholder={t.settings.apiKey}
@@ -469,11 +493,15 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 											</p>
 										</div>
 										<div>
-											<label className="mb-1 block text-sm font-medium text-foreground">
+											<label
+												htmlFor="llm-base-url"
+												className="mb-1 block text-sm font-medium text-foreground"
+											>
 												{t.settings.baseUrl}{" "}
 												<span className="text-red-500">*</span>
 											</label>
 											<Input
+												id="llm-base-url"
 												type="text"
 												className="px-3 py-2 h-9"
 												placeholder="https://api.example.com/v1"
@@ -485,10 +513,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 										</div>
 										<div className="grid grid-cols-3 gap-3">
 											<div className="col-span-1">
-												<label className="mb-1 block text-sm font-medium text-foreground">
+												<label
+													htmlFor="llm-model"
+													className="mb-1 block text-sm font-medium text-foreground"
+												>
 													{t.settings.model}
 												</label>
 												<Input
+													id="llm-model"
 													type="text"
 													className="px-3 py-2 h-9"
 													placeholder="qwen3-max"
@@ -499,10 +531,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 												/>
 											</div>
 											<div>
-												<label className="mb-1 block text-sm font-medium text-foreground">
+												<label
+													htmlFor="llm-temperature"
+													className="mb-1 block text-sm font-medium text-foreground"
+												>
 													{t.settings.temperature}
 												</label>
 												<Input
+													id="llm-temperature"
 													type="number"
 													step="0.1"
 													min="0"
@@ -518,17 +554,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 												/>
 											</div>
 											<div>
-												<label className="mb-1 block text-sm font-medium text-foreground">
+												<label
+													htmlFor="llm-max-tokens"
+													className="mb-1 block text-sm font-medium text-foreground"
+												>
 													{t.settings.maxTokens}
 												</label>
 												<Input
+													id="llm-max-tokens"
 													type="number"
 													className="px-3 py-2 h-9"
 													value={settings.llmMaxTokens}
 													onChange={(e) =>
 														handleChange(
 															"llmMaxTokens",
-															parseInt(e.target.value),
+															parseInt(e.target.value, 10),
 														)
 													}
 												/>
@@ -589,17 +629,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 										{settings.jobsRecorderEnabled && (
 											<div className="space-y-3">
 												<div>
-													<label className="mb-1 block text-sm font-medium text-foreground">
+													<label
+														htmlFor="screenshot-interval"
+														className="mb-1 block text-sm font-medium text-foreground"
+													>
 														{t.settings.screenshotInterval}
 													</label>
 													<Input
+														id="screenshot-interval"
 														type="number"
 														className="px-3 py-2 h-9"
 														value={settings.jobsRecorderInterval}
 														onChange={(e) =>
 															handleChange(
 																"jobsRecorderInterval",
-																parseInt(e.target.value),
+																parseInt(e.target.value, 10),
 															)
 														}
 													/>
@@ -632,7 +676,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 												</div>
 												{settings.jobsRecorderParamsBlacklistEnabled && (
 													<div>
-														<label className="mb-1 block text-sm font-medium text-foreground">
+														<label
+															htmlFor="blacklist-input"
+															className="mb-1 block text-sm font-medium text-foreground"
+														>
 															{t.settings.appBlacklist}
 														</label>
 														<div className="border border-input rounded-md px-2 py-1.5 min-h-[38px] flex flex-wrap gap-1.5 items-center bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
@@ -657,6 +704,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 																),
 															)}
 															<input
+																id="blacklist-input"
 																type="text"
 																className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder:text-muted-foreground px-1"
 																placeholder={t.settings.blacklistPlaceholder}
@@ -715,17 +763,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
 											{settings.chatEnableHistory && (
 												<div>
-													<label className="mb-1 block text-sm font-medium text-foreground">
+													<label
+														htmlFor="chat-history-limit-1"
+														className="mb-1 block text-sm font-medium text-foreground"
+													>
 														{t.settings.contextRounds}
 													</label>
 													<Input
+														id="chat-history-limit-1"
 														type="number"
 														min="1"
 														max="20"
 														className="px-3 py-2 h-9"
 														value={settings.chatHistoryLimit}
 														onChange={(e) => {
-															const value = parseInt(e.target.value);
+															const value = parseInt(e.target.value, 10);
 															if (value >= 1 && value <= 20) {
 																handleChange("chatHistoryLimit", value);
 															}
@@ -743,17 +795,21 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
 										{settings.chatEnableHistory && (
 											<div>
-												<label className="mb-1 block text-sm font-medium text-foreground">
+												<label
+													htmlFor="chat-history-limit-2"
+													className="mb-1 block text-sm font-medium text-foreground"
+												>
 													{t.settings.contextRounds}
 												</label>
 												<Input
+													id="chat-history-limit-2"
 													type="number"
 													min="1"
 													max="20"
 													className="px-3 py-2 h-9"
 													value={settings.chatHistoryLimit}
 													onChange={(e) => {
-														const value = parseInt(e.target.value);
+														const value = parseInt(e.target.value, 10);
 														if (value >= 1 && value <= 20) {
 															handleChange("chatHistoryLimit", value);
 														}
@@ -781,6 +837,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 								<CardContent className="space-y-4">
 									<div className="flex items-center justify-between">
 										<div>
+											{/* biome-ignore lint/a11y/noLabelWithoutControl: This label acts as a text heading for the adjacent switch, not a form label. */}
 											<label className="block text-sm font-medium text-foreground">
 												{t.settings.showScheduler}
 											</label>
@@ -803,6 +860,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
 									<div className="flex items-center justify-between">
 										<div>
+											{/* biome-ignore lint/a11y/noLabelWithoutControl: This label acts as a text heading for the adjacent switch, not a form label. */}
 											<label className="block text-sm font-medium text-foreground">
 												{t.settings.showCostTracking}
 											</label>
@@ -825,6 +883,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
 									<div className="flex items-center justify-between">
 										<div>
+											{/* biome-ignore lint/a11y/noLabelWithoutControl: This label acts as a text heading for the adjacent switch, not a form label. */}
 											<label className="block text-sm font-medium text-foreground">
 												{t.settings.showProjectManagement}
 											</label>

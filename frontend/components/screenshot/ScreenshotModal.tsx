@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
@@ -78,6 +79,9 @@ export default function ScreenshotModal({
 
 	return (
 		<div
+			role="dialog"
+			aria-modal="true"
+			aria-label={t.screenshot.title}
 			className={cn(
 				"fixed inset-0 z-[200] flex items-center justify-center p-4",
 				"bg-black/80 backdrop-blur-sm",
@@ -85,8 +89,16 @@ export default function ScreenshotModal({
 				isOpen ? "opacity-100" : "opacity-0",
 			)}
 			onClick={onClose}
+			onKeyDown={(e) => {
+				if (e.key === "Escape") {
+					e.stopPropagation();
+					onClose();
+				}
+			}}
 		>
 			<div
+				role="document"
+				tabIndex={-1}
 				className={cn(
 					"relative w-full max-w-5xl max-h-[90vh]",
 					"bg-background border border-border",
@@ -96,11 +108,17 @@ export default function ScreenshotModal({
 					isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0",
 				)}
 				onClick={(e) => e.stopPropagation()}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.stopPropagation();
+					}
+				}}
 			>
 				{/* Header */}
 				<div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-4 py-3">
 					<CardTitle className="text-xl">{t.screenshot.title}</CardTitle>
 					<button
+						type="button"
 						onClick={onClose}
 						className={cn(
 							"rounded-md p-1.5",
@@ -120,12 +138,15 @@ export default function ScreenshotModal({
 					<div className="space-y-0">
 						{/* 图片区域 */}
 						<div className="relative overflow-hidden bg-muted/30">
-							<img
-								key={currentScreenshot.id}
-								src={api.getScreenshotImage(currentScreenshot.id)}
-								alt={t.screenshot.title}
-								className="w-full h-auto object-contain"
-							/>
+							<div className="relative w-full h-[60vh]">
+								<Image
+									key={currentScreenshot.id}
+									src={api.getScreenshotImage(currentScreenshot.id)}
+									alt={t.screenshot.title}
+									fill
+									className="object-contain"
+								/>
+							</div>
 
 							{/* 图片序号 - shadcn 风格 */}
 							{allScreenshots.length > 1 && (
@@ -138,6 +159,7 @@ export default function ScreenshotModal({
 							{allScreenshots.length > 1 && (
 								<>
 									<button
+										type="button"
 										onClick={(e) => {
 											e.stopPropagation();
 											goToPrevious();
@@ -156,6 +178,7 @@ export default function ScreenshotModal({
 										<ChevronLeft className="h-5 w-5" />
 									</button>
 									<button
+										type="button"
 										onClick={(e) => {
 											e.stopPropagation();
 											goToNext();

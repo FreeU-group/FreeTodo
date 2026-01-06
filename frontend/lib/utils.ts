@@ -5,6 +5,20 @@ import "dayjs/locale/zh-cn";
 
 dayjs.locale("zh-cn");
 
+interface RelativeTimeTranslations {
+	justNow: string;
+	minutesAgo: string;
+	hoursAgo: string;
+	daysAgo: string;
+}
+
+interface DurationTranslations {
+	days: string;
+	hours: string;
+	minutes: string;
+	seconds: string;
+}
+
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
@@ -20,7 +34,7 @@ export function formatDateTime(
 // 格式化相对时间
 export function formatRelativeTime(
 	date: string | Date,
-	timeTranslations?: any,
+	timeTranslations?: RelativeTimeTranslations,
 ): string {
 	const now = dayjs();
 	const target = dayjs(date);
@@ -68,7 +82,7 @@ export function calculateDuration(startTime: string, endTime: string): number {
 // 格式化时长
 export function formatDuration(
 	seconds: number,
-	timeTranslations?: any,
+	timeTranslations?: DurationTranslations,
 ): string {
 	// 不足1秒算1秒
 	if (seconds < 1) {
@@ -105,11 +119,11 @@ export function formatDuration(
 // 截断文本
 export function truncateText(text: string, maxLength: number): string {
 	if (text.length <= maxLength) return text;
-	return text.substring(0, maxLength) + "...";
+	return `${text.substring(0, maxLength)}...`;
 }
 
 // 防抖函数
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
 	func: T,
 	wait: number,
 ): (...args: Parameters<T>) => void {
@@ -127,7 +141,7 @@ export function debounce<T extends (...args: any[]) => any>(
 }
 
 // 节流函数
-export function throttle<T extends (...args: any[]) => any>(
+export function throttle<T extends (...args: unknown[]) => unknown>(
 	func: T,
 	limit: number,
 ): (...args: Parameters<T>) => void {
@@ -137,7 +151,9 @@ export function throttle<T extends (...args: any[]) => any>(
 		if (!inThrottle) {
 			func(...args);
 			inThrottle = true;
-			setTimeout(() => (inThrottle = false), limit);
+			setTimeout(() => {
+				inThrottle = false;
+			}, limit);
 		}
 	};
 }

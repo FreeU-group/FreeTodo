@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { Task } from "@/lib/types";
 import TaskItem from "./TaskItem";
 
@@ -33,15 +32,22 @@ export default function TaskList({
 
 		// 构建树形结构
 		tasks.forEach((task) => {
-			const taskWithChildren = taskMap.get(task.id)!;
-			if (task.parent_task_id && taskMap.has(task.parent_task_id)) {
-				// 如果有父任务，添加到父任务的children中
-				const parent = taskMap.get(task.parent_task_id)!;
-				parent.children.push(taskWithChildren);
-			} else {
-				// 如果没有父任务或父任务不存在，作为根任务
-				rootTasks.push(taskWithChildren);
+			const taskWithChildren = taskMap.get(task.id);
+			if (!taskWithChildren) {
+				return;
 			}
+
+			if (task.parent_task_id) {
+				const parent = taskMap.get(task.parent_task_id);
+				if (parent) {
+					// 如果有父任务且存在于映射中，添加到父任务的 children 中
+					parent.children.push(taskWithChildren);
+					return;
+				}
+			}
+
+			// 如果没有父任务或父任务不存在，作为根任务
+			rootTasks.push(taskWithChildren);
 		});
 
 		return rootTasks;

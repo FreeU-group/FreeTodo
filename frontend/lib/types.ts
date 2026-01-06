@@ -57,7 +57,15 @@ export interface ChatMessage {
 	role: "user" | "assistant" | "system";
 	content: string;
 	timestamp?: string;
-	sources?: any[];
+	sources?: ChatSource[];
+}
+
+export interface ChatSource {
+	type: string;
+	id?: string | number;
+	title?: string;
+	url?: string;
+	metadata?: Record<string, unknown>;
 }
 
 // 会话类型

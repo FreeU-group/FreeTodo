@@ -308,6 +308,7 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
 					<div className="flex items-center justify-between h-[68px] px-4 border-b bg-background">
 						{/* 左侧：折叠按钮 */}
 						<button
+							type="button"
 							onClick={toggleSidebar}
 							className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							aria-label={
@@ -334,6 +335,7 @@ function AppLayoutInner({ children }: AppLayoutInnerProps) {
 							<LanguageToggle />
 
 							<button
+								type="button"
 								onClick={onSettingsClick}
 								className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 								aria-label={t.layout.settings}

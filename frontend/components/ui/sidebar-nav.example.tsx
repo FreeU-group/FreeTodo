@@ -234,6 +234,7 @@ export function ResponsiveSidebar() {
 		<Sidebar className={isCollapsed ? "w-16" : "w-56"}>
 			<SidebarHeader>
 				<button
+					type="button"
 					onClick={() => setIsCollapsed(!isCollapsed)}
 					className="flex w-full items-center justify-between rounded-lg p-2 hover:bg-accent"
 				>
@@ -243,7 +244,10 @@ export function ResponsiveSidebar() {
 						fill="none"
 						stroke="currentColor"
 						viewBox="0 0 24 24"
+						role="img"
+						aria-label="切换侧边栏"
 					>
+						<title>切换侧边栏</title>
 						<path
 							strokeLinecap="round"
 							strokeLinejoin="round"

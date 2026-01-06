@@ -29,17 +29,23 @@ export interface FormFieldProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const FormField = forwardRef<HTMLInputElement, FormFieldProps>(
-	({ className, label, error, type = "text", ...props }, ref) => {
+	({ className, label, error, type = "text", id, ...props }, ref) => {
+		const inputId = id ?? (props.name ? String(props.name) : undefined);
+
 		return (
 			<div className="w-full space-y-2">
 				{label && (
-					<label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+					<label
+						htmlFor={inputId}
+						className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+					>
 						{label}
 					</label>
 				)}
 				<Input
 					type={type}
 					ref={ref}
+					id={inputId}
 					className={cn(
 						error && "border-destructive focus-visible:ring-destructive",
 						className,

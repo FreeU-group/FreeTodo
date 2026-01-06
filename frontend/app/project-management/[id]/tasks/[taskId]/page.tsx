@@ -3,7 +3,7 @@
 import dayjs from "dayjs";
 import { ArrowLeft, RefreshCw, TrendingUp } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Button from "@/components/common/Button";
 import {
 	Card,
@@ -46,7 +46,7 @@ export default function TaskDetailPage() {
 	const [activeTab, setActiveTab] = useState<"info" | "contexts">("info");
 
 	// 加载项目信息
-	const loadProject = async () => {
+	const loadProject = useCallback(async () => {
 		try {
 			const response = await api.getProject(projectId);
 			setProject(response.data);
@@ -54,10 +54,10 @@ export default function TaskDetailPage() {
 			console.error("加载项目信息失败:", error);
 			toast.error("加载项目信息失败");
 		}
-	};
+	}, [projectId]);
 
 	// 加载任务信息
-	const loadTask = async () => {
+	const loadTask = useCallback(async () => {
 		try {
 			const response = await api.getTask(projectId, taskId);
 			setTask(response.data);
@@ -65,10 +65,10 @@ export default function TaskDetailPage() {
 			console.error("加载任务信息失败:", error);
 			toast.error("加载任务信息失败");
 		}
-	};
+	}, [projectId, taskId]);
 
 	// 加载已关联的上下文
-	const loadAssociatedContexts = async () => {
+	const loadAssociatedContexts = useCallback(async () => {
 		try {
 			const response = await api.getContexts({
 				task_id: taskId,
@@ -78,10 +78,10 @@ export default function TaskDetailPage() {
 		} catch (error) {
 			console.error("加载关联上下文失败:", error);
 		}
-	};
+	}, [taskId]);
 
 	// 加载未关联的上下文
-	const loadUnassociatedContexts = async () => {
+	const loadUnassociatedContexts = useCallback(async () => {
 		try {
 			const response = await api.getContexts({
 				associated: false,
@@ -91,10 +91,10 @@ export default function TaskDetailPage() {
 		} catch (error) {
 			console.error("加载未关联上下文失败:", error);
 		}
-	};
+	}, []);
 
 	// 加载最新任务进展
-	const loadTaskProgress = async () => {
+	const loadTaskProgress = useCallback(async () => {
 		try {
 			const response = await api.getTaskProgressLatest(projectId, taskId);
 			setLatestProgress(response.data);
@@ -102,7 +102,7 @@ export default function TaskDetailPage() {
 			console.debug("加载任务进展失败:", error);
 			setLatestProgress(null);
 		}
-	};
+	}, [projectId, taskId]);
 
 	// 手动生成任务进展摘要
 	const handleGenerateProgress = async () => {
@@ -136,7 +136,15 @@ export default function TaskDetailPage() {
 				setLoading(false);
 			});
 		}
-	}, [projectId, taskId]);
+	}, [
+		projectId,
+		taskId,
+		loadProject,
+		loadTask,
+		loadAssociatedContexts,
+		loadUnassociatedContexts,
+		loadTaskProgress,
+	]);
 
 	// 处理关联上下文
 	const handleAssociateContext = async (contextId: number) => {
@@ -230,6 +238,7 @@ export default function TaskDetailPage() {
 				<div className="border-b border-border mb-6">
 					<div className="flex gap-4">
 						<button
+							type="button"
 							onClick={() => setActiveTab("info")}
 							className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
 								activeTab === "info"
@@ -240,6 +249,7 @@ export default function TaskDetailPage() {
 							{t.taskDetail.taskInfo}
 						</button>
 						<button
+							type="button"
 							onClick={() => setActiveTab("contexts")}
 							className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
 								activeTab === "contexts"
@@ -330,18 +340,18 @@ export default function TaskDetailPage() {
 							<CardContent className="space-y-4">
 								{task.description && (
 									<div>
-										<label className="text-sm font-medium text-muted-foreground">
-											{t.task.description}
-										</label>
+												<p className="text-sm font-medium text-muted-foreground">
+													{t.task.description}
+												</p>
 										<p className="mt-1 text-foreground">{task.description}</p>
 									</div>
 								)}
 
 								<div className="grid grid-cols-2 gap-4">
 									<div>
-										<label className="text-sm font-medium text-muted-foreground">
-											{t.task.status}
-										</label>
+												<p className="text-sm font-medium text-muted-foreground">
+													{t.task.status}
+												</p>
 										<p className="mt-1 text-foreground">
 											{task.status === "pending" && t.task.pending}
 											{task.status === "in_progress" && t.task.inProgress}
@@ -351,27 +361,27 @@ export default function TaskDetailPage() {
 									</div>
 
 									<div>
-										<label className="text-sm font-medium text-muted-foreground">
-											{t.taskDetail.createdAt}
-										</label>
+												<p className="text-sm font-medium text-muted-foreground">
+													{t.taskDetail.createdAt}
+												</p>
 										<p className="mt-1 text-foreground">
 											{formatDate(task.created_at)}
 										</p>
 									</div>
 
 									<div>
-										<label className="text-sm font-medium text-muted-foreground">
-											{t.taskDetail.updatedAt2}
-										</label>
+												<p className="text-sm font-medium text-muted-foreground">
+													{t.taskDetail.updatedAt2}
+												</p>
 										<p className="mt-1 text-foreground">
 											{formatDate(task.updated_at)}
 										</p>
 									</div>
 
 									<div>
-										<label className="text-sm font-medium text-muted-foreground">
-											{t.taskDetail.contextCount}
-										</label>
+												<p className="text-sm font-medium text-muted-foreground">
+													{t.taskDetail.contextCount}
+												</p>
 										<p className="mt-1 text-foreground">
 											{contexts.length} {t.taskDetail.countUnit}
 										</p>

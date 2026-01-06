@@ -33,6 +33,7 @@ export default function LanguageToggle() {
 
 	return (
 		<button
+			type="button"
 			onClick={handleToggle}
 			className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 			title={`${t.layout.currentLanguage}: ${currentLanguage?.label}`}

@@ -35,7 +35,7 @@ export default function MessageContent({
 			const ids = idsStr
 				.split(",")
 				.map((id: string) => parseInt(id.trim(), 10))
-				.filter((id: number) => !isNaN(id) && id > 0);
+				.filter((id: number) => !Number.isNaN(id) && id > 0);
 
 			if (ids.length === 0) return match;
 
@@ -116,7 +116,7 @@ export default function MessageContent({
 		if (roots.length > 0) {
 			rootsRef.current = [...rootsRef.current, ...roots];
 		}
-	}, [isStreaming, content]);
+	}, [isStreaming]);
 
 	// 组件卸载时清理
 	useEffect(() => {

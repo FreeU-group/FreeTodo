@@ -210,9 +210,9 @@ function scanDirectory(dirPath) {
  * 生成报告
  */
 function generateReport() {
-	console.log("\n" + "=".repeat(80));
+	console.log(`\n${"=".repeat(80)}`);
 	console.log("📊 前端 i18n 硬编码检查报告");
-	console.log("=".repeat(80) + "\n");
+	console.log(`${"=".repeat(80)}\n`);
 
 	console.log(`📁 扫描目录: ${CONFIG.scanDirs.join(", ")}`);
 	console.log(`📄 总文件数: ${results.totalFiles}`);
@@ -226,7 +226,7 @@ function generateReport() {
 
 	console.log("=".repeat(80));
 	console.log("🔍 发现的问题详情");
-	console.log("=".repeat(80) + "\n");
+	console.log(`${"=".repeat(80)}\n`);
 
 	// 按文件分组显示
 	results.issues.forEach((fileIssue, fileIndex) => {
@@ -250,9 +250,9 @@ function generateReport() {
 		0,
 	);
 
-	console.log("\n" + "=".repeat(80));
+	console.log(`\n${"=".repeat(80)}`);
 	console.log(`📌 总计发现 ${totalIssues} 处中文硬编码`);
-	console.log("=".repeat(80) + "\n");
+	console.log(`${"=".repeat(80)}\n`);
 
 	// 给出建议
 	console.log("💡 修复建议:");

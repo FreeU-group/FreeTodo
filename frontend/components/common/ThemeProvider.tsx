@@ -35,8 +35,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 		console.log(
 			"[ThemeProvider] Applying theme:",
 			theme,
-			"(resolved to:",
-			expectedTheme + ")",
+			`(resolved to: ${expectedTheme})`,
 		);
 
 		// 移除之前的主题类

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
@@ -80,20 +81,31 @@ export default function ScreenshotCard({
 			? "border-red-500 border-2 dark:border-red-400"
 			: "border-border";
 
+	const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+		if (!onClick) return;
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault();
+			onClick();
+		}
+	};
+
 	return (
-		<div
-			className={`group relative overflow-hidden rounded-lg border bg-card transition-all hover:shadow-lg ${borderClass}`}
+		<button
+			type="button"
+			className={`group relative w-full text-left overflow-hidden rounded-lg border bg-card transition-all hover:shadow-lg ${borderClass}`}
 			onClick={onClick}
+			onKeyDown={handleKeyDown}
 		>
 			{getScoreBadge()}
 
 			{/* 图片 */}
 			<div className="relative h-64 w-full cursor-pointer overflow-hidden bg-muted">
 				{!imageError ? (
-					<img
+					<Image
 						src={api.getScreenshotImage(screenshot.id)}
 						alt={t.screenshot.screenshot}
-						className="h-full w-full object-cover transition-transform group-hover:scale-105"
+						fill
+						className="object-cover transition-transform group-hover:scale-105"
 						onError={() => setImageError(true)}
 						loading="lazy"
 					/>
@@ -105,7 +117,10 @@ export default function ScreenshotCard({
 								fill="none"
 								viewBox="0 0 24 24"
 								stroke="currentColor"
+								role="img"
+								aria-label={t.screenshot.imageLoadFailed}
 							>
+								<title>{t.screenshot.imageLoadFailed}</title>
 								<path
 									strokeLinecap="round"
 									strokeLinejoin="round"
@@ -138,6 +153,6 @@ export default function ScreenshotCard({
 					</div>
 				)}
 			</div>
-		</div>
+		</button>
 	);
 }

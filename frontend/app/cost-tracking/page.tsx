@@ -8,7 +8,7 @@ import {
 	RefreshCw,
 	TrendingUp,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
@@ -59,7 +59,7 @@ export default function CostTrackingPage() {
 	const [days, setDays] = useState(30);
 
 	// 加载费用统计数据
-	const loadCostStats = async () => {
+	const loadCostStats = useCallback(async () => {
 		try {
 			setLoading(true);
 			setError(null);
@@ -71,11 +71,11 @@ export default function CostTrackingPage() {
 		} finally {
 			setLoading(false);
 		}
-	};
+	}, [days, t.costTracking.loadFailed]);
 
 	useEffect(() => {
 		loadCostStats();
-	}, [days]);
+	}, [loadCostStats]);
 
 	// 格式化货币
 	const formatCurrency = (amount: number | undefined) => {
@@ -87,7 +87,7 @@ export default function CostTrackingPage() {
 
 	// 格式化数字
 	const formatNumber = (num: number | undefined) => {
-		if (num === undefined || num === null || isNaN(num)) {
+		if (num === undefined || num === null || Number.isNaN(num)) {
 			return "0";
 		}
 		return num.toLocaleString(locale === "zh" ? "zh-CN" : "en-US");
@@ -144,6 +144,7 @@ export default function CostTrackingPage() {
 					<option value={90}>{t.costTracking.last90Days}</option>
 				</select>
 				<button
+					type="button"
 					onClick={loadCostStats}
 					className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
 				>

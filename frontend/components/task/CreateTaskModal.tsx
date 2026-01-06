@@ -145,16 +145,35 @@ export default function CreateTaskModal({
 
 	return (
 		<div
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="create-task-title"
 			className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50"
 			onClick={onClose}
+			onKeyDown={(e) => {
+				if (e.key === "Escape") {
+					e.stopPropagation();
+					onClose();
+				}
+			}}
 		>
 			<div
+				role="document"
+				tabIndex={-1}
 				className="relative w-full max-w-md rounded-lg bg-background shadow-xl"
 				onClick={(e) => e.stopPropagation()}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.stopPropagation();
+					}
+				}}
 			>
 				{/* Header */}
 				<div className="flex items-center justify-between border-b px-6 py-4">
-					<h2 className="text-lg font-bold text-foreground">
+					<h2
+						id="create-task-title"
+						className="text-lg font-bold text-foreground"
+					>
 						{isEditMode
 							? t.task.edit
 							: isSubtask
@@ -162,6 +181,7 @@ export default function CreateTaskModal({
 								: t.task.create}
 					</h2>
 					<button
+						type="button"
 						onClick={onClose}
 						className="rounded-lg p-1 text-foreground transition-colors hover:bg-muted"
 						aria-label={t.common.close}
@@ -174,10 +194,14 @@ export default function CreateTaskModal({
 				{/* Content */}
 				<form onSubmit={handleSubmit} className="p-6 space-y-4">
 					<div>
-						<label className="mb-2 block text-sm font-medium text-foreground">
+						<label
+							htmlFor="task-name"
+							className="mb-2 block text-sm font-medium text-foreground"
+						>
 							{t.task.name} <span className="text-red-500">*</span>
 						</label>
 						<Input
+							id="task-name"
 							type="text"
 							placeholder={t.task.namePlaceholder}
 							value={formData.name}
@@ -191,10 +215,14 @@ export default function CreateTaskModal({
 					</div>
 
 					<div>
-						<label className="mb-2 block text-sm font-medium text-foreground">
+						<label
+							htmlFor="task-description"
+							className="mb-2 block text-sm font-medium text-foreground"
+						>
 							{t.task.description}
 						</label>
 						<textarea
+							id="task-description"
 							placeholder={t.task.descriptionPlaceholder}
 							value={formData.description}
 							onChange={(e) => handleChange("description", e.target.value)}
@@ -205,10 +233,14 @@ export default function CreateTaskModal({
 					</div>
 
 					<div>
-						<label className="mb-2 block text-sm font-medium text-foreground">
+						<label
+							htmlFor="task-status"
+							className="mb-2 block text-sm font-medium text-foreground"
+						>
 							{t.task.status}
 						</label>
 						<select
+							id="task-status"
 							value={formData.status}
 							onChange={(e) =>
 								handleChange("status", e.target.value as TaskStatus)

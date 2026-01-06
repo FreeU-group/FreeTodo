@@ -1,22 +1,11 @@
 "use client";
 
-import {
-	CheckCircle2,
-	ChevronDown,
-	ChevronRight,
-	Circle,
-	CircleDot,
-	Edit2,
-	ExternalLink,
-	Plus,
-	Trash2,
-	XCircle,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Edit2, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTranslations } from "@/lib/i18n";
 import { useLocaleStore } from "@/lib/store/locale";
-import type { Task, TaskStatus } from "@/lib/types";
+import type { Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import TaskStatusSelect from "./TaskStatusSelect";
 
@@ -29,33 +18,6 @@ interface TaskItemProps {
 	level: number;
 	projectId?: number; // 添加项目ID参数
 }
-
-const getStatusConfig = (t: ReturnType<typeof useTranslations>) => ({
-	pending: {
-		label: t.task.pending,
-		icon: Circle,
-		color: "text-gray-500",
-		bgColor: "bg-gray-100 dark:bg-gray-800",
-	},
-	in_progress: {
-		label: t.task.inProgress,
-		icon: CircleDot,
-		color: "text-blue-500",
-		bgColor: "bg-blue-100 dark:bg-blue-900/30",
-	},
-	completed: {
-		label: t.task.completed,
-		icon: CheckCircle2,
-		color: "text-green-500",
-		bgColor: "bg-green-100 dark:bg-green-900/30",
-	},
-	cancelled: {
-		label: t.task.cancelled,
-		icon: XCircle,
-		color: "text-red-500",
-		bgColor: "bg-red-100 dark:bg-red-900/30",
-	},
-});
 
 export default function TaskItem({
 	task,
@@ -71,9 +33,6 @@ export default function TaskItem({
 	const t = useTranslations(locale);
 	const [isExpanded, setIsExpanded] = useState(true);
 	const hasChildren = task.children && task.children.length > 0;
-	const statusConfig = getStatusConfig(t);
-	const config = statusConfig[task.status as TaskStatus];
-	const StatusIcon = config.icon;
 
 	// 处理任务名称点击 - 跳转到详情页
 	const handleTaskClick = () => {
@@ -95,6 +54,7 @@ export default function TaskItem({
 				<div className="flex-shrink-0">
 					{hasChildren ? (
 						<button
+							type="button"
 							onClick={() => setIsExpanded(!isExpanded)}
 							className="p-1 hover:bg-accent rounded transition-colors"
 						>
@@ -119,6 +79,7 @@ export default function TaskItem({
 				<div className="flex-1 min-w-0">
 					<div className="flex items-start gap-2">
 						<button
+							type="button"
 							onClick={handleTaskClick}
 							className={cn(
 								"font-medium text-foreground hover:text-primary transition-colors text-left group/name",
@@ -137,7 +98,7 @@ export default function TaskItem({
 							<span className="flex-shrink-0 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
 								{t.projectDetail.subtasksCount.replace(
 									"{count}",
-									String(task.children!.length),
+									String(task.children?.length ?? 0),
 								)}
 							</span>
 						)}
@@ -152,6 +113,7 @@ export default function TaskItem({
 				{/* 操作按钮 */}
 				<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 					<button
+						type="button"
 						onClick={() => onCreateSubtask(task.id)}
 						className="p-2 hover:bg-accent rounded-md transition-colors"
 						title={t.task.createSubtask}
@@ -159,6 +121,7 @@ export default function TaskItem({
 						<Plus className="h-4 w-4 text-muted-foreground" />
 					</button>
 					<button
+						type="button"
 						onClick={() => onEdit(task)}
 						className="p-2 hover:bg-accent rounded-md transition-colors"
 						title={t.task.edit}
@@ -166,6 +129,7 @@ export default function TaskItem({
 						<Edit2 className="h-4 w-4 text-muted-foreground" />
 					</button>
 					<button
+						type="button"
 						onClick={() => onDelete(task.id)}
 						className="p-2 hover:bg-destructive/10 rounded-md transition-colors"
 						title={t.task.delete}
@@ -178,7 +142,7 @@ export default function TaskItem({
 			{/* 子任务 */}
 			{hasChildren && isExpanded && (
 				<div className="mt-2 space-y-2">
-					{task.children!.map((child) => (
+					{task.children?.map((child) => (
 						<TaskItem
 							key={child.id}
 							task={child}

@@ -177,6 +177,7 @@ export default function ProjectManagementPage() {
 
 			{/* 左下角归档切换按钮 - 相对于页面内容区域定位 */}
 			<button
+				type="button"
 				onClick={() => setViewingArchived(!viewingArchived)}
 				className="absolute bottom-6 left-6 z-10 p-3 rounded-full bg-card border border-border shadow-lg hover:bg-accent transition-all duration-200 group"
 				title={viewingArchived ? t.project.viewActive : t.project.viewArchived}

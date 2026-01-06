@@ -27,7 +27,7 @@ const localeStorage = {
 						localStorage.setItem("language", locale);
 						return JSON.stringify({ state: { locale } });
 					}
-				} catch (e) {}
+				} catch (_e) {}
 			}
 		}
 
@@ -44,8 +44,8 @@ const localeStorage = {
 
 			// 清理旧的 key
 			localStorage.removeItem("locale-storage");
-		} catch (e) {
-			console.error("Error saving locale:", e);
+		} catch (_e) {
+			console.error("Error saving locale:", _e);
 		}
 	},
 	removeItem: (_name: string) => {
