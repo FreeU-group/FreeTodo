@@ -112,7 +112,7 @@ export function MessageList({
 	// 如果应该显示首页，则显示欢迎界面而不是消息列表
 	if (shouldShowSuggestions) {
 		return (
-			<div className="flex-1 overflow-y-auto" ref={messageListRef}>
+			<div className="flex flex-1 overflow-y-auto" ref={messageListRef}>
 				<WelcomeGreetings />
 			</div>
 		);

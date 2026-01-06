@@ -217,6 +217,10 @@
 		"dateFormat": "{month}/{day}"
 	},
 	"chat": {
+		"greetings": {
+			"title": "FreeTodo, Just Do It",
+			"subtitle": "Your intelligent todo assistant for breaking down tasks, prioritizing, and getting things done"
+		},
 		"planModeInputPlaceholder": "e.g. Help me plan the todos for moving this weekend",
 		"difyTest": {
 			"inputPlaceholder": "Prompt for Dify test channel..."

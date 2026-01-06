@@ -63,7 +63,7 @@ export function PromptSuggestions({
 						className={cn(
 							"flex items-center gap-2 rounded-full px-4 py-2.5",
 							"bg-muted/80 hover:bg-muted",
-							"text-sm text-muted-foreground hover:text-foreground",
+							"text-sm text-foreground/80 hover:text-foreground",
 							"border border-border/40 hover:border-border",
 							"transition-all duration-200",
 							"hover:shadow-sm",
