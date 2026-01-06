@@ -211,10 +211,20 @@ export function EditModeMessage({
 
 	const noTodosMessage = t("noLinkedTodos");
 
+	const handleKeyDown = (e: React.KeyboardEvent) => {
+		if (e.key === "Enter" || e.key === " ") {
+			handleCloseDropdowns();
+		}
+	};
+
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: Click-away behavior for dropdown
-		// biome-ignore lint/a11y/noStaticElementInteractions: Container for dropdown close
-		<div className="space-y-4" onClick={handleCloseDropdowns}>
+		<div
+			className="space-y-4"
+			onClick={handleCloseDropdowns}
+			onKeyDown={handleKeyDown}
+			role="button"
+			tabIndex={0}
+		>
 			{blocks.map((block) => {
 				const state = blockStates[block.id] || {
 					selectedTodoId: null,
@@ -256,11 +266,16 @@ export function EditModeMessage({
 							) : (
 								<>
 									{/* Todo selector dropdown */}
-									{/* biome-ignore lint/a11y/useKeyWithClickEvents: Stop propagation for dropdown */}
-									{/* biome-ignore lint/a11y/noStaticElementInteractions: Dropdown container */}
 									<div
 										className="relative"
 										onClick={(e) => e.stopPropagation()}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" || e.key === " ") {
+												e.stopPropagation();
+											}
+										}}
+										role="button"
+										tabIndex={0}
 									>
 										<button
 											type="button"

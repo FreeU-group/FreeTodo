@@ -14,6 +14,7 @@ import { sendChatMessageStream } from "@/lib/api";
 import { getChatPromptsApiGetChatPromptsGet } from "@/lib/generated/config/config";
 import { useChatHistory, useChatSessions, useTodos } from "@/lib/query";
 import { useChatStore } from "@/lib/store/chat-store";
+import { useModuleContextStore } from "@/lib/store/module-context-store";
 import type { CreateTodoInput, Todo } from "@/lib/types";
 
 type UseChatControllerParams = {
@@ -202,26 +203,65 @@ export const useChatController = ({
 		setInputValue("");
 		setError(null);
 
-		// 当有选中待办时，使用完整的层级上下文（包含所有参数和父子关系）
-		// 否则使用简单的空上下文提示
-		const todoContext = hasSelection
-			? buildHierarchicalTodoContext(effectiveTodos, todos, t, tCommon)
-			: buildTodoContextBlock([], t("noTodoContext"), t);
+		// 获取当前模块上下文
+		const { currentModule, voiceTranscripts } =
+			useModuleContextStore.getState();
+
+		// 构建音频上下文（如果当前在音频模块）
+		let audioContext: string | null = null;
+		const isVoiceModule = currentModule === "voice";
+
+		if (isVoiceModule && voiceTranscripts.length > 0) {
+			// 获取最近 10 分钟的转录内容
+			const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+			const recentSegments = voiceTranscripts.filter(
+				(t) => t.timestamp > tenMinutesAgo,
+			);
+
+			if (recentSegments.length > 0) {
+				audioContext = recentSegments
+					.map(
+						(t) =>
+							`[${t.timestamp.toLocaleTimeString()}] ${t.optimizedText || t.rawText}`,
+					)
+					.join("\n");
+			}
+		}
+
 		const userLabel = t("userInput");
 
-		// Build payload message based on chat mode
+		// Build payload message based on chat mode and module context
 		let payloadMessage: string;
-		if (chatMode === "plan") {
-			payloadMessage = `${planSystemPrompt}\n\n${userLabel}: ${text}`;
-		} else if (chatMode === "edit") {
-			// Edit mode: combine todo context with edit system prompt
-			payloadMessage = `${editSystemPrompt}\n\n${todoContext}\n\n${userLabel}: ${text}`;
-		} else if (chatMode === "difyTest") {
-			// Dify 测试模式：直接把用户输入作为消息，避免额外的前置 system prompt 干扰
-			payloadMessage = text;
+
+		// 如果在音频模块，使用音频上下文（不添加待办上下文）
+		if (isVoiceModule) {
+			if (audioContext) {
+				// 有录音内容：添加音频上下文，后端会自动加载音频模块的 prompt
+				payloadMessage = `上下文 (最近10分钟录音转录):\n${audioContext}\n\n${userLabel}: ${text}`;
+			} else {
+				// 无录音内容：添加标记让后端识别这是音频模块，后端会自动加载音频模块的无上下文 prompt
+				payloadMessage = `[音频模块] ${userLabel}: ${text}`;
+			}
 		} else {
-			// Ask mode: 包含待办上下文，帮助理解用户意图
-			payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
+			// 非音频模块：使用原有的待办上下文逻辑
+			// 当有选中待办时，使用完整的层级上下文（包含所有参数和父子关系）
+			// 否则使用简单的空上下文提示
+			const todoContext = hasSelection
+				? buildHierarchicalTodoContext(effectiveTodos, todos, t, tCommon)
+				: buildTodoContextBlock([], t("noTodoContext"), t);
+
+			if (chatMode === "plan") {
+				payloadMessage = `${planSystemPrompt}\n\n${userLabel}: ${text}`;
+			} else if (chatMode === "edit") {
+				// Edit mode: combine todo context with edit system prompt
+				payloadMessage = `${editSystemPrompt}\n\n${todoContext}\n\n${userLabel}: ${text}`;
+			} else if (chatMode === "difyTest") {
+				// Dify 测试模式：直接把用户输入作为消息，避免额外的前置 system prompt 干扰
+				payloadMessage = text;
+			} else {
+				// Ask mode: 包含待办上下文，帮助理解用户意图
+				payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
+			}
 		}
 		const userMessage: ChatMessage = {
 			id: createId(),

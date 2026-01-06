@@ -76,10 +76,7 @@ export function MessageItem({
 		}
 		return (
 			<div className="flex flex-col items-start w-full px-4">
-				<ToolCallLoading
-					toolName={lastToolCall.name}
-					searchQuery={searchQuery}
-				/>
+				<ToolCallLoading toolName={lastToolCall.name} searchQuery={searchQuery} />
 			</div>
 		);
 	}
