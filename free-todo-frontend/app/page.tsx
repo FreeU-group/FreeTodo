@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutSelector } from "@/components/common/layout/LayoutSelector";
 import { ThemeToggle } from "@/components/common/theme/ThemeToggle";
 import { LanguageToggle } from "@/components/common/ui/LanguageToggle";
+import { SettingsToggle } from "@/components/common/ui/SettingsToggle";
 // import { UserAvatar } from "@/components/common/ui/UserAvatar";
 import { BottomDock } from "@/components/layout/BottomDock";
 import { PanelContainer } from "@/components/layout/PanelContainer";
@@ -366,6 +367,7 @@ export default function HomePage() {
 							<LayoutSelector showChevron={false} />
 							<ThemeToggle />
 							<LanguageToggle />
+							<SettingsToggle />
 							{/* <UserAvatar /> */}
 						</div>
 					</header>

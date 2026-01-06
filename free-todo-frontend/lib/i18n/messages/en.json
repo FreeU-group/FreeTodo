@@ -16,7 +16,8 @@
 	"layout": {
 		"currentLanguage": "Current Language",
 		"currentTheme": "Current Theme",
-		"userSettings": "User Settings"
+		"userSettings": "User Settings",
+		"openSettings": "Open Settings"
 	},
 	"page": {
 		"title": "Free Todo Canvas",
@@ -455,7 +456,8 @@
 			"task_summary_job": "Task Summary",
 			"clean_data_job": "Data Cleanup",
 			"activity_aggregator_job": "Activity Aggregator",
-			"deadline_reminder_job": "DDL Reminder"
+			"deadline_reminder_job": "DDL Reminder",
+			"todo_recorder_job": "Screen Recorder (Todo)"
 		},
 		"jobDescriptions": {
 			"recorder_job": "Capture screenshots periodically",
@@ -464,7 +466,8 @@
 			"task_summary_job": "(Legacy) Generate task execution summary",
 			"clean_data_job": "Clean up expired screenshots and data",
 			"activity_aggregator_job": "Aggregate user activity events",
-			"deadline_reminder_job": "Check todo deadlines and send reminder notifications 5 minutes before DDL"
+			"deadline_reminder_job": "Check todo deadlines and send reminder notifications 5 minutes before DDL",
+			"todo_recorder_job": "Only capture screenshots from whitelisted apps for auto todo detection"
 		}
 	},
 	"common": {
