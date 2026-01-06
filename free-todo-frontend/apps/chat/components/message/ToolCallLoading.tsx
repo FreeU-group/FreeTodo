@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 type ToolCallLoadingProps = {
@@ -13,21 +14,22 @@ export function ToolCallLoading({
 	searchQuery,
 	className,
 }: ToolCallLoadingProps) {
-	// 工具名称映射（可选，用于显示更友好的名称）
-	const toolNameMap: Record<string, string> = {
-		web_search: "联网搜索",
-	};
+	const t = useTranslations("chat.toolCall");
 
-	const displayName = toolNameMap[toolName] || toolName;
+	// 工具名称映射（使用本地化）
+	const displayName =
+		// biome-ignore lint/suspicious/noExplicitAny: next-intl 的 t 函数需要动态键
+		t(`toolNames.${toolName}` as any, { defaultValue: toolName }) || toolName;
 
 	return (
 		<div className={cn("flex flex-col gap-1 text-sm", className)}>
 			<span className="shimmer-text font-medium">
-				正在使用 {displayName}...
+				{t("using", { toolName: displayName })}
 			</span>
 			{searchQuery && (
 				<span className="text-xs text-muted-foreground ml-0">
-					搜索关键词: <span className="font-medium">{searchQuery}</span>
+					{t("searchQueryLabel")}{" "}
+					<span className="font-medium">{searchQuery}</span>
 				</span>
 			)}
 		</div>
