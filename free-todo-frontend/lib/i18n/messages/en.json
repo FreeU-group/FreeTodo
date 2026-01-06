@@ -116,7 +116,9 @@
 			"dockDisplayModeAutoHide": "Auto Hide",
 			"dockDisplayModeChanged": "Dock display mode changed",
 			"developerSectionTitle": "Developer Options",
-			"developerSectionDescription": "Advanced and experimental settings for developers or power users."
+			"developerSectionDescription": "Advanced and experimental settings for developers or power users.",
+			"devPanelsTitle": "Panels in Development",
+			"devPanelsDescription": "These panels are still under development. They are hidden from the dock by default; you can enable them here."
 		},
 		"costTracking": {
 			"title": "Cost Tracking",

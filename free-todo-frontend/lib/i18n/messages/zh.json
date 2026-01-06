@@ -116,7 +116,9 @@
 			"dockDisplayModeAutoHide": "自动隐藏",
 			"dockDisplayModeChanged": "底部工具栏显示模式已更改",
 			"developerSectionTitle": "开发者选项",
-			"developerSectionDescription": "高级和实验性功能配置，仅推荐开发者或高级用户使用。"
+			"developerSectionDescription": "高级和实验性功能配置，仅推荐开发者或高级用户使用。",
+			"devPanelsTitle": "开发中的面板",
+			"devPanelsDescription": "这些面板仍在开发中，默认不会显示在底部 Dock 中，你可以在这里手动开启。"
 		},
 		"costTracking": {
 			"title": "费用统计",

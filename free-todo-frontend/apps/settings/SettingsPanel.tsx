@@ -7,6 +7,7 @@ import { CollapsibleSection } from "@/components/common/layout/CollapsibleSectio
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import {
 	ALL_PANEL_FEATURES,
+	DEV_IN_PROGRESS_FEATURES,
 	FEATURE_ICON_MAP,
 	IS_DEV_FEATURE_ENABLED,
 	type PanelFeature,
@@ -45,6 +46,7 @@ export function SettingsPanel() {
 	const [autoTodoDetectionEnabled, setAutoTodoDetectionEnabled] =
 		useState(false);
 	const [showDeveloperOptions, setShowDeveloperOptions] = useState(false);
+	const [showDevPanels, setShowDevPanels] = useState(false);
 	const setFeatureEnabled = useUiStore((state) => state.setFeatureEnabled);
 	const isFeatureEnabled = useUiStore((state) => state.isFeatureEnabled);
 	const dockDisplayMode = useUiStore((state) => state.dockDisplayMode);
@@ -138,6 +140,14 @@ export function SettingsPanel() {
 		(feature) => feature !== "settings",
 	);
 
+	// 开发中的面板 & 常规面板分组
+	const devPanels = availablePanels.filter((feature) =>
+		DEV_IN_PROGRESS_FEATURES.includes(feature),
+	);
+	const regularPanels = availablePanels.filter(
+		(feature) => !DEV_IN_PROGRESS_FEATURES.includes(feature),
+	);
+
 	return (
 		<div className="relative flex h-full flex-col overflow-hidden bg-background">
 			{/* 顶部标题栏 */}
@@ -217,7 +227,7 @@ export function SettingsPanel() {
 					description={tSettings("panelSwitchesDescription")}
 				>
 					<div className="space-y-3">
-						{availablePanels.map((feature) => {
+						{regularPanels.map((feature) => {
 							// 跳过开发模式下的功能（如果不是开发模式）
 							if (feature === "debugShots" && !IS_DEV_FEATURE_ENABLED) {
 								return null;
@@ -255,6 +265,63 @@ export function SettingsPanel() {
 								</div>
 							);
 						})}
+
+						{/* 开发中的面板（折叠分组，位于面板开关内部底部） */}
+						{devPanels.length > 0 && (
+							<CollapsibleSection
+								title={tSettings("devPanelsTitle")}
+								show={showDevPanels}
+								onToggle={() => setShowDevPanels((prev) => !prev)}
+								className="mt-4"
+								contentClassName="mt-3"
+							>
+								<SettingsSection
+									title={tSettings("devPanelsTitle")}
+									description={tSettings("devPanelsDescription")}
+								>
+									<div className="space-y-3">
+										{devPanels.map((feature) => {
+											// 开发中的截图调试面板仅在开发模式下展示
+											if (feature === "debugShots" && !IS_DEV_FEATURE_ENABLED) {
+												return null;
+											}
+
+											const enabled = isFeatureEnabled(feature);
+											const panelLabel = tBottomDock(feature) || feature;
+											const Icon = FEATURE_ICON_MAP[feature];
+
+											return (
+												<div
+													key={feature}
+													className="flex items-center justify-between"
+												>
+													<div className="flex-1 flex items-center gap-2">
+														{Icon && (
+															<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+														)}
+														<label
+															htmlFor={`panel-toggle-${feature}`}
+															className="text-sm font-medium text-foreground cursor-pointer"
+														>
+															{panelLabel}
+														</label>
+													</div>
+													<ToggleSwitch
+														id={`panel-toggle-${feature}`}
+														enabled={enabled}
+														disabled={loading}
+														onToggle={(newEnabled) =>
+															handleTogglePanel(feature, newEnabled)
+														}
+														ariaLabel={panelLabel}
+													/>
+												</div>
+											);
+										})}
+									</div>
+								</SettingsSection>
+							</CollapsibleSection>
+						)}
 					</div>
 				</SettingsSection>
 
