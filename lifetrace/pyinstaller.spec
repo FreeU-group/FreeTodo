@@ -141,10 +141,10 @@ hiddenimports = [
     "apscheduler.triggers",
     "apscheduler.triggers.cron",
     "apscheduler.triggers.interval",
-    # Utils (psutil, openai, tavily)
+    # Utils (psutil, openai, iflow-cli-sdk)
     "psutil",
     "openai",
-    "tavily",  # Tavily API for web search
+    "iflow_sdk",  # iFlow CLI SDK for web search
     "dateutil",  # 可能被其他库依赖
     "rich",  # 可能被其他库依赖
     # Logging (loguru)
@@ -247,13 +247,13 @@ datas.extend(alembic_datas)
 imagehash_submodules = collect_submodules("imagehash")
 hiddenimports.extend(imagehash_submodules)
 
-# Collect tavily submodules (Tavily API for web search)
-tavily_submodules = collect_submodules("tavily")
-hiddenimports.extend(tavily_submodules)
+# Collect iflow_sdk submodules (iFlow CLI SDK for web search)
+iflow_sdk_submodules = collect_submodules("iflow_sdk")
+hiddenimports.extend(iflow_sdk_submodules)
 
-# Collect tavily data files if any
-tavily_datas = collect_data_files("tavily")
-datas.extend(tavily_datas)
+# Collect iflow_sdk data files if any
+iflow_sdk_datas = collect_data_files("iflow_sdk")
+datas.extend(iflow_sdk_datas)
 
 # Collect numpy submodules (NumPy 2.x 需要显式收集子模块)
 # NumPy 2.4+ 与 PyInstaller 的兼容性问题，需要确保所有核心模块都被包含

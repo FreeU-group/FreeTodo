@@ -1,6 +1,6 @@
 """联网搜索工具实现"""
 
-from lifetrace.llm.tavily_client import TavilyClientWrapper
+from lifetrace.llm.iflow_client import IFlowClientWrapper
 from lifetrace.llm.tools.base import Tool, ToolResult
 from lifetrace.util.logging_config import get_logger
 
@@ -12,7 +12,7 @@ class WebSearchTool(Tool):
 
     def __init__(self):
         """初始化联网搜索工具"""
-        self.tavily_client = TavilyClientWrapper()
+        self.iflow_client = IFlowClientWrapper()
 
     @property
     def name(self) -> str:
@@ -42,38 +42,48 @@ class WebSearchTool(Tool):
     def execute(self, query: str, **kwargs) -> ToolResult:
         """执行搜索"""
         try:
-            if not self.tavily_client.is_available():
+            if not self.iflow_client.is_available():
                 return ToolResult(
                     success=False,
                     content="",
-                    error="Tavily API 未配置，无法使用联网搜索",
+                    error="iFlow CLI 未安装，无法使用联网搜索。请先安装: npm i -g @iflow-ai/iflow-cli@latest",
                 )
 
-            # 执行 Tavily 搜索
+            # 执行 iFlow 搜索（使用同步方法）
             logger.info(f"[WebSearchTool] 执行搜索: {query}")
-            result = self.tavily_client.search(query)
+            result = self.iflow_client.search_sync(query)
             results = result.get("results", [])
+            answer = result.get("answer", "")
+            sources = result.get("sources", [])
 
-            if not results:
+            if not results and not answer:
                 return ToolResult(
                     success=True,
                     content="未找到相关搜索结果。",
-                    metadata={"results": []},
+                    metadata={"results": [], "sources": []},
                 )
 
             # 格式化搜索结果
-            formatted_results = []
-            sources = []
-            for idx, item in enumerate(results, start=1):
-                title = item.get("title", "无标题")
-                url = item.get("url", "")
-                content = item.get("content", "")
-                formatted_results.append(
-                    f"[{idx}] {title}\nURL: {url}\n摘要: {content}",
-                )
-                sources.append({"title": title, "url": url})
-
-            content = "\n\n".join(formatted_results)
+            if answer:
+                # 如果有 iFlow 生成的完整回答，优先使用
+                content = answer
+                if sources:
+                    content += "\n\n来源：\n"
+                    for idx, source in enumerate(sources, start=1):
+                        title = source.get("title", "无标题")
+                        url = source.get("url", "")
+                        content += f"[{idx}] {title}\nURL: {url}\n"
+            else:
+                # 否则格式化结果列表
+                formatted_results = []
+                for idx, item in enumerate(results, start=1):
+                    title = item.get("title", "无标题")
+                    url = item.get("url", "")
+                    content_text = item.get("content", "")
+                    formatted_results.append(
+                        f"[{idx}] {title}\nURL: {url}\n摘要: {content_text}",
+                    )
+                content = "\n\n".join(formatted_results)
 
             logger.info(
                 f"[WebSearchTool] 搜索完成，找到 {len(results)} 个结果",
@@ -82,7 +92,7 @@ class WebSearchTool(Tool):
             return ToolResult(
                 success=True,
                 content=content,
-                metadata={"results": results, "sources": sources},
+                metadata={"results": results, "sources": sources, "answer": answer},
             )
         except Exception as e:
             logger.error(f"[WebSearchTool] 执行失败: {e}", exc_info=True)
@@ -93,4 +103,4 @@ class WebSearchTool(Tool):
             )
 
     def is_available(self) -> bool:
-        return self.tavily_client.is_available()
+        return self.iflow_client.is_available()

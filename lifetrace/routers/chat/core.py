@@ -311,7 +311,7 @@ def _create_web_search_streaming_response(
     chat_service: ChatService,
     session_id: str,
 ) -> StreamingResponse:
-    """处理联网搜索模式，使用 Tavily 搜索和 LLM 生成流式输出"""
+    """处理联网搜索模式，使用 iFlow CLI 搜索和 LLM 生成流式输出"""
     logger.info("[stream] 进入联网搜索模式")
 
     # 保存用户消息

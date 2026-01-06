@@ -154,11 +154,3 @@ llm:
         - max_input_tokens: 256000
           input_price: 0.003
           output_price: 0.03
-
-# Tavily 配置（联网搜索）
-tavily:
-  api_key: YOUR_TAVILY_API_KEY_HERE # Tavily API Key，需要用户配置
-  search_depth: basic # 搜索深度：basic 或 advanced
-  max_results: 5 # 最大返回结果数
-  include_domains: [] # 包含的域名列表（可选）
-  exclude_domains: [] # 排除的域名列表（可选）
