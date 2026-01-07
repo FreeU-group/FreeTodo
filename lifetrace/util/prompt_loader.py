@@ -28,20 +28,41 @@ class PromptLoader:
             self._load_prompts()
 
     def _load_prompts(self):
-        """从 YAML 文件加载提示词"""
+        """从 prompts/ 目录或 prompt.yaml 文件加载提示词
+
+        优先从 prompts/ 目录加载所有 yaml 文件，如果目录不存在则回退到单个 prompt.yaml 文件。
+        """
         try:
             # 获取配置文件路径
             from lifetrace.util.path_utils import get_config_dir
 
             config_dir = get_config_dir()
-            prompt_file = config_dir / "prompt.yaml"
+            prompts_dir = config_dir / "prompts"
+            self._prompts = {}
 
+            if prompts_dir.exists() and prompts_dir.is_dir():
+                # 新方案：从 prompts/ 目录加载所有 yaml 文件
+                yaml_files = list(prompts_dir.glob("*.yaml"))
+                if yaml_files:
+                    for yaml_file in yaml_files:
+                        try:
+                            with open(yaml_file, encoding="utf-8") as f:
+                                data = yaml.safe_load(f) or {}
+                                self._prompts.update(data)
+                        except Exception as e:
+                            logger.error(f"加载提示词文件失败 ({yaml_file.name}): {e}")
+
+                    logger.info(
+                        f"提示词配置加载成功，从 {len(yaml_files)} 个文件中加载了 {len(self._prompts)} 个分类"
+                    )
+                    return
+
+            # 回退方案：加载单个 prompt.yaml 文件
+            prompt_file = config_dir / "prompt.yaml"
             if not prompt_file.exists():
                 logger.error(f"提示词配置文件不存在: {prompt_file}")
-                self._prompts = {}
                 return
 
-            # 读取 YAML 文件
             with open(prompt_file, encoding="utf-8") as f:
                 self._prompts = yaml.safe_load(f) or {}
 

@@ -79,22 +79,6 @@ jobs:
       use_gpu: false
       language: ['ch', 'en']
       confidence_threshold: 0.5
-  task_context_mapper:
-    id: task_context_mapper # 任务ID
-    name: 任务上下文映射 # 任务显示名称（中文）
-    enabled: false # 是否启用任务上下文映射服务（默认关闭，需要时手动开启）
-    interval: 60 # 检查间隔（秒）
-    params:
-      batch_size: 100 # 每次处理的上下文数量
-      project_confidence_threshold: 0.7 # 项目置信度阈值，只有超过此阈值的项目关联才会被应用
-      task_confidence_threshold: 0.7 # 任务置信度阈值，只有超过此阈值的任务关联才会被应用
-  task_summary:
-    id: task_summary # 任务ID
-    name: 任务摘要生成 # 任务显示名称（中文）
-    enabled: false # 是否启用任务摘要服务（默认关闭，需要时手动开启）
-    interval: 3600 # 检查间隔（秒）
-    params:
-      min_new_contexts: 5 # 触发摘要的最小新上下文数量
   activity_aggregator:
     id: activity_aggregator # 任务ID
     name: 活动聚合 # 任务显示名称（中文）

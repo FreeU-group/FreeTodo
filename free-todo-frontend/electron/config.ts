@@ -94,3 +94,10 @@ export const PROCESS_CONFIG = {
 export function isDevelopment(isPackaged: boolean): boolean {
 	return !isPackaged && process.env.NODE_ENV !== "production";
 }
+
+/**
+ * 检查是否启用灵动岛模式（透明窗口）
+ * 默认启用灵动岛模式，可以通过环境变量 ENABLE_DYNAMIC_ISLAND=false 禁用
+ */
+export const enableDynamicIsland =
+	process.env.ENABLE_DYNAMIC_ISLAND !== "false";

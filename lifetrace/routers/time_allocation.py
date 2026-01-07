@@ -12,6 +12,123 @@ logger = get_logger()
 
 router = APIRouter(prefix="/api", tags=["time-allocation"])
 
+# 应用分类关键词映射
+_APP_CATEGORY_KEYWORDS: dict[str, list[str]] = {
+    "social": [
+        "qq",
+        "wechat",
+        "weixin",
+        "微信",
+        "telegram",
+        "discord",
+        "slack",
+        "dingtalk",
+        "钉钉",
+        "wxwork",
+        "企业微信",
+        "feishu",
+        "飞书",
+        "lark",
+        "whatsapp",
+        "line",
+        "skype",
+        "zoom",
+        "teams",
+        "腾讯会议",
+    ],
+    "browser": [
+        "chrome",
+        "msedge",
+        "edge",
+        "firefox",
+        "browser",
+        "浏览器",
+        "safari",
+        "opera",
+        "brave",
+    ],
+    "development": [
+        "code",
+        "vscode",
+        "visual studio code",
+        "pycharm",
+        "idea",
+        "intellij",
+        "webstorm",
+        "editor",
+        "开发工具",
+        "sublime",
+        "atom",
+        "vim",
+        "neovim",
+        "github desktop",
+        "git",
+        "github",
+        "gitkraken",
+        "sourcetree",
+    ],
+    "file_management": [
+        "explorer",
+        "文件",
+        "file",
+        "finder",
+        "nautilus",
+        "dolphin",
+        "thunar",
+    ],
+    "office": [
+        "word",
+        "excel",
+        "powerpoint",
+        "wps",
+        "libreoffice",
+        "office",
+        "onenote",
+        "outlook",
+    ],
+}
+
+
+def _categorize_app(app_name: str) -> str:
+    """应用分类逻辑（优先匹配社交类应用）"""
+    if not app_name:
+        return "other"
+
+    app_lower = app_name.lower().strip()
+
+    # 按优先级顺序检查各分类
+    for category, keywords in _APP_CATEGORY_KEYWORDS.items():
+        if any(keyword in app_lower for keyword in keywords):
+            return category
+
+    return "other"
+
+
+def _build_daily_distribution(hourly_usage: dict[int, dict[str, float]]) -> list[dict]:
+    """构建24小时分布数据"""
+    daily_distribution = []
+    for hour in range(24):
+        hour_data: dict = {"hour": hour, "apps": {}}
+        if hour in hourly_usage:
+            for app_name, duration in hourly_usage[hour].items():
+                hour_data["apps"][app_name] = int(duration)
+        daily_distribution.append(hour_data)
+    return daily_distribution
+
+
+def _build_app_details(app_usage_summary: dict[str, dict]) -> list[dict]:
+    """构建应用详情列表"""
+    app_details = [
+        {
+            "app_name": app_name,
+            "total_time": int(app_data.get("total_time", 0)),
+            "category": _categorize_app(app_name),
+        }
+        for app_name, app_data in app_usage_summary.items()
+    ]
+    app_details.sort(key=lambda x: x["total_time"], reverse=True)
+    return app_details
+
 
 @router.get("/time-allocation", response_model=TimeAllocationResponse)
 async def get_time_allocation(
@@ -29,129 +146,9 @@ async def get_time_allocation(
             use_days = days if days else 7
             stats_data = event_mgr.get_app_usage_stats(days=use_days)
 
-        # 计算总使用时间（秒）
         total_time = int(stats_data.get("total_time", 0))
-
-        # 构建24小时分布数据
-        hourly_usage = stats_data.get("hourly_usage", {})
-        daily_distribution = []
-        for hour in range(24):
-            hour_data = {"hour": hour, "apps": {}}
-            if hour in hourly_usage:
-                # 转换秒为整数
-                for app_name, duration in hourly_usage[hour].items():
-                    hour_data["apps"][app_name] = int(duration)
-            daily_distribution.append(hour_data)
-
-        # 构建应用详情列表
-        app_usage_summary = stats_data.get("app_usage_summary", {})
-        app_details = []
-
-        # 应用分类逻辑（优先匹配社交类应用）
-        def categorize_app(app_name: str) -> str:
-            if not app_name:
-                return "other"
-
-            app_lower = app_name.lower().strip()
-
-            # 社交类应用（优先匹配，避免被其他类别误判）
-            social_keywords = [
-                "qq",
-                "wechat",
-                "weixin",
-                "微信",
-                "telegram",
-                "discord",
-                "slack",
-                "dingtalk",
-                "钉钉",
-                "wxwork",
-                "企业微信",
-                "feishu",
-                "飞书",
-                "lark",
-                "whatsapp",
-                "line",
-                "skype",
-                "zoom",
-                "teams",
-                "腾讯会议",
-            ]
-            if any(keyword in app_lower for keyword in social_keywords):
-                return "social"
-
-            # 浏览器
-            browser_keywords = [
-                "chrome",
-                "msedge",
-                "edge",
-                "firefox",
-                "browser",
-                "浏览器",
-                "safari",
-                "opera",
-                "brave",
-            ]
-            if any(keyword in app_lower for keyword in browser_keywords):
-                return "browser"
-
-            # 开发工具
-            dev_keywords = [
-                "code",
-                "vscode",
-                "visual studio code",
-                "pycharm",
-                "idea",
-                "intellij",
-                "webstorm",
-                "editor",
-                "开发工具",
-                "sublime",
-                "atom",
-                "vim",
-                "neovim",
-                "github desktop",
-                "git",
-                "github",
-                "gitkraken",
-                "sourcetree",
-            ]
-            if any(keyword in app_lower for keyword in dev_keywords):
-                return "development"
-
-            # 文件管理
-            file_keywords = ["explorer", "文件", "file", "finder", "nautilus", "dolphin", "thunar"]
-            if any(keyword in app_lower for keyword in file_keywords):
-                return "file_management"
-
-            # Office 办公软件
-            office_keywords = [
-                "word",
-                "excel",
-                "powerpoint",
-                "wps",
-                "libreoffice",
-                "office",
-                "onenote",
-                "outlook",
-            ]
-            if any(keyword in app_lower for keyword in office_keywords):
-                return "office"
-
-            # 其他
-            return "other"
-
-        for app_name, app_data in app_usage_summary.items():
-            app_details.append(
-                {
-                    "app_name": app_name,
-                    "total_time": int(app_data.get("total_time", 0)),
-                    "category": categorize_app(app_name),
-                }
-            )
-
-        # 按使用时间排序
-        app_details.sort(key=lambda x: x["total_time"], reverse=True)
+        daily_distribution = _build_daily_distribution(stats_data.get("hourly_usage", {}))
+        app_details = _build_app_details(stats_data.get("app_usage_summary", {}))
 
         return TimeAllocationResponse(
             total_time=total_time, daily_distribution=daily_distribution, app_details=app_details

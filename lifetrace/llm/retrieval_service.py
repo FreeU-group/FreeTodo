@@ -4,11 +4,17 @@ from typing import Any
 from sqlalchemy import func, or_
 
 from lifetrace.storage import get_session
-from lifetrace.storage.models import Event, EventTaskRelation, OCRResult, Screenshot, Task
+from lifetrace.storage.models import OCRResult, Screenshot
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.query_parser import QueryConditions, QueryParser
 
 logger = get_logger()
+
+# 常量定义
+MAX_LOG_PREVIEW_RECORDS = 3  # 日志预览最大记录数
+MAX_APP_DISTRIBUTION_DISPLAY = 5  # 应用分布显示最大数量
+TIME_RECENCY_DAY_THRESHOLD = 1  # 时间新近性阈值（天）
+TIME_RECENCY_WEEK_THRESHOLD = 7  # 时间新近性阈值（周）
 
 
 class RetrievalService:
@@ -18,9 +24,84 @@ class RetrievalService:
         """
         初始化检索服务
         """
-        pass
         self.query_parser = QueryParser()
         logger.info("检索服务初始化完成")
+
+    def _build_base_query(self, session: Any, conditions: QueryConditions) -> Any:
+        """构建基础查询"""
+        query = session.query(Screenshot).join(OCRResult, Screenshot.id == OCRResult.screenshot_id)
+
+        # 添加时间范围过滤
+        if conditions.start_date:
+            query = query.filter(Screenshot.created_at >= conditions.start_date)
+        if conditions.end_date:
+            query = query.filter(Screenshot.created_at <= conditions.end_date)
+
+        # 添加应用名称过滤
+        if conditions.app_names:
+            app_filters = [Screenshot.app_name.ilike(f"%{app}%") for app in conditions.app_names]
+            query = query.filter(or_(*app_filters))
+
+        # 添加关键词过滤
+        if conditions.keywords:
+            keyword_filters = [
+                OCRResult.text_content.ilike(f"%{keyword}%") for keyword in conditions.keywords
+            ]
+            query = query.filter(or_(*keyword_filters))
+
+        return query.order_by(Screenshot.created_at.desc())
+
+    def _convert_screenshot_to_dict(
+        self, session: Any, screenshot: Screenshot, conditions: QueryConditions
+    ) -> dict[str, Any]:
+        """将截图转换为字典格式"""
+        ocr_results = (
+            session.query(OCRResult).filter(OCRResult.screenshot_id == screenshot.id).all()
+        )
+
+        ocr_text = " ".join([ocr.text_content for ocr in ocr_results if ocr.text_content])
+
+        return {
+            "screenshot_id": screenshot.id,
+            "timestamp": screenshot.created_at.isoformat() if screenshot.created_at else None,
+            "app_name": screenshot.app_name,
+            "window_title": screenshot.window_title,
+            "file_path": screenshot.file_path,
+            "ocr_text": ocr_text,
+            "ocr_count": len(ocr_results),
+            "relevance_score": self._calculate_relevance(screenshot, ocr_text, conditions),
+        }
+
+    def _log_query_results(self, data_list: list[dict[str, Any]]) -> None:
+        """记录查询结果日志"""
+        logger.info("=" * 60)
+        logger.info(f"📊 查询结果: 找到 {len(data_list)} 条记录")
+        logger.info("=" * 60)
+
+        if not data_list:
+            return
+
+        logger.info("📝 OCR内容详情 (前3条):")
+        for i, item in enumerate(data_list[:MAX_LOG_PREVIEW_RECORDS]):
+            ocr_text = item.get("ocr_text", "")
+            logger.info(f"  [{i + 1}] 截图ID: {item['screenshot_id']}")
+            logger.info(f"      应用: {item['app_name']}")
+            logger.info(f"      时间: {item['timestamp']}")
+            logger.info(f"      OCR文本长度: {len(ocr_text)} 字符")
+            logger.info(f"      OCR文本预览: {ocr_text[:100] if ocr_text else '❌ 无OCR内容'}")
+            if not ocr_text:
+                logger.warning("      ⚠️  警告: 这条记录没有OCR文本！")
+
+        # 统计有无OCR内容的记录
+        has_ocr = sum(1 for item in data_list if item.get("ocr_text"))
+        no_ocr = len(data_list) - has_ocr
+        logger.info("📈 OCR统计:")
+        logger.info(f"   ✅ 有OCR内容: {has_ocr} 条")
+        logger.info(f"   ❌ 无OCR内容: {no_ocr} 条")
+
+        logger.info("=" * 60)
+        logger.info("=== 查询完成 ===")
+        logger.info("=" * 60)
 
     def search_by_conditions(
         self, conditions: QueryConditions, limit: int = 50
@@ -39,114 +120,23 @@ class RetrievalService:
             logger.info(f"执行数据库查询 - 条件: {conditions}, 限制: {limit}")
 
             with get_session() as session:
-                # 构建基础查询
-                query = session.query(Screenshot).join(
-                    OCRResult, Screenshot.id == OCRResult.screenshot_id
-                )
-
-                # 添加项目过滤（通过 Screenshot -> Event -> EventTaskRelation -> Task -> Project 的关联）
-                if conditions.project_id:
-                    query = (
-                        query.join(Event, Screenshot.event_id == Event.id)
-                        .join(EventTaskRelation, Event.id == EventTaskRelation.event_id)
-                        .join(Task, EventTaskRelation.task_id == Task.id)
-                        .filter(Task.project_id == conditions.project_id)
-                    )
-
-                # 添加时间范围过滤
-                if conditions.start_date:
-                    query = query.filter(Screenshot.created_at >= conditions.start_date)
-                if conditions.end_date:
-                    query = query.filter(Screenshot.created_at <= conditions.end_date)
-
-                # 添加应用名称过滤
-                if conditions.app_names:
-                    app_filters = [
-                        Screenshot.app_name.ilike(f"%{app}%") for app in conditions.app_names
-                    ]
-                    query = query.filter(or_(*app_filters))
-
-                # 添加关键词过滤
-                if conditions.keywords:
-                    keyword_filters = []
-                    for keyword in conditions.keywords:
-                        keyword_filters.append(OCRResult.text_content.ilike(f"%{keyword}%"))
-
-                    if len(keyword_filters) > 1:
-                        # 多个关键词使用OR连接
-                        query = query.filter(or_(*keyword_filters))
-                    else:
-                        query = query.filter(keyword_filters[0])
-
-                # 按时间倒序排列
-                query = query.order_by(Screenshot.created_at.desc())
+                query = self._build_base_query(session, conditions)
 
                 # 限制结果数量 - 优先使用QueryConditions中的limit
                 effective_limit = conditions.limit if conditions.limit else limit
                 results = query.limit(effective_limit).all()
 
                 # 转换为字典格式
-                data_list = []
-                for screenshot in results:
-                    # 获取对应的OCR结果
-                    ocr_results = (
-                        session.query(OCRResult)
-                        .filter(OCRResult.screenshot_id == screenshot.id)
-                        .all()
-                    )
+                data_list = [
+                    self._convert_screenshot_to_dict(session, screenshot, conditions)
+                    for screenshot in results
+                ]
 
-                    ocr_text = " ".join(
-                        [ocr.text_content for ocr in ocr_results if ocr.text_content]
-                    )
-
-                    data_item = {
-                        "screenshot_id": screenshot.id,
-                        "timestamp": screenshot.created_at.isoformat()
-                        if screenshot.created_at
-                        else None,
-                        "app_name": screenshot.app_name,
-                        "window_title": screenshot.window_title,
-                        "file_path": screenshot.file_path,
-                        "ocr_text": ocr_text,
-                        "ocr_count": len(ocr_results),
-                        "relevance_score": self._calculate_relevance(
-                            screenshot, ocr_text, conditions
-                        ),
-                    }
-                    data_list.append(data_item)
-
-                # 按相关性得分排序
+                # 按时间排序
                 data_list.sort(key=lambda x: x["timestamp"], reverse=True)
 
                 # 记录查询结果
-                logger.info("=" * 60)
-                logger.info(f"📊 查询结果: 找到 {len(data_list)} 条记录")
-                logger.info("=" * 60)
-
-                if data_list:
-                    logger.info("📝 OCR内容详情 (前3条):")
-                    for i, item in enumerate(data_list[:3]):
-                        ocr_text = item.get("ocr_text", "")
-                        logger.info(f"  [{i + 1}] 截图ID: {item['screenshot_id']}")
-                        logger.info(f"      应用: {item['app_name']}")
-                        logger.info(f"      时间: {item['timestamp']}")
-                        logger.info(f"      OCR文本长度: {len(ocr_text)} 字符")
-                        logger.info(
-                            f"      OCR文本预览: {ocr_text[:100] if ocr_text else '❌ 无OCR内容'}"
-                        )
-                        if not ocr_text:
-                            logger.warning("      ⚠️  警告: 这条记录没有OCR文本！")
-
-                    # 统计有无OCR内容的记录
-                    has_ocr = sum(1 for item in data_list if item.get("ocr_text"))
-                    no_ocr = len(data_list) - has_ocr
-                    logger.info("📈 OCR统计:")
-                    logger.info(f"   ✅ 有OCR内容: {has_ocr} 条")
-                    logger.info(f"   ❌ 无OCR内容: {no_ocr} 条")
-
-                logger.info("=" * 60)
-                logger.info("=== 查询完成 ===")
-                logger.info("=" * 60)
+                self._log_query_results(data_list)
 
                 logger.info(f"检索完成，找到 {len(data_list)} 条记录")
                 return data_list
@@ -242,7 +232,49 @@ class RetrievalService:
 
         return self.search_by_conditions(conditions, limit)
 
-    def get_statistics(self, conditions: QueryConditions = None) -> dict[str, Any]:
+    def _apply_stats_conditions(self, query: Any, conditions: QueryConditions | None) -> Any:
+        """应用统计查询条件"""
+        if not conditions:
+            return query
+
+        if conditions.start_date:
+            query = query.filter(Screenshot.created_at >= conditions.start_date)
+        if conditions.end_date:
+            query = query.filter(Screenshot.created_at <= conditions.end_date)
+        if conditions.app_names:
+            app_filters = [Screenshot.app_name.ilike(f"%{app}%") for app in conditions.app_names]
+            query = query.filter(or_(*app_filters))
+
+        return query
+
+    def _build_stats_result(
+        self,
+        total_count: int,
+        app_stats: list[tuple[str, int]],
+        time_range: Any,
+        conditions: QueryConditions | None,
+    ) -> dict[str, Any]:
+        """构建统计结果"""
+        return {
+            "total_screenshots": total_count,
+            "app_distribution": dict(app_stats),
+            "time_range": {
+                "earliest": time_range.earliest.isoformat() if time_range.earliest else None,
+                "latest": time_range.latest.isoformat() if time_range.latest else None,
+            },
+            "query_conditions": {
+                "start_date": conditions.start_date.isoformat()
+                if conditions and conditions.start_date
+                else None,
+                "end_date": conditions.end_date.isoformat()
+                if conditions and conditions.end_date
+                else None,
+                "app_names": conditions.app_names if conditions else None,
+                "keywords": conditions.keywords if conditions else [],
+            },
+        }
+
+    def get_statistics(self, conditions: QueryConditions | None = None) -> dict[str, Any]:
         """
         获取统计信息
 
@@ -253,59 +285,20 @@ class RetrievalService:
             统计信息字典
         """
         try:
-            # 记录统计查询条件
             logger.info("=== 数据库查询 - get_statistics ===")
             logger.info(f"统计查询条件: {conditions}")
-            logger.info(f"执行统计查询 - 条件: {conditions}")
 
             with get_session() as session:
-                # 基础查询
-                query = session.query(Screenshot)
-
-                # 应用条件过滤
-                if conditions:
-                    # 添加项目过滤
-                    if conditions.project_id:
-                        query = (
-                            query.join(Event, Screenshot.event_id == Event.id)
-                            .join(EventTaskRelation, Event.id == EventTaskRelation.event_id)
-                            .join(Task, EventTaskRelation.task_id == Task.id)
-                            .filter(Task.project_id == conditions.project_id)
-                        )
-                    if conditions.start_date:
-                        query = query.filter(Screenshot.created_at >= conditions.start_date)
-                    if conditions.end_date:
-                        query = query.filter(Screenshot.created_at <= conditions.end_date)
-                    if conditions.app_names:
-                        # 支持多个应用名称过滤
-                        app_filters = [
-                            Screenshot.app_name.ilike(f"%{app}%") for app in conditions.app_names
-                        ]
-                        query = query.filter(or_(*app_filters))
-
-                # 总记录数
+                # 基础查询并应用条件
+                query = self._apply_stats_conditions(session.query(Screenshot), conditions)
                 total_count = query.count()
 
                 # 按应用分组统计
-                app_stats = session.query(
+                app_stats_query = session.query(
                     Screenshot.app_name, func.count(Screenshot.id).label("count")
                 ).group_by(Screenshot.app_name)
-
-                if conditions:
-                    # 添加项目过滤
-                    if conditions.project_id:
-                        app_stats = (
-                            app_stats.join(Event, Screenshot.event_id == Event.id)
-                            .join(EventTaskRelation, Event.id == EventTaskRelation.event_id)
-                            .join(Task, EventTaskRelation.task_id == Task.id)
-                            .filter(Task.project_id == conditions.project_id)
-                        )
-                    if conditions.start_date:
-                        app_stats = app_stats.filter(Screenshot.created_at >= conditions.start_date)
-                    if conditions.end_date:
-                        app_stats = app_stats.filter(Screenshot.created_at <= conditions.end_date)
-
-                app_stats = app_stats.all()
+                app_stats_query = self._apply_stats_conditions(app_stats_query, conditions)
+                app_stats = app_stats_query.all()
 
                 # 时间范围
                 time_range = query.with_entities(
@@ -313,39 +306,17 @@ class RetrievalService:
                     func.max(Screenshot.created_at).label("latest"),
                 ).first()
 
-                stats = {
-                    "total_screenshots": total_count,
-                    "app_distribution": dict(app_stats),
-                    "time_range": {
-                        "earliest": time_range.earliest.isoformat()
-                        if time_range.earliest
-                        else None,
-                        "latest": time_range.latest.isoformat() if time_range.latest else None,
-                    },
-                    "query_conditions": {
-                        "start_date": conditions.start_date.isoformat()
-                        if conditions and conditions.start_date
-                        else None,
-                        "end_date": conditions.end_date.isoformat()
-                        if conditions and conditions.end_date
-                        else None,
-                        "app_names": conditions.app_names if conditions else None,
-                        "keywords": conditions.keywords if conditions else [],
-                    },
-                }
+                stats = self._build_stats_result(total_count, app_stats, time_range, conditions)
 
                 # 记录统计结果
-                logger.info("统计结果:")
-                logger.info(f"  总截图数: {total_count}")
+                logger.info(f"统计结果: 总截图数={total_count}")
+                app_dist = stats["app_distribution"]
+                app_preview = dict(list(app_dist.items())[:MAX_APP_DISTRIBUTION_DISPLAY])
                 logger.info(
-                    f"  应用分布: {dict(list(stats['app_distribution'].items())[:5])}{'...' if len(stats['app_distribution']) > 5 else ''}"
-                )
-                logger.info(
-                    f"  时间范围: {stats['time_range']['earliest']} 到 {stats['time_range']['latest']}"
+                    f"  应用分布: {app_preview}{'...' if len(app_dist) > MAX_APP_DISTRIBUTION_DISPLAY else ''}"
                 )
                 logger.info("=== 统计查询完成 ===")
 
-                logger.info(f"统计信息获取完成: {total_count} 条记录")
                 return stats
 
         except Exception as e:
@@ -393,9 +364,9 @@ class RetrievalService:
         if screenshot.created_at:
             now = datetime.now()
             time_diff = now - screenshot.created_at
-            if time_diff.days < 1:
+            if time_diff.days < TIME_RECENCY_DAY_THRESHOLD:
                 score += 0.2
-            elif time_diff.days < 7:
+            elif time_diff.days < TIME_RECENCY_WEEK_THRESHOLD:
                 score += 0.1
 
         return min(score, 1.0)

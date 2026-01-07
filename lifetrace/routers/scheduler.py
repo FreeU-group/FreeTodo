@@ -302,8 +302,6 @@ def _sync_job_enabled_to_config(job_id: str, enabled: bool):
     job_config_map = {
         "recorder_job": "jobs.recorder.enabled",
         "ocr_job": "jobs.ocr.enabled",
-        "task_context_mapper_job": "jobs.task_context_mapper.enabled",
-        "task_summary_job": "jobs.task_summary.enabled",
         "clean_data_job": "jobs.clean_data.enabled",
         "activity_aggregator_job": "jobs.activity_aggregator.enabled",
         "todo_recorder_job": "jobs.todo_recorder.enabled",
@@ -354,8 +352,6 @@ def _sync_job_interval_to_config(
     job_config_map = {
         "recorder_job": "jobs.recorder.interval",
         "ocr_job": "jobs.ocr.interval",
-        "task_context_mapper_job": "jobs.task_context_mapper.interval",
-        "task_summary_job": "jobs.task_summary.interval",
         "clean_data_job": "jobs.clean_data.interval",
         "activity_aggregator_job": "jobs.activity_aggregator.interval",
         "todo_recorder_job": "jobs.todo_recorder.interval",

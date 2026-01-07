@@ -132,8 +132,15 @@ async function main() {
 
 	try {
 		// 1. 查找可用的前端端口
-		const frontendPort = await findAvailablePort(DEFAULT_FRONTEND_PORT);
-		console.log(`✅ 前端端口: ${frontendPort}`);
+		// 如果环境变量 PORT 已设置，优先使用它（Electron 主进程可能已经分配了端口）
+		let frontendPort;
+		if (process.env.PORT) {
+			frontendPort = Number.parseInt(process.env.PORT, 10);
+			console.log(`✅ 使用环境变量指定的前端端口: ${frontendPort}`);
+		} else {
+			frontendPort = await findAvailablePort(DEFAULT_FRONTEND_PORT);
+			console.log(`✅ 前端端口: ${frontendPort}`);
+		}
 
 		// 2. 查找运行中的 FreeTodo 后端端口（通过 /health 端点验证）
 		console.log(`🔍 正在查找 FreeTodo 后端...`);

@@ -8,7 +8,13 @@ import { BackendServer } from "./backend-server";
 import { isDevelopment, TIMEOUT_CONFIG } from "./config";
 import { setupIpcHandlers } from "./ipc-handlers";
 import { logger } from "./logger";
-import { NextServer } from "./next-server";
+import {
+	getServerUrl,
+	setBackendUrl,
+	startNextServer,
+	stopNextServer,
+	waitForServerPublic,
+} from "./next-server";
 import { requestNotificationPermission } from "./notification";
 import { WindowManager } from "./window-manager";
 
@@ -24,8 +30,6 @@ if (!gotTheLock) {
 } else {
 	// 初始化各管理器实例
 	const backendServer = new BackendServer();
-	// NextServer 需要后端 URL，初始时使用默认值，启动后更新
-	const nextServer = new NextServer(backendServer.getUrl());
 	const windowManager = new WindowManager();
 
 	// 设置全局异常处理
@@ -36,10 +40,10 @@ if (!gotTheLock) {
 		if (windowManager.hasWindow()) {
 			windowManager.focus();
 		} else if (app.isReady()) {
-			windowManager.create(nextServer.getUrl());
+			windowManager.create(getServerUrl());
 		} else {
 			app.once("ready", () => {
-				windowManager.create(nextServer.getUrl());
+				windowManager.create(getServerUrl());
 			});
 		}
 	});
@@ -47,7 +51,7 @@ if (!gotTheLock) {
 	// macOS: 点击 dock 图标时重新创建窗口
 	app.on("activate", () => {
 		if (!WindowManager.hasAnyWindows()) {
-			windowManager.create(nextServer.getUrl());
+			windowManager.create(getServerUrl());
 		}
 	});
 
@@ -60,17 +64,17 @@ if (!gotTheLock) {
 
 	// 应用退出前清理
 	app.on("before-quit", () => {
-		cleanup(backendServer, nextServer);
+		cleanup(backendServer);
 	});
 
 	// 应用退出时确保清理
 	app.on("quit", () => {
-		cleanup(backendServer, nextServer);
+		cleanup(backendServer);
 	});
 
 	// 应用准备就绪后启动
 	app.whenReady().then(async () => {
-		await bootstrap(backendServer, nextServer, windowManager);
+		await bootstrap(backendServer, windowManager);
 	});
 }
 
@@ -95,7 +99,6 @@ function setupGlobalErrorHandlers(): void {
  */
 async function bootstrap(
 	backendServer: BackendServer,
-	nextServer: NextServer,
 	windowManager: WindowManager,
 ): Promise<void> {
 	try {
@@ -108,20 +111,68 @@ async function bootstrap(
 		// 请求通知权限
 		await requestNotificationPermission();
 
-		// 1. 启动后端服务器
-		await backendServer.start();
+		// 1. 自动检测后端端口（如果后端已运行）
+		logger.info("Detecting running backend server...");
+		const detectedBackendPort = await backendServer.detectRunningBackendPort();
+		if (detectedBackendPort) {
+			backendServer.setPort(detectedBackendPort);
+			logger.info(`Detected backend running on port: ${detectedBackendPort}`);
+		} else {
+			// 如果检测不到，启动后端服务器
+			logger.info("No running backend detected, will start backend server...");
+			await backendServer.start();
+		}
+
+		// 等待后端就绪（最多等待 180 秒）
+		const backendUrl = backendServer.getUrl();
+		logger.console(
+			`Waiting for backend server at ${backendUrl} to be ready...`,
+		);
+		try {
+			await backendServer.waitForReadyPublic(
+				backendUrl,
+				TIMEOUT_CONFIG.backendReady * 6, // 3分钟超时
+			);
+			logger.console(`Backend server is ready at ${backendUrl}!`);
+			// 确保健康检查已启动
+			backendServer.ensureHealthCheck();
+		} catch (error) {
+			const errorMsg = `Backend server not available: ${error instanceof Error ? error.message : String(error)}`;
+			logger.warn(errorMsg);
+			// 开发模式下，后端服务器不可用时不阻塞，继续启动窗口
+			if (!isDev) {
+				throw error; // 生产模式下必须要有后端
+			}
+		}
 
 		// 更新 NextServer 的后端 URL（后端可能使用了动态端口）
-		nextServer.setBackendUrl(backendServer.getUrl());
+		setBackendUrl(backendServer.getUrl());
 
 		// 2. 启动 Next.js 前端服务器
-		await nextServer.start();
+		await startNextServer();
 
-		// 3. 创建窗口
-		windowManager.create(nextServer.getUrl());
+		// 3. 等待 Next.js 服务器就绪（最多等待 30 秒）
+		const serverUrl = getServerUrl();
+		logger.console(
+			`Waiting for Next.js server at ${serverUrl} to be ready...`,
+		);
+		try {
+			await waitForServerPublic(serverUrl, 30000);
+			logger.console(`Next.js server is ready at ${serverUrl}!`);
+		} catch (error) {
+			const errorMsg = `Next.js server did not start within 30000ms: ${error instanceof Error ? error.message : String(error)}`;
+			logger.error(errorMsg);
+			// 开发模式下，即使服务器未就绪也继续（可能启动较慢）
+			if (!isDev) {
+				throw error; // 生产模式下必须要有服务器
+			}
+		}
+
+		// 4. 创建窗口
+		windowManager.create(serverUrl);
 
 		logger.info(
-			`Window created successfully. Frontend: ${nextServer.getUrl()}, Backend: ${backendServer.getUrl()}`,
+			`Window created successfully. Frontend: ${getServerUrl()}, Backend: ${backendServer.getUrl()}`,
 		);
 	} catch (error) {
 		handleStartupError(error);
@@ -164,7 +215,7 @@ function handleStartupError(error: unknown): void {
 /**
  * 清理资源
  */
-function cleanup(backendServer: BackendServer, nextServer: NextServer): void {
+function cleanup(backendServer: BackendServer): void {
 	backendServer.stop();
-	nextServer.stop();
+	stopNextServer();
 }

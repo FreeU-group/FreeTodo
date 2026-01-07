@@ -192,8 +192,8 @@ class QueryParser:
 
         return start_date, end_date
 
-    def _extract_app_names(self, query: str) -> list[str] | None:
-        """提取应用名称"""
+    def _find_app_names_from_mappings(self, query: str) -> list[str]:
+        """从映射表中查找应用名称"""
         friendly_app_names = []
 
         # 首先检查app_mapping中支持的应用名称
@@ -202,35 +202,48 @@ class QueryParser:
                 friendly_app_names.append(app_name)
 
         # 检查传统的应用别名映射
-        for app_alias, _real_names in self.app_name_mapping.items():
+        for app_alias in self.app_name_mapping:
             if app_alias in query and app_alias not in friendly_app_names:
                 friendly_app_names.append(app_alias)
 
-        # 直接匹配可能的应用名称
+        return friendly_app_names
+
+    def _find_app_names_from_patterns(self, query: str, existing: list[str]) -> list[str]:
+        """通过正则模式查找应用名称"""
         app_patterns = [
             r"在([\u4e00-\u9fa5a-zA-Z0-9\s]+)上",  # 在XX上
             r"([\u4e00-\u9fa5a-zA-Z0-9\s]+)应用",  # XX应用
             r"([\u4e00-\u9fa5a-zA-Z0-9\s]+)软件",  # XX软件
         ]
 
+        found_names = list(existing)
         for pattern in app_patterns:
             matches = re.findall(pattern, query)
             for match in matches:
                 app_name = match.strip()
-                if app_name and app_name not in friendly_app_names:
-                    friendly_app_names.append(app_name)
+                if app_name and app_name not in found_names:
+                    found_names.append(app_name)
 
-        # 转换为实际进程名
+        return found_names
+
+    def _convert_to_process_names(self, friendly_names: list[str]) -> list[str]:
+        """将友好名称转换为实际进程名"""
+        actual_process_names = []
+        for app_name in friendly_names:
+            process_names = app_mapper.get_process_names(app_name)
+            if process_names:
+                actual_process_names.extend(process_names)
+            else:
+                actual_process_names.append(app_name)
+        return actual_process_names
+
+    def _extract_app_names(self, query: str) -> list[str] | None:
+        """提取应用名称"""
+        friendly_app_names = self._find_app_names_from_mappings(query)
+        friendly_app_names = self._find_app_names_from_patterns(query, friendly_app_names)
+
         if friendly_app_names:
-            actual_process_names = []
-            for app_name in friendly_app_names:
-                process_names = app_mapper.get_process_names(app_name)
-                if process_names:
-                    actual_process_names.extend(process_names)
-                else:
-                    # 如果映射中没有找到，保留原名称
-                    actual_process_names.append(app_name)
-            return actual_process_names
+            return self._convert_to_process_names(friendly_app_names)
 
         return None
 
@@ -328,42 +341,44 @@ class QueryParser:
 
 只返回JSON，不要其他解释。"""
 
+    def _parse_datetime_safe(self, date_str: str | None) -> datetime | None:
+        """安全地解析日期时间字符串"""
+        if not date_str:
+            return None
+        try:
+            return datetime.fromisoformat(date_str)
+        except (ValueError, TypeError):
+            return None
+
+    def _extract_time_from_parsed_data(
+        self, parsed_data: dict[str, Any]
+    ) -> tuple[datetime | None, datetime | None]:
+        """从解析数据中提取时间范围"""
+        if parsed_data.get("time_range"):
+            time_range = parsed_data["time_range"]
+            return (
+                self._parse_datetime_safe(time_range.get("start")),
+                self._parse_datetime_safe(time_range.get("end")),
+            )
+        return (
+            self._parse_datetime_safe(parsed_data.get("start_date")),
+            self._parse_datetime_safe(parsed_data.get("end_date")),
+        )
+
     def _build_query_conditions(self, parsed_data: dict[str, Any]) -> QueryConditions:
         """从解析数据构建查询条件"""
         conditions = QueryConditions()
 
-        # 处理时间范围 - 支持两种格式
-        if parsed_data.get("time_range"):
-            time_range = parsed_data["time_range"]
-            if time_range.get("start"):
-                conditions.start_date = datetime.fromisoformat(time_range["start"])
-            if time_range.get("end"):
-                conditions.end_date = datetime.fromisoformat(time_range["end"])
-        else:
-            # 处理直接的start_date和end_date字段
-            if parsed_data.get("start_date"):
-                try:
-                    conditions.start_date = datetime.fromisoformat(parsed_data["start_date"])
-                except (ValueError, TypeError):
-                    pass
-            if parsed_data.get("end_date"):
-                try:
-                    conditions.end_date = datetime.fromisoformat(parsed_data["end_date"])
-                except (ValueError, TypeError):
-                    pass
+        # 处理时间范围
+        conditions.start_date, conditions.end_date = self._extract_time_from_parsed_data(
+            parsed_data
+        )
 
-        # 处理应用名称 - 使用app_mapping转换为实际进程名
+        # 处理应用名称
         if parsed_data.get("app_names"):
-            actual_process_names = []
-            for app_name in parsed_data["app_names"]:
-                # 使用AppMapper获取当前平台的实际进程名
-                process_names = app_mapper.get_process_names(app_name)
-                if process_names:
-                    actual_process_names.extend(process_names)
-                else:
-                    # 如果映射中没有找到，保留原名称
-                    actual_process_names.append(app_name)
-            conditions.app_names = actual_process_names if actual_process_names else None
+            conditions.app_names = self._convert_to_process_names(parsed_data["app_names"])
+            if not conditions.app_names:
+                conditions.app_names = None
 
         # 处理关键词
         if parsed_data.get("keywords"):
