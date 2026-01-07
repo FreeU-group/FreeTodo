@@ -12,7 +12,7 @@ import { BottomDock } from "@/components/layout/BottomDock";
 import { PanelContainer } from "@/components/layout/PanelContainer";
 import { PanelContent } from "@/components/layout/PanelContent";
 import { ResizeHandle } from "@/components/layout/ResizeHandle";
-import { DynamicIsland } from "@/components/notification/DynamicIsland";
+import { HeaderIsland } from "@/components/notification/HeaderIsland";
 import { GlobalDndProvider } from "@/lib/dnd";
 import { useWindowAdaptivePanels } from "@/lib/hooks/useWindowAdaptivePanels";
 import { useConfig } from "@/lib/query";
@@ -355,7 +355,7 @@ export default function HomePage() {
 						{/* 中间：通知区域（灵动岛） - 只在有通知时显示 */}
 						{currentNotification && (
 							<div className="flex-1 flex items-center justify-center relative min-w-0 overflow-visible">
-								<DynamicIsland />
+								<HeaderIsland />
 							</div>
 						)}
 
