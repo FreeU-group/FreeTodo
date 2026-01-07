@@ -48,7 +48,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX code lines (max 500)
-        entry: node free-todo-frontend/scripts/check_code_lines.mts --include apps,components,lib --exclude lib/generated
+        entry: node free-todo-frontend/scripts/check_code_lines.mts --include apps,components,electron,lib --exclude lib/generated
         language: system
         files: ^free-todo-frontend/.*\.(ts|tsx)$
         pass_filenames: true

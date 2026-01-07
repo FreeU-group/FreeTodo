@@ -28,7 +28,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // 默认配置
-const DEFAULT_INCLUDE = ["apps", "components", "lib"];
+const DEFAULT_INCLUDE = ["apps", "components", "electron", "lib"];
 const DEFAULT_EXCLUDE = ["lib/generated"];
 const DEFAULT_MAX_LINES = 500;
 
