@@ -34,6 +34,17 @@ export type CorePanelFeature =
 export type DevPanelFeature = "debugShots";
 export type PanelFeature = CorePanelFeature | DevPanelFeature;
 
+/**
+ * 开发中的面板功能列表
+ * 这些功能默认在 UI 中处于关闭状态，由用户手动开启
+ */
+export const DEV_IN_PROGRESS_FEATURES: PanelFeature[] = [
+	"diary",
+	"activity",
+	"debugShots",
+	"achievements",
+];
+
 const CORE_PANEL_FEATURES: CorePanelFeature[] = [
 	"calendar",
 	"activity",

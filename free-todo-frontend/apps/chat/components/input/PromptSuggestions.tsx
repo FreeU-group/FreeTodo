@@ -1,15 +1,6 @@
 "use client";
 
-import {
-	Calendar,
-	CheckSquare,
-	Clock,
-	Lightbulb,
-	ListChecks,
-	Target,
-	TrendingUp,
-	Zap,
-} from "lucide-react";
+import { Lightbulb, ListChecks, TrendingUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback } from "react";
 import { cn } from "@/lib/utils";
@@ -19,14 +10,17 @@ type PromptSuggestion = {
 	icon: React.ComponentType<{ className?: string }>;
 	label: string;
 	prompt: string;
-	color: string;
 };
 
 type PromptSuggestionsProps = {
 	onSelect: (prompt: string) => void;
+	className?: string;
 };
 
-export function PromptSuggestions({ onSelect }: PromptSuggestionsProps) {
+export function PromptSuggestions({
+	onSelect,
+	className,
+}: PromptSuggestionsProps) {
 	const t = useTranslations("chat");
 
 	const suggestions: PromptSuggestion[] = [
@@ -35,56 +29,18 @@ export function PromptSuggestions({ onSelect }: PromptSuggestionsProps) {
 			icon: ListChecks,
 			label: t("suggestions.breakdown"),
 			prompt: t("suggestions.breakdownPrompt"),
-			color: "bg-purple-100 dark:bg-purple-900/20",
-		},
-		{
-			id: "plan",
-			icon: Calendar,
-			label: t("suggestions.plan"),
-			prompt: t("suggestions.planPrompt"),
-			color: "bg-green-100 dark:bg-green-900/20",
 		},
 		{
 			id: "priority",
 			icon: TrendingUp,
 			label: t("suggestions.priority"),
 			prompt: t("suggestions.priorityPrompt"),
-			color: "bg-yellow-100 dark:bg-yellow-900/20",
-		},
-		{
-			id: "time",
-			icon: Clock,
-			label: t("suggestions.time"),
-			prompt: t("suggestions.timePrompt"),
-			color: "bg-blue-100 dark:bg-blue-900/20",
-		},
-		{
-			id: "review",
-			icon: CheckSquare,
-			label: t("suggestions.review"),
-			prompt: t("suggestions.reviewPrompt"),
-			color: "bg-pink-100 dark:bg-pink-900/20",
-		},
-		{
-			id: "optimize",
-			icon: Zap,
-			label: t("suggestions.optimize"),
-			prompt: t("suggestions.optimizePrompt"),
-			color: "bg-orange-100 dark:bg-orange-900/20",
-		},
-		{
-			id: "goal",
-			icon: Target,
-			label: t("suggestions.goal"),
-			prompt: t("suggestions.goalPrompt"),
-			color: "bg-indigo-100 dark:bg-indigo-900/20",
 		},
 		{
 			id: "advice",
 			icon: Lightbulb,
 			label: t("suggestions.advice"),
 			prompt: t("suggestions.advicePrompt"),
-			color: "bg-teal-100 dark:bg-teal-900/20",
 		},
 	];
 
@@ -96,38 +52,28 @@ export function PromptSuggestions({ onSelect }: PromptSuggestionsProps) {
 	);
 
 	return (
-		<div className="flex flex-col items-center justify-center flex-1 px-4 py-8">
-			<div className="w-full max-w-4xl">
-				<div className="grid grid-cols-2 gap-4">
-					{suggestions.map((suggestion) => {
-						const Icon = suggestion.icon;
-						return (
-							<button
-								key={suggestion.id}
-								type="button"
-								onClick={() => handleClick(suggestion.prompt)}
-								className={cn(
-									"relative flex flex-col items-start gap-3 rounded-xl p-4 text-left transition-all hover:scale-[1.02] active:scale-[0.98]",
-									suggestion.color,
-									"border border-border/50",
-									"hover:shadow-md",
-								)}
-							>
-								<div className="flex items-center gap-3 w-full">
-									<div className="shrink-0">
-										<Icon className="h-5 w-5 text-foreground/70" />
-									</div>
-									<div className="flex-1 min-w-0">
-										<div className="text-sm font-medium text-foreground">
-											{suggestion.label}
-										</div>
-									</div>
-								</div>
-							</button>
-						);
-					})}
-				</div>
-			</div>
+		<div className={cn("flex flex-wrap justify-center gap-3 px-4", className)}>
+			{suggestions.map((suggestion) => {
+				const Icon = suggestion.icon;
+				return (
+					<button
+						key={suggestion.id}
+						type="button"
+						onClick={() => handleClick(suggestion.prompt)}
+						className={cn(
+							"flex items-center gap-2 rounded-full px-4 py-2.5",
+							"bg-muted/80 hover:bg-muted",
+							"text-sm text-foreground/80 hover:text-foreground",
+							"border border-border/40 hover:border-border",
+							"transition-all duration-200",
+							"hover:shadow-sm",
+						)}
+					>
+						<Icon className="h-4 w-4" />
+						<span>{suggestion.label}</span>
+					</button>
+				);
+			})}
 		</div>
 	);
 }

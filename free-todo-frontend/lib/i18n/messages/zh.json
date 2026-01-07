@@ -100,11 +100,11 @@
 			"apiKeyRequired": "请先填写 API Key 和 Base URL",
 			"apiKeyHint": "如何获取 API Key？请访问",
 			"apiKeyLink": "阿里云百炼控制台",
-			"basicSettings": "基础设置",
+			"basicSettings": "屏幕录制设置",
 			"enableRecording": "启用录制",
 			"enableRecordingDesc": "开启屏幕录制和截图功能",
 			"screenshotInterval": "截图间隔（秒）",
-			"enableBlacklist": "启用黑名单",
+			"enableBlacklist": "启用黑名单（用于截图调试面板和活动面板）",
 			"enableBlacklistDesc": "开启后可以设置不需要截图的应用",
 			"appBlacklist": "应用黑名单",
 			"blacklistPlaceholder": "输入应用名称后按回车添加",
@@ -114,7 +114,11 @@
 			"dockDisplayModeLabel": "显示模式",
 			"dockDisplayModeFixed": "固定显示",
 			"dockDisplayModeAutoHide": "自动隐藏",
-			"dockDisplayModeChanged": "底部工具栏显示模式已更改"
+			"dockDisplayModeChanged": "底部工具栏显示模式已更改",
+			"developerSectionTitle": "开发者选项",
+			"developerSectionDescription": "高级和实验性功能配置，仅推荐开发者或高级用户使用。",
+			"devPanelsTitle": "开发中的面板",
+			"devPanelsDescription": "这些面板仍在开发中，默认不会显示在底部 Dock 中，你可以在这里手动开启。"
 		},
 		"costTracking": {
 			"title": "费用统计",
@@ -217,6 +221,10 @@
 		"dateFormat": "{month}月{day}日"
 	},
 	"chat": {
+		"greetings": {
+			"title": "Free Todo，放手去做",
+			"subtitle": "智能待办助手，帮你拆解任务、规划优先级、提升效率"
+		},
 		"planModeInputPlaceholder": "例如：帮我规划周末搬家需要做的事",
 		"difyTest": {
 			"inputPlaceholder": "这里是 Dify 测试通道的提示词..."

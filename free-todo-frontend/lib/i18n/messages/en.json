@@ -100,11 +100,11 @@
 			"apiKeyRequired": "Please fill in API Key and Base URL",
 			"apiKeyHint": "How to get API Key? Please visit",
 			"apiKeyLink": "Aliyun Bailian Console",
-			"basicSettings": "Basic Settings",
+			"basicSettings": "Screen Recording Settings",
 			"enableRecording": "Enable Recording",
 			"enableRecordingDesc": "Enable screen recording and screenshot features",
 			"screenshotInterval": "Screenshot Interval (seconds)",
-			"enableBlacklist": "Enable Blacklist",
+			"enableBlacklist": "Enable Blacklist (for screenshot debug panel and activity panel)",
 			"enableBlacklistDesc": "Enable to set apps that do not need screenshots",
 			"appBlacklist": "App Blacklist",
 			"blacklistPlaceholder": "Enter app name and press Enter to add",
@@ -114,7 +114,11 @@
 			"dockDisplayModeLabel": "Display Mode",
 			"dockDisplayModeFixed": "Always Visible",
 			"dockDisplayModeAutoHide": "Auto Hide",
-			"dockDisplayModeChanged": "Dock display mode changed"
+			"dockDisplayModeChanged": "Dock display mode changed",
+			"developerSectionTitle": "Developer Options",
+			"developerSectionDescription": "Advanced and experimental settings for developers or power users.",
+			"devPanelsTitle": "Panels in Development",
+			"devPanelsDescription": "These panels are still under development. They are hidden from the dock by default; you can enable them here."
 		},
 		"costTracking": {
 			"title": "Cost Tracking",
@@ -217,6 +221,10 @@
 		"dateFormat": "{month}/{day}"
 	},
 	"chat": {
+		"greetings": {
+			"title": "Free Todo, Just Do It",
+			"subtitle": "Your intelligent todo assistant for breaking down tasks, prioritizing, and getting things done"
+		},
 		"planModeInputPlaceholder": "e.g. Help me plan the todos for moving this weekend",
 		"difyTest": {
 			"inputPlaceholder": "Prompt for Dify test channel..."
