@@ -104,3 +104,64 @@ export function processBodyWithCitations(
 		return match;
 	});
 }
+
+export type TodoConfirmationData =
+	| {
+			type: "todo_confirmation";
+			operation: "create_todo" | "update_todo" | "delete_todo";
+			data: {
+				operation: string;
+				todo_id?: number;
+				params?: Record<string, unknown>;
+			};
+			preview: string;
+	  }
+	| {
+			type: "batch_todo_confirmation";
+			operation: "batch_create_todos";
+			todos: Array<{ name: string; description?: string }>;
+			preview: string;
+	  }
+	| {
+			type: "batch_todo_confirmation";
+			operation: "batch_delete_todos";
+			todos: Array<{ id: number; name: string }>;
+			preview: string;
+	  }
+	| {
+			type: "organize_todos_confirmation";
+			operation: "organize_todos";
+			todos: Array<{ id: number; name: string }>;
+			parent_title: string;
+			todo_ids: number[];
+			preview: string;
+	  };
+
+/**
+ * 解析并提取待确认信息
+ */
+export function parseTodoConfirmation(
+	content: string,
+): {
+	confirmation: TodoConfirmationData | null;
+	contentWithoutConfirmation: string;
+} {
+	const confirmationPattern =
+		/<!-- TODO_CONFIRMATION:\s*({.+?})\s*-->/s;
+	const match = content.match(confirmationPattern);
+	if (match) {
+		try {
+			const confirmationData = JSON.parse(match[1]);
+			const contentWithoutConfirmation = content
+				.replace(confirmationPattern, "")
+				.trim();
+			return {
+				confirmation: confirmationData as TodoConfirmationData,
+				contentWithoutConfirmation,
+			};
+		} catch (error) {
+			console.error("解析确认信息失败:", error);
+		}
+	}
+	return { confirmation: null, contentWithoutConfirmation: content };
+}
