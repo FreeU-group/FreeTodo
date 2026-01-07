@@ -11,12 +11,34 @@ from lifetrace.llm.llm_client import LLMClient
 from lifetrace.storage import screenshot_mgr, todo_mgr
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
+from lifetrace.util.settings import settings
 from lifetrace.util.time_parser import calculate_scheduled_time
 
 logger = get_logger()
 
-# 需要特殊处理的应用列表（白名单）
-TODO_EXTRACTION_WHITELIST_APPS = ["微信", "WeChat", "飞书", "Feishu", "Lark", "钉钉", "DingTalk"]
+# 默认白名单应用列表（当配置不存在时使用）
+DEFAULT_WHITELIST_APPS = ["微信", "WeChat", "飞书", "Feishu", "Lark", "钉钉", "DingTalk"]
+
+
+def get_whitelist_apps() -> list[str]:
+    """获取白名单应用列表
+
+    优先从配置文件读取，如果配置不存在则使用默认列表
+
+    Returns:
+        白名单应用列表
+    """
+    try:
+        apps = settings.get("jobs.auto_todo_detection.params.whitelist.apps")
+        if apps and isinstance(apps, list):
+            return apps
+    except (KeyError, AttributeError):
+        logger.debug("自动待办检测白名单配置不存在，使用默认列表")
+    return DEFAULT_WHITELIST_APPS
+
+
+# 为了向后兼容，保留原有的常量引用（从配置动态读取）
+TODO_EXTRACTION_WHITELIST_APPS = get_whitelist_apps()
 
 
 class AutoTodoDetectionService:
@@ -37,11 +59,10 @@ class AutoTodoDetectionService:
         """
         if not app_name:
             return False
+        # 每次调用时动态获取白名单，支持配置热更新
+        whitelist_apps = get_whitelist_apps()
         app_name_lower = app_name.lower()
-        return any(
-            whitelist_app.lower() in app_name_lower
-            for whitelist_app in TODO_EXTRACTION_WHITELIST_APPS
-        )
+        return any(whitelist_app.lower() in app_name_lower for whitelist_app in whitelist_apps)
 
     def detect_and_create_todos_from_screenshot(self, screenshot_id: int) -> dict[str, Any]:
         """

@@ -11,6 +11,13 @@ const nextConfig: NextConfig = {
 	output: "standalone",
 	reactStrictMode: true,
 	typedRoutes: true,
+	// 在 Electron 环境中禁用 SSR，避免窗口显示问题
+	// 注意：这会影响 SEO，但对于 Electron 应用来说不是问题
+	...(process.env.ELECTRON === "true"
+		? {
+				// 可以在这里添加 Electron 特定的配置
+			}
+		: {}),
 	async rewrites() {
 		return [
 			{

@@ -55,6 +55,21 @@ jobs:
     id: auto_todo_detection # 任务ID
     name: 自动待办检测 # 任务显示名称（中文）
     enabled: false # 是否启用自动待办检测（默认关闭，需用户手动开启）
+    params:
+      whitelist:
+        apps: ['微信', 'WeChat', '飞书', 'Feishu', 'Lark', '钉钉', 'DingTalk'] # 应用白名单，只有这些应用的截图才会触发自动待办检测
+  todo_recorder:
+    id: todo_recorder # 任务ID
+    name: '屏幕录制（Todo生成）' # 任务显示名称（中文）
+    enabled: false # 是否启用 Todo 专用录制（默认关闭，与 auto_todo_detection 联动）
+    interval: 5 # 截图间隔（秒），默认5秒
+    params:
+      # 白名单应用从 auto_todo_detection.params.whitelist.apps 读取，无需重复配置
+      deduplicate: true # 启用截图去重
+      hash_threshold: 5 # 图像哈希去重阈值（汉明距离）
+      file_io_timeout: 15 # 文件I/O操作超时时间（秒）
+      db_timeout: 20 # 数据库操作超时时间（秒）
+      window_info_timeout: 5 # 获取窗口信息超时时间（秒）
   ocr:
     id: ocr # 任务ID
     name: OCR识别 # 任务显示名称（中文）

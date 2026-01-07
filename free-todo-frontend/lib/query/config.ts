@@ -14,6 +14,8 @@ import { queryKeys } from "./keys";
 export interface AppConfig {
 	// 现有配置
 	jobsAutoTodoDetectionEnabled?: boolean;
+	// 自动待办检测白名单配置
+	jobsAutoTodoDetectionParamsWhitelistApps?: string[];
 	// LLM 配置
 	llmApiKey?: string;
 	llmBaseUrl?: string;

@@ -40,13 +40,23 @@ Thumbs.db
 lifetrace/data/
 lifetrace/config/config.yaml
 
-# Frontend
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/.env.local
-frontend/.env.production
-frontend/.vercel
+# Frontend - Node.js cache and build artifacts
+**/node_modules/
+**/.next/
+**/out/
+**/.env.local
+**/.env.production
+**/.vercel
+**/dist-electron*/
+**/dist-electron-app*/
+**/dist/
+**/dist-backend*/
+**/dist-backend-app*/
+**/.pnpm-store/
+**/.yarn/
+**/.pnp.*
+**/.cache/
+**/tsconfig.tsbuildinfo
 
 # Temporary files
 *.log

@@ -34,6 +34,7 @@ JOB_ENABLED_CONFIG_TO_JOB_ID = {
     "jobs.task_summary.enabled": "task_summary_job",
     "jobs.clean_data.enabled": "clean_data_job",
     "jobs.activity_aggregator.enabled": "activity_aggregator_job",
+    "jobs.todo_recorder.enabled": "todo_recorder_job",
     # snake_case 格式（前端 fetcher 转换后发送的格式）
     "jobs_recorder_enabled": "recorder_job",
     "jobs_ocr_enabled": "ocr_job",
@@ -41,6 +42,17 @@ JOB_ENABLED_CONFIG_TO_JOB_ID = {
     "jobs_task_summary_enabled": "task_summary_job",
     "jobs_clean_data_enabled": "clean_data_job",
     "jobs_activity_aggregator_enabled": "activity_aggregator_job",
+    "jobs_todo_recorder_enabled": "todo_recorder_job",
+}
+
+# 联动配置映射：配置键 -> 需要联动的配置键列表
+# 当一个配置变化时，需要同步更新关联的配置
+JOB_LINKED_CONFIG = {
+    # auto_todo_detection 与 todo_recorder 联动
+    "jobs.auto_todo_detection.enabled": ["jobs.todo_recorder.enabled"],
+    "jobs_auto_todo_detection_enabled": ["jobs_todo_recorder_enabled"],
+    "jobs.todo_recorder.enabled": ["jobs.auto_todo_detection.enabled"],
+    "jobs_todo_recorder_enabled": ["jobs_auto_todo_detection_enabled"],
 }
 
 
@@ -59,6 +71,7 @@ _COMPOUND_JOB_NAMES: dict[str, str] = {
     "clean": "clean_data",
     "activity": "activity_aggregator",
     "auto": "auto_todo_detection",
+    "todo": "todo_recorder",
 }
 
 # 最小 jobs 配置部分数量
@@ -250,6 +263,10 @@ class ConfigService:
             "chat.history_limit",
             # 自动待办检测配置
             "jobs.auto_todo_detection.enabled",
+            "jobs.auto_todo_detection.params.whitelist.apps",
+            # Todo 专用录制配置
+            "jobs.todo_recorder.enabled",
+            "jobs.todo_recorder.interval",
             # Dify 配置
             "dify.enabled",
             "dify.api_key",
@@ -304,14 +321,41 @@ class ConfigService:
 
         logger.info(f"配置已保存到: {config_path}")
 
+    def _collect_jobs_to_sync(
+        self, job_config_keys: list[str], new_settings: dict[str, Any]
+    ) -> dict[str, bool]:
+        """收集需要同步的任务（包括联动任务）"""
+        jobs_to_sync: dict[str, bool] = {}
+
+        for config_key in job_config_keys:
+            job_id = JOB_ENABLED_CONFIG_TO_JOB_ID[config_key]
+            enabled = new_settings[config_key]
+            jobs_to_sync[job_id] = enabled
+
+            # 检查是否有联动配置
+            if config_key in JOB_LINKED_CONFIG:
+                self._add_linked_jobs(config_key, job_id, enabled, jobs_to_sync)
+
+        return jobs_to_sync
+
+    def _add_linked_jobs(
+        self, config_key: str, job_id: str, enabled: bool, jobs_to_sync: dict[str, bool]
+    ) -> None:
+        """添加联动任务到同步列表"""
+        linked_keys = JOB_LINKED_CONFIG[config_key]
+        for linked_key in linked_keys:
+            if linked_key in JOB_ENABLED_CONFIG_TO_JOB_ID:
+                linked_job_id = JOB_ENABLED_CONFIG_TO_JOB_ID[linked_key]
+                if linked_job_id not in jobs_to_sync:
+                    jobs_to_sync[linked_job_id] = enabled
+                    logger.info(f"📢 联动同步：{job_id} -> {linked_job_id} = {enabled}")
+
     def sync_job_states_if_needed(self, new_settings: dict[str, Any]) -> None:
         """如果任务启用状态发生变化，同步到调度器
 
         Args:
             new_settings: 配置字典（键可以是 snake_case 或点分隔格式）
         """
-        # 检测是否有任务启用状态相关的配置项
-        # 同时支持 snake_case 和点分隔格式
         job_config_keys = [
             key for key in new_settings.keys() if key in JOB_ENABLED_CONFIG_TO_JOB_ID
         ]
@@ -319,37 +363,25 @@ class ConfigService:
         if not job_config_keys:
             return
 
-        # 延迟导入避免循环依赖
         from lifetrace.jobs.scheduler import get_scheduler_manager
 
         try:
             scheduler_manager = get_scheduler_manager()
+            jobs_to_sync = self._collect_jobs_to_sync(job_config_keys, new_settings)
 
-            for config_key in job_config_keys:
-                job_id = JOB_ENABLED_CONFIG_TO_JOB_ID[config_key]
-                enabled = new_settings[config_key]
-
-                # 获取当前任务状态
+            for job_id, enabled in jobs_to_sync.items():
                 job = scheduler_manager.get_job(job_id)
                 if not job:
                     logger.warning(f"任务 {job_id} 不存在，跳过状态同步")
                     continue
 
-                # 判断任务当前是否在运行（next_run_time 为 None 表示已暂停）
                 is_running = job.next_run_time is not None
-
                 if enabled and not is_running:
-                    # 需要恢复任务
                     scheduler_manager.resume_job(job_id)
                     logger.info(f"📢 配置变更：任务 {job_id} 已恢复运行")
                 elif not enabled and is_running:
-                    # 需要暂停任务
                     scheduler_manager.pause_job(job_id)
                     logger.info(f"📢 配置变更：任务 {job_id} 已暂停")
-                else:
-                    logger.debug(
-                        f"任务 {job_id} 状态无需变更 (enabled={enabled}, running={is_running})"
-                    )
 
         except Exception as e:
             logger.error(f"同步任务状态失败: {e}", exc_info=True)

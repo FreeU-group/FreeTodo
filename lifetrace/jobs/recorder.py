@@ -639,15 +639,15 @@ class ScreenRecorder:
             logger.debug("自动待办检测配置项不存在，跳过检测")
             return False
 
-        # 检查是否为白名单应用（直接使用常量）
+        # 检查是否为白名单应用（从配置动态读取）
         if not app_name:
             return False
-        from lifetrace.llm.auto_todo_detection_service import TODO_EXTRACTION_WHITELIST_APPS
+        from lifetrace.llm.auto_todo_detection_service import get_whitelist_apps
 
+        whitelist_apps = get_whitelist_apps()
         app_name_lower = app_name.lower()
         is_whitelist = any(
-            whitelist_app.lower() in app_name_lower
-            for whitelist_app in TODO_EXTRACTION_WHITELIST_APPS
+            whitelist_app.lower() in app_name_lower for whitelist_app in whitelist_apps
         )
 
         if is_whitelist:

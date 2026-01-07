@@ -306,6 +306,12 @@ def _sync_job_enabled_to_config(job_id: str, enabled: bool):
         "task_summary_job": "jobs.task_summary.enabled",
         "clean_data_job": "jobs.clean_data.enabled",
         "activity_aggregator_job": "jobs.activity_aggregator.enabled",
+        "todo_recorder_job": "jobs.todo_recorder.enabled",
+    }
+
+    # 联动配置：todo_recorder_job 与 auto_todo_detection 联动
+    linked_config_map = {
+        "todo_recorder_job": "jobs.auto_todo_detection.enabled",
     }
 
     if job_id in job_config_map:
@@ -313,7 +319,15 @@ def _sync_job_enabled_to_config(job_id: str, enabled: bool):
         try:
             # 使用 ConfigService 持久化配置到文件
             config_service = ConfigService()
-            config_service.update_config_file({config_key: enabled}, config_service._config_path)
+            config_updates = {config_key: enabled}
+
+            # 如果存在联动配置，同步更新
+            if job_id in linked_config_map:
+                linked_key = linked_config_map[job_id]
+                config_updates[linked_key] = enabled
+                logger.info(f"联动更新配置: {linked_key} = {enabled}")
+
+            config_service.update_config_file(config_updates, config_service._config_path)
             # 重新加载配置到内存
             from lifetrace.util.settings import reload_settings
 
@@ -344,6 +358,7 @@ def _sync_job_interval_to_config(
         "task_summary_job": "jobs.task_summary.interval",
         "clean_data_job": "jobs.clean_data.interval",
         "activity_aggregator_job": "jobs.activity_aggregator.interval",
+        "todo_recorder_job": "jobs.todo_recorder.interval",
     }
 
     if job_id in job_config_map:

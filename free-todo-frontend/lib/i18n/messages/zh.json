@@ -16,7 +16,8 @@
 	"layout": {
 		"currentLanguage": "当前语言",
 		"currentTheme": "当前主题",
-		"userSettings": "用户设置"
+		"userSettings": "用户设置",
+		"openSettings": "打开设置"
 	},
 	"page": {
 		"title": "Free Todo Canvas",
@@ -62,11 +63,14 @@
 		"debugShotsPlaceholder": "占位：用于截图采集/管理的调试面板（仅开发模式可见）",
 		"settings": {
 			"autoTodoDetectionTitle": "自动待办检测",
-			"autoTodoDetectionDescription": "自动从微信、飞书等应用截图中检测待办事项，并创建为待确认的草稿待办",
+			"autoTodoDetectionDescription": "自动从白名单应用截图中检测待办事项，并创建为待确认的草稿待办",
 			"autoTodoDetectionLabel": "启用自动待办检测",
-			"autoTodoDetectionHint": "已启用：系统将自动检测白名单应用（微信、飞书、钉钉等）中的待办事项",
+			"autoTodoDetectionHint": "已启用：系统将自动检测白名单应用中的待办事项",
 			"autoTodoDetectionEnabled": "已启用自动待办检测",
 			"autoTodoDetectionDisabled": "已关闭自动待办检测",
+			"whitelistApps": "应用白名单",
+			"whitelistAppsPlaceholder": "输入应用名称后按回车添加",
+			"whitelistAppsDesc": "只有这些应用的截图才会触发自动待办检测",
 			"loadFailed": "加载配置失败：{error}",
 			"saveFailed": "保存配置失败：{error}",
 			"costTrackingPanelTitle": "费用面板",
@@ -452,7 +456,8 @@
 			"task_summary_job": "任务总结",
 			"clean_data_job": "数据清理",
 			"activity_aggregator_job": "活动聚合",
-			"deadline_reminder_job": "DDL提醒"
+			"deadline_reminder_job": "DDL提醒",
+			"todo_recorder_job": "屏幕录制（Todo生成）"
 		},
 		"jobDescriptions": {
 			"recorder_job": "定时截取屏幕截图",
@@ -461,7 +466,8 @@
 			"task_summary_job": "（旧版）生成任务执行总结",
 			"clean_data_job": "清理过期的截图和数据",
 			"activity_aggregator_job": "聚合用户活动事件",
-			"deadline_reminder_job": "检查待办事项的截止日期，在 DDL 前 5 分钟发送提醒通知"
+			"deadline_reminder_job": "检查待办事项的截止日期，在 DDL 前 5 分钟发送提醒通知",
+			"todo_recorder_job": "仅录制白名单应用的截图，用于自动待办检测"
 		}
 	},
 	"common": {

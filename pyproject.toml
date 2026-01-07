@@ -3,7 +3,7 @@ name = "lifetrace"
 version = "0.1.0"
 description = "LifeTrace - A cross-platform screen recording and activity tracking application"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     # Core dependencies
     "fastapi>=0.100.0",
@@ -12,19 +12,35 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "sqlmodel>=0.0.22",
     "alembic>=1.14.0",
+    "python-multipart>=0.0.6",   # 文件上传支持（Form data）
     # Screenshot and image processing
     "mss>=9.0.0",
     "Pillow>=10.0.0",
     "imagehash>=4.3.0",
     # OCR processing (rapidocr requires numpy)
     "rapidocr-onnxruntime",
-    "numpy>=1.21.0,<2.0.0",  # 限制到 1.x 版本以确保 PyInstaller 兼容性
+    "numpy>=1.21.0,<2.0.0", # 限制到 1.x 版本以确保 PyInstaller 兼容性
+    # Audio processing (for ASR WebSocket stream)
+    # 注意：使用 av 库（faster-whisper 的依赖）进行音频处理，不需要 pydub
+    # Faster-Whisper 语音识别（推荐，已实现）
+    "faster-whisper>=1.0.0", # 实时语音识别，不需要 Visual C++ 构建工具（包含 av 库）
+    # WhisperLiveKit 实时语音识别（超低延迟，支持发言者区分）
+    "whisperlivekit>=0.1.0", # 实时本地语音转文本与翻译，延迟 < 300ms
+    "websockets>=12.0",      # WebSocket 客户端（用于连接 WhisperLiveKit 服务器）
+    # 繁简转换（可选，用于将繁体中文转换为简体）
+    "opencc-python-reimplemented>=0.1.7", # 繁简转换库
+    # FunASR 语音识别（可选，需要 Visual C++ 构建工具）
+    # 如果安装失败，系统音频实时识别功能将不可用
+    # 安装方法：
+    # 1. 安装 Visual C++ 构建工具：https://visualstudio.microsoft.com/visual-cpp-build-tools/
+    # 2. 运行：pip install funasr
+    # "funasr>=1.0.0",  # 注释掉，作为可选依赖
     # Data processing
     "pyyaml>=6.0",
-    "sentence-transformers>=2.2.0",  # 文本嵌入模型
-    "chromadb>=0.4.0",               # 向量数据库
-    "scipy>=1.9.0",                  # 科学计算（用于余弦距离）
-    "hdbscan>=0.8.0",                # 文本聚类算法
+    "sentence-transformers>=2.2.0", # 文本嵌入模型
+    "chromadb>=0.4.0",              # 向量数据库
+    "scipy>=1.9.0",                 # 科学计算（用于余弦距离）
+    "hdbscan>=0.8.0",               # 文本聚类算法
     # Scheduler
     "apscheduler>=3.10.0",
     # Utils
@@ -53,33 +69,25 @@ line-length = 100
 target-version = "py313"
 
 # 排除的目录
-exclude = [
-    ".git",
-    ".venv",
-    "__pycache__",
-    "build",
-    "dist",
-    "*.egg-info",
-]
+exclude = [".git", ".venv", "__pycache__", "build", "dist", "*.egg-info"]
 
 [tool.ruff.lint]
 # 启用的规则集
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "UP",   # pyupgrade
-    "PLR",  # Pylint refactoring (包含复杂度检查)
-    "C90",  # mccabe (复杂度检查)
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "PLR", # Pylint refactoring (包含复杂度检查)
+    "C90", # mccabe (复杂度检查)
 ]
 
 # 忽略的规则
 ignore = [
-    "E501",  # 行太长（已经通过 line-length 控制）
-    "B008",  # 不要在函数调用中使用可变默认参数
+    "E501", # 行太长（已经通过 line-length 控制）
 ]
 
 # Pylint 复杂度配置
