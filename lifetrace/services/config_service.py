@@ -30,16 +30,12 @@ JOB_ENABLED_CONFIG_TO_JOB_ID = {
     # 点分隔格式（后端标准）
     "jobs.recorder.enabled": "recorder_job",
     "jobs.ocr.enabled": "ocr_job",
-    "jobs.task_context_mapper.enabled": "task_context_mapper_job",
-    "jobs.task_summary.enabled": "task_summary_job",
     "jobs.clean_data.enabled": "clean_data_job",
     "jobs.activity_aggregator.enabled": "activity_aggregator_job",
     "jobs.todo_recorder.enabled": "todo_recorder_job",
     # snake_case 格式（前端 fetcher 转换后发送的格式）
     "jobs_recorder_enabled": "recorder_job",
     "jobs_ocr_enabled": "ocr_job",
-    "jobs_task_context_mapper_enabled": "task_context_mapper_job",
-    "jobs_task_summary_enabled": "task_summary_job",
     "jobs_clean_data_enabled": "clean_data_job",
     "jobs_activity_aggregator_enabled": "activity_aggregator_job",
     "jobs_todo_recorder_enabled": "todo_recorder_job",
@@ -67,7 +63,6 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
 
 # 复合任务名映射：首部分 -> 完整任务名
 _COMPOUND_JOB_NAMES: dict[str, str] = {
-    "task": "task_context_mapper",
     "clean": "clean_data",
     "activity": "activity_aggregator",
     "auto": "auto_todo_detection",
@@ -80,7 +75,7 @@ _MIN_JOBS_PARTS = 3
 
 def _convert_jobs_key(parts: list[str]) -> str:
     """转换 jobs 相关的配置键"""
-    job_name = parts[1]  # recorder, ocr, task_context_mapper, etc.
+    job_name = parts[1]  # recorder, ocr, clean_data, activity_aggregator, etc.
 
     # 处理复合任务名
     if job_name in _COMPOUND_JOB_NAMES:

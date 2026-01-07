@@ -52,8 +52,9 @@ if not (lifetrace_dir / "config" / "default_config.yaml").exists():
 datas = [
     # Configuration files - 放在 app 根目录下的 config/
     (str(lifetrace_dir / "config" / "default_config.yaml"), "config"),
-    (str(lifetrace_dir / "config" / "prompt.yaml"), "config"),
     (str(lifetrace_dir / "config" / "rapidocr_config.yaml"), "config"),
+    # Prompts directory - 包含所有拆分后的 prompt yaml 文件
+    (str(lifetrace_dir / "config" / "prompts"), "config/prompts"),
     # ONNX model files - 放在 app 根目录下的 models/
     (str(lifetrace_dir / "models" / "ch_PP-OCRv4_det_infer.onnx"), "models"),
     (str(lifetrace_dir / "models" / "ch_PP-OCRv4_rec_infer.onnx"), "models"),

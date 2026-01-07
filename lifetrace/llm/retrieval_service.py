@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy import func, or_
 
 from lifetrace.storage import get_session
-from lifetrace.storage.models import Event, EventTaskRelation, OCRResult, Screenshot, Task
+from lifetrace.storage.models import OCRResult, Screenshot
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.query_parser import QueryConditions, QueryParser
 
@@ -30,15 +30,6 @@ class RetrievalService:
     def _build_base_query(self, session: Any, conditions: QueryConditions) -> Any:
         """构建基础查询"""
         query = session.query(Screenshot).join(OCRResult, Screenshot.id == OCRResult.screenshot_id)
-
-        # 添加项目过滤
-        if conditions.project_id:
-            query = (
-                query.join(Event, Screenshot.event_id == Event.id)
-                .join(EventTaskRelation, Event.id == EventTaskRelation.event_id)
-                .join(Task, EventTaskRelation.task_id == Task.id)
-                .filter(Task.project_id == conditions.project_id)
-            )
 
         # 添加时间范围过滤
         if conditions.start_date:
@@ -246,13 +237,6 @@ class RetrievalService:
         if not conditions:
             return query
 
-        if conditions.project_id:
-            query = (
-                query.join(Event, Screenshot.event_id == Event.id)
-                .join(EventTaskRelation, Event.id == EventTaskRelation.event_id)
-                .join(Task, EventTaskRelation.task_id == Task.id)
-                .filter(Task.project_id == conditions.project_id)
-            )
         if conditions.start_date:
             query = query.filter(Screenshot.created_at >= conditions.start_date)
         if conditions.end_date:
