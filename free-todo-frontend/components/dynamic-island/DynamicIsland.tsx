@@ -148,56 +148,54 @@ export function DynamicIsland({
 
 	if (mode === IslandMode.FULLSCREEN) {
 		return (
-			<>
-				<AnimatePresence>
-					<motion.div
-						initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
-						animate={{ opacity: 1, scale: 1, rotate: 0 }}
-						exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
-						className="fixed inset-x-0 top-0 z-[70] pointer-events-none"
+			<AnimatePresence>
+				<motion.div
+					initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+					animate={{ opacity: 1, scale: 1, rotate: 0 }}
+					exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
+					className="fixed inset-x-0 top-0 z-[70] pointer-events-none"
+				>
+					<div
+						className="flex items-center justify-end px-4 h-15"
+						style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
 					>
 						<div
-							className="flex items-center justify-end px-4 h-15"
-							style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+							className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60 pointer-events-auto mr-6"
+							style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
 						>
-							<div
-								className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60 pointer-events-auto mr-6"
-								style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+							<button
+								type="button"
+								className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+								title="退出全屏"
+								onClick={async (e) => {
+									e.stopPropagation();
+									const api = getElectronAPI();
+									await api.electronAPI?.expandWindow?.();
+									api.electronAPI?.setIgnoreMouseEvents?.(false);
+									onModeChange?.(IslandMode.PANEL);
+								}}
 							>
-								<button
-									type="button"
-									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
-									title="退出全屏"
-									onClick={async (e) => {
-										e.stopPropagation();
-										const api = getElectronAPI();
-										await api.electronAPI?.expandWindow?.();
-										api.electronAPI?.setIgnoreMouseEvents?.(false);
-										onModeChange?.(IslandMode.PANEL);
-									}}
-								>
-									<Minimize2 size={15} />
-								</button>
-								<button
-									type="button"
-									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
-									title="折叠到灵动岛"
-									onClick={async (e) => {
-										e.stopPropagation();
-										const api = getElectronAPI();
-										await api.electronAPI?.collapseWindow?.();
-										api.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
-										onModeChange?.(IslandMode.FLOAT);
-										onClose?.();
-									}}
-								>
-									<ChevronsUpDown size={15} />
-								</button>
-							</div>
+								<Minimize2 size={15} />
+							</button>
+							<button
+								type="button"
+								className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+								title="折叠到灵动岛"
+								onClick={async (e) => {
+									e.stopPropagation();
+									const api = getElectronAPI();
+									await api.electronAPI?.collapseWindow?.();
+									api.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
+									onModeChange?.(IslandMode.FLOAT);
+									onClose?.();
+								}}
+							>
+								<ChevronsUpDown size={15} />
+							</button>
 						</div>
-					</motion.div>
-				</AnimatePresence>
-			</>
+					</div>
+				</motion.div>
+			</AnimatePresence>
 		);
 	}
 
@@ -328,6 +326,20 @@ export function DynamicIsland({
 				<div
 					className="absolute inset-0 w-full h-full font-sans antialiased overflow-hidden text-[oklch(var(--foreground))]"
 					onContextMenu={handleOpenContextMenu}
+					role="button"
+					tabIndex={0}
+					onKeyDown={(event) => {
+						if (event.key === "ContextMenu") {
+							event.preventDefault();
+							// 使用一个虚拟位置触发菜单（键盘模式下无鼠标坐标）
+							handleOpenContextMenu({
+								clientX: 0,
+								clientY: 0,
+								preventDefault: () => {},
+							} as React.MouseEvent);
+						}
+					}}
+					aria-label="Dynamic Island 右键菜单区域"
 				>
 					<FloatContent
 						onToggleRecording={() => {
