@@ -33,7 +33,7 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.8"]
-        files: ^(frontend/|free-todo-frontend/)
+        files: ^(free-todo-frontend/)
   # TypeScript type checking for free-todo-frontend
   - repo: local
     hooks:
@@ -43,3 +43,21 @@ repos:
         language: system
         files: ^free-todo-frontend/.*\.(ts|tsx)$
         pass_filenames: false
+
+      # 前端 TS/TSX 有效代码行数检查（不含空行和注释，上限 500 行）
+      # pre-commit 会传入暂存的文件，只检查这些文件
+      - id: check-frontend-code-lines
+        name: Check frontend TS/TSX code lines (max 500)
+        entry: node free-todo-frontend/scripts/check_code_lines.mts --include apps,components,lib --exclude lib/generated
+        language: system
+        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        pass_filenames: true
+
+      # 后端 Python 有效代码行数检查（不含空行和注释，上限 500 行）
+      # pre-commit 会传入暂存的文件，只检查这些文件
+      - id: check-backend-code-lines
+        name: Check backend Python code lines (max 500)
+        entry: python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
+        language: system
+        files: ^lifetrace/.*\.py$
+        pass_filenames: true

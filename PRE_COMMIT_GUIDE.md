@@ -13,6 +13,9 @@ Pre-commit 会在每次 `git commit` 时自动检查并修复以下问题：
 - Python 代码规范检查（ruff）
 - Python 代码格式化（ruff-format）
 - 前端代码检查（Biome）
+- 前端 TypeScript 类型检查
+- **前端代码行数检查**（单文件有效代码行数不超过 500 行）
+- **后端代码行数检查**（单文件有效代码行数不超过 500 行）
 
 ---
 
@@ -92,6 +95,12 @@ pre-commit run ruff-format --all-files
 
 # 仅运行 Biome 检查
 pre-commit run biome-check --all-files
+
+# 仅运行前端代码行数检查
+pre-commit run check-frontend-code-lines --all-files
+
+# 仅运行后端代码行数检查
+pre-commit run check-backend-code-lines --all-files
 ```
 
 #### 查看详细输出
@@ -104,7 +113,25 @@ pre-commit run --all-files -v
 
 ## 常见场景
 
-### 场景1：提交时检查失败
+### 场景1：代码行数超过限制
+
+如果提交时看到类似以下错误：
+
+```
+Check frontend TS/TSX code lines (max 500)............................Failed
+❌ 以下文件代码行数超过 500 行：
+  apps/chat/components/ChatPanel.tsx -> 623 行
+```
+
+**解决方法**：
+
+1. 将超长文件拆分为多个更小的模块/组件
+2. 提取公共逻辑到独立的工具文件
+3. 考虑是否有重复代码可以抽象
+
+**注意**：代码行数统计**不包含**空行和注释行，只统计有效代码行数。
+
+### 场景2：提交时检查失败
 
 如果提交时看到类似以下错误：
 
@@ -128,7 +155,7 @@ Some files have trailing whitespace, please remove them.
    git commit -m "your message"
    ```
 
-### 场景2：跳过检查（紧急情况）
+### 场景3：跳过检查（紧急情况）
 
 **不推荐**，仅在紧急情况下使用：
 
@@ -172,15 +199,45 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.8"]
-        files: ^frontend/
+        files: ^free-todo-frontend/
+
+  # Local hooks
+  - repo: local
+    hooks:
+      # TypeScript 类型检查
+      - id: tsc-free-todo-frontend
+        name: TypeScript type check (free-todo-frontend)
+        entry: bash -c 'cd free-todo-frontend && pnpm run type-check'
+        language: system
+        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      # 前端代码行数检查（有效代码行数上限 500 行）
+      - id: check-frontend-code-lines
+        name: Check frontend TS/TSX code lines (max 500)
+        entry: node free-todo-frontend/scripts/check_code_lines.mts --include apps,components,lib --exclude lib/generated
+        language: system
+        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
+      # 后端代码行数检查（有效代码行数上限 500 行）
+      - id: check-backend-code-lines
+        name: Check backend Python code lines (max 500)
+        entry: python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
+        language: system
+        files: ^lifetrace/.*\.py$
+        pass_filenames: false
 ```
 
 **主要配置**：
 - `files: ^lifetrace/` - 只检查 `lifetrace/` 目录下的 Python 文件
-- `files: ^frontend/` - 只检查 `frontend/` 目录下的前端文件
-- `language_version: python3.12` - 指定 Python 版本
+- `files: ^free-todo-frontend/` - 只检查 `free-todo-frontend/` 目录下的前端文件
+- `language_version: python3.13` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
 - `additional_dependencies` - 为 Biome 指定依赖版本
+- `pass_filenames: true/false` - 是否将暂存的文件列表传给脚本
+  - `true`：脚本只检查传入的文件（代码行数检查使用此模式，只检查暂存的文件）
+  - `false`：脚本自行决定检查范围（TypeScript 类型检查使用此模式，需要检查整个项目）
 
 ---
 
@@ -264,6 +321,72 @@ chmod +x .git/hooks/pre-commit
 
 ---
 
+## 代码行数检查规则
+
+### 规则说明
+
+为了保持代码的可读性和可维护性，项目对单文件的有效代码行数进行限制：
+
+- **前端（TS/TSX）**：单文件有效代码行数不超过 500 行
+- **后端（Python）**：单文件有效代码行数不超过 500 行
+
+### 计数规则
+
+代码行数统计**不包含**以下内容：
+- 空行（`trim()`/`strip()` 后为空字符串的行）
+- 注释行：
+  - 前端：以 `//`、`/*`、`*`、`*/` 开头的行
+  - 后端：以 `#` 开头的行
+
+### 检查范围
+
+**前端检查目录**（可通过参数调整）：
+- 包含：`apps/`、`components/`、`lib/`
+- 排除：`lib/generated/`（Orval 自动生成的 API 代码）
+
+**后端检查目录**（可通过参数调整）：
+- 包含：`lifetrace/`
+- 排除：`lifetrace/__pycache__/`、`lifetrace/dist/`、`lifetrace/migrations/versions/`
+
+### 手动运行检查
+
+脚本支持两种运行模式：
+
+**模式 1：扫描整个目录（单独运行）**
+
+```bash
+# 检查前端所有 TS/TSX 文件
+node free-todo-frontend/scripts/check_code_lines.mts
+
+# 检查后端所有 Python 文件
+python lifetrace/scripts/check_code_lines.py
+
+# 使用自定义参数
+node free-todo-frontend/scripts/check_code_lines.mts --include apps,components --exclude lib/generated --max 600
+python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__ --max 600
+```
+
+**模式 2：检查指定文件（pre-commit 模式）**
+
+```bash
+# 只检查指定的文件
+node free-todo-frontend/scripts/check_code_lines.mts apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
+python lifetrace/scripts/check_code_lines.py lifetrace/routers/chat.py lifetrace/services/todo.py
+```
+
+> **注意**：在 `git commit` 时，pre-commit 会自动传入暂存的文件，只检查这些文件而不是整个目录。
+
+### 超限解决方案
+
+当文件代码行数超过限制时，建议：
+
+1. **拆分文件**：将大文件按功能模块拆分为多个小文件
+2. **提取公共逻辑**：将重复代码抽象为独立的工具函数/组件
+3. **使用组合模式**：将复杂组件拆分为多个子组件
+4. **评估注释量**：适当增加注释（不计入行数）来解释复杂逻辑
+
+---
+
 ## 相关资源
 
 - [Pre-commit 官方文档](https://pre-commit.com/)
@@ -285,6 +408,12 @@ A: 本项目配置支持 Python（通过 Ruff）、JavaScript/TypeScript（通�
 
 **Q: 如何添加自定义检查？**
 A: 修改 `.pre-commit-config.yaml` 文件，添加新的 repository 或 hooks。
+
+**Q: 代码行数检查的阈值可以调整吗？**
+A: 可以！修改 `.pre-commit-config.yaml` 中对应 hook 的 `entry` 参数，添加 `--max <number>` 即可。例如：`--max 600` 将上限调整为 600 行。
+
+**Q: 为什么某些目录不被检查？**
+A: 为了避免检查自动生成的代码（如 Orval 生成的 API 代码），部分目录被排除在检查范围之外。可以通过 `--exclude` 参数调整排除列表。
 
 ---
 
