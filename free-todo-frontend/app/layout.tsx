@@ -3,6 +3,11 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { ThemeProvider } from "@/components/common/theme/ThemeProvider";
 import { ScrollbarController } from "@/components/common/ui/ScrollbarController";
+import {
+	DynamicIslandProvider,
+	ElectronTransparentScript,
+	TransparentBody,
+} from "@/components/dynamic-island";
 import { QueryProvider } from "@/lib/query/provider";
 import "./globals.css";
 
@@ -25,10 +30,15 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 				className="min-h-screen bg-background text-foreground antialiased"
 				suppressHydrationWarning
 			>
+				<ElectronTransparentScript />
+				<TransparentBody />
 				<ScrollbarController />
 				<QueryProvider>
 					<NextIntlClientProvider messages={messages}>
-						<ThemeProvider>{children}</ThemeProvider>
+						<ThemeProvider>
+							{children}
+							<DynamicIslandProvider />
+						</ThemeProvider>
 					</NextIntlClientProvider>
 				</QueryProvider>
 			</body>

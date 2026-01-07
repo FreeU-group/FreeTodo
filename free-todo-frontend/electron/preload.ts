@@ -22,6 +22,25 @@ const electronAPI = {
 	showNotification: (data: NotificationData): Promise<void> => {
 		return ipcRenderer.invoke("show-notification", data);
 	},
+	transparentBackgroundReady: (): void => {
+		ipcRenderer.send("transparent-background-ready");
+	},
+	setIgnoreMouseEvents: (
+		ignore: boolean,
+		options?: { forward?: boolean },
+	): Promise<void> => ipcRenderer.invoke("set-ignore-mouse-events", ignore, options),
+	collapseWindow: (): Promise<void> => ipcRenderer.invoke("collapse-window"),
+	expandWindow: (): Promise<void> => ipcRenderer.invoke("expand-window"),
+	expandWindowFull: (): Promise<void> => ipcRenderer.invoke("expand-window-full"),
+	resizeWindow: (dx: number, dy: number, pos: string): Promise<void> =>
+		ipcRenderer.invoke("resize-window", dx, dy, pos),
+	moveWindow: (x: number, y: number): Promise<void> =>
+		ipcRenderer.invoke("move-window", x, y),
+	getWindowPosition: (): Promise<{ x: number; y: number }> =>
+		ipcRenderer.invoke("get-window-position"),
+	getScreenInfo: (): Promise<{ screenWidth: number; screenHeight: number }> =>
+		ipcRenderer.invoke("get-screen-info"),
+	quit: (): Promise<void> => ipcRenderer.invoke("app-quit"),
 };
 
 // 安全地暴露 API 到渲染进程

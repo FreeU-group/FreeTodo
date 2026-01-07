@@ -3,7 +3,7 @@ import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
-import { app, BrowserWindow, dialog, ipcMain, Notification } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Notification, screen } from "electron";
 
 // 强制生产模式：如果应用已打包，必须使用生产模式
 // 即使 NODE_ENV 被设置为 development，打包的应用也应该运行生产服务器
@@ -20,6 +20,9 @@ const DEFAULT_BACKEND_PORT = Number.parseInt(
 	process.env.BACKEND_PORT || "8000",
 	10,
 );
+
+// 是否启用灵动岛（可通过环境变量禁用）
+const enableDynamicIsland = process.env.ENABLE_DYNAMIC_ISLAND !== "false";
 
 // 动态端口（运行时确定，支持端口被占用时自动切换）
 let actualFrontendPort: number = DEFAULT_FRONTEND_PORT;
@@ -203,15 +206,64 @@ async function startNextServer(): Promise<void> {
 	if (app.isPackaged) {
 		logToFile("App is packaged - starting built-in production server");
 	} else if (isDev) {
-		// 开发模式下，尝试探测可用的前端端口（以防开发服务器未启动）
+		// 开发模式：优先探测可用端口，其次尝试复用已运行的 dev 服务器
 		try {
 			actualFrontendPort = await findAvailablePort(DEFAULT_FRONTEND_PORT);
 		} catch {
 			actualFrontendPort = DEFAULT_FRONTEND_PORT;
 		}
-		const msg = `Development mode: expecting Next.js dev server at ${getServerUrl()}`;
+
+		const serverUrl = getServerUrl();
+		const msg = `Development mode: expecting Next.js dev server at ${serverUrl}`;
 		console.log(msg);
 		logToFile(msg);
+
+		// 如果 dev 服务器已在运行，直接复用
+		try {
+			await waitForServer(serverUrl, 2000);
+			logToFile("Next.js dev server is already running");
+			return;
+		} catch {
+			// 未运行则自动启动
+		}
+
+		const devCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+		const devArgs = ["dev", "--port", String(actualFrontendPort)];
+		logToFile(`Starting Next.js dev server: ${devCommand} ${devArgs.join(" ")}`);
+		logToFile(`Working directory: ${path.join(__dirname, "..")}`);
+
+		nextProcess = spawn(devCommand, devArgs, {
+			cwd: path.join(__dirname, ".."),
+			env: {
+				...process.env,
+				PORT: String(actualFrontendPort),
+				NODE_ENV: "development",
+				NEXT_PUBLIC_API_URL: getBackendUrl(),
+			},
+			stdio: ["ignore", "pipe", "pipe"],
+			shell: process.platform === "win32",
+		});
+		logToFile(`Spawned dev server process with PID: ${nextProcess.pid}`);
+
+		if (nextProcess.stdout) {
+			nextProcess.stdout.setEncoding("utf8");
+			nextProcess.stdout.on("data", (data) => {
+				logToFile(`[Next.js Dev] ${String(data).trim()}`);
+			});
+		}
+		if (nextProcess.stderr) {
+			nextProcess.stderr.setEncoding("utf8");
+			nextProcess.stderr.on("data", (data) => {
+				logToFile(`[Next.js Dev Error] ${String(data).trim()}`);
+			});
+		}
+		nextProcess.on("error", (error) => {
+			logToFile(`Failed to start Next.js dev server: ${error.message}`);
+		});
+		nextProcess.on("exit", (code) => {
+			logToFile(`Next.js dev server exited with code ${code}`);
+		});
+		// 后续会在 waitForServer(serverUrl, 30000) 处等待就绪
 		return;
 	} else {
 		logToFile(
@@ -436,17 +488,31 @@ function createWindow(): void {
 	const preloadPath = getPreloadPath();
 
 	mainWindow = new BrowserWindow({
-		width: 1200,
-		height: 800,
-		minWidth: 800,
-		minHeight: 600,
+		width: enableDynamicIsland ? screen.getPrimaryDisplay().workAreaSize.width : 1200,
+		height: enableDynamicIsland ? screen.getPrimaryDisplay().workAreaSize.height : 800,
+		x: 0,
+		y: 0,
+		minWidth: enableDynamicIsland ? undefined : 800,
+		minHeight: enableDynamicIsland ? undefined : 600,
+		frame: !enableDynamicIsland,
+		transparent: enableDynamicIsland,
+		alwaysOnTop: enableDynamicIsland,
+		hasShadow: !enableDynamicIsland,
+		resizable: !enableDynamicIsland,
+		movable: !enableDynamicIsland,
+		skipTaskbar: enableDynamicIsland,
+		titleBarStyle: enableDynamicIsland ? "hidden" : "default",
+		titleBarOverlay: enableDynamicIsland
+			? { color: "#00000000", symbolColor: "#cccccc" }
+			: undefined,
+		backgroundColor: enableDynamicIsland ? "#00000000" : "#1a1a1a",
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
 			preload: preloadPath,
+			backgroundThrottling: false,
 		},
 		show: false, // 等待内容加载完成再显示
-		backgroundColor: "#1a1a1a",
 	});
 
 	logToFile(`Loading URL: ${serverUrl}`);
@@ -824,6 +890,143 @@ function setupIpcHandlers(): void {
 			}
 		},
 	);
+
+	ipcMain.handle(
+		"set-ignore-mouse-events",
+		async (_event, ignore: boolean, options?: { forward?: boolean }) => {
+			if (!mainWindow) return;
+			try {
+				mainWindow.setIgnoreMouseEvents(ignore, options);
+			} catch (error) {
+				logToFile(
+					`ERROR: set-ignore-mouse-events failed: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				);
+			}
+		},
+	);
+
+	ipcMain.handle("move-window", async (_event, x: number, y: number) => {
+		if (!mainWindow || !enableDynamicIsland) return;
+		try {
+			mainWindow.setPosition(Math.round(x), Math.round(y));
+		} catch (error) {
+			logToFile(
+				`ERROR: move-window failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	});
+
+	ipcMain.handle("get-window-position", () => {
+		if (!mainWindow) return { x: 0, y: 0 };
+		const [x, y] = mainWindow.getPosition();
+		return { x, y };
+	});
+
+	ipcMain.handle("get-screen-info", () => {
+		const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+		return { screenWidth: width, screenHeight: height };
+	});
+
+	ipcMain.handle("collapse-window", async () => {
+		if (!mainWindow) return;
+		try {
+			mainWindow.setFullScreen(false);
+			mainWindow.setAlwaysOnTop(true, "floating");
+			mainWindow.setSkipTaskbar(true);
+			mainWindow.setFocusable(false);
+			mainWindow.setResizable(false);
+			mainWindow.setMovable(false);
+			mainWindow.setSize(240, 120);
+			const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+			mainWindow.setPosition(width - 280, height - 180);
+			mainWindow.setIgnoreMouseEvents(true, { forward: true });
+		} catch (error) {
+			logToFile(
+				`ERROR: collapse-window failed: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	});
+
+	ipcMain.handle("expand-window", async () => {
+		if (!mainWindow) return;
+		try {
+			mainWindow.setFullScreen(false);
+			mainWindow.setAlwaysOnTop(false);
+			mainWindow.setSkipTaskbar(false);
+			mainWindow.setFocusable(true);
+			mainWindow.setResizable(true);
+			mainWindow.setMovable(true);
+			mainWindow.setSize(1100, 760);
+			mainWindow.center();
+			mainWindow.focus();
+			mainWindow.setIgnoreMouseEvents(false);
+		} catch (error) {
+			logToFile(
+				`ERROR: expand-window failed: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	});
+
+	ipcMain.handle("expand-window-full", async () => {
+		if (!mainWindow) return;
+		try {
+			mainWindow.setAlwaysOnTop(false);
+			mainWindow.setSkipTaskbar(false);
+			mainWindow.setFocusable(true);
+			mainWindow.setFullScreen(true);
+			mainWindow.focus();
+			mainWindow.setIgnoreMouseEvents(false);
+		} catch (error) {
+			logToFile(
+				`ERROR: expand-window-full failed: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	});
+
+	ipcMain.handle("resize-window", async (_event, dx: number, dy: number) => {
+		if (!mainWindow) return;
+		try {
+			const [width, height] = mainWindow.getSize();
+			mainWindow.setSize(Math.max(320, width + dx), Math.max(240, height + dy));
+		} catch (error) {
+			logToFile(
+				`ERROR: resize-window failed: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	});
+
+	ipcMain.handle("app-quit", async () => {
+		try {
+			app.quit();
+		} catch (error) {
+			logToFile(
+				`ERROR: app-quit failed: ${error instanceof Error ? error.message : String(error)}`,
+			);
+		}
+	});
+
+	ipcMain.on("transparent-background-ready", () => {
+		if (!mainWindow || !enableDynamicIsland) return;
+		try {
+			mainWindow.setBackgroundColor("#00000000");
+		} catch (error) {
+			logToFile(
+				`ERROR: transparent-background-ready failed: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	});
 }
 
 // 应用准备就绪（只在获得锁的情况下执行）
