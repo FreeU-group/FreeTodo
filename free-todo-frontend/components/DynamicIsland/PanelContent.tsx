@@ -12,7 +12,6 @@ import { CostTrackingPanel } from "@/apps/cost-tracking";
 import { SettingsPanel } from "@/apps/settings";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
-import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import { PanelPositionProvider } from "@/components/common/layout/PanelHeader";
 import type { PanelFeature } from "@/lib/config/panel-config";
 import {
@@ -21,6 +20,19 @@ import {
 } from "@/lib/config/panel-config";
 import { cn } from "@/lib/utils";
 import { PanelSelectorMenu } from "./PanelSelectorMenu";
+
+// 可选导入 VoiceModulePanel（如果 voice module 不存在也不会报错）
+let VoiceModulePanel: React.ComponentType | null = null;
+try {
+	// 使用动态导入，如果模块不存在会抛出错误
+	const voiceModule = require("@/apps/voice-module/VoiceModulePanel");
+	VoiceModulePanel = voiceModule.VoiceModulePanel;
+} catch (_error) {
+	// voice module 不存在，VoiceModulePanel 保持为 null
+	console.log(
+		"[PanelContent] VoiceModulePanel 不可用，将使用占位符",
+	);
+}
 
 // 功能到翻译键的映射 - 完全照搬 BottomDock
 const FEATURE_LABEL_MAP: Partial<Record<PanelFeature, string>> = {
@@ -149,7 +161,20 @@ export const PanelContent: React.FC<PanelContentProps> = () => {
 				case "chat":
 					return <ChatPanel />;
 				case "voiceModule":
-					return <VoiceModulePanel />;
+					// 如果 VoiceModulePanel 不可用，显示占位符
+					if (VoiceModulePanel) {
+						return <VoiceModulePanel />;
+					}
+					return (
+						<div className="flex items-center justify-center h-full text-muted-foreground">
+							<div className="text-center">
+								<p className="text-sm">语音模块不可用</p>
+								<p className="text-xs mt-2 opacity-70">
+									请确保已安装并启用语音模块
+								</p>
+							</div>
+						</div>
+					);
 				case "todos":
 					return <TodoList />;
 				case "calendar":

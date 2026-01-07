@@ -3,7 +3,6 @@
 import { motion } from "framer-motion";
 import { Camera, Hexagon, Mic } from "lucide-react";
 import type React from "react";
-import { useAppStore } from "@/apps/voice-module/store/useAppStore";
 
 const fadeVariants = {
 	initial: { opacity: 0, filter: "blur(8px)", scale: 0.98 },
@@ -28,18 +27,19 @@ export const FloatContent: React.FC<{
 	onScreenshot?: () => void; // 切换截屏开关
 	screenshotEnabled?: boolean; // 截屏开关状态
 	isCollapsed?: boolean; // 是否收起状态
+	isRecording?: boolean; // 录音状态（通过 props 传递）
+	isPaused?: boolean; // 暂停状态（通过 props 传递）
 	onOpenPanel?: () => void; // 点击最右侧图标展开 Panel
 }> = ({
-	onToggleRecording,
-	onStopRecording,
+	onToggleRecording: _onToggleRecording, // TODO: 暂时未使用，功能已禁用
+	onStopRecording: _onStopRecording, // TODO: 暂时未使用，功能已禁用
 	onScreenshot,
 	screenshotEnabled = false,
 	isCollapsed = false,
+	isRecording = false,
+	isPaused: _isPaused = false, // TODO: 暂时未使用，功能已禁用
 	onOpenPanel,
 }) => {
-	const { isRecording } = useAppStore();
-	const recordingStatus = useAppStore((state) => state.processStatus.recording);
-	const isPaused = recordingStatus === "paused";
 
 	// 收起状态：只显示六边形图标
 	if (isCollapsed) {
@@ -72,35 +72,30 @@ export const FloatContent: React.FC<{
 			style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties} // 录音按钮区域不允许拖拽
 		>
 			{/* Left: Recording Status - 可点击区域 */}
+			{/* TODO: 暂时注释掉功能回调，只保留UI */}
 			<div
 				className="flex items-center justify-center cursor-pointer flex-shrink-0"
-				onClick={(e) => {
-					e.stopPropagation();
-					// 单击开始/暂停/恢复录音
-					onToggleRecording?.();
-				}}
-				onDoubleClick={(e) => {
-					e.stopPropagation();
-					// 双击停止录音
-					if (isRecording && onStopRecording) {
-						onStopRecording();
-					}
-				}}
-				onKeyDown={(e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						onToggleRecording?.();
-					}
-				}}
-				role="button"
-				tabIndex={0}
-				title={
-					isRecording
-						? isPaused
-							? "单击恢复录音 | 双击停止"
-							: "单击暂停录音 | 双击停止"
-						: "单击开始录音"
-				}
+				// onClick={(e) => {
+				// 	e.stopPropagation();
+				// 	// 单击开始/暂停/恢复录音
+				// 	onToggleRecording?.();
+				// }}
+				// onDoubleClick={(e) => {
+				// 	e.stopPropagation();
+				// 	// 双击停止录音
+				// 	if (isRecording && onStopRecording) {
+				// 		onStopRecording();
+				// 	}
+				// }}
+				// onKeyDown={(e) => {
+				// 	if (e.key === "Enter" || e.key === " ") {
+				// 		e.preventDefault();
+				// 		onToggleRecording?.();
+				// 	}
+				// }}
+				// role="button"
+				// tabIndex={0}
+				title="麦克风（功能暂时禁用）"
 			>
 				<div className="relative flex items-center justify-center">
 					{isRecording ? (

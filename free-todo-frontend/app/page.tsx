@@ -3,8 +3,18 @@
 import Image from "next/image";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { VoiceModulePanel } from "@/apps/voice-module/VoiceModulePanel";
 import { LayoutSelector } from "@/components/common/layout/LayoutSelector";
+
+// 可选导入 VoiceModulePanel（如果 voice module 不存在也不会报错）
+let VoiceModulePanel: React.ComponentType | null = null;
+try {
+	const voiceModule = require("@/apps/voice-module/VoiceModulePanel");
+	VoiceModulePanel = voiceModule.VoiceModulePanel;
+} catch (_error) {
+	// voice module 不存在，VoiceModulePanel 保持为 null
+	console.log("[page.tsx] VoiceModulePanel 不可用");
+}
+
 import { ThemeToggle } from "@/components/common/theme/ThemeToggle";
 import { LanguageToggle } from "@/components/common/ui/LanguageToggle";
 import { UserAvatar } from "@/components/common/ui/UserAvatar";
@@ -383,18 +393,21 @@ export default function HomePage() {
 			>
 				{/* 透明背景，只显示 DynamicIsland */}
 				{/* 在悬浮模式下也渲染 VoiceModulePanel（隐藏），确保录音服务初始化和事件监听器注册 */}
-				<div
-					style={{
-						position: "absolute",
-						left: "-9999px",
-						top: "-9999px",
-						width: "1px",
-						height: "1px",
-						overflow: "hidden",
-					}}
-				>
-					<VoiceModulePanel />
-				</div>
+				{/* 如果 VoiceModulePanel 可用，则渲染它 */}
+				{VoiceModulePanel && (
+					<div
+						style={{
+							position: "absolute",
+							left: "-9999px",
+							top: "-9999px",
+							width: "1px",
+							height: "1px",
+							overflow: "hidden",
+						}}
+					>
+						<VoiceModulePanel />
+					</div>
+				)}
 			</div>
 		);
 	}

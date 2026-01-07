@@ -5,7 +5,6 @@ import { ChevronsUpDown, Maximize2, Minimize2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAppStore } from "@/apps/voice-module/store/useAppStore";
 import { useConfig, useSaveConfig } from "@/lib/query";
 import { ContextMenu } from "./ContextMenu";
 import { FloatContent } from "./IslandContent";
@@ -24,9 +23,9 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 	onModeChange,
 	onClose,
 }) => {
-	const { isRecording } = useAppStore();
-	const recordingStatus = useAppStore((state) => state.processStatus.recording);
-	const isPaused = recordingStatus === "paused";
+	// 通过事件系统获取录音状态，而不是直接访问 store
+	const [isRecording, setIsRecording] = useState(false);
+	const [isPaused, setIsPaused] = useState(false);
 
 	// 主题管理
 	const { theme, systemTheme } = useTheme();
@@ -77,58 +76,105 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 		setContextMenuOpen(false);
 	}, []);
 
-	// 处理录音控制 - 通过事件系统触发 VoiceModulePanel 的录音
-	const handleToggleRecording = useCallback(() => {
-		console.log(
-			"[DynamicIsland] handleToggleRecording called, isRecording:",
-			isRecording,
-			"isPaused:",
-			isPaused,
-		);
+	// 监听录音状态变化事件（从 VoiceModulePanel 发送，如果 voice module 不存在则不会收到事件，但不影响功能）
+	useEffect(() => {
+		const handleRecordingStatusChange = (event: Event) => {
+			const customEvent = event as CustomEvent<{
+				isRecording: boolean;
+				isPaused: boolean;
+			}>;
+			const { isRecording: recording, isPaused: paused } = customEvent.detail || {};
+			if (typeof recording === "boolean") {
+				setIsRecording(recording);
+			}
+			if (typeof paused === "boolean") {
+				setIsPaused(paused);
+			}
+		};
 
-		let action: "start" | "stop" | "pause" | "resume";
-
-		if (!isRecording) {
-			action = "start";
-		} else if (isPaused) {
-			action = "resume";
-		} else {
-			action = "pause"; // 单击暂停
-		}
-
-		console.log("[DynamicIsland] Dispatching recording action:", action);
-
-		// 发送自定义事件，让 VoiceModulePanel 监听并处理
 		if (typeof window !== "undefined") {
-			const event = new CustomEvent("dynamic-island-toggle-recording", {
-				detail: { action },
-				bubbles: true,
-				cancelable: true,
-			});
-
-			window.dispatchEvent(event);
-			document.dispatchEvent(event);
+			window.addEventListener(
+				"voice-module-recording-status",
+				handleRecordingStatusChange as EventListener,
+			);
+			document.addEventListener(
+				"voice-module-recording-status",
+				handleRecordingStatusChange as EventListener,
+			);
 		}
 
-		console.log("[DynamicIsland] Event dispatched");
-	}, [isRecording, isPaused]);
+		return () => {
+			if (typeof window !== "undefined") {
+				window.removeEventListener(
+					"voice-module-recording-status",
+					handleRecordingStatusChange as EventListener,
+				);
+				document.removeEventListener(
+					"voice-module-recording-status",
+					handleRecordingStatusChange as EventListener,
+				);
+			}
+		};
+	}, []);
+
+	// 处理录音控制 - 通过事件系统触发 VoiceModulePanel 的录音
+	// TODO: 暂时注释掉功能，只保留UI
+	// 注意：如果 voice module 不存在，事件会被发送但不会有响应，不影响 DynamicIsland 的正常功能
+	const handleToggleRecording = useCallback(() => {
+		// 暂时注释掉功能，只保留UI
+		console.log("[DynamicIsland] 麦克风按钮点击（功能已暂时禁用）");
+		// console.log(
+		// 	"[DynamicIsland] handleToggleRecording called, isRecording:",
+		// 	isRecording,
+		// 	"isPaused:",
+		// 	isPaused,
+		// );
+
+		// let action: "start" | "stop" | "pause" | "resume";
+
+		// if (!isRecording) {
+		// 	action = "start";
+		// } else if (isPaused) {
+		// 	action = "resume";
+		// } else {
+		// 	action = "pause"; // 单击暂停
+		// }
+
+		// console.log("[DynamicIsland] Dispatching recording action:", action);
+
+		// // 发送自定义事件，让 VoiceModulePanel 监听并处理（如果存在）
+		// if (typeof window !== "undefined") {
+		// 	const event = new CustomEvent("dynamic-island-toggle-recording", {
+		// 		detail: { action },
+		// 		bubbles: true,
+		// 		cancelable: true,
+		// 	});
+
+		// 	window.dispatchEvent(event);
+		// 	document.dispatchEvent(event);
+		// }
+
+		// console.log("[DynamicIsland] Event dispatched");
+	}, []);
 
 	// 处理停止录音
 	const handleStopRecording = useCallback(() => {
-		console.log("[DynamicIsland] handleStopRecording called");
+		// 暂时注释掉功能，只保留UI
+		console.log("[DynamicIsland] 停止录音按钮点击（功能已暂时禁用）");
+		// console.log("[DynamicIsland] handleStopRecording called");
 
-		if (typeof window !== "undefined") {
-			const event = new CustomEvent("dynamic-island-toggle-recording", {
-				detail: { action: "stop" },
-				bubbles: true,
-				cancelable: true,
-			});
+		// if (typeof window !== "undefined") {
+		// 	const event = new CustomEvent("dynamic-island-toggle-recording", {
+		// 		detail: { action: "stop" },
+		// 		bubbles: true,
+		// 		cancelable: true,
+		// 	});
 
-			window.dispatchEvent(event);
-			document.dispatchEvent(event);
+		// 	window.dispatchEvent(event);
+		// 	document.dispatchEvent(event);
 
-			console.log("[DynamicIsland] Stop recording event dispatched");
-		}
+		// 	console.log("[DynamicIsland] Stop recording event dispatched");
+		// }
 	}, []);
 
 	// 处理截屏开关切换
@@ -1168,6 +1214,8 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 									onScreenshot={handleToggleScreenshot}
 									screenshotEnabled={recorderEnabled}
 									isCollapsed={!isHovered}
+									isRecording={isRecording}
+									isPaused={isPaused}
 									onOpenPanel={async () => {
 										// 完全按照"4键"的逻辑：切换到Panel模式（使用默认位置，简单可靠）
 										const w = window as typeof window & {

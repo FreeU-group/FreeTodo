@@ -1665,6 +1665,27 @@ export function VoiceModulePanel() {
 		handleStopRecording,
 	]);
 
+	// 获取录音状态（用于通知 DynamicIsland）
+	const recordingStatus = useAppStore((state) => state.processStatus.recording);
+	const isPausedStatus = recordingStatus === "paused";
+
+	// 通知 DynamicIsland 录音状态变化（解耦：通过事件系统通信）
+	useEffect(() => {
+		if (typeof window !== "undefined") {
+			const event = new CustomEvent("voice-module-recording-status", {
+				detail: {
+					isRecording,
+					isPaused: isPausedStatus,
+				},
+				bubbles: true,
+				cancelable: true,
+			});
+
+			window.dispatchEvent(event);
+			document.dispatchEvent(event);
+		}
+	}, [isRecording, isPausedStatus]);
+
 	// 处理日期切换 - 从后端加载该日期的数据
 	const handleDateChange = useCallback(
 		async (date: Date) => {
