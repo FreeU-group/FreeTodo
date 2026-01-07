@@ -11,8 +11,6 @@ class ChatMessage(BaseModel):
 
     message: str
     conversation_id: str | None = None  # 会话ID
-    project_id: int | None = None  # 项目ID，用于过滤上下文
-    task_ids: list[int] | None = None  # 选中的任务ID列表
     use_rag: bool = True  # 是否使用RAG
     mode: str | None = None  # 前端聊天模式（ask/plan/edit/dify_test 等）
 

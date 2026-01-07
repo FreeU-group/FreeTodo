@@ -88,6 +88,7 @@ select = [
 # 忽略的规则
 ignore = [
     "E501", # 行太长（已经通过 line-length 控制）
+    "B008", # 允许在函数参数默认值中使用函数调用（FastAPI Depends 模式）
 ]
 
 # Pylint 复杂度配置

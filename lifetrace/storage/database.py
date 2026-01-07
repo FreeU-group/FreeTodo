@@ -4,15 +4,12 @@
 
 from lifetrace.storage.activity_manager import ActivityManager
 from lifetrace.storage.chat_manager import ChatManager
-from lifetrace.storage.context_manager import ContextManager
 from lifetrace.storage.database_base import DatabaseBase
 from lifetrace.storage.event_manager import EventManager
 from lifetrace.storage.journal_manager import JournalManager
 from lifetrace.storage.ocr_manager import OCRManager
-from lifetrace.storage.project_manager import ProjectManager
 from lifetrace.storage.screenshot_manager import ScreenshotManager
 from lifetrace.storage.stats_manager import StatsManager
-from lifetrace.storage.task_manager import TaskManager
 from lifetrace.storage.todo_manager import TodoManager
 from lifetrace.util.logging_config import get_logger
 
@@ -25,10 +22,7 @@ db_base = DatabaseBase()
 screenshot_mgr = ScreenshotManager(db_base)
 event_mgr = EventManager(db_base)
 ocr_mgr = OCRManager(db_base)
-project_mgr = ProjectManager(db_base)
-task_mgr = TaskManager(db_base)
 todo_mgr = TodoManager(db_base)
-context_mgr = ContextManager(db_base)
 chat_mgr = ChatManager(db_base)
 stats_mgr = StatsManager(db_base)
 journal_mgr = JournalManager(db_base)

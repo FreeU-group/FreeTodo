@@ -74,9 +74,7 @@ async def chat_with_llm_stream(
     - 当 mode == \"dify_test\" 时，走 Dify 测试通道
     """
     try:
-        logger.info(
-            f"[stream] 收到聊天消息: {message.message}, project_id: {message.project_id}, task_ids: {message.task_ids}"
-        )
+        logger.info(f"[stream] 收到聊天消息: {message.message}")
 
         # 1. 会话初始化与聊天会话创建
         session_id = _ensure_stream_session(message, chat_service)
@@ -121,13 +119,8 @@ async def chat_with_llm_stream(
             meta={
                 "session_id": session_id,
                 "endpoint": "stream_chat",
-                "feature_type": "project_assistant" if message.project_id else "event_assistant",
+                "feature_type": "event_assistant",
                 "user_query": message.message,
-                "additional_info": {
-                    "project_id": message.project_id,
-                    "task_ids": message.task_ids,
-                    "selected_tasks_count": len(message.task_ids) if message.task_ids else 0,
-                },
             },
         )
 
@@ -153,13 +146,12 @@ def _ensure_stream_session(message: ChatMessage, chat_service: ChatService) -> s
 
     chat = chat_service.get_chat_by_session_id(session_id)
     if not chat:
-        chat_type = "project" if message.project_id else "event"
+        chat_type = "event"
         title = message.message[:50] if len(message.message) > 50 else message.message  # noqa: PLR2004
         chat_service.create_chat(
             session_id=session_id,
             chat_type=chat_type,
             title=title,
-            context_id=message.project_id or None,
         )
         logger.info(f"[stream] 在数据库中创建会话: {session_id}, 类型: {chat_type}")
 
@@ -189,9 +181,7 @@ def _create_dify_streaming_response(
     )
 
     # 从 message 中提取 Dify 相关参数
-    message_dict = message.model_dump(
-        exclude={"message", "conversation_id", "project_id", "task_ids", "use_rag", "mode"}
-    )
+    message_dict = message.model_dump(exclude={"message", "conversation_id", "use_rag", "mode"})
 
     # 提取 Dify 特定参数
     response_mode = message_dict.pop("dify_response_mode", "streaming")
@@ -370,8 +360,6 @@ async def _build_stream_messages_and_temperature(
         rag_service = get_rag_service()
         rag_result = await rag_service.process_query_stream(
             message.message,
-            message.project_id,
-            message.task_ids,
             session_id,
         )
 

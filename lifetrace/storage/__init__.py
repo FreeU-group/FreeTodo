@@ -6,17 +6,14 @@ Storage 模块
 from lifetrace.storage.database import (
     activity_mgr,
     chat_mgr,
-    context_mgr,
     db_base,
     event_mgr,
     get_db,
     get_session,
     journal_mgr,
     ocr_mgr,
-    project_mgr,
     screenshot_mgr,
     stats_mgr,
-    task_mgr,
     todo_mgr,
 )
 
@@ -25,10 +22,7 @@ __all__ = [
     "screenshot_mgr",
     "event_mgr",
     "ocr_mgr",
-    "project_mgr",
-    "task_mgr",
     "todo_mgr",
-    "context_mgr",
     "chat_mgr",
     "stats_mgr",
     "journal_mgr",

@@ -81,77 +81,9 @@ class Event(TimestampMixin, table=True):
     status: str = Field(default="new", max_length=20)  # 事件状态：new, processing, done
     ai_title: str | None = Field(default=None, max_length=50)  # LLM生成的事件标题
     ai_summary: str | None = Field(default=None, sa_column=Column(Text))  # LLM生成的事件摘要
-    task_id: int | None = None  # 关联的任务ID
-    auto_association_attempted: bool = False  # 是否已尝试过自动关联
 
     def __repr__(self):
         return f"<Event(id={self.id}, app={self.app_name}, status={self.status})>"
-
-
-class EventTaskRelation(TimestampMixin, table=True):
-    """事件与任务的关联关系表"""
-
-    __tablename__ = "event_task_relations"
-
-    id: int | None = Field(default=None, primary_key=True)
-    event_id: int  # 关联的事件ID
-    project_id: int | None = None  # 关联的项目ID
-    task_id: int | None = None  # 关联的任务ID
-    project_confidence: float | None = None  # 项目关联置信度
-    task_confidence: float | None = None  # 任务关联置信度
-    reasoning: str | None = Field(default=None, sa_column=Column(Text))  # 关联推理过程
-    association_method: str | None = Field(default=None, max_length=50)  # 关联方法
-    used_in_summary: bool = False  # 是否已用于任务摘要
-
-    def __repr__(self):
-        return (
-            f"<EventTaskRelation(id={self.id}, event_id={self.event_id}, task_id={self.task_id})>"
-        )
-
-
-class Project(TimestampMixin, table=True):
-    """项目管理模型"""
-
-    __tablename__ = "projects"
-
-    id: int | None = Field(default=None, primary_key=True, index=True)
-    name: str = Field(max_length=200)  # 项目名称
-    definition_of_done: str | None = Field(default=None, sa_column=Column(Text))  # "完成"的标准
-    status: str = Field(default="active", max_length=20)  # 项目状态
-    description: str | None = Field(default=None, sa_column=Column(Text))  # 项目描述
-
-    def __repr__(self):
-        return f"<Project(id={self.id}, name={self.name})>"
-
-
-class Task(TimestampMixin, table=True):
-    """任务管理模型"""
-
-    __tablename__ = "tasks"
-
-    id: int | None = Field(default=None, primary_key=True)
-    project_id: int  # 关联到项目ID
-    name: str = Field(max_length=200)  # 任务名称
-    description: str | None = Field(default=None, sa_column=Column(Text))  # 任务描述
-    status: str = Field(default="pending", max_length=20)  # 任务状态
-
-    def __repr__(self):
-        return f"<Task(id={self.id}, name={self.name}, project_id={self.project_id})>"
-
-
-class TaskProgress(TimestampMixin, table=True):
-    """任务进展记录模型"""
-
-    __tablename__ = "task_progress"
-
-    id: int | None = Field(default=None, primary_key=True)
-    task_id: int  # 关联的任务ID
-    summary: str = Field(sa_column=Column(Text))  # 进展摘要内容
-    context_count: int = 0  # 基于多少个上下文生成
-    generated_at: datetime = Field(default_factory=get_utc_time)  # 生成时间
-
-    def __repr__(self):
-        return f"<TaskProgress(id={self.id}, task_id={self.task_id})>"
 
 
 class Todo(TimestampMixin, table=True):

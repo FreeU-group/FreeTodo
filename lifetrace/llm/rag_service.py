@@ -11,6 +11,7 @@ from lifetrace.llm.context_builder import ContextBuilder
 from lifetrace.llm.llm_client import LLMClient
 from lifetrace.llm.retrieval_service import RetrievalService
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.prompt_loader import get_prompt
 from lifetrace.util.query_parser import QueryParser
 from lifetrace.util.time_utils import get_utc_now
 
@@ -20,8 +21,6 @@ from .rag_fallback import (
     generate_direct_response,
     summarize_retrieved_data,
 )
-from .rag_project import RAGServices
-from .rag_project import process_query_stream as _process_query_stream
 from .rag_stream import (
     RAGStreamContext,
     get_statistics_if_needed,
@@ -306,21 +305,59 @@ class RAGService:
     async def process_query_stream(
         self,
         user_query: str,
-        project_id: int | None = None,
-        task_ids: list[int] | None = None,
         session_id: str | None = None,
     ) -> dict[str, Any]:
-        """为流式接口处理查询"""
-        services = RAGServices(
-            llm_client=self.llm_client,
-            query_parser=self.query_parser,
-            retrieval_service=self.retrieval_service,
-            context_builder=self.context_builder,
-        )
-        return await _process_query_stream(
-            user_query,
-            project_id,
-            task_ids,
-            session_id,
-            services,
-        )
+        """为流式接口处理查询，返回构建好的 messages 和 temperature"""
+        try:
+            logger.info(f"[stream] 开始处理查询: {user_query}, session_id: {session_id}")
+            intent_result = self.llm_client.classify_intent(user_query)
+            needs_db = intent_result.get("needs_database", True)
+
+            # 构建消息
+            if needs_db:
+                parsed_query = self.query_parser.parse_query(user_query)
+                query_type = "statistics" if "统计" in user_query else "search"
+                retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 500)
+
+                # 构建上下文
+                if query_type == "statistics":
+                    stats = self.retrieval_service.get_statistics(parsed_query)
+                    context_text = self.context_builder.build_statistics_context(
+                        user_query, retrieved_data, stats
+                    )
+                else:
+                    context_text = self.context_builder.build_search_context(
+                        user_query, retrieved_data
+                    )
+                logger.debug(f"构建的上下文内容: {context_text}")
+
+                messages = [{"role": "system", "content": context_text}]
+                temperature = 0.3
+            else:
+                # 不需要数据库查询的直接回复
+                intent_type = intent_result.get("intent_type", "general_chat")
+                if intent_type == "system_help":
+                    system_prompt = get_prompt("rag", "system_help")
+                else:
+                    system_prompt = get_prompt("rag", "general_chat")
+                messages = [{"role": "system", "content": system_prompt}]
+                temperature = 0.7
+
+            # 添加当前用户消息
+            messages.append({"role": "user", "content": user_query})
+
+            return {
+                "success": True,
+                "messages": messages,
+                "temperature": temperature,
+                "intent_result": intent_result,
+            }
+
+        except Exception as e:
+            logger.error(f"[stream] 处理查询失败: {e}")
+            return {
+                "success": False,
+                "response": f"处理查询时出现错误: {str(e)}",
+                "messages": [],
+                "temperature": 0.7,
+            }

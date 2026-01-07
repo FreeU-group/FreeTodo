@@ -14,23 +14,17 @@ from lifetrace.repositories.interfaces import (
     IEventRepository,
     IJournalRepository,
     IOcrRepository,
-    IProjectRepository,
-    ITaskRepository,
     ITodoRepository,
 )
 from lifetrace.repositories.sql_activity_repository import SqlActivityRepository
 from lifetrace.repositories.sql_chat_repository import SqlChatRepository
 from lifetrace.repositories.sql_event_repository import SqlEventRepository, SqlOcrRepository
 from lifetrace.repositories.sql_journal_repository import SqlJournalRepository
-from lifetrace.repositories.sql_project_repository import SqlProjectRepository
-from lifetrace.repositories.sql_task_repository import SqlTaskRepository
 from lifetrace.repositories.sql_todo_repository import SqlTodoRepository
 from lifetrace.services.activity_service import ActivityService
 from lifetrace.services.chat_service import ChatService
 from lifetrace.services.event_service import EventService
 from lifetrace.services.journal_service import JournalService
-from lifetrace.services.project_service import ProjectService
-from lifetrace.services.task_service import TaskService
 from lifetrace.services.todo_service import TodoService
 from lifetrace.storage.database import db_base
 from lifetrace.storage.database_base import DatabaseBase
@@ -131,39 +125,6 @@ def get_activity_service(
 ) -> ActivityService:
     """获取 Activity 服务实例"""
     return ActivityService(activity_repo, event_repo)
-
-
-# ========== Project 模块依赖注入 ==========
-
-
-def get_project_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
-) -> IProjectRepository:
-    """获取 Project 仓库实例"""
-    return SqlProjectRepository(db_base)
-
-
-def get_task_repository(
-    db_base: DatabaseBase = Depends(get_db_base),
-) -> ITaskRepository:
-    """获取 Task 仓库实例"""
-    return SqlTaskRepository(db_base)
-
-
-def get_project_service(
-    project_repo: IProjectRepository = Depends(get_project_repository),
-    task_repo: ITaskRepository = Depends(get_task_repository),
-) -> ProjectService:
-    """获取 Project 服务实例"""
-    return ProjectService(project_repo, task_repo)
-
-
-def get_task_service(
-    task_repo: ITaskRepository = Depends(get_task_repository),
-    project_repo: IProjectRepository = Depends(get_project_repository),
-) -> TaskService:
-    """获取 Task 服务实例"""
-    return TaskService(task_repo, project_repo)
 
 
 # ========== Chat 模块依赖注入 ==========

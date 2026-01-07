@@ -12,8 +12,6 @@ from lifetrace.jobs.deadline_reminder import execute_deadline_reminder_task
 from lifetrace.jobs.ocr import execute_ocr_task
 from lifetrace.jobs.recorder import execute_capture_task, get_recorder_instance
 from lifetrace.jobs.scheduler import get_scheduler_manager
-from lifetrace.jobs.task_context_mapper import execute_mapper_task, get_mapper_instance
-from lifetrace.jobs.task_summary import execute_summary_task, get_summary_instance
 from lifetrace.jobs.todo_recorder import execute_todo_capture_task, get_todo_recorder_instance
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.settings import settings
@@ -46,12 +44,6 @@ class JobManager:
 
         # 启动OCR任务
         self._start_ocr_job()
-
-        # 启动任务上下文映射服务
-        self._start_task_context_mapper()
-
-        # 启动任务摘要服务
-        self._start_task_summary_service()
 
         # 启动活动聚合任务
         self._start_activity_aggregator()
@@ -177,62 +169,6 @@ class JobManager:
                 logger.info("OCR服务未启用，已暂停")
         except Exception as e:
             logger.error(f"启动OCR任务失败: {e}", exc_info=True)
-
-    def _start_task_context_mapper(self):
-        """启动任务上下文映射服务"""
-        enabled = settings.get("jobs.task_context_mapper.enabled")
-
-        try:
-            # 预先初始化全局实例
-            get_mapper_instance()
-            logger.info("任务上下文映射服务实例已初始化")
-
-            # 添加到调度器（无论是否启用都添加）
-            interval = settings.get("jobs.task_context_mapper.interval")
-            mapper_id = settings.get("jobs.task_context_mapper.id")
-            self.scheduler_manager.add_interval_job(
-                func=execute_mapper_task,
-                job_id="task_context_mapper_job",
-                name=mapper_id,
-                seconds=interval,
-                replace_existing=True,
-            )
-            logger.info(f"任务上下文映射定时任务已添加，间隔: {interval}秒")
-
-            # 如果未启用，则暂停任务
-            if not enabled:
-                self.scheduler_manager.pause_job("task_context_mapper_job")
-                logger.info("任务上下文映射服务未启用，已暂停")
-        except Exception as e:
-            logger.error(f"启动任务上下文映射服务失败: {e}", exc_info=True)
-
-    def _start_task_summary_service(self):
-        """启动任务摘要服务"""
-        enabled = settings.get("jobs.task_summary.enabled")
-
-        try:
-            # 预先初始化全局实例
-            get_summary_instance()
-            logger.info("任务摘要服务实例已初始化")
-
-            # 添加到调度器（无论是否启用都添加）
-            interval = settings.get("jobs.task_summary.interval")
-            summary_id = settings.get("jobs.task_summary.id")
-            self.scheduler_manager.add_interval_job(
-                func=execute_summary_task,
-                job_id="task_summary_job",
-                name=summary_id,
-                seconds=interval,
-                replace_existing=True,
-            )
-            logger.info(f"任务摘要定时任务已添加，间隔: {interval}秒")
-
-            # 如果未启用，则暂停任务
-            if not enabled:
-                self.scheduler_manager.pause_job("task_summary_job")
-                logger.info("任务摘要服务未启用，已暂停")
-        except Exception as e:
-            logger.error(f"启动任务摘要服务失败: {e}", exc_info=True)
 
     def _start_activity_aggregator(self):
         """启动活动聚合任务"""

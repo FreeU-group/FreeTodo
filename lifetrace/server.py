@@ -8,7 +8,6 @@ from lifetrace.jobs.job_manager import get_job_manager
 from lifetrace.routers import (
     activity,
     chat,
-    context,
     cost_tracking,
     event,
     health,
@@ -16,13 +15,11 @@ from lifetrace.routers import (
     logs,
     notification,
     ocr,
-    project,
     rag,
     scheduler,
     screenshot,
     search,
     system,
-    task,
     time_allocation,
     todo,
     todo_extraction,
@@ -126,11 +123,8 @@ app.include_router(ocr.router)
 app.include_router(vector.router)
 app.include_router(system.router)
 app.include_router(logs.router)
-app.include_router(project.router)
-app.include_router(task.router)
 app.include_router(todo.router)
 app.include_router(journal.router)
-app.include_router(context.router)
 app.include_router(rag.router)
 app.include_router(scheduler.router)
 app.include_router(cost_tracking.router)
