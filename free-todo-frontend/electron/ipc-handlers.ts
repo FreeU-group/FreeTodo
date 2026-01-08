@@ -69,6 +69,59 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		return { screenWidth: width, screenHeight: height };
 	});
 
+	// 缓动函数：easeOutCubic，用于平滑过渡
+	function easeOutCubic(t: number): number {
+		return 1 - (1 - t) ** 3;
+	}
+
+	// 动画函数：平滑过渡窗口边界
+	// 使用高频率更新（约 60fps）让动画更流畅自然
+	async function animateWindowBounds(
+		win: BrowserWindow,
+		startBounds: Electron.Rectangle,
+		endBounds: Electron.Rectangle,
+		duration: number,
+	): Promise<void> {
+		const startTime = Date.now();
+		return new Promise((resolve) => {
+			let timeoutId: NodeJS.Timeout | null = null;
+
+			const animate = () => {
+				const elapsed = Date.now() - startTime;
+				const progress = Math.min(elapsed / duration, 1);
+				const eased = easeOutCubic(progress);
+
+				const currentBounds = {
+					x: Math.round(startBounds.x + (endBounds.x - startBounds.x) * eased),
+					y: Math.round(startBounds.y + (endBounds.y - startBounds.y) * eased),
+					width: Math.round(
+						startBounds.width + (endBounds.width - startBounds.width) * eased,
+					),
+					height: Math.round(
+						startBounds.height +
+							(endBounds.height - startBounds.height) * eased,
+					),
+				};
+				win.setBounds(currentBounds);
+
+				if (progress < 1) {
+					timeoutId = setTimeout(animate, 16); // 约 60fps
+				} else {
+					resolve();
+				}
+			};
+
+			animate();
+
+			// 如果窗口被销毁，取消动画
+			win.once("closed", () => {
+				if (timeoutId !== null) {
+					clearTimeout(timeoutId);
+				}
+			});
+		});
+	}
+
 	// 折叠窗口到小尺寸（FLOAT 模式）
 	ipcMain.handle("collapse-window", async () => {
 		const win = windowManager.getWindow();
@@ -79,32 +132,55 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		win.setResizable(false);
 		win.setMovable(false);
 
-		win.setBounds(originalBounds);
+		// 获取当前窗口边界，用于平滑过渡
+		const currentBounds = win.getBounds();
 
-		// 移除圆角 CSS 和 clip-path（折叠回灵动岛时不需要圆角）
+		// 关键修复：在动画开始前，先让内容透明，避免窗口尺寸变化时看到内容闪现
+		// 这样即使窗口尺寸变大，内容也是透明的，不会看到全屏画面
 		win.webContents
 			.insertCSS(`
 			html {
 				border-radius: 0 !important;
 				clip-path: none !important;
+				opacity: 0 !important;
+				transition: opacity 0.15s ease-out !important;
 			}
 			body {
 				border-radius: 0 !important;
 				clip-path: none !important;
+				opacity: 0 !important;
+				transition: opacity 0.15s ease-out !important;
 			}
 			#__next {
 				border-radius: 0 !important;
 				clip-path: none !important;
+				opacity: 0 !important;
+				transition: opacity 0.15s ease-out !important;
 			}
 			#__next > div {
 				border-radius: 0 !important;
 				clip-path: none !important;
+				opacity: 0 !important;
+				transition: opacity 0.15s ease-out !important;
 			}
 		`)
 			.catch(() => {});
 
+		// 等待一小段时间，确保 CSS 生效
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		// 使用动画平滑过渡到全屏透明状态
+		// 此时内容已经透明，即使窗口尺寸变大也不会看到内容
+		await animateWindowBounds(win, currentBounds, originalBounds, 250);
+
+		// 确保窗口仍然置顶（FLOAT 模式需要）
+		win.setAlwaysOnTop(true);
+
 		// 重新启用点击穿透（FLOAT 模式需要）
 		win.setIgnoreMouseEvents(true, { forward: true });
+
+		// 注意：前端会在模式切换后重新渲染透明背景，opacity 会由前端控制
+		// 这里不需要恢复 opacity，因为前端会处理
 	});
 
 	// 展开窗口到面板模式（PANEL 模式）
@@ -123,12 +199,21 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		win.setResizable(true);
 		win.setMovable(true);
 
-		win.setBounds({
+		// 确保窗口仍然置顶
+		win.setAlwaysOnTop(true);
+
+		// 获取当前窗口边界，用于平滑过渡
+		const currentBounds = win.getBounds();
+		const endBounds = {
 			x: screenWidth - expandedWidth - margin,
 			y: top,
 			width: expandedWidth,
 			height: expandedHeight,
-		});
+		};
+
+		// 使用动画平滑过渡，避免瞬闪
+		// 增加动画时长，让过渡更自然
+		await animateWindowBounds(win, currentBounds, endBounds, 300);
 
 		// 注入窗口圆角 CSS（Panel 模式，增大到16px），使用 clip-path 实现完美圆角
 		win.webContents
@@ -167,72 +252,57 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		const win = windowManager.getWindow();
 		if (!win || !enableDynamicIsland) return;
 
-		const { width: screenWidth, height: screenHeight } =
-			screen.getPrimaryDisplay().workAreaSize;
-		const margin = 24;
-
-		// 必须设置可调整和可移动（因为创建时是 false）
+		// FULLSCREEN 模式改为使用「最大化」而不是固定宽高
+		// 这样更符合用户预期：占满屏幕，由操作系统负责过渡动画（更自然，不突兀）
+		// 同时保持窗口可调整/可移动，方便从全屏恢复
 		win.setResizable(true);
 		win.setMovable(true);
 
-		win.setBounds({
-			x: margin,
-			y: margin,
-			width: screenWidth - margin * 2,
-			height: screenHeight - margin * 2,
-		});
+		// 使用最大化而不是 setBounds 固定尺寸，避免在不同分辨率下出现黑边或尺寸不一致
+		// 让操作系统来处理过渡动画，会比频繁 setBounds 更平滑
+		// 注意：maximize() 本身已经有系统级的平滑动画，不需要额外动画
+		if (!win.isMaximized()) {
+			win.maximize();
+		}
 
-		// 全屏模式也添加圆角（16px），使用 clip-path 实现完美圆角
-		// 立即注入，并在页面加载完成后再次注入确保生效
-		const injectRoundedCorners = () => {
-			win?.webContents
-				.insertCSS(`
-				html {
-					border-radius: 16px !important;
-					overflow: hidden !important;
-					clip-path: inset(0 round 16px) !important;
-				}
-				body {
-					border-radius: 16px !important;
-					overflow: hidden !important;
-					clip-path: inset(0 round 16px) !important;
-					background-color: transparent !important;
-				}
-				#__next {
-					border-radius: 16px !important;
-					overflow: hidden !important;
-					clip-path: inset(0 round 16px) !important;
-					background-color: transparent !important;
-				}
-				#__next > div {
-					border-radius: 16px !important;
-					overflow: hidden !important;
-					clip-path: inset(0 round 16px) !important;
-				}
-			`)
-				.catch(() => {});
-		};
+		// FULLSCREEN 模式下不需要任何圆角或 clip-path，恢复为真正的全屏矩形窗口
+		// 这里重置 html/body/#__next 上的圆角样式，避免从 PANEL 切到 FULLSCREEN 时残留 16px 圆角
+		win.webContents
+			.insertCSS(`
+			html {
+				border-radius: 0 !important;
+				clip-path: none !important;
+				overflow: visible !important;
+			}
+			body {
+				border-radius: 0 !important;
+				clip-path: none !important;
+				overflow: visible !important;
+				background-color: transparent !important;
+			}
+			#__next {
+				border-radius: 0 !important;
+				clip-path: none !important;
+				overflow: visible !important;
+				background-color: transparent !important;
+			}
+			#__next > div {
+				border-radius: 0 !important;
+				clip-path: none !important;
+				overflow: visible !important;
+			}
+		`)
+			.catch(() => {});
 
-		// 立即注入
-		injectRoundedCorners();
-
-		// 延迟再次注入确保生效
-		setTimeout(() => {
-			injectRoundedCorners();
-		}, 200);
-
-		// 监听页面加载完成，再次注入
-		win.webContents.once("did-finish-load", () => {
-			setTimeout(() => {
-				injectRoundedCorners();
-			}, 100);
-		});
+		// FULLSCREEN 下仍然保持窗口置顶，确保在所有窗口之上
+		win.setAlwaysOnTop(true);
 
 		// 禁用点击穿透
 		win.setIgnoreMouseEvents(false);
 	});
 
 	// 调整窗口大小（用于自定义缩放把手）
+	// 所有方向统一处理，直接更新，保持一致的流畅度
 	ipcMain.on(
 		"resize-window",
 		(event, deltaX: number, deltaY: number, position: string) => {
@@ -283,13 +353,7 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 					break;
 			}
 
-			console.log("[main] Resizing window:", {
-				position,
-				deltaX,
-				deltaY,
-				oldBounds: bounds,
-				newBounds: { x: newX, y: newY, width: newWidth, height: newHeight },
-			});
+			// 所有方向统一直接更新，保持一致的流畅度
 			win.setBounds({
 				x: newX,
 				y: newY,
