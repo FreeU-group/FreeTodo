@@ -71,6 +71,8 @@ export function ChatPanel() {
 		parsePlanTodos: chatController.parsePlanTodos,
 		buildTodoPayloads: chatController.buildTodoPayloads,
 		createTodoWithResult,
+		// 共享 AbortController ref，使停止按钮能够取消通过建议按钮发起的请求
+		abortControllerRef: chatController.abortControllerRef,
 	});
 
 	const [modeMenuOpen, setModeMenuOpen] = useState(false);

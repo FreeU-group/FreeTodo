@@ -438,5 +438,7 @@ export const useChatController = ({
 		parsePlanTodos,
 		buildTodoPayloads,
 		todos,
+		// 暴露 abortControllerRef，供其他 hooks 使用（如 usePromptHandlers）
+		abortControllerRef,
 	};
 };

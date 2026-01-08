@@ -1,22 +1,21 @@
 #!/usr/bin/env node
-/// <reference types="node" />
 /**
  * 检查 TypeScript/TSX 文件的有效代码行数（不含空行和注释行）。
  * 超过指定行数上限的文件将被报告，脚本以非零状态码退出。
  *
  * 使用方法：
  *   # 检查整个目录（单独运行）
- *   node check_code_lines.mts [--include dirs] [--exclude dirs] [--max lines]
+ *   node check_code_lines.js [--include dirs] [--exclude dirs] [--max lines]
  *
  *   # 检查指定文件（pre-commit 模式）
- *   node check_code_lines.mts [options] file1.ts file2.tsx ...
+ *   node check_code_lines.js [options] file1.ts file2.tsx ...
  *
  * 示例：
  *   # 扫描整个前端目录
- *   node check_code_lines.mts --include apps,components,lib --exclude lib/generated --max 500
+ *   node check_code_lines.js --include apps,components,lib --exclude lib/generated --max 500
  *
  *   # 只检查指定文件（pre-commit 会传入暂存的文件）
- *   node check_code_lines.mts apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
+ *   node check_code_lines.js apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -32,30 +31,39 @@ const DEFAULT_INCLUDE = ["apps", "components", "electron", "lib"];
 const DEFAULT_EXCLUDE = ["lib/generated"];
 const DEFAULT_MAX_LINES = 500;
 
-interface Config {
-  includeDirs: string[];
-  excludeDirs: string[];
-  maxLines: number;
-  files: string[]; // 指定的文件列表
-}
+/**
+ * @typedef {Object} Config
+ * @property {string[]} includeDirs
+ * @property {string[]} excludeDirs
+ * @property {number} maxLines
+ * @property {string[]} files - 指定的文件列表
+ */
 
 /**
  * 解析命令行参数
+ * @returns {Config}
  */
-function parseArgs(): Config {
+function parseArgs() {
   const args = process.argv.slice(2);
   let includeDirs = DEFAULT_INCLUDE;
   let excludeDirs = DEFAULT_EXCLUDE;
   let maxLines = DEFAULT_MAX_LINES;
-  const files: string[] = [];
+  /** @type {string[]} */
+  const files = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--include" && args[i + 1]) {
-      includeDirs = args[i + 1].split(",").map((d) => d.trim()).filter(Boolean);
+      includeDirs = args[i + 1]
+        .split(",")
+        .map((d) => d.trim())
+        .filter(Boolean);
       i++;
     } else if (arg === "--exclude" && args[i + 1]) {
-      excludeDirs = args[i + 1].split(",").map((d) => d.trim()).filter(Boolean);
+      excludeDirs = args[i + 1]
+        .split(",")
+        .map((d) => d.trim())
+        .filter(Boolean);
       i++;
     } else if (arg === "--max" && args[i + 1]) {
       maxLines = parseInt(args[i + 1], 10);
@@ -73,8 +81,10 @@ function parseArgs(): Config {
  * 判断行是否为注释行
  *
  * 规则：trim() 后以 //、/*、*、*\/ 开头的行视为注释行
+ * @param {string} line
+ * @returns {boolean}
  */
-function isCommentLine(line: string): boolean {
+function isCommentLine(line) {
   const trimmed = line.trim();
   return (
     trimmed.startsWith("//") ||
@@ -86,8 +96,10 @@ function isCommentLine(line: string): boolean {
 
 /**
  * 统计文件的有效代码行数（不含空行和注释行）
+ * @param {string} filePath
+ * @returns {number}
  */
-function countCodeLines(filePath: string): number {
+function countCodeLines(filePath) {
   try {
     const content = readFileSync(filePath, "utf-8");
     const lines = content.split("\n");
@@ -115,21 +127,37 @@ function countCodeLines(filePath: string): number {
 }
 
 /**
- * 判断文件是否应该被检查
+ * 规范化路径分隔符为 /（兼容 Windows）
+ * @param {string} p
+ * @returns {string}
  */
-function shouldCheckFile(
-  relPath: string,
-  includeDirs: string[],
-  excludeDirs: string[]
-): boolean {
+function normalizePath(p) {
+  return p.replace(/\\/g, "/");
+}
+
+/**
+ * 判断文件是否应该被检查
+ * @param {string} relPath
+ * @param {string[]} includeDirs
+ * @param {string[]} excludeDirs
+ * @returns {boolean}
+ */
+function shouldCheckFile(relPath, includeDirs, excludeDirs) {
+  // 规范化路径为 / 分隔符
+  const normalizedPath = normalizePath(relPath);
+
   // 检查是否在包含目录中
-  const inInclude = includeDirs.some((inc) => relPath.startsWith(inc));
+  const inInclude = includeDirs.some((inc) =>
+    normalizedPath.startsWith(normalizePath(inc))
+  );
   if (!inInclude) {
     return false;
   }
 
   // 检查是否在排除目录中
-  const inExclude = excludeDirs.some((exc) => relPath.startsWith(exc));
+  const inExclude = excludeDirs.some((exc) =>
+    normalizedPath.startsWith(normalizePath(exc))
+  );
   if (inExclude) {
     return false;
   }
@@ -139,8 +167,10 @@ function shouldCheckFile(
 
 /**
  * 递归遍历目录，获取所有 .ts 和 .tsx 文件
+ * @param {string} dir
+ * @returns {Generator<string>}
  */
-function* walkDir(dir: string): Generator<string> {
+function* walkDir(dir) {
   try {
     const entries = readdirSync(dir, { withFileTypes: true });
     for (const entry of entries) {
@@ -164,12 +194,13 @@ function* walkDir(dir: string): Generator<string> {
 
 /**
  * 获取要检查的文件列表
+ * @param {Config} config
+ * @param {string} rootDir
+ * @returns {string[]}
  */
-function getFilesToCheck(
-  config: Config,
-  rootDir: string
-): string[] {
-  const filesToCheck: string[] = [];
+function getFilesToCheck(config, rootDir) {
+  /** @type {string[]} */
+  const filesToCheck = [];
 
   if (config.files.length > 0) {
     // 模式 1: 检查指定的文件（pre-commit 模式）
@@ -188,7 +219,8 @@ function getFilesToCheck(
       }
 
       // 获取相对于前端根目录的路径
-      let relPath: string;
+      /** @type {string} */
+      let relPath;
       try {
         relPath = relative(rootDir, filePath);
         // 如果相对路径以 .. 开头，说明文件不在前端目录下
@@ -219,8 +251,9 @@ function getFilesToCheck(
 
 /**
  * 主函数
+ * @returns {number}
  */
-function main(): number {
+function main() {
   const config = parseArgs();
 
   // 获取前端项目根目录（脚本位于 free-todo-frontend/scripts/ 下）
@@ -240,7 +273,8 @@ function main(): number {
   }
 
   // 收集超限文件
-  const violations: Array<{ path: string; lines: number }> = [];
+  /** @type {Array<{ path: string; lines: number }>} */
+  const violations = [];
 
   for (const filePath of filesToCheck) {
     const relPath = relative(rootDir, filePath);
@@ -259,8 +293,11 @@ function main(): number {
     }
     return 1;
   } else {
-    const modeDesc = config.files.length > 0 ? `检查了 ${filesToCheck.length} 个文件，` : "";
-    console.log(`✓ ${modeDesc}所有 TS/TSX 文件代码行数均不超过 ${config.maxLines} 行`);
+    const modeDesc =
+      config.files.length > 0 ? `检查了 ${filesToCheck.length} 个文件，` : "";
+    console.log(
+      `✓ ${modeDesc}所有 TS/TSX 文件代码行数均不超过 ${config.maxLines} 行`
+    );
     return 0;
   }
 }

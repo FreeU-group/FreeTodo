@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import type { MutableRefObject } from "react";
 import { useCallback } from "react";
 import { flushSync } from "react-dom";
 import type { ChatMessage, ParsedTodoTree } from "@/apps/chat/types";
@@ -35,6 +36,8 @@ type UsePromptHandlersParams = {
 		parentTodoId?: string | number | null;
 	})[];
 	createTodoWithResult: (input: CreateTodoInput) => Promise<Todo | null>;
+	// 用于取消流式请求的 AbortController ref，与 useChatController 共享
+	abortControllerRef: MutableRefObject<AbortController | null>;
 };
 
 export const usePromptHandlers = ({
@@ -53,6 +56,7 @@ export const usePromptHandlers = ({
 	parsePlanTodos,
 	buildTodoPayloads,
 	createTodoWithResult,
+	abortControllerRef,
 }: UsePromptHandlersParams) => {
 	const tChat = useTranslations("chat");
 	const tCommon = useTranslations("common");
@@ -196,33 +200,56 @@ export const usePromptHandlers = ({
 		async (
 			payloadMessage: string,
 			assistantMessageId: string,
-		): Promise<string> => {
+		): Promise<{ content: string; aborted: boolean }> => {
 			let assistantContent = "";
 			const modeForBackend = chatMode === "difyTest" ? "dify_test" : chatMode;
 
-			await sendChatMessageStream(
-				{
-					message: payloadMessage,
-					conversationId: conversationId || undefined,
-					// 当发送格式化消息（包含todo上下文）时，设置useRag=false
-					useRag: false,
-					mode: modeForBackend,
-				},
-				(chunk) => {
-					assistantContent += chunk;
-					// 使用 flushSync 强制同步更新，确保流式输出效果
-					flushSync(() => {
-						updateAssistantMessage(assistantMessageId, assistantContent);
-					});
-				},
-				(sessionId) => {
-					setConversationId(conversationId || sessionId);
-				},
-			);
+			// 创建新的 AbortController 并存入共享 ref
+			const abortController = new AbortController();
+			abortControllerRef.current = abortController;
 
-			return assistantContent;
+			try {
+				await sendChatMessageStream(
+					{
+						message: payloadMessage,
+						conversationId: conversationId || undefined,
+						// 当发送格式化消息（包含todo上下文）时，设置useRag=false
+						useRag: false,
+						mode: modeForBackend,
+					},
+					(chunk) => {
+						// 检查是否已取消
+						if (abortController.signal.aborted) {
+							return;
+						}
+						assistantContent += chunk;
+						// 使用 flushSync 强制同步更新，确保流式输出效果
+						flushSync(() => {
+							updateAssistantMessage(assistantMessageId, assistantContent);
+						});
+					},
+					(sessionId) => {
+						setConversationId(conversationId || sessionId);
+					},
+					abortController.signal,
+				);
+
+				return { content: assistantContent, aborted: false };
+			} catch (err) {
+				// 如果是用户主动取消，返回已收集的内容
+				if (
+					abortController.signal.aborted ||
+					(err instanceof Error && err.name === "AbortError")
+				) {
+					return { content: assistantContent, aborted: true };
+				}
+				throw err;
+			} finally {
+				// 清理 ref
+				abortControllerRef.current = null;
+			}
 		},
-		[chatMode, conversationId, setConversationId, updateAssistantMessage],
+		[chatMode, conversationId, setConversationId, updateAssistantMessage, abortControllerRef],
 	);
 
 	// 处理预设prompt选择：直接发送消息，不设置到输入框
@@ -248,10 +275,22 @@ export const usePromptHandlers = ({
 			setIsStreaming(true);
 
 			try {
-				const assistantContent = await handleStreamingResponse(
+				const { content: assistantContent, aborted } = await handleStreamingResponse(
 					payloadMessage,
 					assistantMessageId,
 				);
+
+				// 如果是用户主动取消
+				if (aborted) {
+					// 如果没有内容，移除空的助手消息
+					if (!assistantContent) {
+						setMessages((prev) =>
+							prev.filter((msg) => msg.id !== assistantMessageId),
+						);
+					}
+					// 如果已有部分内容，保留它（已在流式过程中更新）
+					return;
+				}
 
 				if (!assistantContent) {
 					const fallback = tChat("noResponseReceived");
