@@ -39,12 +39,9 @@ export interface NotificationData {
 			body.style.setProperty("background", "transparent", "important");
 		}
 
-		// 通知主进程透明背景已设置
-		try {
-			ipcRenderer.send("transparent-background-ready");
-		} catch (_e) {
-			// 忽略错误
-		}
+		// 原来这里会直接通知主进程 "transparent-background-ready"
+		// 但这发生在 React 完成水合之前，可能导致窗口过早显示整页 UI
+		// 现在改为只由前端的 ElectronTransparentScript 通知，确保已进入 Electron 专用布局后再显示窗口
 	}
 
 	// 等待 DOM 可用后再执行

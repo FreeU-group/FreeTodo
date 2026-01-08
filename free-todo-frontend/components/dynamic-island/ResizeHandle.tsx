@@ -90,11 +90,10 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 		(e: React.MouseEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
-			console.log("[ResizeHandle] 开始拖动:", position);
 			setIsDragging(true);
 			startPosRef.current = { x: e.clientX, y: e.clientY };
 		},
-		[position],
+		[],
 	);
 
 	useEffect(() => {

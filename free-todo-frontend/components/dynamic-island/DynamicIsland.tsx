@@ -147,10 +147,7 @@ export function DynamicIsland({
 		(deltaX: number, deltaY: number, position: string) => {
 			const api = getElectronAPI();
 			if (api.electronAPI?.resizeWindow) {
-				console.log("[DynamicIsland] 缩放窗口:", { deltaX, deltaY, position });
 				api.electronAPI.resizeWindow(deltaX, deltaY, position);
-			} else {
-				console.warn("[DynamicIsland] electronAPI.resizeWindow 不存在");
 			}
 		},
 		[],

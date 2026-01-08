@@ -294,11 +294,15 @@ export class WindowManager {
 			if (enableDynamicIsland && this.mainWindow) {
 				// 等待透明背景设置完成后再显示窗口
 				// 这样可以避免 Next.js SSR 导致的窗口显示问题
+				// 同时增加一个小延迟，让前端完成首次渲染（包括 page.tsx 中的 Electron 分支）
+				// 确保窗口一开始就是“透明 + 只有灵动岛”，不会先闪现整页 UI
 				const showWindow = () => {
 					if (this.mainWindow) {
 						this.mainWindow.show();
 						// 默认设置点击穿透，直到鼠标悬停在灵动岛上
-						this.mainWindow.setIgnoreMouseEvents(true, { forward: true });
+						this.mainWindow.setIgnoreMouseEvents(true, {
+							forward: true,
+						});
 						logger.info(
 							"Dynamic Island mode enabled: window shown, click-through active",
 						);
