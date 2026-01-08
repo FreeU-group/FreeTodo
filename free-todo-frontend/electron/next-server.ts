@@ -8,9 +8,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, BrowserWindow, dialog } from "electron";
 import {
-	PORT_CONFIG,
 	isDevelopment,
 	LOG_CONFIG,
+	PORT_CONFIG,
 } from "./config";
 import { logger } from "./logger";
 import { portManager } from "./port-manager";

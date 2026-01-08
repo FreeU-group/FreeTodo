@@ -60,7 +60,7 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 		const style: React.CSSProperties = {
 			cursor: getCursor(),
 			position: "absolute",
-			zIndex: 1000,
+			zIndex: 10000,
 			...size,
 		};
 
@@ -188,4 +188,3 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 		/>
 	);
 };
-

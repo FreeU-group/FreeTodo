@@ -8,7 +8,6 @@ import path from "node:path";
 import { app, BrowserWindow, dialog, screen } from "electron";
 import {
 	enableDynamicIsland,
-	isDevelopment,
 	WINDOW_CONFIG,
 } from "./config";
 import { logger } from "./logger";

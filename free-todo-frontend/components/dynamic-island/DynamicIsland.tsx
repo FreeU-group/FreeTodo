@@ -578,21 +578,31 @@ export function DynamicIsland({
 						initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
 						animate={{ opacity: 1, scale: 1, rotate: 0 }}
 						exit={{ opacity: 0, scale: 0.5, rotate: -45 }}
-						className="fixed inset-x-0 top-0 z-[99999] pointer-events-none"
+						className="fixed inset-x-0 top-0 z-[100000] pointer-events-none"
 					>
 						<div
 							className="flex items-center justify-end px-4 h-15"
 							style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
 						>
 							<div
+								role="toolbar"
 								className="flex items-center gap-1.5 rounded-xl bg-background/80 dark:bg-background/80 backdrop-blur-xl border border-[oklch(var(--border))]/40 shadow-sm px-2 py-1 text-[oklch(var(--foreground))]/60 pointer-events-auto mr-50"
 								style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+								onMouseDown={(e) => {
+									// 确保按钮容器的事件不被拖拽拦截
+									e.stopPropagation();
+								}}
 							>
 								<button
 									type="button"
-									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors cursor-pointer relative z-10"
 									title="退出全屏"
+									onMouseDown={(e) => {
+										// 阻止事件冒泡，确保按钮点击有效
+										e.stopPropagation();
+									}}
 									onClick={async (e) => {
+										e.preventDefault();
 										e.stopPropagation();
 										try {
 											const w = window as typeof window & {
@@ -619,9 +629,14 @@ export function DynamicIsland({
 								</button>
 								<button
 									type="button"
-									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors"
+									className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-[oklch(var(--muted))]/40 hover:text-[oklch(var(--foreground))] transition-colors cursor-pointer relative z-10"
 									title="折叠到灵动岛"
+									onMouseDown={(e) => {
+										// 阻止事件冒泡，确保按钮点击有效
+										e.stopPropagation();
+									}}
 									onClick={async (e) => {
+										e.preventDefault();
 										e.stopPropagation();
 										try {
 											const w = window as typeof window & {
@@ -655,8 +670,10 @@ export function DynamicIsland({
 						</div>
 					</motion.div>
 				</AnimatePresence>
-				{/* Fullscreen 模式的缩放把手 - 覆盖整个窗口 */}
+				{/* Fullscreen 模式的缩放把手 - 覆盖整个窗口，但排除顶部控制条区域 */}
 				<div className="fixed inset-0 z-[100] pointer-events-none">
+					{/* 顶部区域排除，避免拦截控制条 */}
+					<div className="absolute top-0 left-0 right-0 h-20 pointer-events-none" />
 					<div className="pointer-events-auto">
 						<ResizeHandle position="top" onResize={handleResize} />
 						<ResizeHandle position="bottom" onResize={handleResize} />
@@ -694,20 +711,27 @@ export function DynamicIsland({
 						} as React.CSSProperties
 					}
 				>
-					{/* Panel 模式的缩放把手 */}
-					<ResizeHandle position="top" onResize={handleResize} />
-					<ResizeHandle position="bottom" onResize={handleResize} />
-					<ResizeHandle position="left" onResize={handleResize} />
-					<ResizeHandle position="right" onResize={handleResize} />
-					<ResizeHandle position="top-left" onResize={handleResize} />
-					<ResizeHandle position="top-right" onResize={handleResize} />
-					<ResizeHandle position="bottom-left" onResize={handleResize} />
-					<ResizeHandle position="bottom-right" onResize={handleResize} />
-					<div className="flex flex-col w-full h-full text-[oklch(var(--foreground))]">
+					{/* Panel 模式的缩放把手 - 确保在标题栏之上 */}
+					<div className="absolute inset-0 pointer-events-none z-50">
+						<ResizeHandle position="top" onResize={handleResize} />
+						<ResizeHandle position="bottom" onResize={handleResize} />
+						<ResizeHandle position="left" onResize={handleResize} />
+						<ResizeHandle position="right" onResize={handleResize} />
+						<ResizeHandle position="top-left" onResize={handleResize} />
+						<ResizeHandle position="top-right" onResize={handleResize} />
+						<ResizeHandle position="bottom-left" onResize={handleResize} />
+						<ResizeHandle position="bottom-right" onResize={handleResize} />
+					</div>
+					<div className="flex flex-col w-full h-full text-[oklch(var(--foreground))] relative z-0">
 						<div
-							className="h-8 px-4 flex items-center justify-between bg-background/95"
+							className="h-8 px-4 flex items-center justify-between bg-background/95 relative"
 							style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
 						>
+							{/* 排除顶部边缘区域（4px），让 top ResizeHandle 可以工作 */}
+							<div
+								className="absolute top-0 left-0 right-0 h-1 pointer-events-none"
+								style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+							/>
 							<div className="text-xs text-[oklch(var(--foreground))]/70 select-none">
 								LifeTrace · AI 聊天
 							</div>
@@ -723,9 +747,13 @@ export function DynamicIsland({
 									onClick={async (e) => {
 										e.stopPropagation();
 										try {
-											const api = getElectronAPI();
-											if (api.electronAPI?.expandWindowFull) {
-												await api.electronAPI.expandWindowFull();
+											const w = window as typeof window & {
+												electronAPI?: {
+													expandWindowFull?: () => Promise<void> | void;
+												};
+											};
+											if (w.electronAPI?.expandWindowFull) {
+												await w.electronAPI.expandWindowFull();
 											}
 											onModeChange?.(IslandMode.FULLSCREEN);
 										} catch (error) {
@@ -742,12 +770,20 @@ export function DynamicIsland({
 									onClick={async (e) => {
 										e.stopPropagation();
 										try {
-											const api = getElectronAPI();
-											if (api.electronAPI?.collapseWindow) {
-												await api.electronAPI.collapseWindow();
+											const w = window as typeof window & {
+												electronAPI?: {
+													collapseWindow?: () => Promise<void> | void;
+													setIgnoreMouseEvents?: (
+														ignore: boolean,
+														options?: { forward?: boolean },
+													) => void;
+												};
+											};
+											if (w.electronAPI?.collapseWindow) {
+												await w.electronAPI.collapseWindow();
 											}
 											// 折叠回灵动岛时，重新开启点击穿透，避免挡住桌面
-											api.electronAPI?.setIgnoreMouseEvents?.(true, {
+											w.electronAPI?.setIgnoreMouseEvents?.(true, {
 												forward: true,
 											});
 										} finally {
@@ -937,5 +973,3 @@ export function DynamicIsland({
 		</div>
 	);
 }
-
-
