@@ -18,13 +18,11 @@
  *   node check_code_lines.js apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+const { existsSync, readdirSync, readFileSync } = require("node:fs");
+const { dirname, isAbsolute, join, relative, resolve } = require("node:path");
 
-// 获取脚本所在目录
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// 获取脚本所在目录（CommonJS 方式）
+// 在 CommonJS 中，__dirname 和 __filename 是自动可用的
 
 // 默认配置
 const DEFAULT_INCLUDE = ["apps", "components", "electron", "lib"];

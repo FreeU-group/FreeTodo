@@ -241,6 +241,8 @@ export class WindowManager {
 		// 这里也放在 create 方法内部，确保逻辑一致
 		// 重置标志，因为每次创建窗口时都需要重新等待信号
 		this.transparentBackgroundReady = false;
+		// 移除旧的监听器（如果存在），避免重复注册
+		ipcMain.removeAllListeners("transparent-background-ready");
 		ipcMain.on("transparent-background-ready", () => {
 			this.transparentBackgroundReady = true;
 			logger.info("Transparent background ready signal received");
