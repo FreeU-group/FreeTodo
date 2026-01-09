@@ -41,6 +41,8 @@ export abstract class ProcessManager {
 	protected stdoutBuffer = "";
 	/** 标准错误输出缓冲区 */
 	protected stderrBuffer = "";
+	/** 标记是否正在主动停止（用于区分正常关闭和意外退出） */
+	protected isStopping = false;
 
 	constructor(config: ServerConfig, defaultPort: number) {
 		this.config = config;
@@ -77,12 +79,20 @@ export abstract class ProcessManager {
 	 * 停止服务器
 	 */
 	stop(): void {
+		this.isStopping = true;
 		this.stopHealthCheck();
 		if (this.process) {
 			logger.info(`Stopping ${this.config.name}...`);
 			this.process.kill("SIGTERM");
 			this.process = null;
 		}
+	}
+
+	/**
+	 * 检查是否正在主动停止
+	 */
+	isIntentionallyStopping(): boolean {
+		return this.isStopping;
 	}
 
 	/**

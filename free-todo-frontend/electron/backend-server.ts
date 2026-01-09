@@ -153,10 +153,18 @@ export class BackendServer extends ProcessManager {
 		// 设置退出处理
 		this.process.on("exit", (code, signal) => {
 			const exitMsg = `Backend server exited with code ${code}${signal ? `, signal ${signal}` : ""}`;
-			logger.error(exitMsg);
 			this.process = null;
 
-			if (code !== 0) {
+			// 如果是主动关闭（调用了 stop() 方法），不显示错误对话框
+			if (this.isStopping) {
+				logger.info(`${exitMsg} (intentional shutdown)`);
+				return;
+			}
+
+			logger.error(exitMsg);
+
+			// 只在非正常退出时显示错误对话框（code 不为 0 且不为 null）
+			if (code !== 0 && code !== null) {
 				dialog.showErrorBox(
 					"Backend Server Exited",
 					`The backend server exited unexpectedly.\n\n${exitMsg}\n\nCheck logs at: ${logger.getLogFilePath()}\n\nBackend path: ${this.backendPath}\nData directory: ${this.dataDir}`,
