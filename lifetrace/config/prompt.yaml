@@ -13,7 +13,8 @@
 #   ├── todo.yaml        # 待办相关（todo_extraction, auto_todo_detection）
 #   ├── plan.yaml        # Plan 功能（plan_questionnaire, plan_summary）
 #   ├── chat.yaml        # 前端聊天（chat_frontend）
-#   └── search.yaml      # 搜索相关（web_search, agent）
+#   ├── search.yaml      # 搜索相关（web_search）
+#   └── agent.yaml        # Agent 工具调用相关（agent）
 #
 # PromptLoader 会自动从 prompts/ 目录加载所有 yaml 文件。
 # 如果 prompts/ 目录不存在，则回退到本文件（兼容旧版本）。

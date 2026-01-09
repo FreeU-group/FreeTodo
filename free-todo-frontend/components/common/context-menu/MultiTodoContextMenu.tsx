@@ -106,13 +106,14 @@ export function MultiTodoContextMenu({
 			}
 
 			// 只删除根项，后端会级联删除子任务
-			await Promise.all(
-				rootIdsToDelete.map((id) =>
-					deleteTodo(id).catch((err) => {
-						console.error(`Failed to delete todo ${id}:`, err);
-					}),
-				),
-			);
+			// 使用串行删除避免乐观更新冲突
+			for (const id of rootIdsToDelete) {
+				try {
+					await deleteTodo(id);
+				} catch (err) {
+					console.error(`Failed to delete todo ${id}:`, err);
+				}
+			}
 
 			// 清理 UI 状态
 			onTodoDeleted(Array.from(allIdsToRemove));

@@ -263,13 +263,34 @@ def _create_agent_streaming_response(
                     user_query = parts[1].strip()
                     break
 
+    # 获取对话历史（排除当前用户消息，因为它已经在user_query中）
+    conversation_history = []
+    try:
+        all_messages = chat_service.get_messages(session_id=session_id)
+        # 只获取历史消息（排除最后一条用户消息，因为我们刚保存了它）
+        # 转换为Agent需要的格式：{"role": "user"/"assistant", "content": "..."}
+        for msg in all_messages[:-1]:  # 排除最后一条（当前用户消息）
+            msg_role = msg.get("role", "user")
+            msg_content = msg.get("content", "")
+            if msg_role in ("user", "assistant"):
+                conversation_history.append(
+                    {
+                        "role": msg_role,
+                        "content": msg_content,
+                    }
+                )
+        logger.info(f"[stream][agent] 获取到 {len(conversation_history)} 条历史消息")
+    except Exception as e:
+        logger.warning(f"[stream][agent] 获取对话历史失败: {e}")
+
     def agent_token_generator():
         total_content = ""
         try:
-            # 流式生成 Agent 回答
+            # 流式生成 Agent 回答，传递对话历史
             for chunk in agent_service.stream_agent_response(
                 user_query=user_query,
                 todo_context=todo_context,
+                conversation_history=conversation_history if conversation_history else None,
             ):
                 total_content += chunk
                 yield chunk

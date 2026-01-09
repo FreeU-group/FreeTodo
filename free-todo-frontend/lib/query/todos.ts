@@ -280,6 +280,39 @@ export function useUpdateTodo() {
 }
 
 /**
+ * 整理待办到父任务的 Mutation Hook
+ */
+export function useOrganizeTodos() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: async (params: {
+			parent_title: string;
+			todo_ids: number[];
+		}) => {
+			const response = await fetch("/api/todos/organize", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify(params),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.detail || "整理待办失败");
+			}
+
+			return response.json();
+		},
+		onSuccess: () => {
+			// 成功后刷新待办列表
+			queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+		},
+	});
+}
+
+/**
  * 删除 Todo 的 Mutation Hook
  */
 export function useDeleteTodo() {

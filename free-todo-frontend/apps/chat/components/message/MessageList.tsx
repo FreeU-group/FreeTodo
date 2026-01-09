@@ -49,7 +49,7 @@ export function MessageList({
 			allTodos,
 		});
 
-	// 跟踪每个消息的 hover 状态和菜单状态
+	// 跟踪每个消息的菜单状态
 	const [menuOpenForMessageId, setMenuOpenForMessageId] = useState<
 		string | null
 	>(null);
