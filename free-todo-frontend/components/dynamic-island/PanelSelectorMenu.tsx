@@ -16,6 +16,8 @@ interface PanelSelectorMenuProps {
 	onClose: () => void;
 	onSelect: (feature: PanelFeature) => void;
 	anchorElement: HTMLElement | null;
+	/** 当前已选中的功能（用于在面板中右键时排除自身） */
+	currentFeature?: PanelFeature;
 }
 
 // 功能到翻译键的映射
@@ -28,6 +30,7 @@ export function PanelSelectorMenu({
 	onClose,
 	onSelect,
 	anchorElement,
+	currentFeature,
 }: PanelSelectorMenuProps) {
 	const menuRef = useRef<HTMLDivElement>(null);
 	const t = useTranslations("bottomDock");
@@ -36,9 +39,14 @@ export function PanelSelectorMenu({
 	// 使用 getAvailableFeatures 来同步设置界面的开启/关闭状态
 	// 但是要确保settings始终包含（设置功能一定被包含的）
 	const baseAvailableFeatures = getAvailableFeatures();
-	const availableFeatures: PanelFeature[] = baseAvailableFeatures.includes("settings")
+	const allAvailableFeatures: PanelFeature[] = baseAvailableFeatures.includes("settings")
 		? baseAvailableFeatures
 		: [...baseAvailableFeatures, "settings" as PanelFeature];
+
+	// 在 Panel 模式下右键时，排除当前功能本身（例如当前是日历，就不再显示“日历”）
+	const availableFeatures = currentFeature
+		? allAvailableFeatures.filter((feature) => feature !== currentFeature)
+		: allAvailableFeatures;
 
 	// 点击外部关闭菜单
 	useEffect(() => {

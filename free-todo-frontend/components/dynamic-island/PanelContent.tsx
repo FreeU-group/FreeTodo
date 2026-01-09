@@ -15,6 +15,7 @@ import { TodoList } from "@/apps/todo-list";
 import { PanelPositionProvider } from "@/components/common/layout/PanelHeader";
 import type { PanelFeature } from "@/lib/config/panel-config";
 import { FEATURE_ICON_MAP } from "@/lib/config/panel-config";
+import { GlobalDndProvider } from "@/lib/dnd";
 import { useUiStore } from "@/lib/store/ui-store/store";
 import { cn } from "@/lib/utils";
 import { PanelFeatureContext } from "./PanelFeatureContext";
@@ -200,103 +201,106 @@ export const PanelContent: React.FC<PanelContentProps> = () => {
 	}
 
 	return (
-		<div className="flex h-full w-full flex-col bg-[oklch(var(--background))] relative">
-			{/* 内容区域 */}
-			<div className="flex-1 min-h-0 overflow-hidden relative z-10 bg-[oklch(var(--background))]">
-				<motion.div
-					key={currentFeature}
-					initial={{ opacity: 0, y: 10 }}
-					animate={{ opacity: 1, y: 0 }}
-					exit={{ opacity: 0, y: -10 }}
-					transition={{ duration: 0.2 }}
-					className="h-full w-full min-h-0"
-				>
-					{renderFeatureContent()}
-				</motion.div>
-			</div>
-
-			{/* 底部 Dock - 完全照搬 BottomDock 的实现 */}
-			<motion.div
-				className="pointer-events-auto fixed bottom-1 left-1/2 z-50"
-				initial={false}
-				animate={{
-					x: "-50%",
-					y: isExpanded ? 0 : hiddenTranslateY,
-				}}
-				transition={DOCK_ANIMATION_CONFIG.spring}
-			>
-				<div
-					ref={dockRef}
-					className={cn(
-						"flex items-center gap-2",
-						"bg-[oklch(var(--card))]/80 dark:bg-background",
-						"backdrop-blur-md",
-						"border border-[oklch(var(--border))]",
-						"shadow-lg",
-						"px-2 py-1.5",
-						"rounded-xl",
-					)}
-				>
-					{/* 功能切换按钮 - 完全照搬 BottomDock 的按钮样式 */}
-					<button
-						ref={buttonRef}
-						type="button"
-						onClick={() => {
-							// 只在可用功能之间切换（与完整页面的BottomDock使用相同的逻辑）
-							if (availableFeatures.length === 0) return;
-							const currentIndex = availableFeatures.indexOf(currentFeature);
-							const nextIndex = currentIndex >= 0
-								? (currentIndex + 1) % availableFeatures.length
-								: 0;
-							setCurrentFeature(availableFeatures[nextIndex]);
-						}}
-						onContextMenu={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							setMenuState({
-								isOpen: true,
-								anchorElement: buttonRef.current,
-							});
-						}}
-						className={cn(
-							"relative flex items-center gap-2",
-							"px-3 py-2 rounded-lg",
-							"transition-all duration-200",
-							"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(var(--ring))] focus-visible:ring-offset-2",
-							"bg-[oklch(var(--primary-weak))] dark:bg-[oklch(var(--primary-weak-hover))] text-[oklch(var(--primary))] dark:text-[oklch(var(--primary-foreground))] shadow-[0_0_0_1px_oklch(var(--primary))] hover:bg-[oklch(var(--primary-weak-hover))] dark:hover:bg-[oklch(var(--primary-weak))]",
-						)}
-						aria-label={t(getFeatureLabelKey(currentFeature))}
-						aria-pressed={true}
+		<GlobalDndProvider>
+			<div className="flex h-full w-full flex-col bg-[oklch(var(--background))] relative">
+				{/* 内容区域 */}
+				<div className="flex-1 min-h-0 overflow-hidden relative z-10 bg-[oklch(var(--background))]">
+					<motion.div
+						key={currentFeature}
+						initial={{ opacity: 0, y: 10 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: -10 }}
+						transition={{ duration: 0.2 }}
+						className="h-full w-full min-h-0"
 					>
-						<Icon
-							className={cn(
-								"h-5 w-5",
-								"text-[oklch(var(--primary))] dark:text-[oklch(var(--primary-foreground))]",
-							)}
-						/>
-						<span
-							className={cn(
-								"text-sm font-medium",
-								"text-[oklch(var(--primary))] dark:text-[oklch(var(--primary-foreground))]",
-							)}
-						>
-							{t(getFeatureLabelKey(currentFeature))}
-						</span>
-						<span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-[oklch(var(--primary))] dark:bg-[oklch(var(--primary-foreground))]" />
-					</button>
+						{renderFeatureContent()}
+					</motion.div>
 				</div>
-			</motion.div>
 
-			{/* 右键菜单 - 选择功能 - 使用 getAvailableFeatures 来同步设置界面的开启/关闭状态 */}
-			<PanelSelectorMenu
-				isOpen={menuState.isOpen}
-				onClose={() => setMenuState({ isOpen: false, anchorElement: null })}
-				onSelect={(feature) => {
-					setCurrentFeature(feature);
-					setMenuState({ isOpen: false, anchorElement: null });
-				}}
-				anchorElement={menuState.anchorElement}
-			/>
-		</div>
+				{/* 底部 Dock - 完全照搬 BottomDock 的实现 */}
+				<motion.div
+					className="pointer-events-auto fixed bottom-1 left-1/2 z-50"
+					initial={false}
+					animate={{
+						x: "-50%",
+						y: isExpanded ? 0 : hiddenTranslateY,
+					}}
+					transition={DOCK_ANIMATION_CONFIG.spring}
+				>
+					<div
+						ref={dockRef}
+						className={cn(
+							"flex items-center gap-2",
+							"bg-[oklch(var(--card))]/80 dark:bg-background",
+							"backdrop-blur-md",
+							"border border-[oklch(var(--border))]",
+							"shadow-lg",
+							"px-2 py-1.5",
+							"rounded-xl",
+						)}
+					>
+						{/* 功能切换按钮 - 完全照搬 BottomDock 的按钮样式 */}
+						<button
+							ref={buttonRef}
+							type="button"
+							onClick={() => {
+								// 只在可用功能之间切换（与完整页面的BottomDock使用相同的逻辑）
+								if (availableFeatures.length === 0) return;
+								const currentIndex = availableFeatures.indexOf(currentFeature);
+								const nextIndex = currentIndex >= 0
+									? (currentIndex + 1) % availableFeatures.length
+									: 0;
+								setCurrentFeature(availableFeatures[nextIndex]);
+							}}
+							onContextMenu={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								setMenuState({
+									isOpen: true,
+									anchorElement: buttonRef.current,
+								});
+							}}
+							className={cn(
+								"relative flex items-center gap-2",
+								"px-3 py-2 rounded-lg",
+								"transition-all duration-200",
+								"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(var(--ring))] focus-visible:ring-offset-2",
+								"bg-[oklch(var(--primary-weak))] dark:bg-[oklch(var(--primary-weak-hover))] text-[oklch(var(--primary))] dark:text-[oklch(var(--primary-foreground))] shadow-[0_0_0_1px_oklch(var(--primary))] hover:bg-[oklch(var(--primary-weak-hover))] dark:hover:bg-[oklch(var(--primary-weak))]",
+							)}
+							aria-label={t(getFeatureLabelKey(currentFeature))}
+							aria-pressed={true}
+						>
+							<Icon
+								className={cn(
+									"h-5 w-5",
+									"text-[oklch(var(--primary))] dark:text-[oklch(var(--primary-foreground))]",
+								)}
+							/>
+							<span
+								className={cn(
+									"text-sm font-medium",
+									"text-[oklch(var(--primary))] dark:text-[oklch(var(--primary-foreground))]",
+								)}
+							>
+								{t(getFeatureLabelKey(currentFeature))}
+							</span>
+							<span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3 h-0.5 bg-[oklch(var(--primary))] dark:bg-[oklch(var(--primary-foreground))]" />
+						</button>
+					</div>
+				</motion.div>
+
+				{/* 右键菜单 - 选择功能 - 使用 getAvailableFeatures 来同步设置界面的开启/关闭状态 */}
+				<PanelSelectorMenu
+					isOpen={menuState.isOpen}
+					onClose={() => setMenuState({ isOpen: false, anchorElement: null })}
+					onSelect={(feature) => {
+						setCurrentFeature(feature);
+						setMenuState({ isOpen: false, anchorElement: null });
+					}}
+					anchorElement={menuState.anchorElement}
+					currentFeature={currentFeature}
+				/>
+			</div>
+		</GlobalDndProvider>
 	);
 };
