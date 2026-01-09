@@ -121,24 +121,63 @@ export function DynamicIsland({
 		const handleKeyDown = async (e: KeyboardEvent) => {
 			if (e.key === "1") {
 				const api = getElectronAPI();
-				await api.electronAPI?.collapseWindow?.();
-				setTimeout(() => api.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true }), 120);
+				// 先切换前端状态，再执行窗口动画
 				onModeChange?.(IslandMode.FLOAT);
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				await api.electronAPI?.collapseWindow?.();
+					// 延迟设置点击穿透和恢复透明度，确保窗口动画完全完成
+					// 窗口动画时长是 800ms，加上透明度过渡 350ms，加上等待时间 400ms，总共约 1550ms
+					// 我们等待 1600ms 确保所有动画完成，避免瞬闪
+					setTimeout(() => {
+						api.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
+						// 恢复透明度
+						const style = document.createElement("style");
+						style.id = "restore-opacity-keyboard";
+						style.textContent = `
+							html, body, #__next, #__next > div {
+								opacity: 1 !important;
+								pointer-events: auto !important;
+							}
+						`;
+						const oldStyle = document.getElementById("restore-opacity-keyboard");
+						if (oldStyle) oldStyle.remove();
+						document.head.appendChild(style);
+					}, 1600);
 			} else if (e.key === "4") {
 				const api = getElectronAPI();
+				// 等待窗口动画完成后再切换状态
 				await api.electronAPI?.expandWindow?.();
 				onModeChange?.(IslandMode.PANEL);
 			} else if (e.key === "5") {
 				const api = getElectronAPI();
+				// 等待窗口动画完成后再切换状态
 				await api.electronAPI?.expandWindowFull?.();
 				onModeChange?.(IslandMode.FULLSCREEN);
 			} else if (e.key === "Escape") {
 				if (mode === IslandMode.FULLSCREEN || mode === IslandMode.PANEL) {
 					const api = getElectronAPI();
-					await api.electronAPI?.collapseWindow?.();
-					setTimeout(() => api.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true }), 120);
+					// 先切换前端状态，再执行窗口动画
 					onModeChange?.(IslandMode.FLOAT);
 					onClose?.();
+					await new Promise((resolve) => setTimeout(resolve, 50));
+					await api.electronAPI?.collapseWindow?.();
+					// 延迟设置点击穿透和恢复透明度，确保窗口动画完全完成
+					// 窗口动画时长是 800ms，加上透明度过渡 350ms，加上等待时间 400ms，总共约 1550ms
+					// 我们等待 1600ms 确保所有动画完成，避免瞬闪
+					setTimeout(() => {
+						api.electronAPI?.setIgnoreMouseEvents?.(true, { forward: true });
+						const style = document.createElement("style");
+						style.id = "restore-opacity-escape";
+						style.textContent = `
+							html, body, #__next, #__next > div {
+								opacity: 1 !important;
+								pointer-events: auto !important;
+							}
+						`;
+						const oldStyle = document.getElementById("restore-opacity-escape");
+						if (oldStyle) oldStyle.remove();
+						document.head.appendChild(style);
+					}, 1600);
 				}
 			}
 		};
@@ -392,9 +431,10 @@ export function DynamicIsland({
 										// 完全按照"4键"的逻辑：切换到Panel模式（使用默认位置，简单可靠）
 										const api = getElectronAPI();
 										if (api.electronAPI?.expandWindow) {
-											// 直接使用默认位置，不计算相对位置，避免位置错误
+											// 等待窗口动画完成后再切换状态
 											await api.electronAPI.expandWindow();
 										}
+										// 窗口动画完成后，再切换前端状态
 										onModeChange?.(IslandMode.PANEL);
 									}}
 								/>

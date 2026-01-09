@@ -95,11 +95,22 @@ export function PanelTitleBar({
 									) => void;
 								};
 							};
+							// 关键修复：在窗口动画开始前，先切换前端状态到 FLOAT 模式
+							// 这样窗口变大时，显示的是 FLOAT 模式的小岛，而不是 PANEL 内容被放大
+							onModeChange?.(IslandMode.FLOAT);
+							onClose?.();
+
+							// 等待一小段时间，确保前端状态切换完成，React 已经重新渲染为 FLOAT 模式
+							await new Promise((resolve) => setTimeout(resolve, 50));
+
 							if (w.electronAPI?.collapseWindow) {
+								// 现在窗口动画时，前端已经是 FLOAT 模式，显示的是小岛
 								await w.electronAPI.collapseWindow();
 							}
-							// 折叠回灵动岛时，重新开启点击穿透，避免挡住桌面
-							// 但是需要延迟一下，确保窗口已经切换到FLOAT模式，并且前端已经重新渲染
+
+							// 延迟恢复opacity和点击穿透，确保窗口动画完全完成
+							// 窗口动画时长是 800ms，加上透明度过渡 350ms，加上等待时间 400ms，总共约 1550ms
+							// 我们等待 1600ms 确保所有动画完成，避免瞬闪
 							setTimeout(() => {
 								// 关键：恢复opacity，移除Electron主进程设置的opacity: 0
 								// 使用!important覆盖Electron设置的样式
@@ -108,15 +119,19 @@ export function PanelTitleBar({
 								style.textContent = `
 									html {
 										opacity: 1 !important;
+										pointer-events: auto !important;
 									}
 									body {
 										opacity: 1 !important;
+										pointer-events: auto !important;
 									}
 									#__next {
 										opacity: 1 !important;
+										pointer-events: auto !important;
 									}
 									#__next > div {
 										opacity: 1 !important;
+										pointer-events: auto !important;
 									}
 								`;
 								// 移除旧的样式（如果存在）
@@ -129,8 +144,10 @@ export function PanelTitleBar({
 								w.electronAPI?.setIgnoreMouseEvents?.(true, {
 									forward: true,
 								});
-							}, 300);
-						} finally {
+							}, 1600);
+						} catch (error) {
+							console.error("[DynamicIsland] 折叠失败:", error);
+							// 即使失败也切换状态，避免卡住
 							onModeChange?.(IslandMode.FLOAT);
 							onClose?.();
 						}

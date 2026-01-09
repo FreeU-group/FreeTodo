@@ -202,14 +202,14 @@ export const PanelContent: React.FC<PanelContentProps> = () => {
 	return (
 		<div className="flex h-full w-full flex-col bg-[oklch(var(--background))] relative">
 			{/* 内容区域 */}
-			<div className="flex-1 overflow-hidden relative z-10 bg-[oklch(var(--background))]">
+			<div className="flex-1 min-h-0 overflow-hidden relative z-10 bg-[oklch(var(--background))]">
 				<motion.div
 					key={currentFeature}
 					initial={{ opacity: 0, y: 10 }}
 					animate={{ opacity: 1, y: 0 }}
 					exit={{ opacity: 0, y: -10 }}
 					transition={{ duration: 0.2 }}
-					className="h-full w-full"
+					className="h-full w-full min-h-0"
 				>
 					{renderFeatureContent()}
 				</motion.div>

@@ -61,9 +61,11 @@ export function FullscreenControlBar({
 									};
 								};
 								if (w.electronAPI?.expandWindow) {
+									// 等待窗口动画完成后再切换状态
 									await w.electronAPI.expandWindow();
 								}
 								w.electronAPI?.setIgnoreMouseEvents?.(false);
+								// 窗口动画完成后，再切换前端状态
 								onModeChange?.(IslandMode.PANEL);
 							} catch (error) {
 								console.error("[DynamicIsland] Failed to exit fullscreen:", error);
@@ -93,14 +95,41 @@ export function FullscreenControlBar({
 										) => void;
 									};
 								};
+								// 关键修复：在窗口动画开始前，先切换前端状态到 FLOAT 模式
+								onModeChange?.(IslandMode.FLOAT);
+								onClose?.();
+
+								// 等待一小段时间，确保前端状态切换完成
+								await new Promise((resolve) => setTimeout(resolve, 50));
+
 								if (w.electronAPI?.collapseWindow) {
+									// 现在窗口动画时，前端已经是 FLOAT 模式
 									await w.electronAPI.collapseWindow();
 								}
-								// When collapsing back to Dynamic Island, re-enable click-through to avoid blocking desktop
-								w.electronAPI?.setIgnoreMouseEvents?.(true, {
-									forward: true,
-								});
-							} finally {
+
+								// 延迟设置点击穿透和恢复透明度，确保窗口动画完全完成
+								// 窗口动画时长是 800ms，加上透明度过渡 350ms，加上等待时间 400ms，总共约 1550ms
+								// 我们等待 1600ms 确保所有动画完成，避免瞬闪
+								setTimeout(() => {
+									w.electronAPI?.setIgnoreMouseEvents?.(true, {
+										forward: true,
+									});
+									// 恢复透明度
+									const style = document.createElement("style");
+									style.id = "restore-opacity-fullscreen-collapse";
+									style.textContent = `
+										html, body, #__next, #__next > div {
+											opacity: 1 !important;
+											pointer-events: auto !important;
+										}
+									`;
+									const oldStyle = document.getElementById("restore-opacity-fullscreen-collapse");
+									if (oldStyle) oldStyle.remove();
+									document.head.appendChild(style);
+								}, 1600);
+							} catch (error) {
+								console.error("[FullscreenControlBar] 折叠失败:", error);
+								// 即使失败也切换状态，避免卡住
 								onModeChange?.(IslandMode.FLOAT);
 								onClose?.();
 							}

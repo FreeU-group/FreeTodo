@@ -69,6 +69,13 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		return { screenWidth: width, screenHeight: height };
 	});
 
+	// 缓动函数：easeInOutCubic，用于更平滑的过渡（开始和结束都更平滑）
+	function easeInOutCubic(t: number): number {
+		return t < 0.5
+			? 4 * t * t * t
+			: 1 - (-2 * t + 2) ** 3 / 2;
+	}
+
 	// 缓动函数：easeOutCubic，用于平滑过渡
 	function easeOutCubic(t: number): number {
 		return 1 - (1 - t) ** 3;
@@ -81,6 +88,7 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		startBounds: Electron.Rectangle,
 		endBounds: Electron.Rectangle,
 		duration: number,
+		useEaseInOut: boolean = false,
 	): Promise<void> {
 		const startTime = Date.now();
 		return new Promise((resolve) => {
@@ -89,7 +97,10 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 			const animate = () => {
 				const elapsed = Date.now() - startTime;
 				const progress = Math.min(elapsed / duration, 1);
-				const eased = easeOutCubic(progress);
+				// 根据参数选择缓动函数
+				const eased = useEaseInOut
+					? easeInOutCubic(progress)
+					: easeOutCubic(progress);
 
 				const currentBounds = {
 					x: Math.round(startBounds.x + (endBounds.x - startBounds.x) * eased),
@@ -135,43 +146,66 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		// 获取当前窗口边界，用于平滑过渡
 		const currentBounds = win.getBounds();
 
-		// 关键修复：在动画开始前，先让内容透明，避免窗口尺寸变化时看到内容闪现
-		// 这样即使窗口尺寸变大，内容也是透明的，不会看到全屏画面
+		// 关键修复：在动画开始前，先让内容完全透明，避免窗口尺寸变化时看到内容闪现
+		// 注意：前端状态已经在窗口动画开始前切换到 FLOAT 模式，所以这里的内容应该是 FLOAT 模式的小岛
+		// 但为了保险，我们仍然让内容透明，直到窗口动画完成
+		// 使用更长的过渡时间（0.35s），让透明度变化更平滑，避免瞬闪
 		win.webContents
 			.insertCSS(`
 			html {
 				border-radius: 0 !important;
 				clip-path: none !important;
 				opacity: 0 !important;
-				transition: opacity 0.15s ease-out !important;
+				transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+				pointer-events: none !important;
 			}
 			body {
 				border-radius: 0 !important;
 				clip-path: none !important;
 				opacity: 0 !important;
-				transition: opacity 0.15s ease-out !important;
+				transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+				pointer-events: none !important;
 			}
 			#__next {
 				border-radius: 0 !important;
 				clip-path: none !important;
 				opacity: 0 !important;
-				transition: opacity 0.15s ease-out !important;
+				transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+				pointer-events: none !important;
 			}
 			#__next > div {
 				border-radius: 0 !important;
 				clip-path: none !important;
 				opacity: 0 !important;
-				transition: opacity 0.15s ease-out !important;
+				transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+				pointer-events: none !important;
 			}
 		`)
 			.catch(() => {});
 
-		// 等待一小段时间，确保 CSS 生效
-		await new Promise((resolve) => setTimeout(resolve, 50));
+		// 等待 CSS 生效，确保内容完全透明后再开始窗口动画
+		// 等待时间要大于透明度过渡时间（0.35s），确保透明度完全过渡完成，避免瞬闪
+		await new Promise((resolve) => setTimeout(resolve, 400));
 
-		// 使用动画平滑过渡到全屏透明状态
-		// 此时内容已经透明，即使窗口尺寸变大也不会看到内容
-		await animateWindowBounds(win, currentBounds, originalBounds, 250);
+		// 从 PANEL/FULLSCREEN 模式切换到 FLOAT 模式：
+		// - currentBounds: 当前窗口尺寸（PANEL 或 FULLSCREEN）
+		// - originalBounds: FLOAT 模式的全屏尺寸（screenWidth x screenHeight）
+		// - 如果窗口是最大化状态，先取消最大化，然后平滑过渡到 FLOAT 尺寸
+		if (win.isMaximized()) {
+			// 取消最大化，但保持内容透明
+			// 注意：unmaximize() 有系统动画，我们需要等待它完成
+			win.unmaximize();
+			// 等待取消最大化完成，获取实际的窗口尺寸
+			// 系统取消最大化的动画通常需要 200-300ms，我们等待 300ms 确保完成
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			// 重新获取当前边界，因为取消最大化后尺寸可能变化
+			const unmaximizedBounds = win.getBounds();
+			// 使用与 Panel→Float 相同的动画时长（800ms）和缓动函数，保持一致的过渡体验
+			await animateWindowBounds(win, unmaximizedBounds, originalBounds, 800, true);
+		} else {
+			// 使用与 Panel→Float 相同的动画时长（800ms）和缓动函数，保持一致的过渡体验
+			await animateWindowBounds(win, currentBounds, originalBounds, 800, true);
+		}
 
 		// 确保窗口仍然置顶（FLOAT 模式需要）
 		win.setAlwaysOnTop(true);
@@ -212,8 +246,8 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 		};
 
 		// 使用动画平滑过渡，避免瞬闪
-		// 增加动画时长，让过渡更自然
-		await animateWindowBounds(win, currentBounds, endBounds, 300);
+		// 使用与 Panel→Float 相同的动画时长（800ms）和缓动函数，保持一致的过渡体验
+		await animateWindowBounds(win, currentBounds, endBounds, 800, true);
 
 		// 注入窗口圆角 CSS（Panel 模式，增大到16px），使用 clip-path 实现完美圆角
 		win.webContents
