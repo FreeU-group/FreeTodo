@@ -61,6 +61,10 @@
 		"screenshotsPlaceholder": "Event timeline with screenshots (dev mode only)",
 		"debugShotsLabel": "Debug Shots",
 		"debugShotsPlaceholder": "Placeholder: manage debugging screenshots (dev mode only)",
+		"crawlerLabel": "Crawler",
+		"crawlerPlaceholder": "Placeholder: plug a crawler component here",
+		"crawlerDetailLabel": "Crawler Detail",
+		"crawlerDetailPlaceholder": "Placeholder: view crawler details here",
 		"settings": {
 			"autoTodoDetectionTitle": "Auto Todo Detection",
 			"autoTodoDetectionDescription": "Automatically detect todos from screenshots of whitelisted apps and create draft todos for confirmation",
@@ -122,7 +126,26 @@
 			"developerSectionTitle": "Developer Options",
 			"developerSectionDescription": "Advanced and experimental settings for developers or power users.",
 			"devPanelsTitle": "Panels in Development",
-			"devPanelsDescription": "These panels are still under development. They are hidden from the dock by default; you can enable them here."
+			"devPanelsDescription": "These panels are still under development. They are hidden from the dock by default; you can enable them here.",
+			"crawler": {
+				"title": "Crawler Settings",
+				"description": "Configure default settings for the media crawler",
+				"platform": "Default Platform",
+				"crawlerType": "Crawler Type",
+				"crawlerTypes": {
+					"search": "Search Mode",
+					"detail": "Detail Mode",
+					"creator": "Creator Mode"
+				},
+				"loginType": "Login Method",
+				"loginTypes": {
+					"qrcode": "QR Code Login",
+					"cookie": "Cookie Login"
+				},
+				"saveOption": "Save Format",
+				"headless": "Headless Mode (Background)",
+				"enableComments": "Collect Comments"
+			}
 		},
 		"costTracking": {
 			"title": "Cost Tracking",
@@ -176,6 +199,8 @@
 		"achievements": "Achievements",
 		"screenshots": "Screenshots",
 		"debugShots": "Debug Shots",
+		"crawler": "Crawler",
+		"crawlerDetail": "Crawler Detail",
 		"unassigned": "Unassigned"
 	},
 	"todoExtraction": {
@@ -632,5 +657,89 @@
 		"addButton": "Add",
 		"extractButton": "Extract Todos",
 		"extracting": "Extracting todos..."
+	},
+	"crawler": {
+		"title": "Media Crawler",
+		"subtitle": "Multi-platform content crawler tool",
+		"notConnected": "Crawler service not connected, please ensure MediaCrawler API is running",
+		"retry": "Retry",
+		"status": "Status",
+		"statusLabel": {
+			"idle": "Idle",
+			"running": "Running",
+			"stopping": "Stopping",
+			"error": "Error"
+		},
+		"platform": "Platform",
+		"crawlerType": "Crawler Type",
+		"crawlerTypes": {
+			"search": "Search Mode",
+			"detail": "Detail Mode",
+			"creator": "Creator Mode"
+		},
+		"keywords": "Search Keywords",
+		"keywordsPlaceholder": "Enter keywords, separated by commas",
+		"loginType": "Login Method",
+		"loginTypes": {
+			"qrcode": "QR Code Login",
+			"cookie": "Cookie Login"
+		},
+		"saveOption": "Save Format",
+		"headless": "Headless Mode (Background)",
+		"enableComments": "Collect Comments",
+		"start": "Start Crawler",
+		"stop": "Stop Crawler",
+		"startFailed": "Start failed",
+		"stopFailed": "Stop failed",
+		"configHint": "More settings available in the Settings panel",
+		"results": "Crawl Results",
+		"refresh": "Refresh",
+		"noResults": "No results yet",
+		"startCrawlerHint": "Start the crawler to see results here",
+		"containsVideo": "Contains video",
+		"containsImage": "Contains image",
+		"viewOriginal": "View original",
+		"viewDetail": "View detail",
+		"logs": "Logs",
+		"noLogs": "No logs yet, logs will appear after starting the crawler",
+		"dataFiles": "Data Files",
+		"filesCount": "files",
+		"noFiles": "No data files yet",
+		"records": "records",
+		"download": "Download",
+		"platforms": {
+			"xhs": "Xiaohongshu",
+			"dy": "Douyin",
+			"ks": "Kuaishou",
+			"bili": "Bilibili",
+			"wb": "Weibo",
+			"tieba": "Tieba",
+			"zhihu": "Zhihu"
+		},
+		"preview": "Preview",
+		"previewTitle": "Data Preview",
+		"showingRecords": "Showing {shown}/{total}",
+		"noPreviewData": "No data available",
+		"noTitle": "No title",
+		"startCrawlerHint": "Data will appear here after crawling"
+	},
+	"crawlerDetail": {
+		"title": "Crawler Detail",
+		"noSelection": "No content selected",
+		"selectHint": "Click \"View detail\" in the crawler panel to view content details",
+		"viewingDetail": "Viewing detail",
+		"openInBrowser": "Open in browser",
+		"videoNote": "Video note",
+		"imageNote": "Image note",
+		"coverImage": "Cover image",
+		"likes": "Likes",
+		"comments": "Comments",
+		"collects": "Collects",
+		"shares": "Shares",
+		"rawData": "Raw data",
+		"videoNotSupported": "Your browser does not support video playback",
+		"commentsSection": "Comments",
+		"noComments": "No comments yet",
+		"replies": "replies"
 	}
 }

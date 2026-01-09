@@ -7,6 +7,7 @@ import { ActivityPanel } from "@/apps/activity/ActivityPanel";
 import { CalendarPanel } from "@/apps/calendar/CalendarPanel";
 import { ChatPanel } from "@/apps/chat/ChatPanel";
 import { CostTrackingPanel } from "@/apps/cost-tracking";
+import { CrawlerDetailPanel, CrawlerPanel } from "@/apps/crawler";
 import { SettingsPanel } from "@/apps/settings";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
@@ -58,6 +59,8 @@ export function PanelContent({ position }: PanelContentProps) {
 			costTracking: "costTrackingLabel",
 			achievements: "achievementsLabel",
 			debugShots: "debugShotsLabel",
+			crawler: "crawlerLabel",
+			crawlerDetail: "crawlerDetailLabel",
 		};
 		const key = labelKeyMap[feat];
 		return key ? t(key) : "";
@@ -78,6 +81,8 @@ export function PanelContent({ position }: PanelContentProps) {
 			costTracking: "costTrackingPlaceholder",
 			achievements: "achievementsPlaceholder",
 			debugShots: "debugShotsPlaceholder",
+			crawler: "crawlerPlaceholder",
+			crawlerDetail: "crawlerDetailPlaceholder",
 		};
 		const key = placeholderKeyMap[feat];
 		return key ? t(key) : "";
@@ -171,6 +176,24 @@ export function PanelContent({ position }: PanelContentProps) {
 		return (
 			<PanelPositionProvider position={position}>
 				<CostTrackingPanel />
+			</PanelPositionProvider>
+		);
+	}
+
+	// 如果是爬虫功能，显示爬虫面板
+	if (feature === "crawler") {
+		return (
+			<PanelPositionProvider position={position}>
+				<CrawlerPanel />
+			</PanelPositionProvider>
+		);
+	}
+
+	// 如果是爬取详情功能，显示爬取详情面板
+	if (feature === "crawlerDetail") {
+		return (
+			<PanelPositionProvider position={position}>
+				<CrawlerDetailPanel />
 			</PanelPositionProvider>
 		);
 	}

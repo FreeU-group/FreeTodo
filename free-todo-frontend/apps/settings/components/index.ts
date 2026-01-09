@@ -1,4 +1,5 @@
 export { AutoTodoDetectionSection } from "./AutoTodoDetectionSection";
+export { CrawlerConfigSection } from "./CrawlerConfigSection";
 export { DifyConfigSection } from "./DifyConfigSection";
 export { DockDisplayModeSection } from "./DockDisplayModeSection";
 export { LlmConfigSection } from "./LlmConfigSection";

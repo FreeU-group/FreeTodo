@@ -61,6 +61,10 @@
 		"screenshotsPlaceholder": "事件时间轴与截图展示（仅开发模式可见）",
 		"debugShotsLabel": "截图管理（调试）",
 		"debugShotsPlaceholder": "占位：用于截图采集/管理的调试面板（仅开发模式可见）",
+		"crawlerLabel": "爬虫",
+		"crawlerPlaceholder": "占位：在这里接入爬虫组件",
+		"crawlerDetailLabel": "爬取详情",
+		"crawlerDetailPlaceholder": "占位：在这里查看爬取详情",
 		"settings": {
 			"autoTodoDetectionTitle": "自动待办检测",
 			"autoTodoDetectionDescription": "自动从白名单应用截图中检测待办事项，并创建为待确认的草稿待办",
@@ -122,7 +126,26 @@
 			"developerSectionTitle": "开发者选项",
 			"developerSectionDescription": "高级和实验性功能配置，仅推荐开发者或高级用户使用。",
 			"devPanelsTitle": "开发中的面板",
-			"devPanelsDescription": "这些面板仍在开发中，默认不会显示在底部 Dock 中，你可以在这里手动开启。"
+			"devPanelsDescription": "这些面板仍在开发中，默认不会显示在底部 Dock 中，你可以在这里手动开启。",
+			"crawler": {
+				"title": "爬虫配置",
+				"description": "配置媒体爬虫的默认设置",
+				"platform": "默认平台",
+				"crawlerType": "爬取类型",
+				"crawlerTypes": {
+					"search": "搜索模式",
+					"detail": "详情模式",
+					"creator": "创作者模式"
+				},
+				"loginType": "登录方式",
+				"loginTypes": {
+					"qrcode": "扫码登录",
+					"cookie": "Cookie 登录"
+				},
+				"saveOption": "保存格式",
+				"headless": "无头模式（后台运行）",
+				"enableComments": "采集评论"
+			}
 		},
 		"costTracking": {
 			"title": "费用统计",
@@ -176,6 +199,8 @@
 		"achievements": "成就",
 		"screenshots": "截图",
 		"debugShots": "截图调试",
+		"crawler": "爬虫",
+		"crawlerDetail": "爬取详情",
 		"unassigned": "未分配"
 	},
 	"todoExtraction": {
@@ -632,5 +657,89 @@
 		"addButton": "添加",
 		"extractButton": "提取待办",
 		"extracting": "正在提取待办事项..."
+	},
+	"crawler": {
+		"title": "媒体爬虫",
+		"subtitle": "多平台内容采集工具",
+		"notConnected": "爬虫服务未连接，请确保 MediaCrawler API 已启动",
+		"retry": "重试",
+		"status": "状态",
+		"statusLabel": {
+			"idle": "空闲",
+			"running": "运行中",
+			"stopping": "停止中",
+			"error": "错误"
+		},
+		"platform": "平台",
+		"crawlerType": "爬取类型",
+		"crawlerTypes": {
+			"search": "搜索模式",
+			"detail": "详情模式",
+			"creator": "创作者模式"
+		},
+		"keywords": "搜索关键词",
+		"keywordsPlaceholder": "输入关键词，多个用逗号分隔",
+		"loginType": "登录方式",
+		"loginTypes": {
+			"qrcode": "扫码登录",
+			"cookie": "Cookie 登录"
+		},
+		"saveOption": "保存格式",
+		"headless": "无头模式（后台运行）",
+		"enableComments": "采集评论",
+		"start": "启动爬虫",
+		"stop": "停止爬虫",
+		"startFailed": "启动失败",
+		"stopFailed": "停止失败",
+		"configHint": "更多配置请前往「设置」面板",
+		"results": "爬取结果",
+		"refresh": "刷新",
+		"noResults": "暂无爬取结果",
+		"startCrawlerHint": "启动爬虫后将显示爬取到的内容",
+		"containsVideo": "包含视频",
+		"containsImage": "包含图片",
+		"viewOriginal": "查看原文",
+		"viewDetail": "查看详情",
+		"logs": "运行日志",
+		"noLogs": "暂无日志，启动爬虫后将显示运行日志",
+		"dataFiles": "数据文件",
+		"filesCount": "个文件",
+		"noFiles": "暂无数据文件",
+		"records": "条记录",
+		"download": "下载",
+		"platforms": {
+			"xhs": "小红书",
+			"dy": "抖音",
+			"ks": "快手",
+			"bili": "B站",
+			"wb": "微博",
+			"tieba": "贴吧",
+			"zhihu": "知乎"
+		},
+		"preview": "预览",
+		"previewTitle": "数据预览",
+		"showingRecords": "显示 {shown}/{total} 条",
+		"noPreviewData": "暂无数据",
+		"noTitle": "无标题",
+		"startCrawlerHint": "启动爬虫后数据将显示在这里"
+	},
+	"crawlerDetail": {
+		"title": "爬取详情",
+		"noSelection": "暂无选中内容",
+		"selectHint": "在爬虫面板中点击「查看详情」查看内容详情",
+		"viewingDetail": "正在查看详情",
+		"openInBrowser": "在浏览器中打开",
+		"videoNote": "视频笔记",
+		"imageNote": "图文笔记",
+		"coverImage": "封面图",
+		"likes": "点赞",
+		"comments": "评论",
+		"collects": "收藏",
+		"shares": "分享",
+		"rawData": "原始数据",
+		"videoNotSupported": "您的浏览器不支持视频播放",
+		"commentsSection": "评论",
+		"noComments": "暂无评论",
+		"replies": "回复"
 	}
 }
