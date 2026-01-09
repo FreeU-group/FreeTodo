@@ -232,6 +232,63 @@ def _create_dify_streaming_response(
     )
 
 
+def _parse_todo_context(message_text: str) -> tuple[str | None, str]:
+    """解析待办上下文和用户查询。
+
+    Args:
+        message_text: 原始消息文本
+
+    Returns:
+        (todo_context, user_query) 元组
+    """
+    if "用户输入:" not in message_text and "User input:" not in message_text:
+        return None, message_text
+
+    markers = ["用户输入:", "User input:"]
+    for marker in markers:
+        if marker in message_text:
+            parts = message_text.split(marker, 1)
+            if len(parts) == 2:  # noqa: PLR2004
+                return parts[0].strip(), parts[1].strip()
+
+    return None, message_text
+
+
+def _get_conversation_history(
+    chat_service: ChatService,
+    session_id: str,
+) -> list[dict[str, str]]:
+    """获取对话历史，转换为 Agent 需要的格式。
+
+    Args:
+        chat_service: 聊天服务实例
+        session_id: 会话ID
+
+    Returns:
+        对话历史列表，格式为 [{"role": "user"/"assistant", "content": "..."}]
+    """
+    conversation_history = []
+    try:
+        all_messages = chat_service.get_messages(session_id=session_id)
+        # 只获取历史消息（排除最后一条用户消息，因为我们刚保存了它）
+        # 转换为Agent需要的格式：{"role": "user"/"assistant", "content": "..."}
+        for msg in all_messages[:-1]:  # 排除最后一条（当前用户消息）
+            msg_role = msg.get("role", "user")
+            msg_content = msg.get("content", "")
+            if msg_role in ("user", "assistant"):
+                conversation_history.append(
+                    {
+                        "role": msg_role,
+                        "content": msg_content,
+                    }
+                )
+        logger.info(f"[stream][agent] 获取到 {len(conversation_history)} 条历史消息")
+    except Exception as e:
+        logger.warning(f"[stream][agent] 获取对话历史失败: {e}")
+
+    return conversation_history
+
+
 def _create_agent_streaming_response(
     message: ChatMessage,
     chat_service: ChatService,
@@ -251,37 +308,10 @@ def _create_agent_streaming_response(
     agent_service = AgentService()
 
     # 解析待办上下文
-    todo_context = None
-    user_query = message.message
-    if "用户输入:" in message.message or "User input:" in message.message:
-        markers = ["用户输入:", "User input:"]
-        for marker in markers:
-            if marker in message.message:
-                parts = message.message.split(marker, 1)
-                if len(parts) == 2:  # noqa: PLR2004
-                    todo_context = parts[0].strip()
-                    user_query = parts[1].strip()
-                    break
+    todo_context, user_query = _parse_todo_context(message.message)
 
-    # 获取对话历史（排除当前用户消息，因为它已经在user_query中）
-    conversation_history = []
-    try:
-        all_messages = chat_service.get_messages(session_id=session_id)
-        # 只获取历史消息（排除最后一条用户消息，因为我们刚保存了它）
-        # 转换为Agent需要的格式：{"role": "user"/"assistant", "content": "..."}
-        for msg in all_messages[:-1]:  # 排除最后一条（当前用户消息）
-            msg_role = msg.get("role", "user")
-            msg_content = msg.get("content", "")
-            if msg_role in ("user", "assistant"):
-                conversation_history.append(
-                    {
-                        "role": msg_role,
-                        "content": msg_content,
-                    }
-                )
-        logger.info(f"[stream][agent] 获取到 {len(conversation_history)} 条历史消息")
-    except Exception as e:
-        logger.warning(f"[stream][agent] 获取对话历史失败: {e}")
+    # 获取对话历史
+    conversation_history = _get_conversation_history(chat_service, session_id)
 
     def agent_token_generator():
         total_content = ""
