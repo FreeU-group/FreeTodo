@@ -73,6 +73,7 @@ export function ChatPanel() {
 		createTodoWithResult,
 		// 共享 AbortController ref，使停止按钮能够取消通过建议按钮发起的请求
 		abortControllerRef: chatController.abortControllerRef,
+		locale,
 	});
 
 	const [modeMenuOpen, setModeMenuOpen] = useState(false);

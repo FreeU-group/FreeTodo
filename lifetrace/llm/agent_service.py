@@ -9,6 +9,7 @@ from lifetrace.llm import tools  # noqa: F401
 from lifetrace.llm.llm_client import LLMClient
 from lifetrace.llm.tools.base import ToolResult
 from lifetrace.llm.tools.registry import ToolRegistry
+from lifetrace.util.language import get_language_instruction
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
 
@@ -32,6 +33,7 @@ class AgentService:
         user_query: str,
         todo_context: str | None = None,
         conversation_history: list[dict] | None = None,
+        lang: str = "zh",
     ) -> Generator[str]:
         """
         流式生成 Agent 回答
@@ -51,6 +53,7 @@ class AgentService:
             user_query,
             todo_context,
             conversation_history,
+            lang,
         )
 
         while iteration_count < self.MAX_ITERATIONS:
@@ -129,6 +132,7 @@ class AgentService:
         user_query: str,
         todo_context: str | None,
         conversation_history: list[dict] | None,
+        lang: str = "zh",
     ) -> list[dict]:
         """构建初始消息列表"""
         messages = []
@@ -137,6 +141,8 @@ class AgentService:
         system_prompt = get_prompt("agent", "system")
         if not system_prompt:
             system_prompt = self._get_default_system_prompt()
+        # 注入语言指令
+        system_prompt += get_language_instruction(lang)
         messages.append({"role": "system", "content": system_prompt})
 
         # 添加待办上下文（如果有）

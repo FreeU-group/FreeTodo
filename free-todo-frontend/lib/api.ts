@@ -26,6 +26,7 @@ export async function sendChatMessageStream(
 	onChunk: (chunk: string) => void,
 	onSessionId?: (sessionId: string) => void,
 	signal?: AbortSignal,
+	locale?: string,
 ): Promise<void> {
 	// 流式请求直接调用后端 API，绕过 Next.js 代理
 	const baseUrl = getStreamApiBaseUrl();
@@ -36,6 +37,7 @@ export async function sendChatMessageStream(
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
+				"Accept-Language": locale || "en",
 			},
 			body: JSON.stringify({
 				message: params.message,

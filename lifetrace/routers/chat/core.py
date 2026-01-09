@@ -1,6 +1,6 @@
 """聊天核心路由：基础问答与流式聊天。"""
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from lifetrace.core.dependencies import get_chat_service, get_rag_service
@@ -9,6 +9,7 @@ from lifetrace.llm.web_search_service import WebSearchService
 from lifetrace.schemas.chat import ChatMessage, ChatResponse
 from lifetrace.services.chat_service import ChatService
 from lifetrace.services.dify_client import call_dify_chat
+from lifetrace.util.language import get_language_instruction, get_request_language
 from lifetrace.util.time_utils import get_utc_now
 
 from .base import _create_llm_stream_generator, logger, router
@@ -65,6 +66,7 @@ async def chat_with_llm(
 @router.post("/stream")
 async def chat_with_llm_stream(
     message: ChatMessage,
+    request: Request,
     chat_service: ChatService = Depends(get_chat_service),
 ):
     """与LLM聊天接口（流式输出）
@@ -76,6 +78,9 @@ async def chat_with_llm_stream(
     try:
         logger.info(f"[stream] 收到聊天消息: {message.message}")
 
+        # 解析请求语言
+        lang = get_request_language(request)
+
         # 1. 会话初始化与聊天会话创建
         session_id = _ensure_stream_session(message, chat_service)
 
@@ -85,11 +90,11 @@ async def chat_with_llm_stream(
 
         # 2.3. Agent 模式（工具调用框架）
         if getattr(message, "mode", None) == "agent":
-            return _create_agent_streaming_response(message, chat_service, session_id)
+            return _create_agent_streaming_response(message, chat_service, session_id, lang)
 
         # 2.5. 联网搜索模式（直接返回，保留向后兼容）
         if getattr(message, "mode", None) == "web_search":
-            return _create_web_search_streaming_response(message, chat_service, session_id)
+            return _create_web_search_streaming_response(message, chat_service, session_id, lang)
 
         # 3. 根据 use_rag 构建 messages / temperature，并处理 RAG 失败场景
         (
@@ -97,7 +102,7 @@ async def chat_with_llm_stream(
             temperature,
             user_message_to_save,
             error_response,
-        ) = await _build_stream_messages_and_temperature(message, session_id)
+        ) = await _build_stream_messages_and_temperature(message, session_id, lang)
 
         if error_response is not None:
             return error_response
@@ -236,6 +241,7 @@ def _create_agent_streaming_response(
     message: ChatMessage,
     chat_service: ChatService,
     session_id: str,
+    lang: str = "zh",
 ) -> StreamingResponse:
     """处理 Agent 模式，支持工具调用"""
     logger.info("[stream] 进入 Agent 模式")
@@ -270,6 +276,7 @@ def _create_agent_streaming_response(
             for chunk in agent_service.stream_agent_response(
                 user_query=user_query,
                 todo_context=todo_context,
+                lang=lang,
             ):
                 total_content += chunk
                 yield chunk
@@ -300,6 +307,7 @@ def _create_web_search_streaming_response(
     message: ChatMessage,
     chat_service: ChatService,
     session_id: str,
+    lang: str = "zh",
 ) -> StreamingResponse:
     """处理联网搜索模式，使用 Tavily 搜索和 LLM 生成流式输出"""
     logger.info("[stream] 进入联网搜索模式")
@@ -318,7 +326,7 @@ def _create_web_search_streaming_response(
         total_content = ""
         try:
             # 调用联网搜索服务，流式生成回答
-            for chunk in web_search_service.stream_answer_with_sources(message.message):
+            for chunk in web_search_service.stream_answer_with_sources(message.message, lang=lang):
                 total_content += chunk
                 yield chunk
 
@@ -347,6 +355,7 @@ def _create_web_search_streaming_response(
 async def _build_stream_messages_and_temperature(
     message: ChatMessage,
     session_id: str,
+    lang: str = "zh",
 ) -> tuple[list[dict[str, str]], float, str, StreamingResponse | None]:
     """根据 use_rag / 前端 prompt 构建 messages 与 temperature。
 
@@ -361,6 +370,7 @@ async def _build_stream_messages_and_temperature(
         rag_result = await rag_service.process_query_stream(
             message.message,
             session_id,
+            lang=lang,
         )
 
         if not rag_result.get("success", False):
@@ -396,6 +406,8 @@ async def _build_stream_messages_and_temperature(
 
         if len(parts) == 2:  # noqa: PLR2004
             system_prompt = parts[0].strip()
+            # 注入语言指令
+            system_prompt += get_language_instruction(lang)
             user_input = parts[1].strip()
             messages = [
                 {"role": "system", "content": system_prompt},
