@@ -7,6 +7,7 @@ import { ActivityPanel } from "@/apps/activity/ActivityPanel";
 import { CalendarPanel } from "@/apps/calendar/CalendarPanel";
 import { ChatPanel } from "@/apps/chat/ChatPanel";
 import { CostTrackingPanel } from "@/apps/cost-tracking";
+import { DebugCapturePanel } from "@/apps/debug/DebugCapturePanel";
 import { SettingsPanel } from "@/apps/settings";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
@@ -15,16 +16,8 @@ import {
 	PanelPositionProvider,
 } from "@/components/common/layout/PanelHeader";
 import type { PanelPosition } from "@/lib/config/panel-config";
-import {
-	FEATURE_ICON_MAP,
-	IS_DEV_FEATURE_ENABLED,
-} from "@/lib/config/panel-config";
+import { FEATURE_ICON_MAP } from "@/lib/config/panel-config";
 import { useUiStore } from "@/lib/store/ui-store";
-
-// 动态导入调试面板（仅开发环境）
-const DebugCapturePanel = IS_DEV_FEATURE_ENABLED
-	? require("@/apps/debug/DebugCapturePanel").DebugCapturePanel
-	: null;
 
 interface PanelContentProps {
 	position: PanelPosition;
@@ -85,23 +78,6 @@ export function PanelContent({ position }: PanelContentProps) {
 
 	// 获取对应的图标
 	const Icon = feature ? FEATURE_ICON_MAP[feature] : null;
-
-	// 在 hydration 完成前，对于可能从 localStorage 读取的功能，显示占位符以避免不匹配
-	// 特别是 debugShots 功能，因为它依赖于开发环境配置
-	if (!mounted && feature === "debugShots") {
-		return (
-			<PanelPositionProvider position={position}>
-				<div className="flex h-full flex-col rounded-(--radius) overflow-hidden">
-					{Icon && (
-						<PanelHeader icon={Icon} title={getFeatureLabel(position)} />
-					)}
-					<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-						{getFeaturePlaceholder(position)}
-					</div>
-				</div>
-			</PanelPositionProvider>
-		);
-	}
 
 	// 如果是待办功能，显示待办组件
 	if (feature === "todos") {
@@ -175,12 +151,11 @@ export function PanelContent({ position }: PanelContentProps) {
 		);
 	}
 
-	// 如果是开发调试截图面板（仅开发环境可见）
-	if (feature === "debugShots" && IS_DEV_FEATURE_ENABLED && DebugCapturePanel) {
-		const Panel = DebugCapturePanel;
+	// 如果是调试截图面板
+	if (feature === "debugShots") {
 		return (
 			<PanelPositionProvider position={position}>
-				<Panel />
+				<DebugCapturePanel />
 			</PanelPositionProvider>
 		);
 	}

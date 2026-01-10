@@ -417,7 +417,7 @@
 		"selectLayout": "选择布局",
 		"layouts": {
 			"default": "待办模式",
-			"lifetrace-dev": "LifeTrace 模式"
+			"lifetrace": "LifeTrace 模式"
 		}
 	},
 	"scheduler": {

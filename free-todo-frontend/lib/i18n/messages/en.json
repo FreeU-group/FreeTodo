@@ -417,7 +417,7 @@
 		"selectLayout": "Select layout",
 		"layouts": {
 			"default": "Todo Mode",
-			"lifetrace-dev": "LifeTrace Mode"
+			"lifetrace": "LifeTrace Mode"
 		}
 	},
 	"scheduler": {
