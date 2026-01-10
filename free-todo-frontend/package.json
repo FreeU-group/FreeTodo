@@ -1,5 +1,5 @@
 {
-	"name": "free-todo-frontend",
+	"name": "free-todo",
 	"version": "0.1.0",
 	"private": true,
 	"main": "dist-electron/main.js",
@@ -25,7 +25,12 @@
 		"electron:build": "pnpm build && pnpm backend:build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder",
 		"electron:build-win": "pnpm build && pnpm backend:build:win && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --win",
 		"electron:build-mac": "pnpm build && pnpm backend:build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --mac",
-		"electron:build-linux": "pnpm build && pnpm backend:build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --linux"
+		"electron:build-linux": "pnpm build && pnpm backend:build && pnpm electron:resolve-symlinks && pnpm electron:copy-missing-deps && pnpm electron:build-main && electron-builder --linux",
+		"electron:dir": "electron-builder --dir",
+		"electron:dir:win": "electron-builder --dir --win",
+		"electron:dir:mac": "electron-builder --dir --mac",
+		"electron:dir:linux": "electron-builder --dir --linux",
+		"electron:dir:full": "pnpm electron:build-main && electron-builder --dir"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",
