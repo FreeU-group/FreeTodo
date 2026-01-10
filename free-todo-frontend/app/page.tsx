@@ -341,7 +341,7 @@ export default function HomePage() {
 						{/* 左侧：Logo */}
 						<div className="flex items-center gap-2 shrink-0">
 							<Image
-								src="/logo.png"
+								src="/free-todo-logos/free_todo_icon_with_grid.png"
 								alt="Free Todo Logo"
 								width={32}
 								height={32}

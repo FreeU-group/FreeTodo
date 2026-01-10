@@ -1,16 +1,14 @@
 "use client";
 
-import { type LucideIcon, SquareCheckBig } from "lucide-react";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 type WelcomeGreetingsProps = {
-	icon?: LucideIcon;
 	className?: string;
 };
 
 export function WelcomeGreetings({
-	icon: Icon = SquareCheckBig,
 	className,
 }: WelcomeGreetingsProps) {
 	const tChat = useTranslations("chat");
@@ -28,8 +26,14 @@ export function WelcomeGreetings({
 			<div className="flex flex-col items-center gap-4">
 				{/* 图标 + 主标题 */}
 				<div className="flex items-center gap-4">
-					<div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/70 dark:bg-primary/50">
-						<Icon className="h-7 w-7 text-white" strokeWidth={2.5} />
+					<div className="flex h-13 w-13 items-center justify-center">
+						<Image
+							src="/free-todo-logos/free_todo_icon_with_grid.png"
+							alt="Free Todo Logo"
+							width={128}
+							height={128}
+							className="object-contain"
+						/>
 					</div>
 					<h1 className="text-3xl font-bold tracking-tight text-foreground">
 						{title}
