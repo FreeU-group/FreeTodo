@@ -8,9 +8,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { app, dialog } from "electron";
 import {
+	getServerMode,
 	HEALTH_CHECK_INTERVAL,
 	PORT_CONFIG,
 	PROCESS_CONFIG,
+	type ServerMode,
 	TIMEOUT_CONFIG,
 } from "./config";
 import { logger } from "./logger";
@@ -28,6 +30,8 @@ export class BackendServer extends ProcessManager {
 	private backendDir: string | null = null;
 	/** 数据目录路径 */
 	private dataDir: string | null = null;
+	/** 服务器模式（dev 或 build） */
+	private serverMode: ServerMode;
 
 	constructor() {
 		super(
@@ -40,6 +44,14 @@ export class BackendServer extends ProcessManager {
 			},
 			PORT_CONFIG.backend.default,
 		);
+		this.serverMode = getServerMode();
+	}
+
+	/**
+	 * 获取当前服务器模式
+	 */
+	getServerMode(): ServerMode {
+		return this.serverMode;
 	}
 
 	/**
@@ -122,10 +134,17 @@ export class BackendServer extends ProcessManager {
 		logger.info(`Data directory: ${this.dataDir}`);
 		logger.info(`Backend port: ${this.port}`);
 
-		// 启动后端进程
+		// 启动后端进程，传递模式参数
 		this.process = spawn(
 			this.backendPath,
-			["--port", String(this.port), "--data-dir", this.dataDir],
+			[
+				"--port",
+				String(this.port),
+				"--data-dir",
+				this.dataDir,
+				"--mode",
+				this.serverMode,
+			],
 			{
 				cwd: this.backendDir,
 				env: {
@@ -177,7 +196,58 @@ export class BackendServer extends ProcessManager {
 		await this.waitForReady(this.getUrl(), this.config.readyTimeout);
 		logger.console(`Backend server is ready at ${this.getUrl()}!`);
 
+		// 验证后端模式是否匹配
+		await this.verifyBackendMode();
+
 		// 启动健康检查
 		this.startHealthCheck();
+	}
+
+	/**
+	 * 验证后端服务器模式是否与前端期望一致
+	 * 防止 DEV 前端连接到 Build 后端，或反之
+	 */
+	private async verifyBackendMode(): Promise<void> {
+		try {
+			const healthUrl = `${this.getUrl()}/health`;
+			const response = await fetch(healthUrl);
+
+			if (!response.ok) {
+				logger.warn(`Cannot verify backend mode: health check returned ${response.status}`);
+				return;
+			}
+
+			const data = (await response.json()) as {
+				app?: string;
+				server_mode?: string;
+			};
+
+			// 检查应用标识
+			if (data.app !== "lifetrace") {
+				const errorMsg = `Backend at ${this.getUrl()} is not a LifeTrace server (app: ${data.app})`;
+				logger.error(errorMsg);
+				throw new Error(errorMsg);
+			}
+
+			// 检查服务器模式
+			const backendMode = data.server_mode;
+			if (backendMode && backendMode !== this.serverMode) {
+				const errorMsg = `Backend mode mismatch: expected "${this.serverMode}", got "${backendMode}". This may indicate another version of LifeTrace is running.`;
+				logger.error(errorMsg);
+				dialog.showErrorBox(
+					"Backend Mode Mismatch",
+					`The backend server is running in "${backendMode}" mode, but this application is running in "${this.serverMode}" mode.\n\nThis usually happens when both DEV and Build versions are running simultaneously.\n\nPlease close the other version and restart this application.`,
+				);
+				throw new Error(errorMsg);
+			}
+
+			logger.info(`Backend mode verified: ${backendMode || "unknown"}`);
+		} catch (error) {
+			if (error instanceof Error && error.message.includes("mode mismatch")) {
+				throw error;
+			}
+			// 其他错误（网络问题等）只记录警告，不阻止启动
+			logger.warn(`Cannot verify backend mode: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 }

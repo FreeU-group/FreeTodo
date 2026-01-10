@@ -168,9 +168,43 @@ def find_available_port(host: str, start_port: int, max_attempts: int = 100) -> 
     raise RuntimeError(f"无法在 {start_port}-{start_port + max_attempts} 范围内找到可用端口")
 
 
+def parse_args():
+    """解析命令行参数"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="LifeTrace 后端服务器")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="服务器端口号（默认从配置文件读取）",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default=None,
+        help="数据目录路径",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["dev", "build"],
+        default="dev",
+        help="服务器模式：dev（开发模式）或 build（打包模式）",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
+
+    # 设置服务器模式
+    from lifetrace.routers.health import set_server_mode
+
+    set_server_mode(args.mode)
+
     server_host = settings.server.host
-    server_port = settings.server.port
+    server_port = args.port if args.port else settings.server.port
     server_debug = settings.server.debug
 
     # 动态端口分配：如果默认端口被占用，自动尝试下一个可用端口
@@ -181,6 +215,7 @@ if __name__ == "__main__":
         raise
 
     logger.info(f"启动服务器: http://{server_host}:{actual_port}")
+    logger.info(f"服务器模式: {args.mode}")
     logger.info(f"调试模式: {'开启' if server_debug else '关闭'}")
     if actual_port != server_port:
         logger.info(f"注意: 原始端口 {server_port} 已被占用，已自动切换到 {actual_port}")

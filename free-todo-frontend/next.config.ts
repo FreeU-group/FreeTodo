@@ -3,8 +3,8 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin("./lib/i18n/request.ts");
 
-// 从环境变量读取 API 地址，如果读不到就使用 localhost:8000
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// 从环境变量读取 API 地址，如果读不到就使用 localhost:8001
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 const apiUrl = new URL(API_BASE_URL);
 
 const nextConfig: NextConfig = {

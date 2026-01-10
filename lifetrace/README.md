@@ -162,12 +162,12 @@ llm:
 python -m lifetrace.server
 ```
 
-服务将在 `http://localhost:8000` 启动。
+服务将在 `http://localhost:8001` 启动。
 
 #### 方式 2: 使用 Uvicorn
 
 ```bash
-uvicorn lifetrace.server:app --host 0.0.0.0 --port 8000
+uvicorn lifetrace.server:app --host 0.0.0.0 --port 8001
 ```
 
 #### 方式 3: 开发模式（热重载）
@@ -180,9 +180,9 @@ uvicorn lifetrace.server:app --reload
 
 启动服务后，访问以下 URL：
 
-- **API 文档**: http://localhost:8000/docs (Swagger UI)
-- **ReDoc 文档**: http://localhost:8000/redoc
-- **健康检查**: http://localhost:8000/api/health
+- **API 文档**: http://localhost:8001/docs (Swagger UI)
+- **ReDoc 文档**: http://localhost:8001/redoc
+- **健康检查**: http://localhost:8001/api/health
 
 ---
 
@@ -635,7 +635,7 @@ GET /api/config
   },
   "server": {
     "host": "127.0.0.1",
-    "port": 8000
+    "port": 8001
   },
   "record": {
     "interval": 30,
@@ -736,7 +736,7 @@ llm:
 # 服务器配置
 server:
   host: "127.0.0.1"                           # 监听地址
-  port: 8000                                   # 监听端口
+  port: 8001                                   # 监听端口
   reload: false                                # 是否开启热重载
   workers: 1                                   # 工作进程数
 
@@ -796,7 +796,7 @@ LifeTrace 支持配置文件的热重载，无需重启服务即可应用部分�
 除了直接编辑配置文件，还可以通过 API 动态更新配置：
 
 ```bash
-curl -X POST http://localhost:8000/api/config \
+curl -X POST http://localhost:8001/api/config \
   -H "Content-Type: application/json" \
   -d '{
     "llm": {
@@ -1041,13 +1041,13 @@ pytest --cov=lifetrace
 **问题**: 端口被占用
 
 ```
-ERROR: [Errno 48] error while attempting to bind on address ('127.0.0.1', 8000): address already in use
+ERROR: [Errno 48] error while attempting to bind on address ('127.0.0.1', 8001): address already in use
 ```
 
 **解决方案**:
 ```bash
 # 查找占用端口的进程
-lsof -i :8000
+lsof -i :8001
 
 # 杀死进程
 kill -9 <PID>
@@ -1084,7 +1084,7 @@ curl -H "Authorization: Bearer YOUR_API_KEY" \
 **解决方案**:
 ```bash
 # 通过 API 构建索引
-curl -X POST http://localhost:8000/api/vector/build
+curl -X POST http://localhost:8001/api/vector/build
 ```
 
 #### 5. 内存占用过高
@@ -1112,10 +1112,10 @@ tail -f lifetrace/data/logs/2025-11-06.error.log
 
 ```bash
 # 获取最近的日志
-curl http://localhost:8000/api/logs?limit=100
+curl http://localhost:8001/api/logs?limit=100
 
 # 获取错误日志
-curl http://localhost:8000/api/logs?level=error
+curl http://localhost:8001/api/logs?level=error
 ```
 
 #### 调整日志级别

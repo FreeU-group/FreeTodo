@@ -44,7 +44,7 @@ export async function customFetcher<T>({
 	const baseUrl =
 		typeof window !== "undefined"
 			? ""
-			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+			: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 	// 过滤掉 undefined、null 值，防止传递 "undefined" 字符串到后端
 	const filteredParams = params
