@@ -1,10 +1,11 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Bell, Check, Clock, X } from "lucide-react";
+import { Bell, Check, Clock, Settings, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { deleteNotification } from "@/lib/api";
+import { useOpenSettings } from "@/lib/hooks/useOpenSettings";
 import { useUpdateTodo } from "@/lib/query";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -69,10 +70,16 @@ export function HeaderIsland() {
 	const updateTodoMutation = useUpdateTodo();
 	const isProcessing = updateTodoMutation.isPending;
 
+	// 使用共享的打开设置 hook
+	const { openSettings } = useOpenSettings();
+
 	// 检查是否是 draft todo 通知
 	const isDraftTodo =
 		currentNotification?.source === "draft-todos" &&
 		currentNotification?.todoId;
+
+	// 检查是否是 LLM 配置通知
+	const isLlmConfigNotification = currentNotification?.source === "llm-config";
 
 	// 更新时间
 	useEffect(() => {
@@ -207,7 +214,14 @@ export function HeaderIsland() {
 				{currentNotification ? (
 					// 有通知时显示通知内容
 					<motion.div
-						onClick={toggleExpanded}
+						onClick={() => {
+							if (isLlmConfigNotification) {
+								// LLM 配置通知点击时打开设置
+								openSettings();
+							} else {
+								toggleExpanded();
+							}
+						}}
 						whileHover={{
 							scale: 1.02,
 							y: -2,
@@ -220,7 +234,11 @@ export function HeaderIsland() {
 						onKeyDown={(e) => {
 							if (e.key === "Enter" || e.key === " ") {
 								e.preventDefault();
-								toggleExpanded();
+								if (isLlmConfigNotification) {
+									openSettings();
+								} else {
+									toggleExpanded();
+								}
 							}
 						}}
 						className={`
@@ -249,16 +267,30 @@ export function HeaderIsland() {
 								>
 									<motion.div
 										animate={{
-											rotate: [0, -10, 10, -10, 0],
+											rotate: isLlmConfigNotification
+												? [0, 360]
+												: [0, -10, 10, -10, 0],
 										}}
-										transition={{
-											duration: 0.5,
-											repeat: Infinity,
-											repeatDelay: 2,
-											ease: "easeInOut",
-										}}
+										transition={
+											isLlmConfigNotification
+												? {
+														duration: 2,
+														repeat: Infinity,
+														ease: "linear",
+													}
+												: {
+														duration: 0.5,
+														repeat: Infinity,
+														repeatDelay: 2,
+														ease: "easeInOut",
+													}
+										}
 									>
-										<Bell className="h-4 w-4 text-primary shrink-0" />
+										{isLlmConfigNotification ? (
+											<Settings className="h-4 w-4 text-amber-500 shrink-0" />
+										) : (
+											<Bell className="h-4 w-4 text-primary shrink-0" />
+										)}
 									</motion.div>
 									<span className="text-sm font-medium text-foreground truncate max-w-[200px]">
 										{currentNotification.title || t("newNotification")}
@@ -281,7 +313,11 @@ export function HeaderIsland() {
 									className="flex items-center gap-3 w-full"
 								>
 									{/* 左侧：图标 */}
-									<Bell className="h-4 w-4 text-primary shrink-0" />
+									{isLlmConfigNotification ? (
+										<Settings className="h-4 w-4 text-amber-500 shrink-0" />
+									) : (
+										<Bell className="h-4 w-4 text-primary shrink-0" />
+									)}
 									{/* 中间：待办标题和时间信息（一行显示） */}
 									<div className="flex-1 min-w-0 flex items-center gap-2">
 										<h3 className="text-sm font-semibold text-foreground truncate max-w-[500px]">

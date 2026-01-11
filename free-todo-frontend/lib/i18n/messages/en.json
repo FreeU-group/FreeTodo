@@ -229,7 +229,9 @@
 		"minutesAgo": "{count}m ago",
 		"hoursAgo": "{count}h ago",
 		"daysAgo": "{count}d ago",
-		"dateFormat": "{month}/{day}"
+		"dateFormat": "{month}/{day}",
+		"llmConfigMissing": "Please configure AI service",
+		"llmConfigMissingHint": "Click to set API Key"
 	},
 	"chat": {
 		"greetings": {

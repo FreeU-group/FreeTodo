@@ -229,7 +229,9 @@
 		"minutesAgo": "{count}分钟前",
 		"hoursAgo": "{count}小时前",
 		"daysAgo": "{count}天前",
-		"dateFormat": "{month}月{day}日"
+		"dateFormat": "{month}月{day}日",
+		"llmConfigMissing": "请配置 AI 服务",
+		"llmConfigMissingHint": "点击设置 API Key"
 	},
 	"chat": {
 		"greetings": {
