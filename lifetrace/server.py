@@ -80,15 +80,15 @@ def get_cors_origins() -> list[str]:
     生成 CORS 允许的来源列表，支持动态端口。
 
     为了支持 Build 版和开发版同时运行，需要允许端口范围：
-    - 前端端口范围：3000-3099
-    - 后端端口范围：8000-8099（用于 API 测试和跨域请求）
+    - 前端端口范围：3000-3200（包括 3200，Build 版默认端口）
+    - 后端端口范围：8000-8200（包括 8200，Build 版默认端口）
     """
     origins = []
-    # 前端端口范围 3000-3099
-    for port in range(3000, 3100):
+    # 前端端口范围 3000-3200（包括 3200）
+    for port in range(3000, 3201):
         origins.extend([f"http://localhost:{port}", f"http://127.0.0.1:{port}"])
-    # 后端端口范围 8000-8099
-    for port in range(8000, 8100):
+    # 后端端口范围 8000-8200（包括 8200）
+    for port in range(8000, 8201):
         origins.extend([f"http://localhost:{port}", f"http://127.0.0.1:{port}"])
     return origins
 

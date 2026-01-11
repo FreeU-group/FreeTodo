@@ -30,10 +30,16 @@ export async function sendChatMessageStream(
 ): Promise<void> {
 	// 流式请求直接调用后端 API，绕过 Next.js 代理
 	const baseUrl = getStreamApiBaseUrl();
+	const apiUrl = `${baseUrl}/api/chat/stream`;
+
+	// 调试日志
+	console.log("[sendChatMessageStream] baseUrl:", baseUrl);
+	console.log("[sendChatMessageStream] apiUrl:", apiUrl);
+	console.log("[sendChatMessageStream] params:", params);
 
 	let response: Response;
 	try {
-		response = await fetch(`${baseUrl}/api/chat/stream`, {
+		response = await fetch(apiUrl, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
@@ -48,6 +54,9 @@ export async function sendChatMessageStream(
 			signal,
 		});
 	} catch (error) {
+		// 调试日志
+		console.error("[sendChatMessageStream] fetch error:", error);
+
 		// 如果是取消操作，静默返回
 		if (
 			signal?.aborted ||
