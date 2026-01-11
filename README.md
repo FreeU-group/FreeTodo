@@ -1,4 +1,4 @@
-![FreeTodo Logo](.github/assets/lifetrace_logo.png)
+![FreeTodo Logo](.github/assets/free_todo_icon_with_name_roundrect.png)
 
 ![GitHub stars](https://img.shields.io/github/stars/FreeU-group/LifeTrace?style=social) ![GitHub forks](https://img.shields.io/github/forks/FreeU-group/LifeTrace?style=social) ![GitHub issues](https://img.shields.io/github/issues/FreeU-group/LifeTrace) ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg) ![Python version](https://img.shields.io/badge/python-3.12-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
@@ -23,7 +23,7 @@
 - **Hierarchical Tasks**: Support for parent-child task relationships with unlimited nesting
 - **Priority & Status**: Four priority levels (urgent/high/medium/low) and multiple status states
 - **Tags & Categories**: Organize todos with custom tags for easy filtering
-- **Deadline Management**: Set start times and deadlines with visual reminders
+- **Deadline Management**: Set deadlines with visual reminders
 - **Rich Notes**: Add detailed notes and descriptions to each todo
 
 ### 📅 Multi-View Calendar
@@ -77,6 +77,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Windows
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+> **Note**: After installation, `uv` may not be immediately available in the current terminal. To activate it in the current session:
+>
+> - **Windows (PowerShell)**: Run `$env:Path = "$env:USERPROFILE\.local\bin;$env:Path"` to refresh PATH
+> - **macOS/Linux**: Run `exec $SHELL` to reinitialize your shell session, or restart your terminal
+>
+> Alternatively, you can simply open a new terminal window and `uv` will be available automatically.
 
 **Install dependencies and sync environment:**
 
