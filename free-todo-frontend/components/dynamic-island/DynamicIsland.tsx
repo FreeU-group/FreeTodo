@@ -263,10 +263,6 @@ export function DynamicIsland({
 						<ResizeHandle position="bottom" onResize={handleResize} />
 						<ResizeHandle position="left" onResize={handleResize} />
 						<ResizeHandle position="right" onResize={handleResize} />
-						<ResizeHandle position="top-left" onResize={handleResize} />
-						<ResizeHandle position="top-right" onResize={handleResize} />
-						<ResizeHandle position="bottom-left" onResize={handleResize} />
-						<ResizeHandle position="bottom-right" onResize={handleResize} />
 					</div>
 					<div className="flex flex-col w-full h-full text-[oklch(var(--foreground))] relative z-0">
 						<PanelFeatureProvider>

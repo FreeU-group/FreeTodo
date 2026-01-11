@@ -337,108 +337,97 @@ export function setupIpcHandlers(windowManager: WindowManager): void {
 
 	// 调整窗口大小（用于自定义缩放把手）
 	// 左边伸缩时右边固定，上边伸缩时下边固定，确保流畅不卡顿
-	// 使用窗口对象的自定义属性保存固定边界
+	// 关键：前端传递的是总移动量（相对于初始鼠标位置），后端基于初始边界和总移动量计算
 	ipcMain.on(
 		"resize-window",
-		(event, deltaX: number, deltaY: number, position: string) => {
+		(event, totalDeltaX: number, totalDeltaY: number, position: string) => {
 			const win = BrowserWindow.fromWebContents(event.sender);
 			if (!win || !enableDynamicIsland) return;
 
-			const bounds = win.getBounds();
-			// 获取或初始化固定边界（使用窗口对象的自定义属性）
-			const resizeAnchor = (win as unknown as { __resizeAnchor?: { rightEdge?: number; bottomEdge?: number; lastPosition?: string } }).__resizeAnchor;
+			// 获取或初始化拖动状态（使用窗口对象的自定义属性）
+			type ResizeAnchor = {
+				initialBounds: { x: number; y: number; width: number; height: number };
+				fixedRightEdge: number; // 固定的右边界（屏幕坐标）
+				fixedBottomEdge: number; // 固定的下边界（屏幕坐标）
+				lastPosition: string;
+			};
+			const winWithAnchor = win as unknown as { __resizeAnchor?: ResizeAnchor };
+			let anchor = winWithAnchor.__resizeAnchor;
 
-			// 如果位置改变或没有保存的固定边界，重新初始化固定边界
-			if (!resizeAnchor || resizeAnchor.lastPosition !== position) {
-				(win as unknown as { __resizeAnchor: { rightEdge?: number; bottomEdge?: number; lastPosition?: string } }).__resizeAnchor = {
-					rightEdge: bounds.x + bounds.width, // 右边界（固定点）
-					bottomEdge: bounds.y + bounds.height, // 下边界（固定点）
+			// 如果位置改变或没有保存的初始边界，重新初始化
+			if (!anchor || anchor.lastPosition !== position) {
+				const bounds = win.getBounds();
+				// 确保使用整数坐标，避免精度问题
+				const fixedRightEdge = Math.round(bounds.x + bounds.width); // 固定的右边界（屏幕坐标）
+				const fixedBottomEdge = Math.round(bounds.y + bounds.height); // 固定的下边界（屏幕坐标）
+				anchor = {
+					initialBounds: {
+						x: Math.round(bounds.x),
+						y: Math.round(bounds.y),
+						width: Math.round(bounds.width),
+						height: Math.round(bounds.height),
+					},
+					fixedRightEdge,
+					fixedBottomEdge,
 					lastPosition: position,
 				};
+				winWithAnchor.__resizeAnchor = anchor;
 			}
 
-			const anchor = (win as unknown as { __resizeAnchor: { rightEdge: number; bottomEdge: number; lastPosition: string } }).__resizeAnchor;
-			const rightEdge = anchor.rightEdge; // 固定的右边界
-			const bottomEdge = anchor.bottomEdge; // 固定的下边界
+			const {
+				initialBounds,
+				fixedRightEdge,
+				fixedBottomEdge,
+			} = anchor;
 
-			let newWidth = bounds.width;
-			let newHeight = bounds.height;
-			let newX = bounds.x;
-			let newY = bounds.y;
+			let newWidth = initialBounds.width;
+			let newHeight = initialBounds.height;
+			let newX = initialBounds.x;
+			let newY = initialBounds.y;
 
-			// 根据位置和 delta 计算新尺寸和位置
-			// 关键：左边伸缩时保持右边界固定，上边伸缩时保持下边界固定
+			// 根据位置和总移动量计算新尺寸和位置
+			// 关键：基于初始边界和总移动量计算，确保固定边界不变
 			switch (position) {
 				case "right":
 					// 右边伸缩：左边界固定
-					newWidth = Math.max(200, bounds.width + deltaX);
+					newWidth = Math.max(200, initialBounds.width + totalDeltaX);
 					break;
 				case "left":
-					// 左边伸缩：右边界固定
-					newX = bounds.x + deltaX;
-					newWidth = Math.max(200, rightEdge - newX);
-					// 如果宽度达到最小值，调整 X 位置以保持右边界固定
-					if (newWidth === 200) {
-						newX = rightEdge - 200;
+					// 左边伸缩：右边界固定（使用固定的屏幕坐标）
+					// 先计算新的 x 位置
+					newX = initialBounds.x + totalDeltaX;
+					// 基于固定右边界计算宽度（确保右边界固定）
+					newWidth = fixedRightEdge - newX;
+					// 确保最小宽度
+					if (newWidth < 200) {
+						newWidth = 200;
+						newX = fixedRightEdge - 200;
 					}
+					// 强制确保右边界固定：直接使用 fixedRightEdge 计算，避免任何累积误差
+					newWidth = fixedRightEdge - newX;
 					break;
 				case "bottom":
 					// 下边伸缩：上边界固定
-					newHeight = Math.max(200, bounds.height + deltaY);
+					newHeight = Math.max(200, initialBounds.height + totalDeltaY);
 					break;
 				case "top":
-					// 上边伸缩：下边界固定
-					newY = bounds.y + deltaY;
-					newHeight = Math.max(200, bottomEdge - newY);
-					// 如果高度达到最小值，调整 Y 位置以保持下边界固定
-					if (newHeight === 200) {
-						newY = bottomEdge - 200;
-					}
-					break;
-				case "top-right":
-					// 右上角：左边界和下边界固定
-					newWidth = Math.max(200, bounds.width + deltaX);
-					newY = bounds.y + deltaY;
-					newHeight = Math.max(200, bottomEdge - newY);
-					if (newHeight === 200) {
-						newY = bottomEdge - 200;
-					}
-					break;
-				case "top-left":
-					// 左上角：右边界和下边界固定
-					newX = bounds.x + deltaX;
-					newWidth = Math.max(200, rightEdge - newX);
-					newY = bounds.y + deltaY;
-					newHeight = Math.max(200, bottomEdge - newY);
-					if (newWidth === 200) {
-						newX = rightEdge - 200;
-					}
-					if (newHeight === 200) {
-						newY = bottomEdge - 200;
-					}
-					break;
-				case "bottom-right":
-					// 右下角：左边界和上边界固定
-					newWidth = Math.max(200, bounds.width + deltaX);
-					newHeight = Math.max(200, bounds.height + deltaY);
-					break;
-				case "bottom-left":
-					// 左下角：右边界和上边界固定
-					newX = bounds.x + deltaX;
-					newWidth = Math.max(200, rightEdge - newX);
-					newHeight = Math.max(200, bounds.height + deltaY);
-					if (newWidth === 200) {
-						newX = rightEdge - 200;
+					// 上边伸缩：下边界固定（使用固定的屏幕坐标）
+					newY = initialBounds.y + totalDeltaY;
+					newHeight = fixedBottomEdge - newY;
+					if (newHeight < 200) {
+						newHeight = 200;
+						newY = fixedBottomEdge - 200;
 					}
 					break;
 			}
 
 			// 直接更新，保持流畅度
+			// 使用 Math.round 确保整数坐标，避免精度问题导致的闪烁
 			win.setBounds({
-				x: newX,
-				y: newY,
-				width: newWidth,
-				height: newHeight,
+				x: Math.round(newX),
+				y: Math.round(newY),
+				width: Math.round(newWidth),
+				height: Math.round(newHeight),
 			});
 		},
 	);

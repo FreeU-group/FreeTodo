@@ -86,12 +86,16 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 		}
 	};
 
+	const initialMousePosRef = useRef<{ x: number; y: number } | null>(null);
+
 	const handleMouseDown = useCallback(
 		(e: React.MouseEvent) => {
 			e.preventDefault();
 			e.stopPropagation();
 			setIsDragging(true);
-			startPosRef.current = { x: e.clientX, y: e.clientY };
+			const initialPos = { x: e.clientX, y: e.clientY };
+			startPosRef.current = initialPos;
+			initialMousePosRef.current = initialPos;
 		},
 		[],
 	);
@@ -101,7 +105,9 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 
 		let rafId: number | null = null;
 		let lastUpdateTime = 0;
-		const throttleMs = 16; // 约 60fps，减少 IPC 调用频率
+		// 左边和上边伸缩时，增加节流时间，减少更新频率，避免闪烁
+		const isLeftOrTop = position === "left" || position === "top" || position.includes("left") || position.includes("top");
+		const throttleMs = isLeftOrTop ? 32 : 16; // 左边/上边：约 30fps，其他：约 60fps
 
 		const handleMouseMove = (e: MouseEvent) => {
 			if (!startPosRef.current) return;
@@ -111,14 +117,18 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 				// 使用 requestAnimationFrame 节流，避免卡顿
 				if (rafId) return;
 				rafId = requestAnimationFrame(() => {
-					if (!startPosRef.current) {
+					if (!startPosRef.current || !initialMousePosRef.current) {
 						rafId = null;
 						return;
 					}
+					// 使用相对于初始鼠标位置的总移动量，而不是相对于上一次的增量
+					const totalDeltaX = e.clientX - initialMousePosRef.current.x;
+					const totalDeltaY = e.clientY - initialMousePosRef.current.y;
+					// 计算相对于上一次的增量（用于节流判断）
 					const deltaX = e.clientX - startPosRef.current.x;
 					const deltaY = e.clientY - startPosRef.current.y;
 					if (deltaX !== 0 || deltaY !== 0) {
-						onResize(deltaX, deltaY, position);
+						onResize(totalDeltaX, totalDeltaY, position);
 						startPosRef.current = { x: e.clientX, y: e.clientY };
 						lastUpdateTime = Date.now();
 					}
@@ -127,10 +137,15 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 				return;
 			}
 
+			if (!initialMousePosRef.current) return;
+			// 使用相对于初始鼠标位置的总移动量，而不是相对于上一次的增量
+			const totalDeltaX = e.clientX - initialMousePosRef.current.x;
+			const totalDeltaY = e.clientY - initialMousePosRef.current.y;
+			// 计算相对于上一次的增量（用于节流判断）
 			const deltaX = e.clientX - startPosRef.current.x;
 			const deltaY = e.clientY - startPosRef.current.y;
 			if (deltaX !== 0 || deltaY !== 0) {
-				onResize(deltaX, deltaY, position);
+				onResize(totalDeltaX, totalDeltaY, position);
 				startPosRef.current = { x: e.clientX, y: e.clientY };
 				lastUpdateTime = now;
 			}
@@ -139,6 +154,7 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 		const handleMouseUp = () => {
 			setIsDragging(false);
 			startPosRef.current = null;
+			initialMousePosRef.current = null;
 			if (rafId) {
 				cancelAnimationFrame(rafId);
 				rafId = null;
