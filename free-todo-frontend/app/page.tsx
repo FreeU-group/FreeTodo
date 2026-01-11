@@ -366,15 +366,24 @@ export default function HomePage() {
 			<main className="relative flex h-screen flex-col overflow-hidden text-foreground">
 				<div className="relative z-10 flex h-full flex-col text-foreground">
 					<header className="relative flex h-15 shrink-0 items-center bg-primary-foreground dark:bg-accent px-4 text-foreground overflow-visible">
-						{/* 左侧：Logo */}
-						<div className="flex items-center gap-2 shrink-0">
-							<Image
-								src="/free-todo-logos/free_todo_icon_with_grid.png"
-								alt="Free Todo Logo"
-								width={32}
-								height={32}
-								className="shrink-0"
-							/>
+					{/* 左侧：Logo */}
+					<div className="flex items-center gap-2 shrink-0 ">
+						{/* 浅色模式图标 */}
+						<Image
+							src="/free-todo-logos/free_todo_icon_4_dark_with_grid.png"
+							alt="Free Todo Logo"
+							width={32}
+							height={32}
+							className="shrink-0 block dark:hidden"
+						/>
+						{/* 深色模式图标 */}
+						<Image
+							src="/free-todo-logos/free_todo_icon_4_with_grid.png"
+							alt="Free Todo Logo"
+							width={32}
+							height={32}
+							className="shrink-0 hidden dark:block"
+						/>
 							<h1 className="text-lg font-semibold tracking-tight text-foreground">
 								Free Todo: Your AI Secretary
 							</h1>

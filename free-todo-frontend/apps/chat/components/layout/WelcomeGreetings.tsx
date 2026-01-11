@@ -27,12 +27,21 @@ export function WelcomeGreetings({
 				{/* 图标 + 主标题 */}
 				<div className="flex items-center gap-4">
 					<div className="flex h-13 w-13 items-center justify-center">
+						{/* 浅色模式图标 */}
 						<Image
-							src="/free-todo-logos/free_todo_icon_with_grid.png"
+							src="/free-todo-logos/free_todo_icon_4_dark_with_grid.png"
 							alt="Free Todo Logo"
 							width={128}
 							height={128}
-							className="object-contain"
+							className="object-contain block dark:hidden"
+						/>
+						{/* 深色模式图标 */}
+						<Image
+							src="/free-todo-logos/free_todo_icon_4_with_grid.png"
+							alt="Free Todo Logo"
+							width={128}
+							height={128}
+							className="object-contain hidden dark:block"
 						/>
 					</div>
 					<h1 className="text-3xl font-bold tracking-tight text-foreground">
