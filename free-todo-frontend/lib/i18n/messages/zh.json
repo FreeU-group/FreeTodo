@@ -646,7 +646,7 @@
 		"welcomeTitle": "欢迎使用 Free Todo",
 		"welcomeDescription": "快速配置你的 AI 助手。",
 		"apiKeyStepTitle": "API Key",
-		"apiKeyStepDescription": "填写大模型 API Key（OpenAI 兼容接口）。",
+		"apiKeyStepDescription": "填写阿里云百炼大模型 API Key。",
 		"dockTriggerTitle": "下移鼠标",
 		"dockTriggerDescription": "将鼠标移至底部边缘，Dock 会自动出现。",
 		"dockStepTitle": "底部 Dock",

@@ -646,7 +646,7 @@
 		"welcomeTitle": "Welcome to Free Todo",
 		"welcomeDescription": "Let's quickly set up your AI assistant.",
 		"apiKeyStepTitle": "API Key",
-		"apiKeyStepDescription": "Enter your LLM API Key (OpenAI-compatible).",
+		"apiKeyStepDescription": "Enter your Aliyun Bailian API Key.",
 		"dockTriggerTitle": "Move Mouse Down",
 		"dockTriggerDescription": "Move your mouse to the bottom edge to reveal the Dock.",
 		"dockStepTitle": "Bottom Dock",
