@@ -143,7 +143,7 @@ function DockItemButton({
 			ref={setRefs}
 			type="button"
 			style={dragStyle}
-			data-tour={item.id === "settings" ? "dock-item-settings" : undefined}
+			data-tour={`dock-item-${position}`}
 			{...(mounted ? dragAttributes : {})}
 			{...(mounted ? dragListeners : {})}
 			onClick={item.onClick}
@@ -306,21 +306,39 @@ export function BottomDock({ className }: BottomDockProps) {
 
 	// 监听外部事件以程序化打开右键菜单（用于引导流程）
 	useEffect(() => {
-		const handleOpenMenu = (e: CustomEvent<{ feature: PanelFeature }>) => {
-			const targetFeature = e.detail.feature;
-			// 查找具有该功能的面板位置
-			const positions: PanelPosition[] = ["panelA", "panelB", "panelC"];
-			for (const pos of positions) {
-				if (getFeatureByPosition(pos) === targetFeature) {
-					const anchorEl = itemRefs.current[pos];
-					if (anchorEl) {
-						setMenuState({
-							isOpen: true,
-							position: pos,
-							anchorElement: anchorEl,
-						});
+		const handleOpenMenu = (
+			e: CustomEvent<{ feature?: PanelFeature; position?: PanelPosition }>,
+		) => {
+			const { feature: targetFeature, position: targetPosition } = e.detail;
+
+			// 优先使用 position 参数
+			if (targetPosition) {
+				const anchorEl = itemRefs.current[targetPosition];
+				if (anchorEl) {
+					setMenuState({
+						isOpen: true,
+						position: targetPosition,
+						anchorElement: anchorEl,
+					});
+				}
+				return;
+			}
+
+			// 回退到使用 feature 参数
+			if (targetFeature) {
+				const positions: PanelPosition[] = ["panelA", "panelB", "panelC"];
+				for (const pos of positions) {
+					if (getFeatureByPosition(pos) === targetFeature) {
+						const anchorEl = itemRefs.current[pos];
+						if (anchorEl) {
+							setMenuState({
+								isOpen: true,
+								position: pos,
+								anchorElement: anchorEl,
+							});
+						}
+						break;
 					}
-					break;
 				}
 			}
 		};

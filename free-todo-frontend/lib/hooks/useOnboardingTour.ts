@@ -154,32 +154,101 @@ export function useOnboardingTour() {
 						}
 					},
 				},
-				// Step 5: 右键点击引导（高亮 dock item）
+				// Step 5: 右键点击引导（高亮 Panel B 的 dock item）
 				{
-					element: '[data-tour="dock-item-settings"]',
+					element: '[data-tour="dock-item-panelB"]',
 					popover: {
 						title: t("dockRightClickTitle"),
 						description: t("dockRightClickDescription"),
 						side: "top" as const,
 						align: "center" as const,
 					},
+					onHighlightStarted: () => {
+						// 让 overlay 允许点击穿透，这样用户可以右键点击
+						const overlay = document.querySelector(".driver-overlay");
+						if (overlay) {
+							(overlay as HTMLElement).style.pointerEvents = "none";
+						}
+
+						// 监听 Panel B 上的右键点击事件
+						const panelBElement = document.querySelector(
+							'[data-tour="dock-item-panelB"]',
+						);
+						if (panelBElement) {
+							const handleContextMenu = () => {
+								// 用户已右键点击，菜单会由 BottomDock 自动打开
+								// 短暂延迟后进入下一步，等待菜单渲染
+								setTimeout(() => {
+									driverObj.moveNext();
+								}, 100);
+								// 移除监听器
+								panelBElement.removeEventListener(
+									"contextmenu",
+									handleContextMenu,
+								);
+							};
+							panelBElement.addEventListener("contextmenu", handleContextMenu);
+
+							// 存储清理函数
+							(window as unknown as Record<string, () => void>)
+								.__onboardingContextMenuCleanup = () => {
+								panelBElement.removeEventListener(
+									"contextmenu",
+									handleContextMenu,
+								);
+							};
+						}
+					},
+					onDeselected: () => {
+						// 清理事件监听器
+						const cleanup = (window as unknown as Record<string, () => void>)
+							.__onboardingContextMenuCleanup;
+						if (cleanup) {
+							cleanup();
+							delete (window as unknown as Record<string, () => void>)
+								.__onboardingContextMenuCleanup;
+						}
+
+						// 恢复 overlay 的点击阻止功能
+						const overlay = document.querySelector(".driver-overlay");
+						if (overlay) {
+							(overlay as HTMLElement).style.pointerEvents = "";
+						}
+
+						// 如果菜单还没打开（用户点击了"下一步"按钮），则程序化打开菜单
+						const menu = document.querySelector(
+							'[data-tour="panel-selector-menu"]',
+						);
+						if (!menu) {
+							window.dispatchEvent(
+								new CustomEvent("onboarding:open-dock-menu", {
+									detail: { position: "panelB" },
+								}),
+							);
+						}
+					},
 				},
-				// Step 6: 右键菜单高亮
+				// Step 6: 右键菜单高亮（同时高亮 Panel B 和菜单）
 				{
 					element: '[data-tour="panel-selector-menu"]',
 					popover: {
 						title: t("dockMenuTitle"),
 						description: t("dockMenuDescription"),
 						side: "left" as const,
-						align: "end" as const,
+						align: "start" as const,
 					},
 					onHighlightStarted: () => {
-						// 程序化打开右键菜单
-						window.dispatchEvent(
-							new CustomEvent("onboarding:open-dock-menu", {
-								detail: { feature: "settings" },
-							}),
+						// 确保菜单已打开（如果从其他方式进入此步骤）
+						const menu = document.querySelector(
+							'[data-tour="panel-selector-menu"]',
 						);
+						if (!menu) {
+							window.dispatchEvent(
+								new CustomEvent("onboarding:open-dock-menu", {
+									detail: { position: "panelB" },
+								}),
+							);
+						}
 					},
 				},
 				// Step 7: Completion modal
