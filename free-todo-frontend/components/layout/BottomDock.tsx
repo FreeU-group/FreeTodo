@@ -143,6 +143,7 @@ function DockItemButton({
 			ref={setRefs}
 			type="button"
 			style={dragStyle}
+			data-tour={item.id === "settings" ? "dock-item-settings" : undefined}
 			{...(mounted ? dragAttributes : {})}
 			{...(mounted ? dragListeners : {})}
 			onClick={item.onClick}
@@ -302,6 +303,39 @@ export function BottomDock({ className }: BottomDockProps) {
 		panelB: null,
 		panelC: null,
 	});
+
+	// 监听外部事件以程序化打开右键菜单（用于引导流程）
+	useEffect(() => {
+		const handleOpenMenu = (e: CustomEvent<{ feature: PanelFeature }>) => {
+			const targetFeature = e.detail.feature;
+			// 查找具有该功能的面板位置
+			const positions: PanelPosition[] = ["panelA", "panelB", "panelC"];
+			for (const pos of positions) {
+				if (getFeatureByPosition(pos) === targetFeature) {
+					const anchorEl = itemRefs.current[pos];
+					if (anchorEl) {
+						setMenuState({
+							isOpen: true,
+							position: pos,
+							anchorElement: anchorEl,
+						});
+					}
+					break;
+				}
+			}
+		};
+
+		window.addEventListener(
+			"onboarding:open-dock-menu",
+			handleOpenMenu as EventListener,
+		);
+		return () => {
+			window.removeEventListener(
+				"onboarding:open-dock-menu",
+				handleOpenMenu as EventListener,
+			);
+		};
+	}, [getFeatureByPosition]);
 
 	// 基于配置生成 dock items，每个位置槽位对应一个 item
 	// 在 SSR 时使用默认值，避免 hydration 错误

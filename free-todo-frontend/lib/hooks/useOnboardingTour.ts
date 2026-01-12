@@ -23,8 +23,8 @@ export function useOnboardingTour() {
 	 * Create and start the driver tour
 	 */
 	const createAndStartTour = useCallback(() => {
-		// Ensure dock is visible during tour
-		setDockDisplayMode("fixed");
+		// 初始保持 dock 自动隐藏模式，不要一开始就固定显示
+		setDockDisplayMode("auto-hide");
 
 		const driverObj = driver({
 			showProgress: true,
@@ -53,6 +53,8 @@ export function useOnboardingTour() {
 			onDestroyed: () => {
 				completeTour();
 				setCurrentStep(null);
+				// 引导结束后恢复自动隐藏模式
+				setDockDisplayMode("auto-hide");
 			},
 
 			steps: [
@@ -96,7 +98,7 @@ export function useOnboardingTour() {
 						}
 					},
 				},
-				// Step 4: Bottom Dock
+				// Step 4: Dock 从底部滑出的动效演示
 				{
 					element: '[data-tour="bottom-dock"]',
 					popover: {
@@ -106,11 +108,36 @@ export function useOnboardingTour() {
 						align: "center" as const,
 					},
 					onHighlightStarted: () => {
-						// Ensure dock is visible
-						setDockDisplayMode("fixed");
+						// 先确保 dock 隐藏，然后滑出显示，让用户感知动效
+						setDockDisplayMode("auto-hide");
+						// 短暂延迟后显示 dock，形成「滑出」效果
+						setTimeout(() => {
+							setDockDisplayMode("fixed");
+						}, 300);
 					},
 				},
-				// Step 5: Completion modal
+				// Step 5: 右键菜单高亮 - 程序化打开菜单并高亮
+				{
+					element: '[data-tour="panel-selector-menu"]',
+					popover: {
+						title: t("dockRightClickTitle"),
+						description: t("dockRightClickDescription"),
+						side: "left" as const,
+						align: "end" as const,
+					},
+					onHighlightStarted: () => {
+						// 程序化打开设置面板的右键菜单
+						window.dispatchEvent(
+							new CustomEvent("onboarding:open-dock-menu", {
+								detail: { feature: "settings" },
+							}),
+						);
+					},
+					onDeselected: () => {
+						// 离开此步骤时关闭菜单（通过点击其他地方触发）
+					},
+				},
+				// Step 6: Completion modal
 				{
 					popover: {
 						title: t("completeTitle"),
