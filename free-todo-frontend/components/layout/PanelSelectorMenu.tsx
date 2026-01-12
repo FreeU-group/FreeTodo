@@ -139,6 +139,12 @@ export function PanelSelectorMenu({
 									onClick={() => {
 										onSelect(feature);
 										onClose();
+										// 派发事件通知引导流程面板已选择
+										window.dispatchEvent(
+											new CustomEvent("onboarding:panel-selected", {
+												detail: { feature },
+											}),
+										);
 									}}
 									className={cn(
 										"w-full flex items-center gap-2",

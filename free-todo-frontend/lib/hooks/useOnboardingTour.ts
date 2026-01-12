@@ -249,6 +249,54 @@ export function useOnboardingTour() {
 								}),
 							);
 						}
+
+						// 让 overlay 允许点击穿透，让用户可以点击菜单项
+						const overlay = document.querySelector(".driver-overlay");
+						if (overlay) {
+							(overlay as HTMLElement).style.pointerEvents = "none";
+						}
+
+						// 监听面板选择事件，用户选择任意面板后自动进入下一步
+						const handlePanelSelected = () => {
+							// 短暂延迟后进入下一步，让面板切换动画完成
+							setTimeout(() => {
+								driverObj.moveNext();
+							}, 150);
+							// 移除监听器
+							window.removeEventListener(
+								"onboarding:panel-selected",
+								handlePanelSelected,
+							);
+						};
+						window.addEventListener(
+							"onboarding:panel-selected",
+							handlePanelSelected,
+						);
+
+						// 存储清理函数
+						(window as unknown as Record<string, () => void>)
+							.__onboardingPanelSelectedCleanup = () => {
+							window.removeEventListener(
+								"onboarding:panel-selected",
+								handlePanelSelected,
+							);
+						};
+					},
+					onDeselected: () => {
+						// 清理事件监听器
+						const cleanup = (window as unknown as Record<string, () => void>)
+							.__onboardingPanelSelectedCleanup;
+						if (cleanup) {
+							cleanup();
+							delete (window as unknown as Record<string, () => void>)
+								.__onboardingPanelSelectedCleanup;
+						}
+
+						// 恢复 overlay 的点击阻止功能
+						const overlay = document.querySelector(".driver-overlay");
+						if (overlay) {
+							(overlay as HTMLElement).style.pointerEvents = "";
+						}
 					},
 				},
 				// Step 7: Completion modal
