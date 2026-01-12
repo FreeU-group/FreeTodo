@@ -3,7 +3,7 @@
 ## 技术栈信息
 
 - **框架**: FastAPI + Uvicorn（异步 Web 框架）
-- **语言**: Python 3.13+
+- **语言**: Python 3.12
 - **ORM**: SQLAlchemy 2.x + SQLModel
 - **数据库迁移**: Alembic
 - **数据验证**: Pydantic 2.x

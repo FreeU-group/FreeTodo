@@ -29,7 +29,8 @@ export function LanguageToggle() {
 	const handleToggle = () => {
 		const currentIndex = languages.findIndex((l) => l.value === locale);
 		const nextIndex = (currentIndex + 1) % languages.length;
-		setLocale(languages[nextIndex].value);
+		const newLocale = languages[nextIndex].value;
+		setLocale(newLocale);
 		// 使用 router.refresh() 重新获取服务端数据，无白屏闪烁
 		router.refresh();
 	};

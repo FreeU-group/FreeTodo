@@ -86,7 +86,7 @@ LifeTrace API 采用模块化架构设计，主要包含以下几个层次：
 
 ### 环境要求
 
-- **Python**: 3.13+
+- **Python**: 3.12
 - **操作系统**: macOS / Windows
 - **依赖管理**: [uv](https://github.com/astral-sh/uv) (推荐) 或 pip
 - **可选**: CUDA 支持（用于 GPU 加速）
@@ -675,7 +675,7 @@ GET /api/system/info
 {
   "os": "Darwin",
   "os_version": "24.6.0",
-  "python_version": "3.13.0",
+  "python_version": "3.12.9",
   "cpu_percent": 25.3,
   "memory_percent": 68.5,
   "disk_usage": {

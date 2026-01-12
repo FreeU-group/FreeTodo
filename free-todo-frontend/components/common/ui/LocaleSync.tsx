@@ -25,6 +25,7 @@ function syncLocaleToCookie(locale: string) {
  * - 此时页面已经用默认语言渲染，需要刷新以应用正确的语言
  *
  * 此组件在 hydration 完成后检测不一致并自动刷新页面
+ * 重要：必须等待 Zustand store hydration 完成后再执行，否则会读取到未 hydrate 的初始值
  */
 export function LocaleSync() {
 	const router = useRouter();
@@ -32,9 +33,14 @@ export function LocaleSync() {
 	const serverLocale = useLocale();
 	// 客户端 store 中的 locale（可能是检测系统语言得到的）
 	const storeLocale = useLocaleStore((state) => state.locale);
+	// 等待 store hydration 完成
+	const hasHydrated = useLocaleStore((state) => state._hasHydrated);
 	const hasRefreshed = useRef(false);
 
 	useEffect(() => {
+		// 必须等待 hydration 完成，否则 storeLocale 可能是未 hydrate 的初始值
+		if (!hasHydrated) return;
+
 		// 只在第一次检测到不一致时刷新，避免无限刷新
 		if (!hasRefreshed.current && serverLocale !== storeLocale) {
 			hasRefreshed.current = true;
@@ -43,7 +49,7 @@ export function LocaleSync() {
 			// 使用 router.refresh() 重新获取服务端数据
 			router.refresh();
 		}
-	}, [serverLocale, storeLocale, router]);
+	}, [serverLocale, storeLocale, hasHydrated, router]);
 
 	return null;
 }

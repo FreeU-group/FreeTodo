@@ -232,7 +232,7 @@ repos:
 **主要配置**：
 - `files: ^lifetrace/` - 只检查 `lifetrace/` 目录下的 Python 文件
 - `files: ^free-todo-frontend/` - 只检查 `free-todo-frontend/` 目录下的前端文件
-- `language_version: python3.13` - 指定 Python 版本
+- `language_version: python3.12` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
 - `additional_dependencies` - 为 Biome 指定依赖版本
 - `pass_filenames: true/false` - 是否将暂存的文件列表传给脚本

@@ -18,13 +18,13 @@ repos:
         # supported by your project here, or alternatively use
         # pre-commit's default_language_version, see
         # https://pre-commit.com/#top_level-default_language_version
-        language_version: python3.13
+        language_version: python3.12
         files: ^lifetrace/
         types_or: [ python, pyi ]
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
-        language_version: python3.13
+        language_version: python3.12
         files: ^lifetrace/
         types_or: [ python, pyi ]
   # Biome for frontend (JavaScript/TypeScript)

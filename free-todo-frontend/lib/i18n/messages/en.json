@@ -641,5 +641,28 @@
 		"addButton": "Add",
 		"extractButton": "Extract Todos",
 		"extracting": "Extracting todos..."
+	},
+	"onboarding": {
+		"welcomeTitle": "Welcome to Free Todo",
+		"welcomeDescription": "Let's quickly set up your AI assistant.",
+		"apiKeyStepTitle": "API Key",
+		"apiKeyStepDescription": "Enter your LLM API Key (OpenAI-compatible).",
+		"dockTriggerTitle": "Move Mouse Down",
+		"dockTriggerDescription": "Move your mouse to the bottom edge to reveal the Dock.",
+		"dockStepTitle": "Bottom Dock",
+		"dockStepDescription": "Click to toggle panels, drag to reorder.",
+		"dockRightClickTitle": "Try Right-Click",
+		"dockRightClickDescription": "Right-click on this item to see more options.",
+		"dockMenuTitle": "Panel Selector",
+		"dockMenuDescription": "Select a panel to switch. Try clicking \"Chat\".",
+		"completeTitle": "All Set!",
+		"completeDescription": "Start managing your tasks with AI assistance.",
+		"nextBtn": "Next",
+		"prevBtn": "Previous",
+		"doneBtn": "Get Started",
+		"skipBtn": "Skip Tour",
+		"restartTour": "Restart Tour",
+		"restartTourDescription": "Click this button to restart the onboarding tour",
+		"tourNotCompleted": "Tour not completed yet, no need to reset"
 	}
 }

@@ -12,6 +12,7 @@ import {
 	DockDisplayModeSection,
 	LlmConfigSection,
 	ModeSwitcherSection,
+	OnboardingSection,
 	PanelSwitchesSection,
 	RecorderConfigSection,
 	SchedulerSection,
@@ -42,7 +43,10 @@ export function SettingsPanel() {
 			<PanelHeader icon={Settings} title={tPage("settingsLabel")} />
 
 			{/* 设置内容区域 */}
-			<div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+			<div
+				data-tour="settings-content"
+				className="flex-1 overflow-y-auto px-4 py-6 space-y-6"
+			>
 				{/* LLM 配置 */}
 				<LlmConfigSection config={config} loading={loading} />
 
@@ -57,6 +61,9 @@ export function SettingsPanel() {
 
 				{/* 面板开关 */}
 				<PanelSwitchesSection loading={loading} />
+
+				{/* 用户引导设置 */}
+				<OnboardingSection loading={loading} />
 
 				{/* 开发者选项（整栏可折叠） */}
 				<CollapsibleSection

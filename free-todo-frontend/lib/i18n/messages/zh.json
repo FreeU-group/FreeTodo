@@ -641,5 +641,28 @@
 		"addButton": "添加",
 		"extractButton": "提取待办",
 		"extracting": "正在提取待办事项..."
+	},
+	"onboarding": {
+		"welcomeTitle": "欢迎使用 Free Todo",
+		"welcomeDescription": "快速配置你的 AI 助手。",
+		"apiKeyStepTitle": "API Key",
+		"apiKeyStepDescription": "填写大模型 API Key（OpenAI 兼容接口）。",
+		"dockTriggerTitle": "下移鼠标",
+		"dockTriggerDescription": "将鼠标移至底部边缘，Dock 会自动出现。",
+		"dockStepTitle": "底部 Dock",
+		"dockStepDescription": "单击开关面板，拖拽调整顺序。",
+		"dockRightClickTitle": "尝试右键点击",
+		"dockRightClickDescription": "右键点击此项目查看更多选项。",
+		"dockMenuTitle": "面板选择器",
+		"dockMenuDescription": "选择一个面板进行切换，试试点击「聊天」。",
+		"completeTitle": "准备就绪！",
+		"completeDescription": "开始使用 AI 助手管理待办事项。",
+		"nextBtn": "下一步",
+		"prevBtn": "上一步",
+		"doneBtn": "开始使用",
+		"skipBtn": "跳过引导",
+		"restartTour": "重新开始引导",
+		"restartTourDescription": "点击此按钮可以重新查看新手引导流程",
+		"tourNotCompleted": "引导尚未完成，无需重置"
 	}
 }
