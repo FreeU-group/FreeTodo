@@ -15,7 +15,7 @@ interface OnboardingSectionProps {
  */
 export function OnboardingSection({ loading = false }: OnboardingSectionProps) {
 	const t = useTranslations("onboarding");
-	const { restartTour, hasCompletedTour } = useOnboardingTour();
+	const { restartTour } = useOnboardingTour();
 
 	return (
 		<SettingsSection title={t("restartTour")}>
@@ -26,17 +26,12 @@ export function OnboardingSection({ loading = false }: OnboardingSectionProps) {
 				<button
 					type="button"
 					onClick={restartTour}
-					disabled={loading || !hasCompletedTour}
+					disabled={loading}
 					className="flex items-center gap-2 rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<RotateCcw className="h-4 w-4" />
 					{t("restartTour")}
 				</button>
-				{!hasCompletedTour && (
-					<p className="text-xs text-muted-foreground italic">
-						{t("tourNotCompleted")}
-					</p>
-				)}
 			</div>
 		</SettingsSection>
 	);

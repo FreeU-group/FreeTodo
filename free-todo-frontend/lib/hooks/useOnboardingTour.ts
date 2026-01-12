@@ -1,6 +1,6 @@
 "use client";
 
-import { driver, type Driver } from "driver.js";
+import { type Driver, driver } from "driver.js";
 import { useTranslations } from "next-intl";
 import { useCallback, useRef } from "react";
 import { useOnboardingStore } from "@/lib/store/onboarding-store";

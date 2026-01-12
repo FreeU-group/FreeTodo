@@ -45,7 +45,6 @@ export function MessageItem({
 	onMenuButtonClick,
 	onMessageBoxRef,
 }: MessageItemProps) {
-	const t = useTranslations("chat");
 	const tContextMenu = useTranslations("contextMenu");
 	const [hovered, setHovered] = useState(false);
 

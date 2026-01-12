@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 /**
  * 底部 Dock 触发区域高亮组件
  * 用于引导用户将鼠标移至底部以触发 Dock 出现
- * 
+ *
  * 注意：元素始终存在于 DOM 中（用于 driver.js 定位），
  * 只有 isVisible 为 true 时才显示视觉效果
  */
@@ -58,6 +58,7 @@ export function DockTriggerZone() {
 						strokeLinecap="round"
 						strokeLinejoin="round"
 						className="text-primary"
+						aria-hidden="true"
 					>
 						<path d="M12 5v14M19 12l-7 7-7-7" />
 					</svg>

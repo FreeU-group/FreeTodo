@@ -662,7 +662,6 @@
 		"doneBtn": "Get Started",
 		"skipBtn": "Skip Tour",
 		"restartTour": "Restart Tour",
-		"restartTourDescription": "Click this button to restart the onboarding tour",
-		"tourNotCompleted": "Tour not completed yet, no need to reset"
+		"restartTourDescription": "Click this button to start or restart the onboarding tour anytime"
 	}
 }
