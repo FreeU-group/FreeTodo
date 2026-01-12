@@ -6,20 +6,44 @@
 
 This document details the development standards and best practices for the LifeTrace project backend (Python + FastAPI).
 
+### Tech Stack
+
+- **Framework**: FastAPI + Uvicorn (async web framework)
+- **Language**: Python 3.12
+- **ORM**: SQLAlchemy 2.x + SQLModel
+- **Database Migration**: Alembic
+- **Data Validation**: Pydantic 2.x
+- **Configuration Management**: Dynaconf (supports YAML hot reload)
+- **Logging**: Loguru
+- **Scheduler**: APScheduler (background task scheduling)
+- **OCR**: RapidOCR (local OCR recognition)
+- **Vector Database**: ChromaDB (optional, for semantic search)
+- **Text Embeddings**: sentence-transformers (optional)
+- **LLM**: OpenAI-compatible API
+- **Package Manager**: uv (recommended)
+- **Code Quality**: Ruff (lint/format/check)
+
 ## 📋 Table of Contents
 
 - [Code Style](#-code-style)
+- [Project Architecture](#️-project-architecture)
 - [Project Structure](#️-project-structure)
 - [Naming Conventions](#-naming-conventions)
 - [Type Annotations](#-type-annotations)
 - [Docstrings](#-docstrings)
 - [Error Handling](#-error-handling)
 - [API Design](#-api-design)
+- [Layered Architecture](#-layered-architecture)
 - [Database Operations](#-database-operations)
+- [Configuration Management](#-configuration-management)
+- [LLM Services](#-llm-services)
+- [Background Tasks](#-background-tasks)
 - [Testing](#-testing)
 - [Logging](#-logging)
 - [Performance](#-performance)
 - [Security](#-security)
+- [API and Frontend Interaction](#-api-and-frontend-interaction)
+- [Dependency Management](#-dependency-management)
 
 ## 🎨 Code Style
 
@@ -208,21 +232,52 @@ This is a multi-line string.
 """
 ```
 
+## 🏗️ Project Architecture
+
+### Layered Architecture
+
+The project follows a layered architecture pattern:
+
+```
+Router Layer (routers/)     → HTTP request handling, parameter validation
+    ↓
+Service Layer (services/)   → Business logic, orchestration of multiple Repository operations
+    ↓
+Repository Layer (repositories/) → Data access abstraction, database query encapsulation
+    ↓
+Storage Layer (storage/)    → SQLAlchemy ORM model definitions
+```
+
+**Layer Responsibilities**:
+
+- **Router Layer**: Handle HTTP requests, parameter validation, call Service layer
+- **Service Layer**: Business logic, orchestrate multiple Repository operations
+- **Repository Layer**: Data access abstraction, encapsulate database queries
+- **Schema Layer**: Request/response Pydantic models
+- **Storage Layer**: SQLAlchemy ORM model definitions
+
 ## 🏗️ Project Structure
 
 ### Directory Organization
 
 ```
 lifetrace/
-├── routers/           # API routes
-├── schemas/           # Pydantic models (data validation)
-├── storage/           # Data storage layer
-│   ├── models.py      # SQLAlchemy models (database tables)
-│   └── *_manager.py   # Data managers
-├── llm/              # LLM and AI services
-├── jobs/             # Background tasks
-├── util/             # Utility functions
-└── server.py         # Application entry
+├── server.py                 # FastAPI application entry
+├── config/                   # Configuration files
+│   ├── config.yaml          # User configuration
+│   ├── default_config.yaml  # Default configuration
+│   └── prompt.yaml          # LLM Prompt templates
+├── routers/                  # API routes (Router layer)
+├── services/                 # Business services (Service layer)
+├── repositories/             # Data access (Repository layer)
+├── schemas/                  # Pydantic data models
+├── storage/                  # Data storage layer
+│   ├── models.py            # SQLAlchemy models (database tables)
+│   └── *_manager.py         # Data managers
+├── llm/                      # LLM and AI services
+├── jobs/                     # Background tasks
+├── core/                     # Core dependencies and lazy-loaded services
+└── util/                     # Utility functions
 ```
 
 ## 📝 Naming Conventions
@@ -423,6 +478,8 @@ async def get_task(task_id: int) -> Task:
 
 ```python
 from fastapi import APIRouter, Depends, Query, Path
+from lifetrace.repositories.task_repository import TaskRepository
+from lifetrace.services.task_service import TaskService
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -431,34 +488,164 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 async def list_tasks(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    status: Optional[str] = Query(None)
+    status: Optional[str] = Query(None),
+    task_service: TaskService = Depends(get_task_service)
 ):
     """List tasks."""
-    pass
+    return await task_service.list_tasks(skip=skip, limit=limit, status=status)
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: int = Path(..., gt=0)):
+async def get_task(
+    task_id: int = Path(..., gt=0),
+    task_service: TaskService = Depends(get_task_service)
+):
     """Get specific task."""
-    pass
+    return await task_service.get_task(task_id)
 
 @router.post("/", response_model=TaskResponse, status_code=201)
-async def create_task(task: TaskCreate):
+async def create_task(
+    task: TaskCreate,
+    task_service: TaskService = Depends(get_task_service)
+):
     """Create new task."""
-    pass
+    return await task_service.create_task(task)
 
 @router.put("/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: int = Path(..., gt=0),
-    task: TaskUpdate = None
+    task: TaskUpdate = None,
+    task_service: TaskService = Depends(get_task_service)
 ):
     """Update task."""
-    pass
+    return await task_service.update_task(task_id, task)
 
 @router.delete("/{task_id}", status_code=204)
-async def delete_task(task_id: int = Path(..., gt=0)):
+async def delete_task(
+    task_id: int = Path(..., gt=0),
+    task_service: TaskService = Depends(get_task_service)
+):
     """Delete task."""
-    pass
+    await task_service.delete_task(task_id)
 ```
+
+### Registering Routes
+
+Import and register new routes in `server.py`:
+
+```python
+from lifetrace.routers import tasks
+
+app.include_router(tasks.router)
+```
+
+## 🏛️ Layered Architecture
+
+### Router Layer
+
+Handle HTTP requests, parameter validation, call Service layer:
+
+```python
+# routers/tasks.py
+from fastapi import APIRouter, Depends
+from lifetrace.services.task_service import TaskService
+
+router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+@router.get("/", response_model=list[TaskResponse])
+async def list_tasks(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    task_service: TaskService = Depends(get_task_service)
+):
+    """List tasks."""
+    return await task_service.list_tasks(skip=skip, limit=limit)
+```
+
+### Service Layer
+
+Implement complex business logic, orchestrate multiple Repository operations:
+
+```python
+# services/task_service.py
+from lifetrace.repositories.task_repository import TaskRepository
+from lifetrace.schemas.task import TaskCreate, TaskUpdate
+
+class TaskService:
+    """Task service."""
+
+    def __init__(self, task_repository: TaskRepository):
+        self.task_repository = task_repository
+
+    async def create_task(self, task_data: TaskCreate) -> Task:
+        """Create task with business logic."""
+        # Business validation
+        if len(task_data.title) > 200:
+            raise ValueError("Task title too long")
+
+        # Orchestrate repository operations
+        return await self.task_repository.create(task_data)
+```
+
+### Repository Layer
+
+Data access abstraction, encapsulate database queries:
+
+```python
+# repositories/task_repository.py
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from lifetrace.storage.models import Task
+
+class TaskRepository:
+    """Task repository."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def get_by_id(self, task_id: int) -> Task | None:
+        """Get task by ID."""
+        result = await self.db.execute(
+            select(Task).where(Task.id == task_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(self, task_data: TaskCreate) -> Task:
+        """Create task."""
+        task = Task(**task_data.model_dump())
+        self.db.add(task)
+        await self.db.commit()
+        await self.db.refresh(task)
+        return task
+```
+
+## ⚙️ Configuration Management
+
+### Configuration File Structure
+
+- `config/default_config.yaml` - Default configuration (do not modify)
+- `config/config.yaml` - User configuration (overrides default values)
+- Uses Dynaconf for configuration hot reload
+
+### Accessing Configuration
+
+Access via `settings` object in `util/settings.py`:
+
+```python
+from lifetrace.util.settings import settings
+
+# Access nested configuration
+port = settings.server.port
+
+# Access with default value
+timeout = settings.get("timeout", default=30)
+```
+
+### Configuration Hot Reload
+
+The following configurations support hot reload (no restart required):
+- LLM configuration
+- Recorder configuration
+- OCR configuration
 
 ## 💾 Database Operations
 
@@ -486,41 +673,22 @@ class Task(Base):
     project = relationship("Project", back_populates="tasks")
 ```
 
+### Database Migrations
+
+The project uses Alembic for database migrations:
+
+- **Config file**: `alembic.ini`
+- **Migration scripts**: `migrations/versions/`
+
+**Common commands**:
+- `alembic revision --autogenerate -m "description"` - Generate migration script
+- `alembic upgrade head` - Apply all migrations
+- `alembic downgrade -1` - Rollback one version
+- `alembic history` - View migration history
+
 ### Database Queries
 
-```python
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
-
-class TaskManager:
-    """Task manager."""
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def get_task(self, task_id: int) -> Task | None:
-        """Get single task."""
-        result = await self.db.execute(
-            select(Task).where(Task.id == task_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def list_tasks(
-        self,
-        skip: int = 0,
-        limit: int = 10,
-        status: str | None = None
-    ) -> list[Task]:
-        """Get task list."""
-        query = select(Task)
-
-        if status:
-            query = query.where(Task.status == status)
-
-        query = query.offset(skip).limit(limit)
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
-```
+Use Repository layer for database queries (see [Repository Layer](#-repository-layer) above).
 
 ## 🧪 Testing
 
@@ -546,13 +714,56 @@ async def test_create_task(db_session: AsyncSession):
     assert task.status == "pending"
 ```
 
+## 🤖 LLM Services
+
+### LLM Client Usage
+
+The project uses OpenAI-compatible API, wrapped in `llm/llm_client.py`:
+
+- Supports Alibaba Cloud Tongyi Qianwen, OpenAI, Claude, etc.
+- Configuration managed in `config/config.yaml` under `llm` section
+- Supports streaming responses (SSE)
+
+### RAG Service
+
+`llm/rag_service.py` provides Retrieval-Augmented Generation:
+
+- Intelligent time parsing (e.g., "last week", "yesterday")
+- Hybrid retrieval strategy (vector retrieval + full-text search)
+- Context compression and ranking
+
+### Prompt Management
+
+Prompt templates are stored in `config/prompt.yaml`:
+
+- Use YAML format for easy maintenance
+- Support variable interpolation
+- Organized by feature modules
+
+## ⏰ Background Tasks
+
+### Task Scheduling
+
+Use APScheduler to manage background tasks:
+
+- Tasks defined in `lifetrace/jobs/` directory
+- Managed through `job_manager.py`
+- Supports scheduled tasks and interval tasks
+
+### Task Types
+
+- **recorder**: Screen recorder, scheduled screenshots
+- **ocr**: OCR processor, processes screenshots waiting for recognition
+
 ## 📊 Logging
 
-```python
-from loguru import logger
+Use Loguru for logging, import logger from `util/logging_config.py`:
 
-class TaskManager:
-    """Task manager."""
+```python
+from lifetrace.util.logging_config import logger
+
+class TaskService:
+    """Task service."""
 
     async def create_task(self, task_data: TaskCreate) -> Task:
         """Create task."""
@@ -572,6 +783,13 @@ class TaskManager:
             await self.db.rollback()
             raise
 ```
+
+### Logging Guidelines
+
+- Must log critical operations
+- Must log complete stack trace for exceptions
+- Must sanitize sensitive information (API Keys, etc.)
+- Use structured logging for easy analysis
 
 ## ⚡ Performance
 
@@ -603,12 +821,15 @@ async def create_tasks_batch(self, tasks_data: list[TaskCreate]) -> list[Task]:
 
 ```python
 # ✅ Correct: Use Pydantic for validation
+from pydantic import BaseModel, Field, field_validator
+
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
 
-    @validator("title")
-    def validate_title(cls, v):
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str) -> str:
         if "<script>" in v.lower():
             raise ValueError("Title contains illegal characters")
         return v
@@ -626,6 +847,40 @@ task = await self.db.execute(
 query = f"SELECT * FROM tasks WHERE id = {task_id}"
 ```
 
+## 📡 API and Frontend Interaction
+
+### Naming Style Conversion
+
+Backend uses `snake_case`, frontend uses `camelCase`:
+
+- Frontend fetcher automatically performs conversion
+- Backend Schema uniformly uses `snake_case`
+- OpenAPI Schema automatically generated by FastAPI
+
+### Frontend Code Generation
+
+Frontend uses Orval to auto-generate API code from OpenAPI Schema:
+
+- After backend API changes, frontend runs `pnpm orval` to regenerate
+- Ensure OpenAPI Schema is complete and accurate
+
+## 📦 Dependency Management
+
+### Using uv
+
+The project uses uv as the package manager:
+
+- `uv sync` - Sync dependencies
+- `uv add <package>` - Add dependency
+- `uv remove <package>` - Remove dependency
+- `uv run <command>` - Run command in virtual environment
+
+### Dependency Groups
+
+- Main dependencies: `dependencies` in `pyproject.toml`
+- Development dependencies: `dependency-groups.dev`
+- Optional dependencies: `dependency-groups.vector` (vector search functionality)
+
 ## ✅ Code Review Checklist
 
 Before submitting code, ensure:
@@ -641,6 +896,10 @@ Before submitting code, ensure:
 - [ ] Unit tests written
 - [ ] Tests pass
 - [ ] Documentation updated
+- [ ] API changes reflected in OpenAPI Schema
+- [ ] Follows layered architecture (Router → Service → Repository)
+- [ ] Configuration supports hot reload (if applicable)
+- [ ] Background tasks properly scheduled
 
 ---
 

@@ -95,7 +95,7 @@ settings = Dynaconf(
     validators=[
         # 服务器配置
         Validator("server.host", default="127.0.0.1"),
-        Validator("server.port", default=8000, is_type_of=int),
+        Validator("server.port", default=8001, is_type_of=int),
         Validator("server.debug", default=False, is_type_of=bool),
         # 基础目录配置
         Validator("base_dir", default="data"),

@@ -116,14 +116,21 @@ def main():
     parser.add_argument(
         "--port",
         type=int,
-        help="Server port (default: 8000)",
-        default=8000,
+        help="Server port (default: 8001)",
+        default=8001,
     )
     parser.add_argument(
         "--host",
         type=str,
         help="Server host (default: 127.0.0.1)",
         default="127.0.0.1",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["dev", "build"],
+        default="dev",
+        help="Server mode: dev (development) or build (packaged app)",
     )
 
     args = parser.parse_args()
@@ -144,8 +151,13 @@ def main():
     try:
         import uvicorn
 
+        from lifetrace.routers.health import set_server_mode
         from lifetrace.server import app
         from lifetrace.util.settings import settings
+
+        # Set server mode for health check endpoint
+        set_server_mode(args.mode)
+        logger.info(f"Server mode: {args.mode}")
     except ImportError as e:
         # If import fails, log the error with path information
         import traceback

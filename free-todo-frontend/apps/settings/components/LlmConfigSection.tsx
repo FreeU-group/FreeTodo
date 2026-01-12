@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import {
@@ -7,7 +8,7 @@ import {
 	useTestLlmConfigApiTestLlmConfigPost,
 } from "@/lib/generated/config/config";
 import { useSaveConfig } from "@/lib/query";
-import { toastError, toastSuccess } from "@/lib/toast";
+import { toastError } from "@/lib/toast";
 import { SettingsSection } from "./SettingsSection";
 
 interface LlmConfigSectionProps {
@@ -23,6 +24,7 @@ export function LlmConfigSection({
 	loading = false,
 }: LlmConfigSectionProps) {
 	const t = useTranslations("page.settings");
+	const queryClient = useQueryClient();
 	const saveConfigMutation = useSaveConfig();
 	const testLlmMutation = useTestLlmConfigApiTestLlmConfigPost();
 	const saveAndInitLlmMutation = useSaveAndInitLlmApiSaveAndInitLlmPost();
@@ -47,6 +49,8 @@ export function LlmConfigSection({
 		llmApiKey: (config?.llmApiKey as string) || "",
 		llmBaseUrl: (config?.llmBaseUrl as string) || "",
 		llmModel: (config?.llmModel as string) || "qwen-plus",
+		llmTemperature: (config?.llmTemperature as number) ?? 0.7,
+		llmMaxTokens: (config?.llmMaxTokens as number) ?? 2048,
 	});
 	const [testMessage, setTestMessage] = useState<{
 		type: "success" | "error";
@@ -79,17 +83,13 @@ export function LlmConfigSection({
 				setLlmMaxTokens((config.llmMaxTokens as number) ?? 2048);
 			}
 			// 更新初始配置（用于检测变更）
-			if (
-				config.llmApiKey !== undefined ||
-				config.llmBaseUrl !== undefined ||
-				config.llmModel !== undefined
-			) {
-				setInitialLlmConfig({
-					llmApiKey: (config.llmApiKey as string) || "",
-					llmBaseUrl: (config.llmBaseUrl as string) || "",
-					llmModel: (config.llmModel as string) || "qwen-plus",
-				});
-			}
+			setInitialLlmConfig({
+				llmApiKey: (config.llmApiKey as string) || "",
+				llmBaseUrl: (config.llmBaseUrl as string) || "",
+				llmModel: (config.llmModel as string) || "qwen-plus",
+				llmTemperature: (config.llmTemperature as number) ?? 0.7,
+				llmMaxTokens: (config.llmMaxTokens as number) ?? 2048,
+			});
 		}
 	}, [config]);
 
@@ -138,47 +138,86 @@ export function LlmConfigSection({
 		}
 	};
 
-	// 保存 LLM 配置
+	// 保存 LLM 配置（失去焦点时触发）
 	const handleSaveLlmConfig = async () => {
 		const currentApiKey = llmApiKey.trim();
 		const currentBaseUrl = llmBaseUrl.trim();
 		const currentModel = llmModel.trim();
 
-		if (!currentApiKey || !currentBaseUrl) {
+		// 检查核心配置是否改变（API Key, Base URL, Model）
+		const llmCoreConfigChanged =
+			currentApiKey !== initialLlmConfig.llmApiKey ||
+			currentBaseUrl !== initialLlmConfig.llmBaseUrl ||
+			currentModel !== initialLlmConfig.llmModel;
+
+		// 检查其他配置是否改变（Temperature, Max Tokens）
+		const otherConfigChanged =
+			llmTemperature !== initialLlmConfig.llmTemperature ||
+			llmMaxTokens !== initialLlmConfig.llmMaxTokens;
+
+		// 如果没有任何改动，不需要保存
+		if (!llmCoreConfigChanged && !otherConfigChanged) {
 			return;
 		}
 
 		try {
-			const llmConfigChanged =
-				currentApiKey !== initialLlmConfig.llmApiKey ||
-				currentBaseUrl !== initialLlmConfig.llmBaseUrl ||
-				currentModel !== initialLlmConfig.llmModel;
-
-			if (llmConfigChanged) {
-				await saveAndInitLlmMutation.mutateAsync({
-					data: {
-						llmApiKey: currentApiKey,
-						llmBaseUrl: currentBaseUrl,
-						llmModel: currentModel,
-					},
-				});
-			}
-
+			// 1. 始终保存用户输入的配置到文件（即使配置不完整）
 			await saveConfigMutation.mutateAsync({
 				data: {
+					llmApiKey: currentApiKey,
+					llmBaseUrl: currentBaseUrl,
+					llmModel: currentModel,
 					llmTemperature,
 					llmMaxTokens,
 				},
 			});
 
+			// 更新初始配置状态
 			setInitialLlmConfig({
 				llmApiKey: currentApiKey,
 				llmBaseUrl: currentBaseUrl,
 				llmModel: currentModel,
+				llmTemperature,
+				llmMaxTokens,
 			});
 
-			if (llmConfigChanged) {
-				toastSuccess("LLM 配置已保存并重新初始化");
+			// 2. 只有当核心配置改变且配置完整时，才测试并初始化 LLM
+			if (llmCoreConfigChanged && currentApiKey && currentBaseUrl) {
+				try {
+					const result = await saveAndInitLlmMutation.mutateAsync({
+						data: {
+							llmApiKey: currentApiKey,
+							llmBaseUrl: currentBaseUrl,
+							llmModel: currentModel,
+						},
+					});
+
+					// 检查返回结果
+					const response = result as { success?: boolean; error?: string };
+					if (response.success) {
+						// 测试成功，更新消息提示并刷新 LLM 状态
+						setTestMessage({
+							type: "success",
+							text: t("testSuccess"),
+						});
+						await queryClient.invalidateQueries({ queryKey: ["llm-status"] });
+					} else {
+						// 测试失败，显示错误信息
+						setTestMessage({
+							type: "error",
+							text: `${t("testFailed")}: ${response.error || "Unknown error"}`,
+						});
+					}
+				} catch (initError) {
+					// 初始化失败，显示错误信息
+					const errorMsg =
+						initError instanceof Error ? initError.message : String(initError);
+					setTestMessage({
+						type: "error",
+						text: `${t("testFailed")}: ${errorMsg}`,
+					});
+					console.warn("LLM 初始化失败，配置已保存:", initError);
+				}
 			}
 		} catch (error) {
 			console.error("保存 LLM 配置失败:", error);

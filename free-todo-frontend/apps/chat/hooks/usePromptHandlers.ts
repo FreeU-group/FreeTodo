@@ -38,6 +38,7 @@ type UsePromptHandlersParams = {
 	createTodoWithResult: (input: CreateTodoInput) => Promise<Todo | null>;
 	// 用于取消流式请求的 AbortController ref，与 useChatController 共享
 	abortControllerRef: MutableRefObject<AbortController | null>;
+	locale: string;
 };
 
 export const usePromptHandlers = ({
@@ -57,6 +58,7 @@ export const usePromptHandlers = ({
 	buildTodoPayloads,
 	createTodoWithResult,
 	abortControllerRef,
+	locale,
 }: UsePromptHandlersParams) => {
 	const tChat = useTranslations("chat");
 	const tCommon = useTranslations("common");
@@ -232,6 +234,7 @@ export const usePromptHandlers = ({
 						setConversationId(conversationId || sessionId);
 					},
 					abortController.signal,
+					locale,
 				);
 
 				return { content: assistantContent, aborted: false };
@@ -249,7 +252,7 @@ export const usePromptHandlers = ({
 				abortControllerRef.current = null;
 			}
 		},
-		[chatMode, conversationId, setConversationId, updateAssistantMessage, abortControllerRef],
+		[chatMode, conversationId, setConversationId, updateAssistantMessage, abortControllerRef, locale],
 	);
 
 	// 处理预设prompt选择：直接发送消息，不设置到输入框

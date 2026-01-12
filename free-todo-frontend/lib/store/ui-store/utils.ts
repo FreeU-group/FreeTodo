@@ -53,6 +53,8 @@ export const DEFAULT_PANEL_STATE = {
 	},
 	autoClosedPanels: [] as PanelPosition[],
 	dockDisplayMode: "auto-hide" as DockDisplayMode,
+	// 是否显示 Chat 模式切换器（开发者选项，默认关闭）
+	showModeSwitcher: false,
 };
 
 /**

@@ -1,11 +1,44 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	useGetConfigDetailedApiGetConfigGet,
 	useSaveConfigApiSaveConfigPost,
 } from "@/lib/generated/config/config";
 import { queryKeys } from "./keys";
+
+// ============================================================================
+// LLM 状态检查
+// ============================================================================
+
+interface LlmStatusResponse {
+	configured: boolean;
+}
+
+/**
+ * 检查 LLM 是否已配置的 Query Hook
+ * 用于应用启动时检查配置状态
+ */
+export function useLlmStatus() {
+	return useQuery<LlmStatusResponse>({
+		queryKey: ["llm-status"],
+		queryFn: async () => {
+			// 客户端使用相对路径（通过 Next.js rewrites 代理）
+			// SSR 环境使用环境变量
+			const baseUrl =
+				typeof window !== "undefined"
+					? ""
+					: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8100";
+			const response = await fetch(`${baseUrl}/api/llm-status`);
+			if (!response.ok) {
+				throw new Error("Failed to check LLM status");
+			}
+			return response.json();
+		},
+		staleTime: 60 * 1000, // 1 分钟
+		retry: 1, // 只重试一次
+	});
+}
 
 // ============================================================================
 // 类型定义

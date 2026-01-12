@@ -33,6 +33,8 @@ export interface UiStoreState {
 	autoClosedPanels: PanelPosition[];
 	// Dock 显示模式：固定显示或鼠标离开时自动隐藏
 	dockDisplayMode: DockDisplayMode;
+	// 是否显示 Chat 模式切换器（开发者选项，默认关闭）
+	showModeSwitcher: boolean;
 	// 位置槽位 toggle 方法
 	togglePanelA: () => void;
 	togglePanelB: () => void;
@@ -66,4 +68,6 @@ export interface UiStoreState {
 	clearAutoClosedPanels: () => void;
 	// Dock 显示模式设置方法
 	setDockDisplayMode: (mode: DockDisplayMode) => void;
+	// 设置是否显示 Chat 模式切换器
+	setShowModeSwitcher: (show: boolean) => void;
 }

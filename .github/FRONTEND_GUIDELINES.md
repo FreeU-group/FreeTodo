@@ -4,7 +4,24 @@
 
 ## ⚛️ React + TypeScript Frontend Development Standards
 
-This document details the development standards and best practices for the LifeTrace project frontend (Next.js + React + TypeScript).
+This document details the development standards and best practices for the FreeTodo project frontend (Next.js + React + TypeScript).
+
+### Tech Stack
+
+- **Framework**: Next.js 16 + React 19 (App Router)
+- **Language**: Node.js 22.x + TypeScript 5.x
+- **Styling**: Tailwind CSS 4 + shadcn/ui
+- **State Management**: Zustand + React Hooks
+- **Data Fetching**: TanStack Query (React Query) v5
+- **API Generation**: Orval (auto-generate from OpenAPI)
+- **Data Validation**: Zod (runtime type validation)
+- **Theming**: next-themes (light/dark mode toggle)
+- **Animation/Interaction**: framer-motion, @dnd-kit
+- **Markdown**: react-markdown + remark-gfm
+- **Icons**: lucide-react
+- **Internationalization**: next-intl
+- **Package Manager**: pnpm 10.x
+- **Code Quality**: Biome (lint/format/check)
 
 ## 📋 Table of Contents
 
@@ -15,6 +32,7 @@ This document details the development standards and best practices for the LifeT
 - [React Component Standards](#️-react-component-standards)
 - [State Management](#-state-management)
 - [API Calls](#-api-calls)
+- [Internationalization](#-internationalization)
 - [Styling](#-styling)
 - [Performance](#-performance)
 - [Testing](#-testing)
@@ -23,7 +41,9 @@ This document details the development standards and best practices for the LifeT
 
 ## 🎨 Code Style
 
-### ESLint Configuration
+### Biome Configuration
+
+The project uses [Biome](https://biomejs.dev/) as the linter, formatter, and type checker.
 
 ```bash
 # Check code
@@ -31,6 +51,12 @@ pnpm lint
 
 # Auto-fix issues
 pnpm lint --fix
+
+# Format code
+pnpm format
+
+# Type check
+pnpm typecheck
 
 # Build test
 pnpm build
@@ -103,20 +129,33 @@ import axios from "axios"
 ## 🏗️ Project Structure
 
 ```
-frontend/
+free-todo-frontend/
 ├── app/                      # Next.js App Router
 │   ├── layout.tsx           # Root layout
 │   ├── page.tsx             # Home page
-│   └── [feature]/           # Feature pages
+│   └── apps/                # Feature pages
+│       ├── todo-list/       # Todo list
+│       ├── todo-detail/     # Todo detail
+│       └── [feature]/       # Other features
 ├── components/              # React components
 │   ├── common/             # Common components
 │   ├── layout/             # Layout components
 │   └── [feature]/          # Feature components
 ├── lib/                    # Utilities
-│   ├── api.ts             # API client
-│   ├── types.ts           # Type definitions
-│   ├── utils.ts           # Utility functions
-│   └── store/             # State management
+│   ├── api.ts             # API client (streaming APIs)
+│   ├── generated/         # Orval-generated API code
+│   │   ├── [module]/      # Split by feature modules
+│   │   ├── fetcher.ts     # Custom Fetcher
+│   │   └── schemas/       # Zod schemas
+│   ├── query/             # TanStack Query hooks wrapper
+│   │   └── keys.ts        # Query Keys management
+│   ├── types/             # Unified type definitions (camelCase)
+│   ├── store/             # Zustand state management
+│   ├── hooks/             # Custom Hooks
+│   └── utils.ts           # Utility functions
+├── messages/              # Internationalization files
+│   ├── zh.json            # Chinese translations
+│   └── en.json            # English translations
 └── public/                # Static assets
 ```
 
@@ -420,65 +459,222 @@ export const useTaskStore = create<TaskState>((set) => ({
 
 ## 🌐 API Calls
 
-### API Client
+The project uses **Orval + TanStack Query + Zod** for type-safe API calls and data validation.
+
+### Orval Code Generation
+
+- **Config file**: `orval.config.ts`
+- **Generate command**: `pnpm orval` (requires backend service running)
+- **Generated content**: TypeScript types, Zod schemas, React Query hooks
+- **Output directory**: `lib/generated/` (split by API tags, e.g., `todos/`, `chat/`)
+
+**Main configuration**:
+- `input.target`: Backend OpenAPI schema URL (http://localhost:8001/openapi.json)
+- `output.client`: Use react-query to generate hooks
+- `output.mode`: tags-split by feature modules
+- `override.mutator`: Use custom fetcher (`lib/generated/fetcher.ts`)
+- `override.zod.strict`: Enable strict runtime validation
+
+### Using Orval-Generated API Hooks
+
+```typescript
+// 1. Use generated hooks directly
+import { useGetTodos, useCreateTodo } from "@/lib/generated/todos"
+
+function TodoList() {
+  const { data: todos, isLoading } = useGetTodos()
+  const createTodo = useCreateTodo()
+
+  // Use generated hooks
+}
+
+// 2. Wrap hooks in lib/query/ to add business logic
+// lib/query/todos.ts
+import { useGetTodos as useGetTodosBase } from "@/lib/generated/todos"
+import { queryKeys } from "./keys"
+
+export function useTodos() {
+  return useGetTodosBase({
+    query: {
+      queryKey: queryKeys.todos.list(),
+      staleTime: 30000, // 30 seconds cache
+    },
+  })
+}
+```
+
+### TanStack Query Usage Guidelines
+
+- **Query Keys**: Manage in `lib/query/keys.ts` with hierarchical structure (e.g., `todos.list()`, `todos.detail(id)`)
+- **Optimistic Updates**: Update cache in `onMutate`, rollback in `onError`, refetch in `onSettled`
+- **Debounced Updates**: Use 500ms debounce for frequently changing fields (e.g., description, notes)
+- **Cache Strategy**: Set reasonable `staleTime` (e.g., 30 seconds) to avoid excessive requests
+
+```typescript
+// lib/query/keys.ts
+export const queryKeys = {
+  todos: {
+    all: () => ["todos"] as const,
+    lists: () => [...queryKeys.todos.all(), "list"] as const,
+    list: (filters?: string) => [...queryKeys.todos.lists(), { filters }] as const,
+    details: () => [...queryKeys.todos.all(), "detail"] as const,
+    detail: (id: number) => [...queryKeys.todos.details(), id] as const,
+  },
+}
+```
+
+### Zod Data Validation
+
+- **Generated schemas**: Located in `lib/generated/schemas/`, auto-generated by Orval
+- **Runtime validation**: Automatically validate API response format in fetcher
+- **Form validation**: Use with React Hook Form's `zodResolver`
+
+### Custom Fetcher
+
+Located in `lib/generated/fetcher.ts`, responsible for:
+- Environment adaptation (client/server URL)
+- **Automatic naming style conversion**:
+  - Request: camelCase → snake_case (frontend style → backend style)
+  - Response: snake_case → camelCase (backend style → frontend style)
+- Time string normalization (handle missing timezone suffix)
+- Unified error handling
+- Zod schema runtime validation
+
+### Streaming API Handling
+
+Orval doesn't support Server-Sent Events, implement manually in `lib/api.ts`:
 
 ```typescript
 // lib/api.ts
-import axios from "axios"
+export async function sendChatMessageStream(
+  message: string,
+  onChunk: (chunk: string) => void
+) {
+  const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  })
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  const reader = response.body?.getReader()
+  const decoder = new TextDecoder()
 
-export const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    "Content-Type": "application/json"
+  if (!reader) return
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    const chunk = decoder.decode(value, { stream: true })
+    onChunk(chunk)
   }
-})
-
-// Request interceptor
-api.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  error => Promise.reject(error)
-)
-
-// Response interceptor
-api.interceptors.response.use(
-  response => response,
-  error => {
-    if (error.response?.status === 401) {
-      window.location.href = "/login"
-    }
-    return Promise.reject(error)
-  }
-)
+}
 ```
+
+### Type Safety Best Practices
+
+1. Prefer camelCase types from `lib/types/index.ts` (fetcher automatically converts)
+2. IDs use `number` type uniformly (consistent with backend database)
+3. Orval-generated types only for API layer, business layer uses unified type definitions
+
+### Development Workflow
+
+1. **Backend API changes**: Run `pnpm orval` to regenerate code, check `git diff lib/generated/`
+2. **New API**: Backend updates OpenAPI → Generate code → Wrap in `lib/query/` → Use in components
+3. **Debugging**: Add logs in fetcher to view requests/responses and validation errors
+
+## 🌍 Internationalization
+
+The project uses **next-intl** for internationalization, managed through Zustand store (no URL routing mode).
+
+- **Translation files**: `messages/zh.json` and `en.json`
+- **Request config**: `i18n/request.ts`
+- **Language management**: `lib/store/locale.ts` (syncs to cookie on change)
+- **Access method**: `useTranslations(namespace)` imported from `next-intl`
+
+### Using Internationalization
+
+```typescript
+// ✅ Correct: Use translation hook
+import { useTranslations } from "next-intl"
+
+function TaskList() {
+  const t = useTranslations("page.todo")
+
+  return (
+    <div>
+      <h1>{t("title")}</h1>
+      <p>{t("description", { count: tasks.length })}</p>
+    </div>
+  )
+}
+
+// ❌ Wrong: Hard-coded text
+function TaskList() {
+  const locale = useLocale()
+  return <h1>{locale === "zh" ? "任务列表" : "Task List"}</h1>
+}
+```
+
+### Adding/Modifying Translations
+
+- Add translation keys synchronously in `messages/zh.json` and `en.json`
+- Use nested structure to organize translations, e.g., `page.settings.title`
+- Support ICU MessageFormat interpolation syntax, e.g., `{count}` and plural forms
 
 ## 🎨 Styling
 
-### Tailwind CSS
+### Tailwind CSS 4
+
+The project uses Tailwind CSS 4 and shadcn/ui component library.
 
 ```typescript
-// ✅ Correct: Use Tailwind utility classes
-import clsx from "clsx"
+// ✅ Correct: Use Tailwind utility classes with clsx/tailwind-merge
+import { cn } from "@/lib/utils" // tailwind-merge wrapper
 
-function Button({ children, variant = "primary" }: ButtonProps) {
+function Button({ children, variant = "primary", className }: ButtonProps) {
   return (
     <button
-      className={clsx(
+      className={cn(
         "px-4 py-2 rounded-lg font-medium transition-colors",
         variant === "primary" && "bg-blue-500 hover:bg-blue-600 text-white",
-        variant === "secondary" && "bg-gray-200 hover:bg-gray-300 text-gray-800"
+        variant === "secondary" && "bg-gray-200 hover:bg-gray-300 text-gray-800",
+        className
       )}
     >
       {children}
     </button>
+  )
+}
+```
+
+### Dark Mode
+
+Use `next-themes` to manage theme, use `dark:` prefix in components:
+
+```typescript
+function Card({ children }: CardProps) {
+  return (
+    <div className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+      {children}
+    </div>
+  )
+}
+```
+
+### shadcn/ui Components
+
+Use shadcn/ui provided components, add via `npx shadcn@latest add [component]`:
+
+```typescript
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+
+function MyComponent() {
+  return (
+    <Card>
+      <Button variant="default">Click</Button>
+    </Card>
   )
 }
 ```
@@ -658,7 +854,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 Before submitting code, ensure:
 
-- [ ] Code passes ESLint (`pnpm lint`)
+- [ ] Code passes Biome (`pnpm lint`)
+- [ ] Code is formatted (`pnpm format`)
 - [ ] Code builds successfully (`pnpm build`)
 - [ ] All components have TypeScript types
 - [ ] Props interfaces are complete
@@ -669,6 +866,10 @@ Before submitting code, ensure:
 - [ ] Key props added to lists
 - [ ] Semantic HTML used
 - [ ] Accessibility considered
+- [ ] API calls use Orval-generated hooks (no manual implementation)
+- [ ] Translation text uses `useTranslations`, no hard-coded text
+- [ ] TanStack Query Query Keys managed in `lib/query/keys.ts`
+- [ ] Streaming APIs use manual implementation in `lib/api.ts`
 - [ ] Code has appropriate comments
 - [ ] Documentation updated
 

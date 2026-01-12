@@ -45,7 +45,6 @@ export function MessageItem({
 	onMenuButtonClick,
 	onMessageBoxRef,
 }: MessageItemProps) {
-	const t = useTranslations("chat");
 	const tContextMenu = useTranslations("contextMenu");
 	const [hovered, setHovered] = useState(false);
 
@@ -143,9 +142,9 @@ export function MessageItem({
 			) : isEditModeAssistantMessage ? (
 				/* Edit mode: render with append-to-todo functionality */
 				<div className="w-full max-w-[90%]">
-					<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70 text-foreground">
+					{/* <div className="mb-1 text-[11px] uppercase tracking-wide opacity-70 text-foreground">
 						{t("assistant")}
-					</div>
+					</div> */}
 					<EditModeMessage
 						content={message.content}
 						effectiveTodos={effectiveTodos}
@@ -174,9 +173,9 @@ export function MessageItem({
 							setHovered(false);
 						}}
 					>
-						<div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">
+						{/* <div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">
 							{message.role === "assistant" ? t("assistant") : t("user")}
-						</div>
+						</div> */}
 						<div className="leading-relaxed relative">
 							{/* Hover 时显示的菜单按钮 - 位于右下角 */}
 							{hovered && isAssistantMessageWithContent && (

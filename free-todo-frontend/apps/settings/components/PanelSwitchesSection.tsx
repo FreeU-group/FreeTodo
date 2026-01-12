@@ -7,7 +7,6 @@ import {
 	ALL_PANEL_FEATURES,
 	DEV_IN_PROGRESS_FEATURES,
 	FEATURE_ICON_MAP,
-	IS_DEV_FEATURE_ENABLED,
 	type PanelFeature,
 } from "@/lib/config/panel-config";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -70,11 +69,6 @@ export function PanelSwitchesSection({
 		>
 			<div className="space-y-3">
 				{regularPanels.map((feature) => {
-					// 跳过开发模式下的功能（如果不是开发模式）
-					if (feature === "debugShots" && !IS_DEV_FEATURE_ENABLED) {
-						return null;
-					}
-
 					const enabled = isFeatureEnabled(feature);
 					const panelLabel = tBottomDock(feature) || feature;
 					const Icon = FEATURE_ICON_MAP[feature];
@@ -120,11 +114,6 @@ export function PanelSwitchesSection({
 						>
 							<div className="space-y-3">
 								{devPanels.map((feature) => {
-									// 开发中的截图调试面板仅在开发模式下展示
-									if (feature === "debugShots" && !IS_DEV_FEATURE_ENABLED) {
-										return null;
-									}
-
 									const enabled = isFeatureEnabled(feature);
 									const panelLabel = tBottomDock(feature) || feature;
 									const Icon = FEATURE_ICON_MAP[feature];

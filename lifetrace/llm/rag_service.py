@@ -10,6 +10,7 @@ from typing import Any
 from lifetrace.llm.context_builder import ContextBuilder
 from lifetrace.llm.llm_client import LLMClient
 from lifetrace.llm.retrieval_service import RetrievalService
+from lifetrace.util.language import get_language_instruction
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
 from lifetrace.util.query_parser import QueryParser
@@ -306,6 +307,7 @@ class RAGService:
         self,
         user_query: str,
         session_id: str | None = None,
+        lang: str = "zh",
     ) -> dict[str, Any]:
         """为流式接口处理查询，返回构建好的 messages 和 temperature"""
         try:
@@ -331,6 +333,8 @@ class RAGService:
                     )
                 logger.debug(f"构建的上下文内容: {context_text}")
 
+                # 注入语言指令
+                context_text += get_language_instruction(lang)
                 messages = [{"role": "system", "content": context_text}]
                 temperature = 0.3
             else:
@@ -340,6 +344,8 @@ class RAGService:
                     system_prompt = get_prompt("rag", "system_help")
                 else:
                     system_prompt = get_prompt("rag", "general_chat")
+                # 注入语言指令
+                system_prompt += get_language_instruction(lang)
                 messages = [{"role": "system", "content": system_prompt}]
                 temperature = 0.7
 

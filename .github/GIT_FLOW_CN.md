@@ -14,7 +14,7 @@
 
 ## 📖 概述
 
-LifeTrace 项目采用基于 Git Flow 的分支管理策略，以确保代码质量和开发流程的规范性。本文档详细描述了我们的分支模型和工作流程。
+FreeTodo 项目采用基于 Git Flow 的分支管理策略，以确保代码质量和开发流程的规范性。本文档详细描述了我们的分支模型和工作流程。
 
 ### 核心理念
 
@@ -48,7 +48,7 @@ LifeTrace 项目采用基于 Git Flow 的分支管理策略，以确保代码质
   - 👥 团队成员的主要协作分支
   - 🧪 相对稳定但可能包含未完全测试的功能
   - 📦 可以部署到开发环境进行内部测试
-- **合并来源**：接受来自 `feature/*` 和 `fix/*` 分支的合并
+- **合并来源**：接受来自 `feat/*` 和 `fix/*` 分支的合并
 
 #### 3. `test` 分支
 
@@ -64,14 +64,14 @@ LifeTrace 项目采用基于 Git Flow 的分支管理策略，以确保代码质
 
 以下分支类型是临时的，完成任务后应该删除：
 
-#### 4. `feature/*` 分支
+#### 4. `feat/*` 分支
 
 - **用途**：开发新功能
-- **命名规范**：`feature/功能简短描述`
+- **命名规范**：`feat/功能简短描述`
 - **示例**：
-  - `feature/task-auto-association`
-  - `feature/dark-mode`
-  - `feature/export-data`
+  - `feat/task-auto-association`
+  - `feat/dark-mode`
+  - `feat/export-data`
 - **生命周期**：
   - 从 `dev` 分支创建
   - 完成后合并回 `dev` 分支
@@ -111,7 +111,7 @@ LifeTrace 项目采用基于 Git Flow 的分支管理策略，以确保代码质
 
 ```mermaid
 graph LR
-    A[dev] -->|创建| B[feature/*]
+    A[dev] -->|创建| B[feat/*]
     B -->|开发| C[提交代码]
     C -->|完成| D[创建 PR]
     D -->|审查通过| E[合并到 dev]
@@ -130,7 +130,7 @@ git checkout dev
 git pull origin dev
 
 # 创建并切换到新的功能分支
-git checkout -b feature/your-feature-name
+git checkout -b feat/your-feature-name
 ```
 
 #### 步骤 2：开发功能
@@ -144,7 +144,7 @@ git add .
 git commit -m "feat: add new feature description"
 
 # 定期推送到远程仓库（备份和协作）
-git push origin feature/your-feature-name
+git push origin feat/your-feature-name
 ```
 
 #### 步骤 3：保持分支更新
@@ -155,7 +155,7 @@ git checkout dev
 git pull origin dev
 
 # 切换回功能分支
-git checkout feature/your-feature-name
+git checkout feat/your-feature-name
 
 # 合并 dev 的更新（推荐使用 rebase）
 git rebase dev
@@ -163,7 +163,7 @@ git rebase dev
 git merge dev
 
 # 推送更新
-git push origin feature/your-feature-name --force-with-lease  # rebase 后需要
+git push origin feat/your-feature-name --force-with-lease  # rebase 后需要
 ```
 
 #### 步骤 4：创建 Pull Request
@@ -185,8 +185,8 @@ git push origin feature/your-feature-name --force-with-lease  # rebase 后需要
 # PR 合并后，删除本地和远程分支
 git checkout dev
 git pull origin dev
-git branch -d feature/your-feature-name
-git push origin --delete feature/your-feature-name
+git branch -d feat/your-feature-name
+git push origin --delete feat/your-feature-name
 ```
 
 ### Bug 修复流程
@@ -311,7 +311,7 @@ v2.0.0  # 重大更新，可能不兼容旧版本
 
 | Type | 用途 | 示例 |
 |------|------|------|
-| `feature` | 新功能开发 | `feature/user-authentication` |
+| `feature` | 新功能开发 | `feat/user-authentication` |
 | `fix` | Bug 修复 | `fix/login-error` |
 | `hotfix` | 紧急修复 | `hotfix/security-patch` |
 | `docs` | 文档更新 | `docs/api-documentation` |
@@ -334,7 +334,7 @@ v2.0.0  # 重大更新，可能不兼容旧版本
 
 ```bash
 # 好的命名
-feature/task-auto-association
+feat/task-auto-association
 fix/screenshot-capture-windows
 docs/contribution-guide
 refactor/api-error-handling
@@ -342,10 +342,10 @@ test/integration-tests
 perf/vector-search-optimization
 
 # 不好的命名
-feature/new_feature  # 不要使用下划线
+feat/new_feature  # 不要使用下划线
 fix/bug              # 太模糊
-FEATURE/SOMETHING    # 不要使用大写
-feature/这是一个新功能  # 不要使用中文
+feat/SOMETHING    # 不要使用大写
+feat/这是一个新功能  # 不要使用中文
 ```
 
 ## 🎯 常见场景
@@ -358,7 +358,7 @@ git checkout dev
 git pull origin dev
 
 # 2. 创建功能分支
-git checkout -b feature/new-export-function
+git checkout -b feat/new-export-function
 
 # 3. 开发功能
 # ... 编写代码 ...
@@ -368,7 +368,7 @@ git add .
 git commit -m "feat(backend): add data export API"
 
 # 5. 推送分支
-git push origin feature/new-export-function
+git push origin feat/new-export-function
 
 # 6. 在 GitHub 创建 PR 到 dev 分支
 ```
@@ -428,7 +428,7 @@ git push origin dev
 
 ```bash
 # 1. 尝试合并或 rebase 时遇到冲突
-git checkout feature/your-feature
+git checkout feat/your-feature
 git rebase dev
 # 冲突提示
 
@@ -448,7 +448,7 @@ git add <resolved-file>
 git rebase --continue
 
 # 6. 强制推送（因为历史已改变）
-git push origin feature/your-feature --force-with-lease
+git push origin feat/your-feature --force-with-lease
 ```
 
 ### 场景 5：同步多个分支的 Hotfix
@@ -481,7 +481,7 @@ git checkout dev
 git pull origin dev
 
 # 定期将 dev 的更新合并到功能分支
-git checkout feature/your-feature
+git checkout feat/your-feature
 git rebase dev  # 推荐使用 rebase 保持历史清晰
 ```
 
@@ -538,7 +538,7 @@ git rebase -i HEAD~3  # 交互式 rebase 最近 3 个提交
 git branch --merged dev
 
 # 删除已合并的本地分支
-git branch -d feature/old-feature
+git branch -d feat/old-feature
 
 # 查看远程已删除但本地还存在的分支
 git remote prune origin --dry-run
@@ -594,7 +594,7 @@ git cleanup         # 清理已合并的分支
 - **功能分支同步 dev**：使用 `rebase`
 
   ```bash
-  git checkout feature/your-feature
+  git checkout feat/your-feature
   git rebase dev
   ```
 
@@ -613,7 +613,7 @@ git cleanup         # 清理已合并的分支
 
 ```bash
 # 方法 1：Rebase（推荐，保持历史清晰）
-git checkout feature/your-feature
+git checkout feat/your-feature
 git fetch origin
 git rebase origin/dev
 
@@ -622,29 +622,29 @@ git add <resolved-files>
 git rebase --continue
 
 # 推送（需要强制推送，因为历史已改变）
-git push origin feature/your-feature --force-with-lease
+git push origin feat/your-feature --force-with-lease
 
 # 方法 2：Merge（简单，但历史会有分叉）
-git checkout feature/your-feature
+git checkout feat/your-feature
 git merge origin/dev
-git push origin feature/your-feature
+git push origin feat/your-feature
 ```
 
 ### Q3: 我不小心在 main 分支上开发了，怎么办？
 
 ```bash
 # 1. 创建新的功能分支，保存当前工作
-git checkout -b feature/accidental-work
+git checkout -b feat/accidental-work
 
 # 2. 推送到远程
-git push origin feature/accidental-work
+git push origin feat/accidental-work
 
 # 3. 重置 main 分支到远程状态
 git checkout main
 git reset --hard origin/main
 
 # 4. 继续在功能分支上工作
-git checkout feature/accidental-work
+git checkout feat/accidental-work
 ```
 
 ### Q4: 如何撤销已经推送的提交？
@@ -665,31 +665,31 @@ git push origin your-branch --force-with-lease
 
 ```bash
 # 1. 在您的功能分支上继续修改
-git checkout feature/your-feature
+git checkout feat/your-feature
 
 # 2. 进行修改并提交
 git add .
 git commit -m "fix: address PR review comments"
 
 # 3. 推送（会自动更新 PR）
-git push origin feature/your-feature
+git push origin feat/your-feature
 
 # 如果想合并多个小修改到一个提交
 git rebase -i HEAD~3  # 合并最近 3 个提交
-git push origin feature/your-feature --force-with-lease
+git push origin feat/your-feature --force-with-lease
 ```
 
 ### Q6: 如何处理长期运行的功能分支？
 
 ```bash
 # 1. 定期（每天）从 dev 同步更新
-git checkout feature/long-running
+git checkout feat/long-running
 git fetch origin
 git rebase origin/dev
 
 # 2. 考虑拆分为多个小的 PR
 # 创建子功能分支
-git checkout -b feature/long-running-part1
+git checkout -b feat/long-running-part1
 # 提交部分功能的 PR
 
 # 3. 与团队沟通，避免冲突
@@ -708,7 +708,7 @@ git checkout -b feature/long-running-part1
 ```bash
 # 如果确实需要同时修改
 # 1. 频繁同步
-git checkout feature/your-work
+git checkout feat/your-work
 git fetch origin
 git rebase origin/dev
 
@@ -757,7 +757,7 @@ git stash
 # 2. 创建新的干净分支
 git checkout dev
 git pull origin dev
-git checkout -b feature/clean-start
+git checkout -b feat/clean-start
 
 # 3. 挑选需要的提交（cherry-pick）
 git cherry-pick <commit-hash1>
@@ -767,8 +767,8 @@ git cherry-pick <commit-hash2>
 # 手动复制代码，重新提交
 
 # 5. 删除旧分支
-git branch -D feature/old-messy-branch
-git push origin --delete feature/old-messy-branch
+git branch -D feat/old-messy-branch
+git push origin --delete feat/old-messy-branch
 ```
 
 ## 📚 参考资源
@@ -942,7 +942,7 @@ git push origin --delete v1.0.0
     ↓
 克隆到本地
     ↓
-创建 feature/* 分支 ← dev 分支
+创建 feat/* 分支 ← dev 分支
     ↓
 本地开发和测试
     ↓
@@ -986,4 +986,4 @@ CI/CD 自动测试
 
 ---
 
-**记住**：好的 Git 工作流程不仅仅是技术问题，更是团队协作的基础。遵循规范，保持沟通，我们一起构建更好的 LifeTrace！🚀
+**记住**：好的 Git 工作流程不仅仅是技术问题，更是团队协作的基础。遵循规范，保持沟通，我们一起构建更好的 FreeTodo！🚀

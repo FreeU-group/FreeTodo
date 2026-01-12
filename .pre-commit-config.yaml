@@ -57,7 +57,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-backend-code-lines
         name: Check backend Python code lines (max 500)
-        entry: python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
+        entry: uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
         language: system
         files: ^lifetrace/.*\.py$
         pass_filenames: true

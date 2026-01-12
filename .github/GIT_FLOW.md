@@ -14,7 +14,7 @@
 
 ## 📖 Overview
 
-The LifeTrace project adopts a Git Flow-based branch management strategy to ensure code quality and standardized development processes. This document details our branch model and workflow.
+The FreeTodo project adopts a Git Flow-based branch management strategy to ensure code quality and standardized development processes. This document details our branch model and workflow.
 
 ### Core Principles
 
@@ -48,7 +48,7 @@ We maintain the following long-lived branches:
   - 👥 Main collaboration branch for team members
   - 🧪 Relatively stable but may contain untested features
   - 📦 Can be deployed to development environment for internal testing
-- **Merge Sources**: Accepts merges from `feature/*` and `fix/*` branches
+- **Merge Sources**: Accepts merges from `feat/*` and `fix/*` branches
 
 #### 3. `test` Branch
 
@@ -64,14 +64,14 @@ We maintain the following long-lived branches:
 
 The following branch types are temporary and should be deleted after completion:
 
-#### 4. `feature/*` Branches
+#### 4. `feat/*` Branches
 
 - **Purpose**: Develop new features
-- **Naming Convention**: `feature/brief-description`
+- **Naming Convention**: `feat/brief-description`
 - **Examples**:
-  - `feature/task-auto-association`
-  - `feature/dark-mode`
-  - `feature/export-data`
+  - `feat/task-auto-association`
+  - `feat/dark-mode`
+  - `feat/export-data`
 - **Lifecycle**:
   - Created from the `dev` branch
   - Merged back to the `dev` branch when complete
@@ -111,7 +111,7 @@ The following branch types are temporary and should be deleted after completion:
 
 ```mermaid
 graph LR
-    A[dev] -->|create| B[feature/*]
+    A[dev] -->|create| B[feat/*]
     B -->|develop| C[commit code]
     C -->|complete| D[create PR]
     D -->|review passed| E[merge to dev]
@@ -130,7 +130,7 @@ git checkout dev
 git pull origin dev
 
 # Create and switch to new feature branch
-git checkout -b feature/your-feature-name
+git checkout -b feat/your-feature-name
 ```
 
 #### Step 2: Develop Feature
@@ -144,7 +144,7 @@ git add .
 git commit -m "feat: add new feature description"
 
 # Push to remote regularly (backup and collaboration)
-git push origin feature/your-feature-name
+git push origin feat/your-feature-name
 ```
 
 #### Step 3: Keep Branch Updated
@@ -155,7 +155,7 @@ git checkout dev
 git pull origin dev
 
 # Switch back to feature branch
-git checkout feature/your-feature-name
+git checkout feat/your-feature-name
 
 # Merge dev updates (rebase recommended)
 git rebase dev
@@ -163,7 +163,7 @@ git rebase dev
 git merge dev
 
 # Push updates
-git push origin feature/your-feature-name --force-with-lease  # needed after rebase
+git push origin feat/your-feature-name --force-with-lease  # needed after rebase
 ```
 
 #### Step 4: Create Pull Request
@@ -185,8 +185,8 @@ git push origin feature/your-feature-name --force-with-lease  # needed after reb
 # After PR is merged, delete local and remote branches
 git checkout dev
 git pull origin dev
-git branch -d feature/your-feature-name
-git push origin --delete feature/your-feature-name
+git branch -d feat/your-feature-name
+git push origin --delete feat/your-feature-name
 ```
 
 ### Bug Fix Flow
@@ -311,7 +311,7 @@ v2.0.0  # Major update, may break compatibility
 
 | Type | Purpose | Example |
 |------|---------|---------|
-| `feature` | New feature development | `feature/user-authentication` |
+| `feature` | New feature development | `feat/user-authentication` |
 | `fix` | Bug fixes | `fix/login-error` |
 | `hotfix` | Emergency fixes | `hotfix/security-patch` |
 | `docs` | Documentation updates | `docs/api-documentation` |
@@ -334,7 +334,7 @@ v2.0.0  # Major update, may break compatibility
 
 ```bash
 # Good names
-feature/task-auto-association
+feat/task-auto-association
 fix/screenshot-capture-windows
 docs/contribution-guide
 refactor/api-error-handling
@@ -342,10 +342,10 @@ test/integration-tests
 perf/vector-search-optimization
 
 # Bad names
-feature/new_feature  # Don't use underscores
+feat/new_feature  # Don't use underscores
 fix/bug              # Too vague
-FEATURE/SOMETHING    # Don't use uppercase
-feature/这是一个新功能  # Don't use non-English characters
+feat/SOMETHING    # Don't use uppercase
+feat/这是一个新功能  # Don't use non-English characters
 ```
 
 ## 🎯 Common Scenarios
@@ -358,7 +358,7 @@ git checkout dev
 git pull origin dev
 
 # 2. Create feature branch
-git checkout -b feature/new-export-function
+git checkout -b feat/new-export-function
 
 # 3. Develop feature
 # ... write code ...
@@ -368,7 +368,7 @@ git add .
 git commit -m "feat(backend): add data export API"
 
 # 5. Push branch
-git push origin feature/new-export-function
+git push origin feat/new-export-function
 
 # 6. Create PR to dev branch on GitHub
 ```
@@ -428,7 +428,7 @@ git push origin dev
 
 ```bash
 # 1. Encounter conflicts when trying to merge or rebase
-git checkout feature/your-feature
+git checkout feat/your-feature
 git rebase dev
 # Conflict notification
 
@@ -448,7 +448,7 @@ git add <resolved-file>
 git rebase --continue
 
 # 6. Force push (history has changed)
-git push origin feature/your-feature --force-with-lease
+git push origin feat/your-feature --force-with-lease
 ```
 
 ### Scenario 5: Sync Hotfix Across Multiple Branches
@@ -481,7 +481,7 @@ git checkout dev
 git pull origin dev
 
 # Regularly merge dev updates into feature branch
-git checkout feature/your-feature
+git checkout feat/your-feature
 git rebase dev  # Recommended to keep history clean
 ```
 
@@ -538,7 +538,7 @@ Set protection rules for long-lived branches on GitHub:
 git branch --merged dev
 
 # Delete merged local branches
-git branch -d feature/old-feature
+git branch -d feat/old-feature
 
 # View remote-deleted but locally existing branches
 git remote prune origin --dry-run
@@ -594,7 +594,7 @@ git cleanup         # Clean up merged branches
 - **Feature branch syncing with dev**: Use `rebase`
 
   ```bash
-  git checkout feature/your-feature
+  git checkout feat/your-feature
   git rebase dev
   ```
 
@@ -613,7 +613,7 @@ git cleanup         # Clean up merged branches
 
 ```bash
 # Method 1: Rebase (recommended, keeps history clean)
-git checkout feature/your-feature
+git checkout feat/your-feature
 git fetch origin
 git rebase origin/dev
 
@@ -622,29 +622,29 @@ git add <resolved-files>
 git rebase --continue
 
 # Push (requires force push as history changed)
-git push origin feature/your-feature --force-with-lease
+git push origin feat/your-feature --force-with-lease
 
 # Method 2: Merge (simple, but history will fork)
-git checkout feature/your-feature
+git checkout feat/your-feature
 git merge origin/dev
-git push origin feature/your-feature
+git push origin feat/your-feature
 ```
 
 ### Q3: I accidentally developed on the main branch, what do I do?
 
 ```bash
 # 1. Create new feature branch, save current work
-git checkout -b feature/accidental-work
+git checkout -b feat/accidental-work
 
 # 2. Push to remote
-git push origin feature/accidental-work
+git push origin feat/accidental-work
 
 # 3. Reset main branch to remote state
 git checkout main
 git reset --hard origin/main
 
 # 4. Continue working on feature branch
-git checkout feature/accidental-work
+git checkout feat/accidental-work
 ```
 
 ### Q4: How do I undo a pushed commit?
@@ -665,31 +665,31 @@ git push origin your-branch --force-with-lease
 
 ```bash
 # 1. Continue modifying on your feature branch
-git checkout feature/your-feature
+git checkout feat/your-feature
 
 # 2. Make changes and commit
 git add .
 git commit -m "fix: address PR review comments"
 
 # 3. Push (will automatically update PR)
-git push origin feature/your-feature
+git push origin feat/your-feature
 
 # If you want to combine multiple small fixes into one commit
 git rebase -i HEAD~3  # Combine last 3 commits
-git push origin feature/your-feature --force-with-lease
+git push origin feat/your-feature --force-with-lease
 ```
 
 ### Q6: How to handle long-running feature branches?
 
 ```bash
 # 1. Regularly (daily) sync updates from dev
-git checkout feature/long-running
+git checkout feat/long-running
 git fetch origin
 git rebase origin/dev
 
 # 2. Consider splitting into multiple smaller PRs
 # Create sub-feature branches
-git checkout -b feature/long-running-part1
+git checkout -b feat/long-running-part1
 # Submit PR for partial functionality
 
 # 3. Communicate with team to avoid conflicts
@@ -708,7 +708,7 @@ git checkout -b feature/long-running-part1
 ```bash
 # If simultaneous modifications are necessary
 # 1. Sync frequently
-git checkout feature/your-work
+git checkout feat/your-work
 git fetch origin
 git rebase origin/dev
 
@@ -757,7 +757,7 @@ git stash
 # 2. Create new clean branch
 git checkout dev
 git pull origin dev
-git checkout -b feature/clean-start
+git checkout -b feat/clean-start
 
 # 3. Cherry-pick needed commits
 git cherry-pick <commit-hash1>
@@ -767,8 +767,8 @@ git cherry-pick <commit-hash2>
 # Manually copy code, commit again
 
 # 5. Delete old branch
-git branch -D feature/old-messy-branch
-git push origin --delete feature/old-messy-branch
+git branch -D feat/old-messy-branch
+git push origin --delete feat/old-messy-branch
 ```
 
 ## 📚 Reference Resources
@@ -942,7 +942,7 @@ Developer forks repository
     ↓
 Clone to local
     ↓
-Create feature/* branch ← dev branch
+Create feat/* branch ← dev branch
     ↓
 Local development and testing
     ↓
@@ -986,4 +986,4 @@ If you have any questions about Git Flow:
 
 ---
 
-**Remember**: A good Git workflow is not just a technical issue, it's the foundation of team collaboration. Follow the conventions, maintain communication, and together we'll build a better LifeTrace! 🚀
+**Remember**: A good Git workflow is not just a technical issue, it's the foundation of team collaboration. Follow the conventions, maintain communication, and together we'll build a better FreeTodo! 🚀

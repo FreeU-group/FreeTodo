@@ -17,6 +17,47 @@ router = APIRouter(prefix="/api", tags=["config"])
 # 初始化配置服务
 config_service = ConfigService()
 
+# 追踪 LLM 连接是否已验证成功
+# 只有通过 API 测试成功后才设置为 True
+_llm_connection_verified = False
+
+
+def verify_llm_connection_on_startup():
+    """在应用启动时验证现有 LLM 配置
+
+    如果配置存在且有效，尝试连接验证
+    """
+    global _llm_connection_verified
+
+    if not is_llm_configured():
+        logger.info("LLM 未配置，跳过启动时验证")
+        return
+
+    try:
+        from lifetrace.util.settings import settings
+
+        api_key = settings.llm.api_key
+        base_url = settings.llm.base_url
+        model = settings.llm.model
+
+        # 创建临时客户端进行测试
+        client = OpenAI(api_key=api_key, base_url=base_url)
+
+        # 发送最小化测试请求验证认证
+        client.chat.completions.create(
+            model=model, messages=[{"role": "user", "content": "test"}], max_tokens=5
+        )
+
+        _llm_connection_verified = True
+        logger.info("LLM 启动时连接验证成功")
+    except Exception as e:
+        _llm_connection_verified = False
+        logger.warning(f"LLM 启动时连接验证失败: {e}")
+
+
+# 应用启动时验证 LLM 连接
+verify_llm_connection_on_startup()
+
 
 def _validate_aliyun_api_key(llm_key: str) -> dict[str, Any] | None:
     """验证阿里云 API Key 格式"""
@@ -152,6 +193,23 @@ async def test_tavily_config(config_data: dict[str, str]):
         return {"success": False, "error": error_msg}
 
 
+@router.get("/llm-status")
+async def get_llm_status():
+    """检查 LLM 是否已正确配置并通过连接测试
+
+    Returns:
+        dict: 包含 configured 字段，表示 LLM 是否已配置且连接验证成功
+    """
+    global _llm_connection_verified
+    try:
+        # 只有配置存在且连接验证成功才返回 True
+        has_config = is_llm_configured()
+        return {"configured": has_config and _llm_connection_verified}
+    except Exception as e:
+        logger.error(f"检查 LLM 配置状态失败: {e}")
+        return {"configured": False}
+
+
 @router.get("/get-config")
 async def get_config_detailed():
     """获取当前配置（返回驼峰格式的配置键）"""
@@ -206,6 +264,7 @@ def _validate_config_fields(config_data: dict[str, str]) -> dict[str, Any] | Non
 @router.post("/save-and-init-llm")
 async def save_and_init_llm(config_data: dict[str, str]):
     """保存配置并重新初始化LLM服务"""
+    global _llm_connection_verified
     try:
         # 验证必需字段
         validation_error = _validate_config_fields(config_data)
@@ -215,6 +274,8 @@ async def save_and_init_llm(config_data: dict[str, str]):
         # 1. 先测试配置
         test_result = await test_llm_config(config_data)
         if not test_result["success"]:
+            # 测试失败，标记连接未验证
+            _llm_connection_verified = False
             return test_result
 
         # 2. 保存配置到文件（save_config 内部已经会重载配置并智能判断是否需要重新初始化 LLM）
@@ -223,10 +284,9 @@ async def save_and_init_llm(config_data: dict[str, str]):
         if not save_result.get("success"):
             return {"success": False, "error": "保存配置失败"}
 
-        # 3. 更新配置状态（配置重载和 LLM 重新初始化已在 save_config 中完成）
-        llm_configured = is_llm_configured()
-        status = "已配置" if llm_configured else "未配置"
-        logger.info(f"LLM配置状态已更新为：{status}")
+        # 3. 测试成功，标记连接已验证
+        _llm_connection_verified = True
+        logger.info("LLM 连接验证成功，配置已保存")
 
         return {"success": True, "message": "配置保存成功，正在跳转..."}
 

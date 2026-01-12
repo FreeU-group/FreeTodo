@@ -18,6 +18,7 @@ export {
 	type AppConfig,
 	useConfig,
 	useConfigMutations,
+	useLlmStatus,
 	useSaveConfig,
 } from "./config";
 // Cost Hooks

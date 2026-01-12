@@ -1,11 +1,11 @@
 "use client";
 
-import { Check, X, CheckCircle2, Edit2, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Check, CheckCircle2, Edit2, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { queryKeys, useCreateTodo, useDeleteTodo } from "@/lib/query";
+import { toastError, toastSuccess } from "@/lib/toast";
 import type { CreateTodoInput } from "@/lib/types";
-import { useCreateTodo, useDeleteTodo, queryKeys } from "@/lib/query";
-import { toastSuccess, toastError } from "@/lib/toast";
 
 type ExtractedTodo = {
 	name: string;
@@ -362,8 +362,8 @@ function TodoItem({
 	}
 
 	const todoWithOriginalId = todo as EditableTodo & { originalId?: number };
-	const displayId = isDeleteMode && todoWithOriginalId.originalId 
-		? todoWithOriginalId.originalId 
+	const displayId = isDeleteMode && todoWithOriginalId.originalId
+		? todoWithOriginalId.originalId
 		: null;
 
 	return (
@@ -422,4 +422,3 @@ function TodoItem({
 		</div>
 	);
 }
-

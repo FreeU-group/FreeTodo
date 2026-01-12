@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { ThemeProvider } from "@/components/common/theme/ThemeProvider";
+import { LocaleSync } from "@/components/common/ui/LocaleSync";
 import { ScrollbarController } from "@/components/common/ui/ScrollbarController";
 import { QueryProvider } from "@/lib/query/provider";
 import "./globals.css";
@@ -28,6 +29,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 				<ScrollbarController />
 				<QueryProvider>
 					<NextIntlClientProvider messages={messages}>
+						<LocaleSync />
 						<ThemeProvider>{children}</ThemeProvider>
 					</NextIntlClientProvider>
 				</QueryProvider>

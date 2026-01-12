@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, X, CheckCircle2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import type { CreateTodoInput, TodoPriority, TodoStatus, UpdateTodoInput } from "@/lib/types";
+import { Check, CheckCircle2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useCreateTodo, useDeleteTodo, useUpdateTodo } from "@/lib/query";
-import { toastSuccess, toastError } from "@/lib/toast";
+import { toastError, toastSuccess } from "@/lib/toast";
+import type { CreateTodoInput, TodoPriority, TodoStatus, UpdateTodoInput } from "@/lib/types";
 
 type TodoConfirmationData = {
 	type: "todo_confirmation";
@@ -169,4 +169,3 @@ export function TodoConfirmationPanel({
 		</div>
 	);
 }
-

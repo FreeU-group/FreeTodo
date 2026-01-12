@@ -233,6 +233,13 @@ export class NextServer extends ProcessManager {
 		serverDir: string,
 	): void {
 		const exitMsg = `Next.js server exited with code ${code}, signal ${signal}`;
+
+		// 如果是主动关闭（调用了 stop() 方法），不显示错误对话框
+		if (this.isStopping) {
+			logger.info(`${exitMsg} (intentional shutdown)`);
+			return;
+		}
+
 		logger.error(exitMsg);
 
 		const buffers = this.getOutputBuffers();

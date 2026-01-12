@@ -6,20 +6,44 @@
 
 本文档详细说明了 LifeTrace 项目后端（Python + FastAPI）的开发规范和最佳实践。
 
+### 技术栈
+
+- **框架**: FastAPI + Uvicorn（异步 Web 框架）
+- **语言**: Python 3.13+
+- **ORM**: SQLAlchemy 2.x + SQLModel
+- **数据库迁移**: Alembic
+- **数据验证**: Pydantic 2.x
+- **配置管理**: Dynaconf（支持 YAML 热重载）
+- **日志**: Loguru
+- **调度器**: APScheduler（后台任务调度）
+- **OCR**: RapidOCR（本地 OCR 识别）
+- **向量数据库**: ChromaDB（可选，用于语义搜索）
+- **文本嵌入**: sentence-transformers（可选）
+- **LLM**: OpenAI 兼容 API
+- **包管理**: uv（推荐）
+- **代码质量**: Ruff（lint/format/check）
+
 ## 📋 目录
 
 - [代码风格](#-代码风格)
+- [项目架构](#️-项目架构)
 - [项目结构](#️-项目结构)
 - [命名规范](#-命名规范)
 - [类型注解](#-类型注解)
 - [文档字符串](#-文档字符串)
 - [错误处理](#-错误处理)
 - [API 设计](#-api-设计)
+- [分层架构](#-分层架构)
 - [数据库操作](#-数据库操作)
+- [配置管理](#-配置管理)
+- [LLM 服务](#-llm-服务)
+- [后台任务](#-后台任务)
 - [测试](#-测试)
 - [日志记录](#-日志记录)
 - [性能优化](#-性能优化)
 - [安全性](#-安全性)
+- [API 与前端交互](#-api-与前端交互)
+- [依赖管理](#-依赖管理)
 
 ## 🎨 代码风格
 
@@ -209,21 +233,52 @@ description = """
 """
 ```
 
+## 🏗️ 项目架构
+
+### 分层架构
+
+项目采用分层架构模式：
+
+```
+路由层 (routers/)     → HTTP 请求处理，参数验证
+    ↓
+服务层 (services/)   → 业务逻辑，编排多个 Repository 操作
+    ↓
+仓储层 (repositories/) → 数据访问抽象，封装数据库查询
+    ↓
+存储层 (storage/)    → SQLAlchemy ORM 模型定义
+```
+
+**层级职责**：
+
+- **路由层**: 处理 HTTP 请求，参数验证，调用服务层
+- **服务层**: 业务逻辑，编排多个仓储层操作
+- **仓储层**: 数据访问抽象，封装数据库查询
+- **模型层**: 请求/响应的 Pydantic 模型
+- **存储层**: SQLAlchemy ORM 模型定义
+
 ## 🏗️ 项目结构
 
 ### 目录组织
 
 ```
 lifetrace/
-├── routers/           # API 路由
-├── schemas/           # Pydantic 模型（数据验证）
-├── storage/           # 数据存储层
-│   ├── models.py      # SQLAlchemy 模型（数据库表）
-│   └── *_manager.py   # 数据管理器
-├── llm/              # LLM 和 AI 服务
-├── jobs/             # 后台任务
-├── util/             # 工具函数
-└── server.py         # 应用入口
+├── server.py                 # FastAPI 应用入口
+├── config/                   # 配置文件目录
+│   ├── config.yaml          # 用户配置
+│   ├── default_config.yaml  # 默认配置
+│   └── prompt.yaml          # LLM Prompt 模板
+├── routers/                  # API 路由（路由层）
+├── services/                 # 业务服务（服务层）
+├── repositories/             # 数据访问（仓储层）
+├── schemas/                  # Pydantic 数据模型
+├── storage/                  # 数据存储层
+│   ├── models.py            # SQLAlchemy 模型（数据库表）
+│   └── *_manager.py         # 数据管理器
+├── llm/                      # LLM 和 AI 服务
+├── jobs/                     # 后台任务
+├── core/                     # 核心依赖和懒加载服务
+└── util/                     # 工具函数
 ```
 
 ## 📝 命名规范
@@ -429,6 +484,8 @@ async def get_task(task_id: int) -> Task:
 
 ```python
 from fastapi import APIRouter, Depends, Query, Path
+from lifetrace.repositories.task_repository import TaskRepository
+from lifetrace.services.task_service import TaskService
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -437,34 +494,164 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 async def list_tasks(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
-    status: Optional[str] = Query(None)
+    status: Optional[str] = Query(None),
+    task_service: TaskService = Depends(get_task_service)
 ):
     """获取任务列表。"""
-    pass
+    return await task_service.list_tasks(skip=skip, limit=limit, status=status)
 
 @router.get("/{task_id}", response_model=TaskResponse)
-async def get_task(task_id: int = Path(..., gt=0)):
+async def get_task(
+    task_id: int = Path(..., gt=0),
+    task_service: TaskService = Depends(get_task_service)
+):
     """获取指定任务。"""
-    pass
+    return await task_service.get_task(task_id)
 
 @router.post("/", response_model=TaskResponse, status_code=201)
-async def create_task(task: TaskCreate):
+async def create_task(
+    task: TaskCreate,
+    task_service: TaskService = Depends(get_task_service)
+):
     """创建新任务。"""
-    pass
+    return await task_service.create_task(task)
 
 @router.put("/{task_id}", response_model=TaskResponse)
 async def update_task(
     task_id: int = Path(..., gt=0),
-    task: TaskUpdate = None
+    task: TaskUpdate = None,
+    task_service: TaskService = Depends(get_task_service)
 ):
     """更新任务。"""
-    pass
+    return await task_service.update_task(task_id, task)
 
 @router.delete("/{task_id}", status_code=204)
-async def delete_task(task_id: int = Path(..., gt=0)):
+async def delete_task(
+    task_id: int = Path(..., gt=0),
+    task_service: TaskService = Depends(get_task_service)
+):
     """删除任务。"""
-    pass
+    await task_service.delete_task(task_id)
 ```
+
+### 注册路由
+
+在 `server.py` 中导入并注册新路由：
+
+```python
+from lifetrace.routers import tasks
+
+app.include_router(tasks.router)
+```
+
+## 🏛️ 分层架构
+
+### 路由层
+
+处理 HTTP 请求，参数验证，调用服务层：
+
+```python
+# routers/tasks.py
+from fastapi import APIRouter, Depends
+from lifetrace.services.task_service import TaskService
+
+router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+@router.get("/", response_model=list[TaskResponse])
+async def list_tasks(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    task_service: TaskService = Depends(get_task_service)
+):
+    """获取任务列表。"""
+    return await task_service.list_tasks(skip=skip, limit=limit)
+```
+
+### 服务层
+
+实现复杂的业务逻辑，编排多个仓储层操作：
+
+```python
+# services/task_service.py
+from lifetrace.repositories.task_repository import TaskRepository
+from lifetrace.schemas.task import TaskCreate, TaskUpdate
+
+class TaskService:
+    """任务服务。"""
+
+    def __init__(self, task_repository: TaskRepository):
+        self.task_repository = task_repository
+
+    async def create_task(self, task_data: TaskCreate) -> Task:
+        """创建任务（包含业务逻辑）。"""
+        # 业务验证
+        if len(task_data.title) > 200:
+            raise ValueError("任务标题过长")
+
+        # 编排仓储层操作
+        return await self.task_repository.create(task_data)
+```
+
+### 仓储层
+
+数据访问抽象，封装数据库查询：
+
+```python
+# repositories/task_repository.py
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from lifetrace.storage.models import Task
+
+class TaskRepository:
+    """任务仓储。"""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def get_by_id(self, task_id: int) -> Task | None:
+        """根据 ID 获取任务。"""
+        result = await self.db.execute(
+            select(Task).where(Task.id == task_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def create(self, task_data: TaskCreate) -> Task:
+        """创建任务。"""
+        task = Task(**task_data.model_dump())
+        self.db.add(task)
+        await self.db.commit()
+        await self.db.refresh(task)
+        return task
+```
+
+## ⚙️ 配置管理
+
+### 配置文件结构
+
+- `config/default_config.yaml` - 默认配置（不要修改）
+- `config/config.yaml` - 用户配置（覆盖默认值）
+- 使用 Dynaconf 支持配置热重载
+
+### 访问配置
+
+通过 `util/settings.py` 中的 `settings` 对象访问：
+
+```python
+from lifetrace.util.settings import settings
+
+# 访问嵌套配置
+port = settings.server.port
+
+# 带默认值访问
+timeout = settings.get("timeout", default=30)
+```
+
+### 配置热重载
+
+以下配置支持热重载（无需重启）：
+- LLM 配置
+- 录制配置
+- OCR 配置
 
 ## 💾 数据库操作
 
@@ -492,41 +679,22 @@ class Task(Base):
     project = relationship("Project", back_populates="tasks")
 ```
 
+### 数据库迁移
+
+项目使用 Alembic 管理数据库迁移：
+
+- **配置文件**: `alembic.ini`
+- **迁移脚本**: `migrations/versions/`
+
+**常用命令**:
+- `alembic revision --autogenerate -m "描述"` - 生成迁移脚本
+- `alembic upgrade head` - 应用所有迁移
+- `alembic downgrade -1` - 回滚一个版本
+- `alembic history` - 查看迁移历史
+
 ### 数据库查询
 
-```python
-from sqlalchemy import select, and_
-from sqlalchemy.ext.asyncio import AsyncSession
-
-class TaskManager:
-    """任务管理器。"""
-
-    def __init__(self, db: AsyncSession):
-        self.db = db
-
-    async def get_task(self, task_id: int) -> Task | None:
-        """获取单个任务。"""
-        result = await self.db.execute(
-            select(Task).where(Task.id == task_id)
-        )
-        return result.scalar_one_or_none()
-
-    async def list_tasks(
-        self,
-        skip: int = 0,
-        limit: int = 10,
-        status: str | None = None
-    ) -> list[Task]:
-        """获取任务列表。"""
-        query = select(Task)
-
-        if status:
-            query = query.where(Task.status == status)
-
-        query = query.offset(skip).limit(limit)
-        result = await self.db.execute(query)
-        return list(result.scalars().all())
-```
+使用仓储层进行数据库查询（参见[仓储层](#-仓储层)部分）。
 
 ## 🧪 测试
 
@@ -552,13 +720,56 @@ async def test_create_task(db_session: AsyncSession):
     assert task.status == "pending"
 ```
 
+## 🤖 LLM 服务
+
+### LLM 客户端使用
+
+项目使用 OpenAI 兼容 API，通过 `llm/llm_client.py` 封装：
+
+- 支持阿里云通义千问、OpenAI、Claude 等
+- 配置通过 `config/config.yaml` 的 `llm` 部分管理
+- 支持流式响应（SSE）
+
+### RAG 服务
+
+`llm/rag_service.py` 提供检索增强生成：
+
+- 智能时间解析（如"上周"、"昨天"）
+- 混合检索策略（向量检索 + 全文检索）
+- 上下文压缩和排序
+
+### Prompt 管理
+
+Prompt 模板统一存放在 `config/prompt.yaml`：
+
+- 使用 YAML 格式便于维护
+- 支持变量插值
+- 按功能模块组织
+
+## ⏰ 后台任务
+
+### 任务调度
+
+使用 APScheduler 管理后台任务：
+
+- 任务定义在 `lifetrace/jobs/` 目录
+- 通过 `job_manager.py` 统一管理
+- 支持定时任务和间隔任务
+
+### 任务类型
+
+- **recorder**: 屏幕录制器，定时截图
+- **ocr**: OCR 处理器，处理待识别的截图
+
 ## 📊 日志记录
 
-```python
-from loguru import logger
+使用 Loguru，从 `util/logging_config.py` 导入 logger：
 
-class TaskManager:
-    """任务管理器。"""
+```python
+from lifetrace.util.logging_config import logger
+
+class TaskService:
+    """任务服务。"""
 
     async def create_task(self, task_data: TaskCreate) -> Task:
         """创建任务。"""
@@ -578,6 +789,13 @@ class TaskManager:
             await self.db.rollback()
             raise
 ```
+
+### 日志规范
+
+- 关键操作必须记录日志
+- 异常必须记录完整堆栈
+- 敏感信息（API Key 等）必须脱敏
+- 使用结构化日志便于分析
 
 ## ⚡ 性能优化
 
@@ -609,12 +827,15 @@ async def create_tasks_batch(self, tasks_data: list[TaskCreate]) -> list[Task]:
 
 ```python
 # ✅ 正确：使用 Pydantic 验证输入
+from pydantic import BaseModel, Field, field_validator
+
 class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=2000)
 
-    @validator("title")
-    def validate_title(cls, v):
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str) -> str:
         # 防止 XSS
         if "<script>" in v.lower():
             raise ValueError("标题包含非法字符")
@@ -633,6 +854,40 @@ task = await self.db.execute(
 query = f"SELECT * FROM tasks WHERE id = {task_id}"
 ```
 
+## 📡 API 与前端交互
+
+### 命名风格转换
+
+后端使用 `snake_case`，前端使用 `camelCase`：
+
+- 前端 fetcher 自动进行转换
+- 后端 Schema 统一使用 `snake_case`
+- OpenAPI Schema 由 FastAPI 自动生成
+
+### 前端代码生成
+
+前端使用 Orval 根据 OpenAPI Schema 自动生成 API 代码：
+
+- 后端 API 变更后，前端运行 `pnpm orval` 重新生成
+- 确保 OpenAPI Schema 完整且准确
+
+## 📦 依赖管理
+
+### 使用 uv
+
+项目使用 uv 作为包管理器：
+
+- `uv sync` - 同步依赖
+- `uv add <package>` - 添加依赖
+- `uv remove <package>` - 移除依赖
+- `uv run <command>` - 在虚拟环境中运行命令
+
+### 依赖分组
+
+- 主依赖：`pyproject.toml` 的 `dependencies`
+- 开发依赖：`dependency-groups.dev`
+- 可选依赖：`dependency-groups.vector`（向量搜索功能）
+
 ## ✅ 代码检查清单
 
 在提交代码前，请确保：
@@ -648,6 +903,10 @@ query = f"SELECT * FROM tasks WHERE id = {task_id}"
 - [ ] 编写了单元测试
 - [ ] 测试通过
 - [ ] 更新了相关文档
+- [ ] API 变更已在 OpenAPI Schema 中反映
+- [ ] 遵循分层架构（Router → Service → Repository）
+- [ ] 配置支持热重载（如适用）
+- [ ] 后台任务已正确调度
 
 ---
 

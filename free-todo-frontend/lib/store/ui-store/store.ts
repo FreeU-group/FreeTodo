@@ -28,6 +28,8 @@ export const useUiStore = create<UiStoreState>()(
 			autoClosedPanels: DEFAULT_PANEL_STATE.autoClosedPanels,
 			// Dock 显示模式
 			dockDisplayMode: DEFAULT_PANEL_STATE.dockDisplayMode,
+			// 是否显示 Chat 模式切换器
+			showModeSwitcher: DEFAULT_PANEL_STATE.showModeSwitcher,
 
 			// 位置槽位 toggle 方法
 			togglePanelA: () =>
@@ -333,6 +335,12 @@ export const useUiStore = create<UiStoreState>()(
 				set(() => ({
 					dockDisplayMode: mode,
 				})),
+
+			// 设置是否显示 Chat 模式切换器
+			setShowModeSwitcher: (show) =>
+				set(() => ({
+					showModeSwitcher: show,
+				})),
 		}),
 		{
 			name: "ui-panel-config",
@@ -418,6 +426,11 @@ export const useUiStore = create<UiStoreState>()(
 								!validDockModes.includes(state.dockDisplayMode)
 							) {
 								state.dockDisplayMode = DEFAULT_PANEL_STATE.dockDisplayMode;
+							}
+
+							// 校验 showModeSwitcher（默认 false）
+							if (typeof state.showModeSwitcher !== "boolean") {
+								state.showModeSwitcher = DEFAULT_PANEL_STATE.showModeSwitcher;
 							}
 
 							// 如果有功能被禁用，确保对应位置不再保留

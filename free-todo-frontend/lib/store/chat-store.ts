@@ -11,15 +11,6 @@ interface ChatStoreState {
 	setHistoryOpen: (open: boolean) => void;
 }
 
-const isValidChatMode = (value: string | null): value is ChatMode => {
-	return (
-		value === "ask" ||
-		value === "plan" ||
-		value === "edit" ||
-		value === "difyTest"
-	);
-};
-
 export const useChatStore = create<ChatStoreState>()(
 	persist(
 		(set) => ({
@@ -44,10 +35,9 @@ export const useChatStore = create<ChatStoreState>()(
 							const parsed = JSON.parse(stored);
 							const state = parsed.state || parsed;
 
-							// 验证 chatMode
-							const chatMode: ChatMode = isValidChatMode(state.chatMode)
-								? state.chatMode
-								: "ask";
+							// chatMode 始终使用默认值 "ask"，不再从 localStorage 恢复
+							// 用户每次对话默认进入 Ask 模式
+							const chatMode: ChatMode = "ask";
 
 							// 验证 conversationId - 刷新后清空，不默认选中历史记录
 							const conversationId: string | null = null;

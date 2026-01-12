@@ -1,6 +1,6 @@
-appId: com.lifetrace.freetodo
+appId: com.freeugroup.freetodo
 productName: FreeTodo
-copyright: Copyright © 2024 LifeTrace
+copyright: Copyright © 2026 FreeU Group
 
 directories:
   output: dist-electron-app

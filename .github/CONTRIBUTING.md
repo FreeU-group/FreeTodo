@@ -2,13 +2,14 @@
 
 **Language**: [English](CONTRIBUTING.md) | [中文](CONTRIBUTING_CN.md)
 
+> ⚠️ **Important**: Before starting to contribute, please read and configure the [**Pre-commit Guide**](PRE_COMMIT_GUIDE.md). Pre-commit automatically runs code checks and formatting on every `git commit` to ensure code quality and style consistency. This is an essential tool for maintaining code quality in the project, please complete the installation and configuration.
+
 ## 🎉 Welcome Contributors
 
-Thank you for your interest in the LifeTrace project! We welcome and appreciate any form of contribution. Whether you're fixing a typo, reporting a bug, or proposing a major new feature, we're grateful.
+Thank you for your interest in the FreeTodo project! We welcome and appreciate any form of contribution. Whether you're fixing a typo, reporting a bug, or proposing a major new feature, we're grateful.
 
 ## 📋 Table of Contents
 
-- [Code of Conduct](#-code-of-conduct)
 - [Getting Started](#-getting-started)
 - [Development Setup](#️-development-setup)
 - [Git Flow Workflow](#-git-flow-workflow)
@@ -19,35 +20,9 @@ Thank you for your interest in the LifeTrace project! We welcome and appreciate 
 - [Reporting Issues](#-reporting-issues)
 - [Community](#-community)
 
-## 🤝 Code of Conduct
-
-### Our Pledge
-
-In the interest of fostering an open and welcoming environment, we pledge to make participation in our project and community a harassment-free experience for everyone, regardless of age, body size, disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
-
-### Our Standards
-
-Examples of behavior that contributes to creating a positive environment include:
-
-- ✅ Using welcoming and inclusive language
-- ✅ Being respectful of differing viewpoints and experiences
-- ✅ Gracefully accepting constructive criticism
-- ✅ Focusing on what is best for the community
-- ✅ Showing empathy towards other community members
-
-Examples of unacceptable behavior include:
-
-- ❌ The use of sexualized language or imagery and unwelcome sexual attention or advances
-- ❌ Trolling, insulting/derogatory comments, and personal or political attacks
-- ❌ Public or private harassment
-- ❌ Publishing others' private information without explicit permission
-- ❌ Other conduct which could reasonably be considered inappropriate in a professional setting
-
-## 🚀 Getting Started
-
 ### Finding Tasks
 
-1. **Browse Issues**: Check the [Issues page](https://github.com/FreeU-group/LifeTrace_app/issues)
+1. **Browse Issues**: Check the [Issues page](https://github.com/FreeU-group/FreeTodo/issues)
 2. **Look for Labels**:
    - `good first issue` - Simple tasks for beginners
    - `help wanted` - Tasks that need help
@@ -98,7 +73,7 @@ Examples of unacceptable behavior include:
 
 #### Backend Development
 
-- Python 3.13+
+- Python 3.12
 - [uv](https://github.com/astral-sh/uv) package manager
 - Git
 
@@ -112,11 +87,11 @@ Examples of unacceptable behavior include:
 
 ```bash
 # Clone your forked repository
-git clone https://github.com/YOUR_USERNAME/LifeTrace.git
-cd LifeTrace
+git clone https://github.com/YOUR_USERNAME/FreeTodo.git
+cd FreeTodo
 
 # Add upstream repository
-git remote add upstream https://github.com/FreeU-group/LifeTrace.git
+git remote add upstream https://github.com/FreeU-group/FreeTodo.git
 ```
 
 ### Backend Setup
@@ -147,7 +122,7 @@ python -m lifetrace.server
 
 ```bash
 # Navigate to frontend directory
-cd frontend
+cd free-todo-frontend
 
 # Install pnpm (if not already installed)
 npm install -g pnpm
@@ -161,14 +136,18 @@ pnpm dev
 
 ### Verify Setup
 
-1. Backend should run on `http://localhost:8000`
-2. Frontend should run on `http://localhost:3000`
-3. Visit `http://localhost:8000/docs` for API documentation
-4. Visit `http://localhost:3000` for frontend interface
+1. Backend should start searching for an available port from `8001` (default runs on `http://localhost:8001`)
+2. Frontend should start searching for an available port from `3001` (default runs on `http://localhost:3001`)
+3. Frontend automatically detects the running backend port by checking the `/health` endpoint
+4. The actual ports used will be displayed in the console
+5. Visit the API documentation address shown in the console (usually `http://localhost:8001/docs`) to view the API docs
+6. Visit the frontend address shown in the console (usually `http://localhost:3001`) to view the frontend interface
+
+> **Note**: If a port is occupied, both frontend and backend will automatically search for the next available port. The console will display the actual port used.
 
 ## 🌿 Git Flow Workflow
 
-LifeTrace project adopts a standardized Git Flow branch management strategy to ensure code quality and standardized development processes.
+FreeTodo project adopts a standardized Git Flow branch management strategy to ensure code quality and standardized development processes.
 
 ### Branch Structure
 
@@ -177,7 +156,7 @@ We maintain the following branches:
 - **`main`** - Production environment branch, contains the most stable code, directly deployable
 - **`dev`** - Development environment branch for daily development and feature integration
 - **`test`** - Testing environment branch for complete integration testing
-- **`feature/*`** - Feature development branches, created from `dev`
+- **`feat/*`** - Feature development branches, created from `dev`
 - **`fix/*`** - Bug fix branches, created from `dev`, `test`, or `main`
 - **`hotfix/*`** - Emergency fix branches, created from `main`
 
@@ -206,14 +185,14 @@ If you're already familiar with Git Flow, here's a quick reference:
 # 1. Create feature branch from dev
 git checkout dev
 git pull origin dev
-git checkout -b feature/your-feature-name
+git checkout -b feat/your-feature-name
 
 # 2. Develop and commit
 git add .
 git commit -m "feat: your feature description"
 
 # 3. Push and create PR
-git push origin feature/your-feature-name
+git push origin feat/your-feature-name
 # Create PR to dev branch on GitHub
 ```
 
@@ -229,14 +208,14 @@ git checkout main
 git pull upstream main
 
 # Create new branch
-git checkout -b feature/your-feature-name
+git checkout -b feat/your-feature-name
 # or
 git checkout -b fix/your-bug-fix
 ```
 
 Branch naming conventions:
 
-- `feature/xxx` - New features
+- `feat/xxx` - New features
 - `fix/xxx` - Bug fixes
 - `docs/xxx` - Documentation updates
 - `refactor/xxx` - Code refactoring
@@ -261,7 +240,7 @@ git add .
 git commit -m "feat: add new feature"
 
 # Push to your fork
-git push origin feature/your-feature-name
+git push origin feat/your-feature-name
 ```
 
 ### 4. Create Pull Request
@@ -310,7 +289,7 @@ For detailed frontend guidelines, see: [**Frontend Development Guidelines**](FRO
 **Quick Check**:
 
 ```bash
-cd frontend
+cd free-todo-frontend
 
 # Run ESLint
 pnpm lint
@@ -462,8 +441,8 @@ When creating a bug report, include:
 4. **Actual Behavior**: What actually happened
 5. **Environment Information**:
    - OS: [e.g., Windows 11, macOS 13.0, Ubuntu 22.04]
-   - Python Version: [e.g., 3.13.0]
-   - Node.js Version: [e.g., 18.17.0]
+   - Python Version: [e.g., 3.12.0]
+   - Node.js Version: [e.g., 20.0.0]
    - Browser: [e.g., Chrome 120.0]
 6. **Screenshots/Logs**: If applicable
 7. **Additional Context**: Any other relevant information
@@ -513,15 +492,15 @@ When creating a feature request, include:
 
 ### Git
 
-- [LifeTrace Git Flow Workflow](GIT_FLOW.md) - Project-specific Git workflow documentation
+- [FreeTodo Git Flow Workflow](GIT_FLOW.md) - Project-specific Git workflow documentation
 - [Git Guide](https://rogerdudler.github.io/git-guide/)
 - [Git and GitHub Tutorial](https://www.freecodecamp.org/news/git-and-github-for-beginners/)
 
 ## 📊 Contributors
 
-Thanks to all the people who have contributed to LifeTrace!
+Thanks to all the people who have contributed to FreeTodo!
 
-![Contributors](https://contrib.rocks/image?repo=FreeU-group/LifeTrace)
+![Contributors](https://contrib.rocks/image?repo=FreeU-group/FreeTodo)
 
 ## ❓ FAQ
 
@@ -562,13 +541,25 @@ Don't be discouraged! This is a normal part of the development process. Maintain
 
 ## 📜 License
 
-By contributing code, you agree that your contributions will be licensed under the [Apache License 2.0](../LICENSE).
+FreeTodo is licensed under the **FreeU Community License**, which is based on Apache License 2.0 with additional terms regarding commercial use.
+
+By contributing code, you agree:
+
+1. **Your contributions will be licensed under the FreeU Community License**
+   - This license is based on Apache License 2.0, with additional commercial use terms
+   - For detailed license terms, please refer to the [LICENSE](../LICENSE) file
+
+2. **As a contributor, you agree that:**
+   - The producer may adjust the open source license as needed (making it more strict or more permissive)
+   - Your contributed code may be used for commercial purposes, including but not limited to cloud versions
+
+For detailed license terms and contributor conditions, please refer to the [LICENSE](../LICENSE) file.
 
 ---
 
 ## 🙏 Thanks
 
-Thank you for taking the time to read our contribution guidelines! We look forward to your contributions to make LifeTrace better!
+Thank you for taking the time to read our contribution guidelines! We look forward to your contributions to make FreeTodo better!
 
 If you have any questions, feel free to ask in Issues or join our community groups.
 

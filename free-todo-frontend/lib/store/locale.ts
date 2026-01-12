@@ -1,7 +1,15 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+// Supported locales - add new languages here
+// Future languages: "ja" | "ko" | "ru" | "fr"
 export type Locale = "zh" | "en";
+
+// Supported locales list for validation and detection
+const SUPPORTED_LOCALES: Locale[] = ["zh", "en"];
+
+// Default locale when no match is found
+const DEFAULT_LOCALE: Locale = "en";
 
 interface LocaleState {
 	locale: Locale;
@@ -9,7 +17,24 @@ interface LocaleState {
 }
 
 const isValidLocale = (value: string | null): value is Locale => {
-	return value === "zh" || value === "en";
+	return value !== null && SUPPORTED_LOCALES.includes(value as Locale);
+};
+
+// Detect system language and return default locale
+// Returns matching locale if system language is supported, otherwise default
+const getSystemLocale = (): Locale => {
+	if (typeof navigator === "undefined") return DEFAULT_LOCALE;
+
+	const browserLang = (navigator.language || navigator.languages?.[0] || "").toLowerCase();
+
+	// Match against supported locales by prefix
+	for (const locale of SUPPORTED_LOCALES) {
+		if (browserLang.startsWith(locale)) {
+			return locale;
+		}
+	}
+
+	return DEFAULT_LOCALE;
 };
 
 // 同步 locale 到 cookie，使服务端可以读取
@@ -36,8 +61,11 @@ const localeStorage = {
 		if (typeof window === "undefined") return null;
 
 		const language = localStorage.getItem("language");
-		const locale: Locale = isValidLocale(language) ? language : "zh";
-		// 初始化时同步到 cookie
+		// If user has a saved preference, use it; otherwise detect from system language
+		const locale: Locale = isValidLocale(language)
+			? language
+			: getSystemLocale();
+		// Sync to cookie on initialization
 		syncLocaleToCookie(locale);
 		return JSON.stringify({ state: { locale } });
 	},
@@ -46,10 +74,12 @@ const localeStorage = {
 
 		try {
 			const data = JSON.parse(value);
-			const rawLocale = data.state?.locale || data.locale || "zh";
-			const locale: Locale = isValidLocale(rawLocale) ? rawLocale : "zh";
+			const rawLocale = data.state?.locale || data.locale || getSystemLocale();
+			const locale: Locale = isValidLocale(rawLocale)
+				? rawLocale
+				: getSystemLocale();
 			localStorage.setItem("language", locale);
-			// 同步到 cookie
+			// Sync to cookie
 			syncLocaleToCookie(locale);
 		} catch (e) {
 			console.error("Error saving locale:", e);
@@ -64,9 +94,9 @@ const localeStorage = {
 export const useLocaleStore = create<LocaleState>()(
 	persist(
 		(set) => ({
-			locale: "zh",
+			locale: getSystemLocale(),
 			setLocale: (locale) => {
-				// 立即同步到 cookie
+				// Immediately sync to cookie
 				syncLocaleToCookie(locale);
 				set({ locale });
 			},

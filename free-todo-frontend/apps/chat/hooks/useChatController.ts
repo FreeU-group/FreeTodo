@@ -284,6 +284,7 @@ export const useChatController = ({
 					setConversationId(conversationId || sessionId);
 				},
 				abortController.signal,
+				locale,
 			);
 
 			if (!assistantContent) {
@@ -382,6 +383,7 @@ export const useChatController = ({
 		hasSelection,
 		inputValue,
 		isStreaming,
+		locale,
 		parsePlanTodos,
 		planSystemPrompt,
 		t,

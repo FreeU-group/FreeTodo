@@ -4,6 +4,7 @@ from collections.abc import Generator
 
 from lifetrace.llm.llm_client import LLMClient
 from lifetrace.llm.tavily_client import TavilyClientWrapper
+from lifetrace.util.language import get_language_instruction
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
 
@@ -20,7 +21,7 @@ class WebSearchService:
         logger.info("联网搜索服务初始化完成")
 
     def build_search_prompt(
-        self, query: str, tavily_result: dict, todo_context: str | None = None
+        self, query: str, tavily_result: dict, todo_context: str | None = None, lang: str = "zh"
     ) -> list[dict[str, str]]:
         """
         构建用于 LLM 的搜索提示词
@@ -29,12 +30,15 @@ class WebSearchService:
             query: 用户查询
             tavily_result: Tavily 搜索结果
             todo_context: 待办事项上下文（可选）
+            lang: 语言代码 ("zh" 或 "en")
 
         Returns:
             LLM messages 列表
         """
         # 获取 system prompt
         system_prompt = get_prompt("web_search", "system")
+        # 注入语言指令
+        system_prompt += get_language_instruction(lang)
 
         # 格式化搜索结果
         results = tavily_result.get("results", [])
@@ -103,12 +107,13 @@ class WebSearchService:
 
         return actual_query, todo_context
 
-    def stream_answer_with_sources(self, query: str) -> Generator[str]:
+    def stream_answer_with_sources(self, query: str, lang: str = "zh") -> Generator[str]:
         """
         流式生成带来源的回答
 
         Args:
             query: 用户查询（可能包含待办上下文）
+            lang: 语言代码 ("zh" 或 "en")
 
         Yields:
             文本块（逐 token）
@@ -137,8 +142,8 @@ class WebSearchService:
                 yield fallback_text
                 return
 
-            # 构建 prompt（包含待办上下文）
-            messages = self.build_search_prompt(actual_query, tavily_result, todo_context)
+            # 构建 prompt（包含待办上下文和语言）
+            messages = self.build_search_prompt(actual_query, tavily_result, todo_context, lang)
 
             # 流式调用 LLM
             logger.info("开始流式生成回答")

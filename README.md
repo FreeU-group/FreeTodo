@@ -1,47 +1,53 @@
-![FreeU Logo](.github/assets/lifetrace_logo.png)
+![FreeTodo Logo](.github/assets/free_todo_icon_with_name_roundrect.png)
 
-![GitHub stars](https://img.shields.io/github/stars/FreeU-group/LifeTrace?style=social) ![GitHub forks](https://img.shields.io/github/forks/FreeU-group/LifeTrace?style=social) ![GitHub issues](https://img.shields.io/github/issues/FreeU-group/LifeTrace) ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg) ![Python version](https://img.shields.io/badge/python-3.13+-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
+![GitHub stars](https://img.shields.io/github/stars/FreeU-group/FreeTodo?style=social) ![GitHub forks](https://img.shields.io/github/forks/FreeU-group/FreeTodo?style=social) ![GitHub issues](https://img.shields.io/github/issues/FreeU-group/FreeTodo) [![License](https://img.shields.io/badge/license-FreeU%20Community-blue.svg)](LICENSE) ![Python version](https://img.shields.io/badge/python-3.12-blue.svg) ![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)
 
 **Language**: [English](README.md) | [中文](README_CN.md)
 
 [📖 Documentation](https://freeyou.club/lifetrace/introduction.html) • [🚀 Quick Start](#quick-start) • [💡 Features](#core-features) • [🔧 Development](#development-guide) • [🤝 Contributing](#contributing)
 
-# FreeU - Your Personal AI Assistant
+# FreeTodo - Just Do It.
 
 ## Project Overview
 
-`FreeU` is an AI-powered personal productivity assistant designed to help users better manage their daily life and work. Currently, two core modules have been completed:
-
-- **FreeTodo (AI Todo)**: An intelligent task management system with AI-assisted todo creation, decomposition, and tracking
-- **LifeTrace (Activity Recording)**: An intelligent life recording system that captures and retrieves daily activities through automatic screenshots, OCR recognition, and more
+**FreeTodo** is an AI-powered intelligent todo management application that helps you efficiently manage tasks, boost productivity, and achieve your goals. Through conversational AI interaction and smart task breakdown, FreeTodo transforms complex projects into actionable steps.
 
 ## Core Features
 
-### FreeTodo - AI Todo
-- **Smart Task Creation**: AI-assisted task creation and decomposition
-- **Task Tracking**: Real-time tracking of task progress and status
-- **Context Association**: Automatic association with related screenshots and activity context (Under Construction)
+### 🤖 AI Smart Assistant
+- **Intelligent Task Breakdown**: AI automatically decomposes complex tasks into manageable subtasks with a guided questionnaire flow
+- **Smart Task Extraction**: Extract actionable todos from AI conversation responses
+- **Context-Aware Suggestions**: AI provides task recommendations based on your current todo context
 
-### LifeTrace - Activity Recording
-- **Automatic Screenshot Recording**: Timed automatic screen capture to record user activities
-- **Intelligent OCR Recognition**: Uses RapidOCR to extract text content from screenshots
-- **Smart Event Management**: Automatically aggregate screenshots into intelligent events based on context
-- **Time Allocation Analysis**: Visualize app usage time distribution with 24-hour charts and app categorization
-- **Information Retrieval**: Help users trace back and retrieve important information fragments from the past
+### ✅ Comprehensive Task Management
+- **Hierarchical Tasks**: Support for parent-child task relationships with unlimited nesting
+- **Priority & Status**: Four priority levels (urgent/high/medium/low) and multiple status states
+- **Tags & Categories**: Organize todos with custom tags for easy filtering
+- **Deadline Management**: Set deadlines with visual reminders
+- **Rich Notes**: Add detailed notes and descriptions to each todo
 
-### Common Features
-- **Web API Service**: Provides complete RESTful API interfaces
-- **Modern Frontend**: Web interface with multiple themes and layouts
+### 📅 Multi-View Calendar
+- **Day/Week/Month Views**: Flexible calendar views to visualize your schedule
+- **Drag & Drop Scheduling**: Easily drag todos to calendar slots to schedule them
+- **Quick Todo Creation**: Create todos directly from calendar time slots
+
+### 🎨 Modern User Interface
+- **Multi-Panel Layout**: Customizable panel arrangement (Todos + Chat + Detail)
+- **Dark/Light Themes**: Beautiful themes with multiple color schemes
+- **Internationalization**: Full support for English and Chinese
+- **Responsive Design**: Optimized for various screen sizes
+
+### 💻 Desktop Application
+- **Electron App**: Native desktop experience on Windows & macOS
+- **System Integration**: Native notifications and system tray support
 
 ## System Architecture
 
-FreeU adopts a **frontend-backend separation** architecture:
+FreeTodo adopts a **frontend-backend separation** architecture:
 
 - **Backend**: FastAPI (Python) - Provides RESTful API (located in `lifetrace/` directory)
 - **Frontend**: Next.js (React + TypeScript) - Modern web interface (located in `free-todo-frontend/` directory)
-- **Data Layer**: SQLite + ChromaDB
-
-> ⚠️ **Note**: The `frontend/` directory is the legacy frontend and has been deprecated. Please use `free-todo-frontend/` as the new frontend.
+- **Data Layer**: SQLite + ChromaDB (for AI features)
 
 ## Quick Start
 
@@ -49,7 +55,7 @@ FreeU adopts a **frontend-backend separation** architecture:
 
 **Backend**:
 
-- Python 3.13+
+- Python 3.12
 - Supported OS: Windows, macOS
 - Optional: CUDA support (for GPU acceleration)
 
@@ -71,6 +77,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Windows
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+> **Note**: After installation, `uv` may not be immediately available in the current terminal. To activate it in the current session:
+>
+> - **Windows (PowerShell)**: Run `$env:Path = "$env:USERPROFILE\.local\bin;$env:Path"` to refresh PATH
+> - **macOS/Linux**: Run `exec $SHELL` to reinitialize your shell session, or restart your terminal
+>
+> Alternatively, you can simply open a new terminal window and `uv` will be available automatically.
 
 **Install dependencies and sync environment:**
 
@@ -98,13 +111,14 @@ python -m lifetrace.server
 
 > **Customize Prompts**: If you want to modify AI prompts for different features, you can edit `lifetrace/config/prompt.yaml`.
 
-The backend service will start at `http://localhost:8000`.
+The backend service will automatically find an available port starting from `8001` (or `8100` for build version). If the default port is occupied, it will automatically use the next available port and display the actual port in the console.
 
-- **API Documentation**: `http://localhost:8000/docs`
+- **Default Backend Port**: `http://localhost:8001`
+- **API Documentation**: The actual API docs URL will be displayed in the console (typically `http://localhost:8001/docs`)
 
 ### Start the Frontend Service
 
-The frontend is required to use FreeU. Start the frontend development server:
+The frontend is required to use FreeTodo. Start the frontend development server:
 
 ```bash
 cd free-todo-frontend
@@ -113,31 +127,89 @@ pnpm install
 pnpm dev
 ```
 
-The frontend development server will start at `http://localhost:3000`, with API requests automatically proxied to backend `:8000`.
+The frontend development server will:
+- Automatically find an available port starting from `3001` (default port for development)
+- Automatically detect the running FreeTodo backend port by checking the `/health` endpoint
+- Set up API proxy to the detected backend port
 
-Once both services are running, open your browser and navigate to `http://localhost:3000` to enjoy FreeU! 🎉
+The actual frontend URL and backend connection status will be displayed in the console. Once both services are running, open your browser and navigate to the displayed frontend URL (typically `http://localhost:3001`) to enjoy FreeTodo! 🎉
+
+> **Note**: If ports are occupied, both frontend and backend will automatically find the next available ports. The console will show the actual ports being used.
 
 For more details, see: [free-todo-frontend/README.md](free-todo-frontend/README.md)
 
 ## 📋 TODO & Roadmap
 
-### 🚀 High Priority
+> 📖 **Full Roadmap**: Check out the detailed [Project Roadmap](.github/ROADMAP.md) to learn about the complete vision and development plan of the FreeU project.
 
-- ☐ **User Experience Improvements**
-  - ☐ Implement keyboard shortcuts for power users
-  - ☐ Create interactive onboarding tutorial
+### 🎯 FreeU Overall Project Roadmap
 
-### 💡 Future Ideas
+#### 1. LifeTrace (v0.2 Completed)
+- ✓ **Computer Activity Flow Construction**: Generate personal activity flows through screenshots
+- 🔮 **Future Plans**: Audio acquisition, video environment, smart device integration, local LLM optimization
 
-- ☐ **Mobile & Cross-Platform**
-  - ☐ Develop mobile companion app
-  - ☐ Add tablet-optimized interface
-  - ☐ Create web-based version
+#### 2. Free Todo (v0.1 Currently In Progress)
+- 🚧 **Current Focus**: Building the ultimate To-Do List
+- 🎯 **Core Mission**: Fix user intentions, form personal context organization, lay the foundation for proactive services
+
+#### 3. Proactive Service Phase (Future Planning)
+- Provide proactive services based on LifeTrace data and Free Todo intentions
+
+---
+
+### 🚧 Free Todo Recent Plans (Focus on Input Layer)
+
+**Goal**: Collect as much information as possible from users' daily lives and gather it as Todos
+
+- 🎨 **UI Dynamic Island**
+  - ☐ Control voice input and screenshot scheduled task switches
+  - ☐ Provide convenient windows to access Todo list and conversation interface
+
+- 🤖 **Agent Development**
+  - 🚧 Develop AI tool scheduling capability
+  - ☐ Upgrade from basic conversation to intelligent Agent supporting multiple tool calls
+
+---
+
+### 📐 Free Todo Three-Layer Roadmap
+
+#### Input Layer: Reduce Input Burden, Thought-Stream-Like Capture
+- ☐ Voice input (Dynamic Island, hotkey activation)
+- ☐ Multimodal input (text, screenshots, voice)
+- ☑ Social software integration (WeChat, Feishu todo capture)
+- ☑ Intelligent message todo extraction
+
+#### Intermediate Processing Layer: From "Chaos" to "Order"
+- ☑ AI task breakdown ("big rocks" into "small stones")
+- ☑ AI intent completion / task detail completion
+- ☐ Automatic classification and organization
+- ☐ Intelligent task priority planning
+- ☑ Todo context construction
+
+#### Output Layer: Psychological Security + Warm, Reliable Secretary Partner
+- ☐ AI secretary personification
+- ☐ Schedule reminders (currently in progress)
+- ☐ Task focus mode (display only partial tasks)
+- ☐ Completed task reinforcement (merit ledger)
+- ☐ Overdue task re-planning
+
+---
+
+### 🔬 Features in Development
+
+Free Todo's panel switch bar contains some panels that are currently under development. These panels showcase our future feature directions for community reference and understanding.
+
+**🤝 Community Participation**: We warmly welcome community members to participate!
+- 🎨 **Panel Contributions**: Contribute your own panel designs or propose improvement suggestions
+- 🤖 **Agent Algorithm Contributions**: Contribute new Agent algorithms, we actively merge them!
+
+---
 
 ### ✅ Recently Completed
 
-- ☑ **FreeTodo Module** - AI-powered smart todo management system
-- ☑ **LifeTrace Module** - Basic screenshot recording and OCR functionality
+- ☑ **AI Task Breakdown** - Intelligent task decomposition with questionnaire flow
+- ☑ **Multi-Panel Interface** - Flexible layout with customizable panels
+- ☑ **Calendar Integration** - Day/Week/Month views with drag-and-drop
 
 ---
 
@@ -162,11 +234,9 @@ For more details, see: [free-todo-frontend/README.md](free-todo-frontend/README.
 │   │   ├── prompt.yaml         # AI prompt templates
 │   │   └── rapidocr_config.yaml# OCR configuration
 │   ├── routers/                # API route handlers
-│   │   ├── activity.py         # Activity management endpoints
 │   │   ├── chat.py             # Chat interface endpoints
 │   │   ├── todo.py             # Todo endpoints
 │   │   ├── task.py             # Task management endpoints
-│   │   ├── screenshot.py       # Screenshot endpoints
 │   │   └── ...                 # Other endpoints
 │   ├── schemas/                # Pydantic data models
 │   ├── services/               # Business logic service layer
@@ -175,19 +245,16 @@ For more details, see: [free-todo-frontend/README.md](free-todo-frontend/README.
 │   ├── llm/                    # LLM and AI services
 │   ├── jobs/                   # Background jobs
 │   ├── util/                   # Utility functions
-│   ├── models/                 # OCR model files
 │   └── data/                   # Runtime data (generated)
 │       ├── lifetrace.db        # SQLite database
-│       ├── screenshots/        # Screenshot storage
 │       ├── vector_db/          # Vector database storage
 │       └── logs/               # Application logs
-├── free-todo-frontend/         # New frontend application (Next.js) ⭐
+├── free-todo-frontend/         # Frontend application (Next.js) ⭐
 │   ├── app/                    # Next.js app directory
 │   ├── apps/                   # Feature modules
 │   │   ├── todo-list/          # Todo list module
 │   │   ├── todo-detail/        # Todo detail module
 │   │   ├── chat/               # AI chat module
-│   │   ├── activity/           # Activity recording module
 │   │   ├── calendar/           # Calendar module
 │   │   ├── settings/           # Settings module
 │   │   └── ...                 # Other modules
@@ -196,7 +263,6 @@ For more details, see: [free-todo-frontend/README.md](free-todo-frontend/README.
 │   ├── electron/               # Electron desktop app
 │   ├── package.json            # Frontend dependencies
 │   └── README.md               # Frontend documentation
-├── frontend/                   # Legacy frontend application (Deprecated) ⚠️
 ├── pyproject.toml              # Python project configuration
 ├── uv.lock                     # uv lock file
 ├── LICENSE                     # Apache 2.0 License
@@ -206,7 +272,7 @@ For more details, see: [free-todo-frontend/README.md](free-todo-frontend/README.
 
 ## Contributing
 
-The FreeU community is possible thanks to thousands of kind volunteers like you. We welcome all contributions to the community and are excited to welcome you aboard.
+The FreeTodo community is possible thanks to thousands of kind volunteers like you. We welcome all contributions to the community and are excited to welcome you aboard.
 
 **Recent Contributions:**
 
@@ -249,7 +315,7 @@ We appreciate all contributions, no matter how small! 🙏
 
 ## Join Our Community
 
-Connect with us and other FreeU users! Scan the QR codes below to join our community groups:
+Connect with us and other FreeTodo users! Scan the QR codes below to join our community groups:
 
 <table>
   <tr>
@@ -282,27 +348,12 @@ We use deepwiki to manage our docs, please refer to this [**website.**](https://
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=FreeU-group/LifeTrace&type=Timeline)](https://www.star-history.com/#FreeU-group/LifeTrace&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=FreeU-group/FreeTodo&type=Timeline)](https://www.star-history.com/#FreeU-group/FreeTodo&Timeline)
 
 ## License
 
-Copyright © 2025 FreeU.org
+Copyright © 2026 FreeU.org
 
-The content of this repository is bound by the following licenses:
+FreeTodo is licensed under the **FreeU Community License**, which is based on Apache License 2.0 with additional conditions regarding commercial usage.
 
-• The computer software is licensed under the [Apache License 2.0](LICENSE).
-• The learning resources in this project are copyright © 2025 FreeU.org
-
-### Apache License 2.0
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+For detailed license terms, please see the [LICENSE](LICENSE) file.

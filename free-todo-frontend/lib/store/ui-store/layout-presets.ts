@@ -1,8 +1,7 @@
-import { IS_DEV_FEATURE_ENABLED } from "@/lib/config/panel-config";
 import type { LayoutPreset } from "./types";
 
-// 基础预设布局列表
-const BASE_LAYOUT_PRESETS: LayoutPreset[] = [
+// 导出完整的预设布局列表
+export const LAYOUT_PRESETS: LayoutPreset[] = [
 	{
 		id: "default",
 		name: "待办模式",
@@ -17,12 +16,8 @@ const BASE_LAYOUT_PRESETS: LayoutPreset[] = [
 		panelAWidth: 1 / 3, // panelA 占左边 1/4，panelC 占右边 1/4，所以 panelA 占剩余空间的 1/3 (即 0.25/0.75)
 		panelCWidth: 0.25, // panelC 占右边 1/4
 	},
-];
-
-// 开发模式预设布局
-const DEV_LAYOUT_PRESETS: LayoutPreset[] = [
 	{
-		id: "lifetrace-dev",
+		id: "lifetrace",
 		name: "LifeTrace 模式",
 		panelFeatureMap: {
 			panelA: "diary",
@@ -35,10 +30,4 @@ const DEV_LAYOUT_PRESETS: LayoutPreset[] = [
 		panelAWidth: 0.5, // 当 panelA 关闭时，这个值不影响布局
 		panelCWidth: 1 / 3, // panelC 占右边 1/3，panelB 自动占左边 2/3
 	},
-];
-
-// 导出完整的预设布局列表
-export const LAYOUT_PRESETS: LayoutPreset[] = [
-	...BASE_LAYOUT_PRESETS,
-	...(IS_DEV_FEATURE_ENABLED ? DEV_LAYOUT_PRESETS : []),
 ];

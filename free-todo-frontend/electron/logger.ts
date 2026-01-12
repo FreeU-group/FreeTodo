@@ -1,12 +1,12 @@
 /**
  * Electron 主进程日志服务
  * 封装日志逻辑，支持不同级别和来源标记
+ * 每次启动生成新的日志文件，文件名格式：YYYY-MM-DD-N.log
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
-import { LOG_CONFIG } from "./config";
 
 /**
  * 日志级别枚举
@@ -23,8 +23,9 @@ class Logger {
 
 	constructor() {
 		this.logDir = app.getPath("logs");
-		this.logFile = path.join(this.logDir, LOG_CONFIG.fileName);
 		this.ensureLogDir();
+		this.logFile = this.generateLogFileName();
+		this.writeStartMarker();
 	}
 
 	/**
@@ -37,6 +38,65 @@ class Logger {
 			}
 		} catch {
 			// 忽略目录创建错误
+		}
+	}
+
+	/**
+	 * 获取当天的日期字符串（YYYY-MM-DD）
+	 */
+	private getTodayDateString(): string {
+		const now = new Date();
+		const year = now.getFullYear();
+		const month = String(now.getMonth() + 1).padStart(2, "0");
+		const day = String(now.getDate()).padStart(2, "0");
+		return `${year}-${month}-${day}`;
+	}
+
+	/**
+	 * 生成带日期和序列号的日志文件名
+	 * 格式：YYYY-MM-DD-N.log（N 为当天第几次启动，从 0 开始）
+	 */
+	private generateLogFileName(): string {
+		const dateStr = this.getTodayDateString();
+		const pattern = new RegExp(`^${dateStr}-(\\d+)\\.log$`);
+
+		// 扫描现有日志文件，找出当天的最大序列号
+		let maxSeq = -1;
+		try {
+			const files = fs.readdirSync(this.logDir);
+			for (const file of files) {
+				const match = file.match(pattern);
+				if (match) {
+					const seq = Number.parseInt(match[1], 10);
+					if (seq > maxSeq) {
+						maxSeq = seq;
+					}
+				}
+			}
+		} catch {
+			// 忽略读取错误
+		}
+
+		// 新的序列号 = 最大序列号 + 1
+		const newSeq = maxSeq + 1;
+		const fileName = `${dateStr}-${newSeq}.log`;
+
+		return path.join(this.logDir, fileName);
+	}
+
+	/**
+	 * 写入启动标记
+	 */
+	private writeStartMarker(): void {
+		try {
+			const timestamp = new Date().toISOString();
+			const marker =
+				`\n${"=".repeat(80)}\n` +
+				`[${timestamp}] [INFO] Application started - Log file: ${path.basename(this.logFile)}\n` +
+				`${"=".repeat(80)}\n\n`;
+			fs.writeFileSync(this.logFile, marker);
+		} catch {
+			// 忽略写入错误
 		}
 	}
 
@@ -133,6 +193,22 @@ class Logger {
 	consoleError(message: string, source?: string): void {
 		console.error(message);
 		this.error(message, source);
+	}
+
+	/**
+	 * 写入结束标记（在应用退出时调用）
+	 */
+	writeEndMarker(): void {
+		try {
+			const timestamp = new Date().toISOString();
+			const marker =
+				`\n${"=".repeat(80)}\n` +
+				`[${timestamp}] [INFO] Application ended\n` +
+				`${"=".repeat(80)}\n`;
+			fs.appendFileSync(this.logFile, marker);
+		} catch {
+			// 忽略写入错误
+		}
 	}
 }
 

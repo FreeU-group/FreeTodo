@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutSelector } from "@/components/common/layout/LayoutSelector";
@@ -15,7 +16,7 @@ import { ResizeHandle } from "@/components/layout/ResizeHandle";
 import { HeaderIsland } from "@/components/notification/HeaderIsland";
 import { GlobalDndProvider } from "@/lib/dnd";
 import { useWindowAdaptivePanels } from "@/lib/hooks/useWindowAdaptivePanels";
-import { useConfig } from "@/lib/query";
+import { useConfig, useLlmStatus } from "@/lib/query";
 import { getNotificationPoller } from "@/lib/services/notification-poller";
 import { useNotificationStore } from "@/lib/store/notification-store";
 import { useUiStore } from "@/lib/store/ui-store";
@@ -30,12 +31,39 @@ export default function HomePage() {
 		setPanelAWidth,
 		setPanelCWidth,
 	} = useUiStore();
-	const { currentNotification } = useNotificationStore();
+	const { currentNotification, setNotification } = useNotificationStore();
 	const [isDraggingPanelA, setIsDraggingPanelA] = useState(false);
 	const [isDraggingPanelC, setIsDraggingPanelC] = useState(false);
 
+	// 国际化
+	const t = useTranslations("todoExtraction");
+
 	// 使用 TanStack Query 获取配置
 	const { data: config } = useConfig();
+
+	// 检查 LLM 配置状态
+	const { data: llmStatus } = useLlmStatus();
+
+	// 根据 LLM 配置状态显示或隐藏通知
+	useEffect(() => {
+		if (!llmStatus) return;
+
+		if (!llmStatus.configured) {
+			// LLM 未配置，显示通知提示用户去设置
+			setNotification({
+				id: "llm-config-missing",
+				title: t("llmConfigMissing"),
+				content: t("llmConfigMissingHint"),
+				timestamp: new Date().toISOString(),
+				source: "llm-config",
+			});
+		} else {
+			// LLM 已配置，如果当前显示的是 LLM 配置通知，则清除它
+			if (currentNotification?.source === "llm-config") {
+				setNotification(null);
+			}
+		}
+	}, [llmStatus, currentNotification?.source, setNotification, t]);
 
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const setGlobalResizeCursor = useCallback((enabled: boolean) => {
@@ -338,15 +366,24 @@ export default function HomePage() {
 			<main className="relative flex h-screen flex-col overflow-hidden text-foreground">
 				<div className="relative z-10 flex h-full flex-col text-foreground">
 					<header className="relative flex h-15 shrink-0 items-center bg-primary-foreground dark:bg-accent px-4 text-foreground overflow-visible">
-						{/* 左侧：Logo */}
-						<div className="flex items-center gap-2 shrink-0">
-							<Image
-								src="/logo.png"
-								alt="Free Todo Logo"
-								width={32}
-								height={32}
-								className="shrink-0"
-							/>
+					{/* 左侧：Logo */}
+					<div className="flex items-center gap-2 shrink-0 ">
+						{/* 浅色模式图标 */}
+						<Image
+							src="/free-todo-logos/free_todo_icon_4_dark_with_grid.png"
+							alt="Free Todo Logo"
+							width={32}
+							height={32}
+							className="shrink-0 block dark:hidden"
+						/>
+						{/* 深色模式图标 */}
+						<Image
+							src="/free-todo-logos/free_todo_icon_4_with_grid.png"
+							alt="Free Todo Logo"
+							width={32}
+							height={32}
+							className="shrink-0 hidden dark:block"
+						/>
 							<h1 className="text-lg font-semibold tracking-tight text-foreground">
 								Free Todo: Your AI Secretary
 							</h1>

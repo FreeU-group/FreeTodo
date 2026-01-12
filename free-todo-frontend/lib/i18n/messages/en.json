@@ -122,7 +122,14 @@
 			"developerSectionTitle": "Developer Options",
 			"developerSectionDescription": "Advanced and experimental settings for developers or power users.",
 			"devPanelsTitle": "Panels in Development",
-			"devPanelsDescription": "These panels are still under development. They are hidden from the dock by default; you can enable them here."
+			"devPanelsDescription": "These panels are still under development. They are hidden from the dock by default; you can enable them here.",
+			"modeSwitcherTitle": "Chat Mode Switcher",
+			"modeSwitcherDescription": "Control whether the chat panel shows Ask/Plan/Edit mode switching options",
+			"modeSwitcherLabel": "Show Mode Switcher",
+			"modeSwitcherHint": "When disabled, chat panel will only use Ask mode",
+			"modeSwitcherEnabled": "Mode switcher enabled",
+			"modeSwitcherDisabled": "Mode switcher disabled",
+			"currentVersion": "Current Version"
 		},
 		"costTracking": {
 			"title": "Cost Tracking",
@@ -222,7 +229,9 @@
 		"minutesAgo": "{count}m ago",
 		"hoursAgo": "{count}h ago",
 		"daysAgo": "{count}d ago",
-		"dateFormat": "{month}/{day}"
+		"dateFormat": "{month}/{day}",
+		"llmConfigMissing": "Please configure AI service",
+		"llmConfigMissingHint": "Click to set API Key"
 	},
 	"chat": {
 		"greetings": {
@@ -411,7 +420,7 @@
 		"selectLayout": "Select layout",
 		"layouts": {
 			"default": "Todo Mode",
-			"lifetrace-dev": "LifeTrace Mode"
+			"lifetrace": "LifeTrace Mode"
 		}
 	},
 	"scheduler": {

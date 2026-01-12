@@ -80,15 +80,15 @@ def get_cors_origins() -> list[str]:
     生成 CORS 允许的来源列表，支持动态端口。
 
     为了支持 Build 版和开发版同时运行，需要允许端口范围：
-    - 前端端口范围：3000-3099
-    - 后端端口范围：8000-8099（用于 API 测试和跨域请求）
+    - 前端端口范围：3000-3200（包括 3200，Build 版默认端口）
+    - 后端端口范围：8000-8200（包括 8200，Build 版默认端口）
     """
     origins = []
-    # 前端端口范围 3000-3099
-    for port in range(3000, 3100):
+    # 前端端口范围 3000-3200（包括 3200）
+    for port in range(3000, 3201):
         origins.extend([f"http://localhost:{port}", f"http://127.0.0.1:{port}"])
-    # 后端端口范围 8000-8099
-    for port in range(8000, 8100):
+    # 后端端口范围 8000-8200（包括 8200）
+    for port in range(8000, 8201):
         origins.extend([f"http://localhost:{port}", f"http://127.0.0.1:{port}"])
     return origins
 
@@ -168,9 +168,43 @@ def find_available_port(host: str, start_port: int, max_attempts: int = 100) -> 
     raise RuntimeError(f"无法在 {start_port}-{start_port + max_attempts} 范围内找到可用端口")
 
 
+def parse_args():
+    """解析命令行参数"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="LifeTrace 后端服务器")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help="服务器端口号（默认从配置文件读取）",
+    )
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        default=None,
+        help="数据目录路径",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["dev", "build"],
+        default="dev",
+        help="服务器模式：dev（开发模式）或 build（打包模式）",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
+    args = parse_args()
+
+    # 设置服务器模式
+    from lifetrace.routers.health import set_server_mode
+
+    set_server_mode(args.mode)
+
     server_host = settings.server.host
-    server_port = settings.server.port
+    server_port = args.port if args.port else settings.server.port
     server_debug = settings.server.debug
 
     # 动态端口分配：如果默认端口被占用，自动尝试下一个可用端口
@@ -181,6 +215,7 @@ if __name__ == "__main__":
         raise
 
     logger.info(f"启动服务器: http://{server_host}:{actual_port}")
+    logger.info(f"服务器模式: {args.mode}")
     logger.info(f"调试模式: {'开启' if server_debug else '关闭'}")
     if actual_port != server_port:
         logger.info(f"注意: 原始端口 {server_port} 已被占用，已自动切换到 {actual_port}")

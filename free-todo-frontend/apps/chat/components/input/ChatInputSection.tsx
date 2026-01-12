@@ -6,6 +6,7 @@ import { InputBox } from "@/apps/chat/components/input/InputBox";
 import { LinkedTodos } from "@/apps/chat/components/input/LinkedTodos";
 import { ModeSwitcher } from "@/apps/chat/components/input/ModeSwitcher";
 import type { ChatMode } from "@/apps/chat/types";
+import { useUiStore } from "@/lib/store/ui-store";
 import type { Todo } from "@/lib/types";
 
 type ChatInputSectionProps = {
@@ -56,6 +57,8 @@ export function ChatInputSection({
 	const tChat = useTranslations("chat");
 	const tPage = useTranslations("page");
 	const modeMenuRef = useRef<HTMLDivElement | null>(null);
+	// 从 ui-store 读取是否显示模式切换器
+	const showModeSwitcher = useUiStore((state) => state.showModeSwitcher);
 
 	const inputPlaceholder =
 		chatMode === "plan"
@@ -92,20 +95,23 @@ export function ChatInputSection({
 					/>
 				}
 				modeSwitcher={
-					<div className="flex items-center gap-2" ref={modeMenuRef}>
-						<ModeSwitcher
-							chatMode={chatMode}
-							locale={locale}
-							modeMenuOpen={modeMenuOpen}
-							onToggleMenu={onToggleModeMenu}
-							onChangeMode={(mode) => {
-								onChangeMode(mode);
-								onToggleModeMenu();
-							}}
-							variant="inline"
-						/>
-					</div>
+					showModeSwitcher ? (
+						<div className="flex items-center gap-2" ref={modeMenuRef}>
+							<ModeSwitcher
+								chatMode={chatMode}
+								locale={locale}
+								modeMenuOpen={modeMenuOpen}
+								onToggleMenu={onToggleModeMenu}
+								onChangeMode={(mode) => {
+									onChangeMode(mode);
+									onToggleModeMenu();
+								}}
+								variant="inline"
+							/>
+						</div>
+					) : null
 				}
+				modeMenuOpen={modeMenuOpen}
 				inputValue={inputValue}
 				placeholder={inputPlaceholder}
 				isStreaming={isStreaming}
