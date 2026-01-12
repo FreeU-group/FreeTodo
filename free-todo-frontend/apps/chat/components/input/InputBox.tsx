@@ -157,7 +157,7 @@ export function InputBox({
 			<div
 				className={cn(
 					"flex flex-col rounded-xl border border-border",
-					"bg-background/60 px-3 py-2",
+					"bg-background/60 px-3 py-2 mb-4",
 				)}
 			>
 				{/* 关联待办区域 */}
