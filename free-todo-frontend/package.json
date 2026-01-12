@@ -1,5 +1,5 @@
 {
-	"name": "free-todo",
+	"name": "FreeTodo",
 	"version": "0.1.0",
 	"private": true,
 	"main": "dist-electron/main.js",

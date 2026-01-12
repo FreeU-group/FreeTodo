@@ -128,7 +128,8 @@
 			"modeSwitcherLabel": "Show Mode Switcher",
 			"modeSwitcherHint": "When disabled, chat panel will only use Ask mode",
 			"modeSwitcherEnabled": "Mode switcher enabled",
-			"modeSwitcherDisabled": "Mode switcher disabled"
+			"modeSwitcherDisabled": "Mode switcher disabled",
+			"currentVersion": "Current Version"
 		},
 		"costTracking": {
 			"title": "Cost Tracking",
@@ -228,7 +229,9 @@
 		"minutesAgo": "{count}m ago",
 		"hoursAgo": "{count}h ago",
 		"daysAgo": "{count}d ago",
-		"dateFormat": "{month}/{day}"
+		"dateFormat": "{month}/{day}",
+		"llmConfigMissing": "Please configure AI service",
+		"llmConfigMissingHint": "Click to set API Key"
 	},
 	"chat": {
 		"greetings": {

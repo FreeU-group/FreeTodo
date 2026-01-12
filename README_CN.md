@@ -23,7 +23,7 @@
 - **层级任务结构**：支持父子任务关系，无限层级嵌套
 - **优先级与状态**：四级优先级（紧急/高/中/低）和多种状态
 - **标签与分类**：使用自定义标签组织待办，便于筛选
-- **截止日期管理**：设置开始时间和截止日期，可视化提醒
+- **截止日期管理**：设置截止日期，可视化提醒
 - **丰富备注**：为每个待办添加详细备注和描述
 
 ### 📅 多视图日历
@@ -38,7 +38,7 @@
 - **响应式设计**：适配各种屏幕尺寸
 
 ### 💻 桌面应用
-- **Electron 应用**：Windows、macOS 和 Linux 原生桌面体验
+- **Electron 应用**：Windows 和 macOS 原生桌面体验
 - **系统集成**：原生通知和系统托盘支持
 
 ## 系统架构
@@ -77,6 +77,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Windows
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
+
+> **注意**：安装完成后，`uv` 可能无法在当前终端中立即使用。要在当前会话中激活它：
+>
+> - **Windows (PowerShell)**：运行 `$env:Path = "$env:USERPROFILE\.local\bin;$env:Path"` 来刷新 PATH
+> - **macOS/Linux**：运行 `exec $SHELL` 来重新初始化 shell 会话，或重新打开终端
+>
+> 或者，您也可以直接打开一个新的终端窗口，`uv` 将自动可用。
 
 **安装依赖并同步环境:**
 

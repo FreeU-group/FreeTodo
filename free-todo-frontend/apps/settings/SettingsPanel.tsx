@@ -17,6 +17,7 @@ import {
 	SchedulerSection,
 	SettingsSection,
 	TavilyConfigSection,
+	VersionInfoSection,
 } from "./components";
 
 /**
@@ -88,6 +89,9 @@ export function SettingsPanel() {
 						<div className="mt-4">
 							<ModeSwitcherSection loading={loading} />
 						</div>
+
+						{/* 版本信息 */}
+						<VersionInfoSection />
 					</SettingsSection>
 				</CollapsibleSection>
 			</div>

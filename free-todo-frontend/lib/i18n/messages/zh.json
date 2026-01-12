@@ -128,7 +128,8 @@
 			"modeSwitcherLabel": "显示模式切换器",
 			"modeSwitcherHint": "关闭后，聊天面板将只使用 Ask 模式",
 			"modeSwitcherEnabled": "已启用模式切换器",
-			"modeSwitcherDisabled": "已关闭模式切换器"
+			"modeSwitcherDisabled": "已关闭模式切换器",
+			"currentVersion": "当前版本"
 		},
 		"costTracking": {
 			"title": "费用统计",
@@ -228,7 +229,9 @@
 		"minutesAgo": "{count}分钟前",
 		"hoursAgo": "{count}小时前",
 		"daysAgo": "{count}天前",
-		"dateFormat": "{month}月{day}日"
+		"dateFormat": "{month}月{day}日",
+		"llmConfigMissing": "请配置 AI 服务",
+		"llmConfigMissingHint": "点击设置 API Key"
 	},
 	"chat": {
 		"greetings": {

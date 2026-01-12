@@ -9,3 +9,4 @@ export { SchedulerSection } from "./SchedulerSection";
 export { SettingsSection } from "./SettingsSection";
 export { TavilyConfigSection } from "./TavilyConfigSection";
 export { ToggleSwitch } from "./ToggleSwitch";
+export { VersionInfoSection } from "./VersionInfoSection";
