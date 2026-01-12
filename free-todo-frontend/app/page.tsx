@@ -85,7 +85,12 @@ export default function HomePage() {
 	}, [setGlobalResizeCursor]);
 
 	// 用户引导：首次加载且未完成引导时启动 tour
+	// 使用 ref 确保只在组件挂载时检查一次，避免 restartTour 时重复触发
+	const hasCheckedTourRef = useRef(false);
 	useEffect(() => {
+		if (hasCheckedTourRef.current) return;
+		hasCheckedTourRef.current = true;
+
 		if (!hasCompletedTour) {
 			// 延迟启动，确保页面渲染完成
 			const timer = setTimeout(() => {

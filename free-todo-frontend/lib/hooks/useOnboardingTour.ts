@@ -8,6 +8,25 @@ import { useUiStore } from "@/lib/store/ui-store";
 import { useOpenSettings } from "./useOpenSettings";
 
 /**
+ * 滚动设置面板到顶部
+ */
+function scrollSettingsPanelToTop(): Promise<void> {
+	return new Promise((resolve) => {
+		// 查找设置面板的滚动容器
+		const settingsContent = document.querySelector(
+			'[data-tour="settings-content"]',
+		);
+		if (settingsContent) {
+			settingsContent.scrollTo({ top: 0, behavior: "smooth" });
+			// 等待滚动完成
+			setTimeout(resolve, 300);
+		} else {
+			resolve();
+		}
+	});
+}
+
+/**
  * Hook for managing the onboarding tour
  * Provides methods to start, skip, and check tour status
  */
@@ -23,7 +42,7 @@ export function useOnboardingTour() {
 	 * Create and start the driver tour
 	 */
 	const createAndStartTour = useCallback(() => {
-		// 初始保持 dock 自动隐藏模式，不要一开始就固定显示
+		// 初始保持 dock 自动隐藏模式
 		setDockDisplayMode("auto-hide");
 
 		const driverObj = driver({
@@ -53,12 +72,13 @@ export function useOnboardingTour() {
 			onDestroyed: () => {
 				completeTour();
 				setCurrentStep(null);
-				// 引导结束后恢复自动隐藏模式
+				// 引导结束后恢复自动隐藏模式并隐藏触发区域
 				setDockDisplayMode("auto-hide");
+				window.dispatchEvent(new Event("onboarding:hide-dock-trigger-zone"));
 			},
 
 			steps: [
-				// Step 1: Welcome modal
+				// Step 1: Welcome modal - 同时打开设置面板准备下一步
 				{
 					popover: {
 						title: t("welcomeTitle"),
@@ -66,22 +86,16 @@ export function useOnboardingTour() {
 						side: "over" as const,
 						align: "center" as const,
 					},
-				},
-				// Step 2: Settings toggle button
-				{
-					element: '[data-tour="settings-toggle"]',
-					popover: {
-						title: t("settingsStepTitle"),
-						description: t("settingsStepDescription"),
-						side: "bottom" as const,
-						align: "end" as const,
-					},
 					onHighlightStarted: () => {
-						// Open settings panel when this step starts
+						// 在欢迎步骤就打开设置面板，为下一步做准备
 						openSettings();
+						// 滚动到顶部
+						setTimeout(() => {
+							scrollSettingsPanelToTop();
+						}, 200);
 					},
 				},
-				// Step 3: LLM API Key input
+				// Step 2: API Key 配置
 				{
 					element: "#llm-api-key",
 					popover: {
@@ -91,14 +105,30 @@ export function useOnboardingTour() {
 						align: "start" as const,
 					},
 					onHighlightStarted: () => {
-						// Ensure settings is open and scroll to the element
+						// 确保元素可见
 						const element = document.getElementById("llm-api-key");
 						if (element) {
 							element.scrollIntoView({ behavior: "smooth", block: "center" });
 						}
 					},
 				},
-				// Step 4: Dock 从底部滑出的动效演示
+				// Step 3: 引导用户下移鼠标（高亮触发区域）
+				{
+					element: '[data-tour="dock-trigger-zone"]',
+					popover: {
+						title: t("dockTriggerTitle"),
+						description: t("dockTriggerDescription"),
+						side: "top" as const,
+						align: "center" as const,
+					},
+					onHighlightStarted: () => {
+						// 显示触发区域高亮
+						window.dispatchEvent(new Event("onboarding:show-dock-trigger-zone"));
+						// 确保 dock 处于自动隐藏模式
+						setDockDisplayMode("auto-hide");
+					},
+				},
+				// Step 4: Bottom Dock 功能介绍
 				{
 					element: '[data-tour="bottom-dock"]',
 					popover: {
@@ -108,36 +138,41 @@ export function useOnboardingTour() {
 						align: "center" as const,
 					},
 					onHighlightStarted: () => {
-						// 先确保 dock 隐藏，然后滑出显示，让用户感知动效
-						setDockDisplayMode("auto-hide");
-						// 短暂延迟后显示 dock，形成「滑出」效果
-						setTimeout(() => {
-							setDockDisplayMode("fixed");
-						}, 300);
+						// 隐藏触发区域
+						window.dispatchEvent(new Event("onboarding:hide-dock-trigger-zone"));
+						// 固定显示 dock
+						setDockDisplayMode("fixed");
 					},
 				},
-				// Step 5: 右键菜单高亮 - 程序化打开菜单并高亮
+				// Step 5: 右键点击引导（高亮 dock item）
 				{
-					element: '[data-tour="panel-selector-menu"]',
+					element: '[data-tour="dock-item-settings"]',
 					popover: {
 						title: t("dockRightClickTitle"),
 						description: t("dockRightClickDescription"),
+						side: "top" as const,
+						align: "center" as const,
+					},
+				},
+				// Step 6: 右键菜单高亮
+				{
+					element: '[data-tour="panel-selector-menu"]',
+					popover: {
+						title: t("dockMenuTitle"),
+						description: t("dockMenuDescription"),
 						side: "left" as const,
 						align: "end" as const,
 					},
 					onHighlightStarted: () => {
-						// 程序化打开设置面板的右键菜单
+						// 程序化打开右键菜单
 						window.dispatchEvent(
 							new CustomEvent("onboarding:open-dock-menu", {
 								detail: { feature: "settings" },
 							}),
 						);
 					},
-					onDeselected: () => {
-						// 离开此步骤时关闭菜单（通过点击其他地方触发）
-					},
 				},
-				// Step 6: Completion modal
+				// Step 7: Completion modal
 				{
 					popover: {
 						title: t("completeTitle"),

@@ -43,7 +43,10 @@ export function SettingsPanel() {
 			<PanelHeader icon={Settings} title={tPage("settingsLabel")} />
 
 			{/* 设置内容区域 */}
-			<div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+			<div
+				data-tour="settings-content"
+				className="flex-1 overflow-y-auto px-4 py-6 space-y-6"
+			>
 				{/* LLM 配置 */}
 				<LlmConfigSection config={config} loading={loading} />
 
