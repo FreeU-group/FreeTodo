@@ -33,7 +33,7 @@ export function DockTriggerZone() {
 			initial={{ opacity: 0 }}
 			animate={{ opacity: isVisible ? 1 : 0 }}
 			transition={{ duration: 0.3 }}
-			className="fixed bottom-0 left-0 right-0 h-20 z-[9999] pointer-events-none"
+			className="fixed bottom-0 left-0 right-0 h-20 z-40 pointer-events-none"
 			style={{
 				background: isVisible
 					? "linear-gradient(to top, rgba(var(--primary-rgb), 0.3), transparent)"
@@ -44,7 +44,7 @@ export function DockTriggerZone() {
 			{/* 向下箭头动画指示 */}
 			{isVisible && (
 				<motion.div
-					className="absolute left-1/2 top-2 -translate-x-1/2"
+					className="absolute left-1/2 -top-2 -translate-x-1/2"
 					animate={{ y: [0, 8, 0] }}
 					transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
 				>

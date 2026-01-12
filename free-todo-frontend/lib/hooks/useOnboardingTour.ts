@@ -126,6 +126,11 @@ export function useOnboardingTour() {
 						window.dispatchEvent(new Event("onboarding:show-dock-trigger-zone"));
 						// 确保 dock 处于自动隐藏模式
 						setDockDisplayMode("auto-hide");
+						// 让 overlay 允许点击穿透，这样用户可以点击 BottomDock
+						const overlay = document.querySelector(".driver-overlay");
+						if (overlay) {
+							(overlay as HTMLElement).style.pointerEvents = "none";
+						}
 					},
 				},
 				// Step 4: Bottom Dock 功能介绍
@@ -142,6 +147,11 @@ export function useOnboardingTour() {
 						window.dispatchEvent(new Event("onboarding:hide-dock-trigger-zone"));
 						// 固定显示 dock
 						setDockDisplayMode("fixed");
+						// 恢复 overlay 的点击阻止功能
+						const overlay = document.querySelector(".driver-overlay");
+						if (overlay) {
+							(overlay as HTMLElement).style.pointerEvents = "";
+						}
 					},
 				},
 				// Step 5: 右键点击引导（高亮 dock item）

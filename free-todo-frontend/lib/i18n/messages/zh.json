@@ -650,7 +650,7 @@
 		"dockTriggerTitle": "下移鼠标",
 		"dockTriggerDescription": "将鼠标移至底部边缘，Dock 会自动出现。",
 		"dockStepTitle": "底部 Dock",
-		"dockStepDescription": "点击切换面板，拖拽调整顺序。",
+		"dockStepDescription": "单击开关面板，拖拽调整顺序。",
 		"dockRightClickTitle": "尝试右键点击",
 		"dockRightClickDescription": "右键点击此项目查看更多选项。",
 		"dockMenuTitle": "面板选择器",
