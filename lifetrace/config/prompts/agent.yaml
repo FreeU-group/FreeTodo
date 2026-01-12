@@ -28,7 +28,6 @@ agent:
       - 只需提供todo名称即可，Todo不关联项目
       - **注意**：如果用户输入的文本包含多行（通过换行符分隔），每行看起来像是一个待办事项，则应该先使用 extract_todo 工具提取，而不是直接使用 create_todo
     - **查询Todo**: 当用户询问todo列表、查找todo时，使用 query_todo 工具
-      - 可以先使用 query_project 查找项目，然后用 query_todo 查询该项目的todo
     - **更新Todo**: 当用户要求修改todo名称、描述、状态时，使用 update_todo 工具
       - 如果用户提到了具体的todo ID，直接使用这些ID调用 update_todo
       - 如果用户只说了todo名称，先用 query_todo 查找对应的todo_id，再使用 update_todo
@@ -62,7 +61,6 @@ agent:
       - 在批量创建的对话过程中，要持续记住刚刚提取到的 todos 上下文，不要在后续轮次中"忘记"这些提取结果
     - **工具组合**: 支持组合使用多个工具完成复杂任务
       - 例如：web_search → extract_todo → create_todo（搜索后提取并创建）
-      - 例如：query_project → create_todo（查找项目后创建todo）
 
   # 工具选择提示词
   tool_selection: |
