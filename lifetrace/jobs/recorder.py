@@ -5,12 +5,14 @@
 import argparse
 import hashlib
 import os
+import shutil
+import subprocess
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import imagehash
 import mss
@@ -65,7 +67,9 @@ def with_timeout(timeout_seconds: float = 5.0, operation_name: str = "操作"):
                 result = future.result(timeout=timeout_seconds)
                 return result
             except TimeoutError:
-                logger.warning(f"{operation_name}超时 ({timeout_seconds}秒)，操作可能仍在后台执行")
+                logger.warning(
+                    f"{operation_name}超时 ({timeout_seconds}秒)，操作可能仍在后台执行"
+                )
                 # 注意：无法强制终止线程，只能记录超时
                 return None
             except Exception as e:
@@ -84,22 +88,49 @@ class ScreenRecorder:
 
     def __init__(self):
         self.config = config
-        self.screenshots_dir = self.config.screenshots_dir
-        self.interval = self.config.get("jobs.recorder.interval")
+        self.screenshots_dir: str = self.config.screenshots_dir
+        self.interval: float = self._get_float_config("jobs.recorder.interval", 5.0)
         self.screens = self._get_screen_list()
-        self.deduplicate = self.config.get("jobs.recorder.params.deduplicate")
-        self.hash_threshold = self.config.get("jobs.recorder.params.hash_threshold")
+        self.deduplicate: bool = bool(
+            self.config.get("jobs.recorder.params.deduplicate")
+        )
+        self.hash_threshold: int = self._get_int_config(
+            "jobs.recorder.params.hash_threshold", 5
+        )
+        self.pngquant_enabled: bool = bool(
+            self.config.get("jobs.recorder.params.pngquant.enabled")
+        )
+        self.pngquant_quality: str | None = self._get_str_config(
+            "jobs.recorder.params.pngquant.quality"
+        )
+        self.pngquant_speed: int | None = self._get_optional_int_config(
+            "jobs.recorder.params.pngquant.speed"
+        )
+        self.pngquant_strip: bool = bool(
+            self.config.get("jobs.recorder.params.pngquant.strip")
+        )
+        self.pngquant_path: str | None = None
+        self.pngquant_available: bool = False
 
         # 超时配置
-        self.file_io_timeout = self.config.get("jobs.recorder.params.file_io_timeout")
-        self.db_timeout = self.config.get("jobs.recorder.params.db_timeout")
-        self.window_info_timeout = self.config.get("jobs.recorder.params.window_info_timeout")
+        self.file_io_timeout: float = self._get_float_config(
+            "jobs.recorder.params.file_io_timeout", 5.0
+        )
+        self.db_timeout: float = self._get_float_config(
+            "jobs.recorder.params.db_timeout", 5.0
+        )
+        self.window_info_timeout: float = self._get_float_config(
+            "jobs.recorder.params.window_info_timeout", 2.0
+        )
 
         # 初始化截图目录
         ensure_dir(self.screenshots_dir)
 
         # 上一张截图的哈希值（用于去重）
-        self.last_hashes = {}
+        self.last_hashes: dict[int, str] = {}
+
+        # 初始化 pngquant 压缩器
+        self._init_pngquant()
 
         logger.info(
             f"超时配置 - 文件I/O: {self.file_io_timeout}s, "
@@ -115,14 +146,53 @@ class ScreenRecorder:
         # 启动时扫描未处理的文件
         self._scan_unprocessed_files()
 
+    def _get_float_config(self, key: str, default: float) -> float:
+        """获取浮点数配置值"""
+        value = self.config.get(key)
+        if value is None:
+            return default
+        return float(value)  # type: ignore[arg-type]
+
+    def _get_int_config(self, key: str, default: int) -> int:
+        """获取整数配置值"""
+        value = self.config.get(key)
+        if value is None:
+            return default
+        return int(value)  # type: ignore[arg-type]
+
+    def _get_optional_int_config(self, key: str) -> int | None:
+        """获取可选整数配置值"""
+        value = self.config.get(key)
+        if value is None:
+            return None
+        return int(value)  # type: ignore[arg-type]
+
+    def _get_str_config(self, key: str) -> str | None:
+        """获取可选字符串配置值"""
+        value = self.config.get(key)
+        if value is None:
+            return None
+        return str(value)
+
+    def _get_list_config(self, key: str) -> list[str]:
+        """获取列表配置值"""
+        value = self.config.get(key)
+        if value is None or not isinstance(value, list):
+            return []
+        return cast(list[str], value)
+
     def _log_blacklist_config(self):
         """打印当前黑名单配置"""
         blacklist_enabled = self.config.get("jobs.recorder.params.blacklist.enabled")
-        blacklist_apps = self.config.get("jobs.recorder.params.blacklist.apps")
-        blacklist_windows = self.config.get("jobs.recorder.params.blacklist.windows")
+        blacklist_apps = self._get_list_config("jobs.recorder.params.blacklist.apps")
+        blacklist_windows = self._get_list_config(
+            "jobs.recorder.params.blacklist.windows"
+        )
 
         logger.info("=" * 60)
-        logger.info(f"📋 黑名单配置状态: {'✅ 已启用' if blacklist_enabled else '❌ 已禁用'}")
+        logger.info(
+            f"📋 黑名单配置状态: {'✅ 已启用' if blacklist_enabled else '❌ 已禁用'}"
+        )
 
         if blacklist_enabled:
             if blacklist_apps:
@@ -144,9 +214,23 @@ class ScreenRecorder:
     def _save_screenshot(self, screenshot, file_path: str) -> bool:
         """保存截图到文件"""
 
-        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="保存截图文件")
+        @with_timeout(
+            timeout_seconds=self.file_io_timeout, operation_name="保存截图文件"
+        )
         def _do_save():
-            mss.tools.to_png(screenshot.rgb, screenshot.size, output=file_path)
+            if self.pngquant_enabled and self.pngquant_available:
+                png_bytes = mss.tools.to_png(  # type: ignore[attr-defined]
+                    screenshot.rgb, screenshot.size, output=None
+                )
+                if not png_bytes:
+                    return False
+                compressed = self._compress_png_with_pngquant(png_bytes)
+                output_bytes = compressed if compressed else png_bytes
+                with open(file_path, "wb") as f:
+                    f.write(output_bytes)
+                return True
+
+            mss.tools.to_png(screenshot.rgb, screenshot.size, output=file_path)  # type: ignore[attr-defined]
             return True
 
         try:
@@ -156,10 +240,73 @@ class ScreenRecorder:
             logger.error(f"保存截图失败 {file_path}: {e}")
             return False
 
+    def _init_pngquant(self):
+        """初始化 pngquant 压缩器"""
+        if not self.pngquant_enabled:
+            return
+
+        self.pngquant_path = shutil.which("pngquant")
+        if not self.pngquant_path:
+            logger.warning(
+                "未检测到 pngquant，已降级为原始PNG保存。"
+                "请安装 pngquant（例如 macOS: brew install pngquant / Ubuntu: apt install pngquant），"
+                "安装后可显著减少截图占用。"
+            )
+            return
+
+        self.pngquant_available = True
+
+    def _build_pngquant_command(self) -> list[str]:
+        """构建 pngquant 命令行参数"""
+        if not self.pngquant_path:
+            return []
+        cmd: list[str] = [self.pngquant_path]
+        if self.pngquant_quality:
+            cmd.append(f"--quality={self.pngquant_quality}")
+        if self.pngquant_speed is not None:
+            cmd.extend(["--speed", str(self.pngquant_speed)])
+        if self.pngquant_strip:
+            cmd.append("--strip")
+        cmd.extend(["--output", "-", "--force", "-"])
+        return cmd
+
+    def _compress_png_with_pngquant(self, png_bytes: bytes) -> bytes | None:
+        """使用 pngquant 压缩 PNG bytes"""
+        if not self.pngquant_available:
+            return None
+
+        cmd = self._build_pngquant_command()
+        try:
+            result = subprocess.run(
+                cmd,
+                input=png_bytes,
+                capture_output=True,
+                check=False,
+                timeout=self.file_io_timeout,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("pngquant 压缩超时，已降级为原始PNG保存")
+            return None
+        except Exception as e:
+            logger.error(f"pngquant 压缩失败: {e}")
+            return None
+
+        if result.returncode != 0 or not result.stdout:
+            stderr = result.stderr.decode("utf-8", errors="ignore").strip()
+            if stderr:
+                logger.warning(f"pngquant 压缩失败，已降级为原始PNG保存: {stderr}")
+            else:
+                logger.warning("pngquant 压缩失败，已降级为原始PNG保存")
+            return None
+
+        return result.stdout
+
     def _get_image_size(self, file_path: str) -> tuple:
         """获取图像尺寸"""
 
-        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="读取图像尺寸")
+        @with_timeout(
+            timeout_seconds=self.file_io_timeout, operation_name="读取图像尺寸"
+        )
         def _do_get_size():
             with Image.open(file_path) as img:
                 return img.size
@@ -174,7 +321,9 @@ class ScreenRecorder:
     def _calculate_file_hash(self, file_path: str) -> str:
         """计算文件MD5哈希"""
 
-        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="计算文件哈希")
+        @with_timeout(
+            timeout_seconds=self.file_io_timeout, operation_name="计算文件哈希"
+        )
         def _do_calculate_hash():
             with open(file_path, "rb") as f:
                 return hashlib.md5(f.read()).hexdigest()
@@ -243,7 +392,9 @@ class ScreenRecorder:
 
             if active_event_id:
                 # 有活跃事件，添加截图到该事件
-                success = event_mgr.add_screenshot_to_event(screenshot_id, active_event_id)
+                success = event_mgr.add_screenshot_to_event(
+                    screenshot_id, active_event_id
+                )
                 if success:
                     logger.info(
                         f"📎 截图 {screenshot_id} 已添加到事件 {active_event_id} [{app_name}]"
@@ -263,7 +414,9 @@ class ScreenRecorder:
                 )
 
                 if event_id:
-                    logger.info(f"✨ 为截图 {screenshot_id} 创建新事件 {event_id} [{app_name}]")
+                    logger.info(
+                        f"✨ 为截图 {screenshot_id} 创建新事件 {event_id} [{app_name}]"
+                    )
                 else:
                     logger.warning(f"⚠️  创建事件失败，截图ID: {screenshot_id}")
 
@@ -284,17 +437,21 @@ class ScreenRecorder:
                 # 获取所有未完成的事件（new 或 processing 状态）
                 active_events = (
                     session.query(Event)
-                    .filter(Event.status.in_(["new", "processing"]), Event.app_name != current_app)
+                    .filter(
+                        Event.status.in_(["new", "processing"]),
+                        Event.app_name != current_app,
+                    )
                     .all()
                 )
 
                 for event in active_events:
+                    event_id = int(event.id)  # type: ignore[arg-type]
                     logger.info(
-                        f"🔚 应用切换，完成其他事件 {event.id}: "
+                        f"🔚 应用切换，完成其他事件 {event_id}: "
                         f"[{event.app_name}] → [{current_app}]"
                     )
                     # 使用 event_mgr 的方法来完成事件，这样会触发摘要生成
-                    event_mgr.complete_event(event.id, end_time)
+                    event_mgr.complete_event(event_id, end_time)
 
         except Exception as e:
             logger.error(f"完成其他活跃事件失败: {e}", exc_info=True)
@@ -302,7 +459,9 @@ class ScreenRecorder:
     def _get_window_info(self) -> tuple[str, str]:
         """获取当前活动窗口信息"""
 
-        @with_timeout(timeout_seconds=self.window_info_timeout, operation_name="获取窗口信息")
+        @with_timeout(
+            timeout_seconds=self.window_info_timeout, operation_name="获取窗口信息"
+        )
         def _do_get_window_info():
             return get_active_window_info()
 
@@ -339,7 +498,9 @@ class ScreenRecorder:
     def _check_window_title_patterns(self, window_title: str) -> bool:
         """检查窗口标题是否匹配LifeTrace模式"""
         window_title_lower = window_title.lower()
-        return any(pattern in window_title_lower for pattern in LIFETRACE_WINDOW_PATTERNS)
+        return any(
+            pattern in window_title_lower for pattern in LIFETRACE_WINDOW_PATTERNS
+        )
 
     def _is_browser_or_python_app(self, app_name_lower: str) -> bool:
         """检查是否为浏览器或Python应用"""
@@ -386,7 +547,7 @@ class ScreenRecorder:
         if not app_name:
             return ""
 
-        blacklist_apps = self.config.get("jobs.recorder.params.blacklist.apps")
+        blacklist_apps = self._get_list_config("jobs.recorder.params.blacklist.apps")
         expanded_blacklist_apps = expand_blacklist_apps(blacklist_apps)
 
         if not expanded_blacklist_apps:
@@ -395,9 +556,14 @@ class ScreenRecorder:
         app_name_lower = app_name.lower()
         # 查找匹配的黑名单项
         for blacklist_app in expanded_blacklist_apps:
-            if blacklist_app.lower() == app_name_lower or blacklist_app.lower() in app_name_lower:
+            if (
+                blacklist_app.lower() == app_name_lower
+                or blacklist_app.lower() in app_name_lower
+            ):
                 # 找到匹配项，返回原因
-                return f"🚫 [黑名单过滤] 应用 '{app_name}' 匹配黑名单项 '{blacklist_app}'"
+                return (
+                    f"🚫 [黑名单过滤] 应用 '{app_name}' 匹配黑名单项 '{blacklist_app}'"
+                )
 
         return ""
 
@@ -451,7 +617,9 @@ class ScreenRecorder:
     def _calculate_image_hash(self, image_path: str) -> str:
         """计算图像感知哈希值"""
 
-        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="计算图像哈希")
+        @with_timeout(
+            timeout_seconds=self.file_io_timeout, operation_name="计算图像哈希"
+        )
         def _do_calculate_hash():
             with Image.open(image_path) as img:
                 return str(imagehash.phash(img))
@@ -466,7 +634,9 @@ class ScreenRecorder:
     def _calculate_image_hash_from_memory(self, screenshot) -> str:
         """直接从内存中的截图计算图像感知哈希值"""
 
-        @with_timeout(timeout_seconds=self.file_io_timeout, operation_name="从内存计算图像哈希")
+        @with_timeout(
+            timeout_seconds=self.file_io_timeout, operation_name="从内存计算图像哈希"
+        )
         def _do_calculate_hash():
             # 将mss截图转换为PIL Image对象
             img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
@@ -517,7 +687,9 @@ class ScreenRecorder:
             (file_path, status) - file_path为截图路径，status为状态: 'success', 'skipped', 'failed'
         """
         try:
-            screenshot, file_path, timestamp = self._grab_and_prepare_screenshot(screen_id)
+            screenshot, file_path, timestamp = self._grab_and_prepare_screenshot(
+                screen_id
+            )
             if not screenshot:
                 return None, "failed"
 
@@ -543,7 +715,9 @@ class ScreenRecorder:
 
             # 获取窗口信息和保存到数据库
             app_name, window_title = self._ensure_window_info(app_name, window_title)
-            self._save_screenshot_metadata(file_path, screen_id, app_name, window_title, timestamp)
+            self._save_screenshot_metadata(
+                file_path, screen_id, app_name, window_title, timestamp
+            )
 
             return file_path, "success"
 
@@ -551,7 +725,9 @@ class ScreenRecorder:
             logger.error(f"[窗口 {screen_id}] 截图失败: {e}")
             return None, "failed"
 
-    def _grab_and_prepare_screenshot(self, screen_id: int) -> tuple[Any | None, str, datetime]:
+    def _grab_and_prepare_screenshot(
+        self, screen_id: int
+    ) -> tuple[Any | None, str, datetime]:
         """抓取屏幕并准备截图文件路径"""
         with mss.mss() as sct:
             if screen_id >= len(sct.monitors):
@@ -576,7 +752,12 @@ class ScreenRecorder:
         return app_name, window_title
 
     def _save_screenshot_metadata(
-        self, file_path: str, screen_id: int, app_name: str, window_title: str, timestamp: datetime
+        self,
+        file_path: str,
+        screen_id: int,
+        app_name: str,
+        window_title: str,
+        timestamp: datetime,
     ):
         """保存截图的元数据到数据库"""
         filename = os.path.basename(file_path)
@@ -599,17 +780,23 @@ class ScreenRecorder:
             logger.debug(f"[窗口 {screen_id}] 截图记录已保存到数据库: {screenshot_id}")
 
             # 立即处理事件：将截图关联到事件
-            self._process_screenshot_event(screenshot_id, app_name, window_title, timestamp)
+            self._process_screenshot_event(
+                screenshot_id, app_name, window_title, timestamp
+            )
         else:
-            logger.warning(f"[窗口 {screen_id}] 数据库保存失败，但文件已保存: {filename}")
+            logger.warning(
+                f"[窗口 {screen_id}] 数据库保存失败，但文件已保存: {filename}"
+            )
 
         file_size = os.path.getsize(file_path)
         file_size_kb = file_size / 1024
-        logger.info(f"[窗口 {screen_id}] 截图保存: {filename} ({file_size_kb:.2f} KB) - {app_name}")
+        logger.info(
+            f"[窗口 {screen_id}] 截图保存: {filename} ({file_size_kb:.2f} KB) - {app_name}"
+        )
 
     def capture_all_screens(self) -> list[str]:
         """只截取活跃窗口所在的屏幕"""
-        captured_files = []
+        captured_files: list[str] = []
 
         # 获取当前活动窗口信息（用于事件关联和应用使用记录）
         app_name, window_title = self._get_window_info()
@@ -623,7 +810,9 @@ class ScreenRecorder:
 
         # 检查活跃屏幕是否在配置的屏幕列表中
         if active_screen_id not in self.screens:
-            logger.info(f"⏭️  活跃窗口在屏幕 {active_screen_id}，但该屏幕未在配置中启用，跳过截图")
+            logger.info(
+                f"⏭️  活跃窗口在屏幕 {active_screen_id}，但该屏幕未在配置中启用，跳过截图"
+            )
             return captured_files
 
         # 检查活动窗口是否在黑名单中
@@ -643,7 +832,9 @@ class ScreenRecorder:
         )
 
         # 只截取活跃窗口所在的屏幕
-        file_path, status = self._capture_screen(active_screen_id, app_name, window_title)
+        file_path, status = self._capture_screen(
+            active_screen_id, app_name, window_title
+        )
         if file_path:
             captured_files.append(file_path)
 
@@ -706,7 +897,9 @@ class ScreenRecorder:
                 if sleep_time > 0:
                     time.sleep(sleep_time)
                 else:
-                    logger.warning(f"截图处理时间 ({elapsed:.2f}s) 超过间隔时间 ({self.interval}s)")
+                    logger.warning(
+                        f"截图处理时间 ({elapsed:.2f}s) 超过间隔时间 ({self.interval}s)"
+                    )
 
         except KeyboardInterrupt:
             logger.error("收到停止信号，结束录制")
@@ -720,13 +913,13 @@ class ScreenRecorder:
 
     def _get_unprocessed_files(self) -> list[str]:
         """获取所有未处理的截图文件列表"""
-        screenshot_files = []
-        for file_path in Path(self.screenshots_dir).glob("*.png"):
-            if file_path.is_file():
-                screenshot_files.append(str(file_path))
+        screenshot_files: list[str] = []
+        for path in Path(self.screenshots_dir).glob("*.png"):
+            if path.is_file():
+                screenshot_files.append(str(path))
 
         # 检查哪些文件未处理
-        unprocessed_files = []
+        unprocessed_files: list[str] = []
         for file_path in screenshot_files:
             screenshot = screenshot_mgr.get_screenshot_by_path(file_path)
             if not screenshot:
@@ -780,7 +973,9 @@ class ScreenRecorder:
 
         if screenshot_id:
             filename = os.path.basename(file_path)
-            logger.debug(f"[窗口 {screen_id}] 已处理未处理文件: {filename} (ID: {screenshot_id})")
+            logger.debug(
+                f"[窗口 {screen_id}] 已处理未处理文件: {filename} (ID: {screenshot_id})"
+            )
             return True
 
         logger.warning(f"[窗口 {screen_id}] 添加截图记录失败: {file_path}")
