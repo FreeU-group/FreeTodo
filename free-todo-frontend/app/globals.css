@@ -333,13 +333,26 @@ html body .driver-popover-next-btn {
 	border-radius: calc(var(--radius) - 4px);
 	padding: 0.5rem 1rem;
 	font-weight: 500;
-	transition: opacity 0.2s ease;
+	transition: all 0.2s ease;
 	text-shadow: none;
 }
 
-html body .driver-popover-prev-btn:hover,
+html body .driver-popover-prev-btn:hover {
+	background-color: oklch(var(--secondary));
+	color: oklch(var(--primary-weak-hover-foreground));
+	box-shadow: 0 4px 16px -2px oklch(var(--secondary)),
+		0 2px 8px -1px oklch(var(--secondary)),
+		inset 0 1px 0 0 oklch(var(--secondary));
+	transform: translateY(-1px) scale(1.02);
+}
+
 html body .driver-popover-next-btn:hover {
-	opacity: 0.9;
+	background-color: oklch(var(--primary));
+	color: oklch(var(--primary-foreground));
+	box-shadow: 0 4px 16px -2px oklch(var(--primary) / 0.5),
+		0 2px 8px -1px oklch(var(--primary) / 0.3),
+		inset 0 1px 0 0 oklch(var(--primary-foreground) / 0.1);
+	transform: translateY(-1px) scale(1.02);
 }
 
 html body .driver-popover-prev-btn {
