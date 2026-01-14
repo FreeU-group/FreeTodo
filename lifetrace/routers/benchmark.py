@@ -111,6 +111,24 @@ async def run_test_case(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+@router.get("/test-runs/{test_run_id}", response_model=BenchmarkTestRunResponse)
+async def get_test_run(
+    test_run_id: int,
+    service: BenchmarkService = Depends(get_benchmark_service),
+):
+    """根据ID获取单个测试运行记录"""
+    try:
+        test_run = service.get_test_run(test_run_id)
+        if not test_run:
+            raise HTTPException(status_code=404, detail="测试运行记录不存在")
+        return test_run
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取测试运行记录失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
 @router.get("/test-runs", response_model=list[BenchmarkTestRunResponse])
 async def get_test_runs(
     test_case_id: int | None = None,

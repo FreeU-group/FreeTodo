@@ -259,6 +259,18 @@ class BenchmarkService:
             logger.error(f"运行测试用例失败: {e}")
             raise
 
+    def get_test_run(self, test_run_id: int) -> dict[str, Any] | None:
+        """根据ID获取单个测试运行记录"""
+        try:
+            with self.db_base.get_session() as session:
+                test_run = session.query(BenchmarkTestRun).filter_by(id=test_run_id).first()
+                if test_run:
+                    return self._test_run_to_dict(test_run)
+                return None
+        except SQLAlchemyError as e:
+            logger.error(f"获取测试运行记录失败: {e}")
+            raise
+
     def get_test_runs(
         self, test_case_id: int | None = None, limit: int = 50
     ) -> list[dict[str, Any]]:

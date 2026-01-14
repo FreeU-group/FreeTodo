@@ -97,7 +97,18 @@ class AgentPlanningMixin:
             PlanStep列表
         """
         try:
-            planner_prompt = get_prompt("agent", "planner", user_query=query)
+            # 动态获取可用工具列表
+            tools_schema = self.tool_registry.get_tools_schema()
+            tools_list = "\n".join(
+                [f"- {tool['name']}: {tool['description']}" for tool in tools_schema]
+            )
+
+            planner_prompt = get_prompt(
+                "agent",
+                "planner",
+                user_query=query,
+                tools=tools_list,
+            )
             if not planner_prompt:
                 # 如果没有提示词，返回单步计划
                 return [PlanStep(id=1, instruction=query, suggested_tool="")]

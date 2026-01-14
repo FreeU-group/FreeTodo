@@ -55,6 +55,28 @@ class AgentStepExecutorMixin:
 
         return params
 
+    def _check_required_params(self, tool, tool_params: dict[str, Any]) -> bool:
+        """
+        检查工具参数是否满足必需参数要求
+
+        Args:
+            tool: 工具对象
+            tool_params: 提取的工具参数
+
+        Returns:
+            True if all required parameters are provided, False otherwise
+        """
+        schema = tool.parameters_schema
+        required_params = schema.get("required", [])
+
+        # 检查所有必需参数是否都已提供
+        for param in required_params:
+            if param not in tool_params:
+                logger.debug(f"[Agent] 工具 {tool.name} 缺少必需参数: {param}")
+                return False
+
+        return True
+
     def _try_tool_first(self, step: PlanStep, state: AgentState) -> dict[str, Any] | None:
         """
         优先尝试使用建议的工具（即使LLM说不需要）
@@ -72,6 +94,13 @@ class AgentStepExecutorMixin:
 
         # 尝试使用默认参数或从上下文中提取参数
         tool_params = self._extract_tool_params_from_context(step, state)
+
+        # 检查必需参数是否都已提供
+        if not self._check_required_params(tool, tool_params):
+            logger.info(
+                f"[Agent] 工具 {step.suggested_tool} 缺少必需参数，跳过工具优先执行，交由LLM决策流程处理"
+            )
+            return None
 
         try:
             tool_result = tool.execute(**tool_params)

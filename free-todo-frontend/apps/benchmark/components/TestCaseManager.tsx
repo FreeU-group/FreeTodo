@@ -20,6 +20,8 @@ interface TestCaseManagerProps {
 	onCategoryChange: (category: BenchmarkTestCaseCategory | null) => void;
 	onTestCaseSelect: (testCase: BenchmarkTestCase | null) => void;
 	selectedTestCase: BenchmarkTestCase | null;
+	selectedTestCaseIds: Set<number>;
+	onSelectedTestCaseIdsChange: (ids: Set<number>) => void;
 }
 
 export function TestCaseManager({
@@ -27,6 +29,8 @@ export function TestCaseManager({
 	onCategoryChange,
 	onTestCaseSelect,
 	selectedTestCase,
+	selectedTestCaseIds,
+	onSelectedTestCaseIdsChange,
 }: TestCaseManagerProps) {
 	const [testCases, setTestCases] = useState<BenchmarkTestCase[]>([]);
 	const [showForm, setShowForm] = useState(false);
@@ -99,6 +103,26 @@ export function TestCaseManager({
 		tool_conflict: "Tool冲突样例",
 	};
 
+	const handleToggleSelect = (testCaseId: number) => {
+		const newIds = new Set(selectedTestCaseIds);
+		if (newIds.has(testCaseId)) {
+			newIds.delete(testCaseId);
+		} else {
+			newIds.add(testCaseId);
+		}
+		onSelectedTestCaseIdsChange(newIds);
+	};
+
+	const handleSelectAll = () => {
+		if (selectedTestCaseIds.size === testCases.length) {
+			onSelectedTestCaseIdsChange(new Set());
+		} else {
+			onSelectedTestCaseIdsChange(new Set(testCases.map((tc) => tc.id)));
+		}
+	};
+
+	const allSelected = testCases.length > 0 && selectedTestCaseIds.size === testCases.length;
+
 	return (
 		<div className="flex h-full flex-col">
 			<div className="border-b border-border p-4">
@@ -163,27 +187,55 @@ export function TestCaseManager({
 					/>
 				)}
 
+				<div className="mb-2 flex items-center gap-2">
+					<input
+						type="checkbox"
+						id="select-all"
+						checked={allSelected}
+						onChange={handleSelectAll}
+						className="h-4 w-4 cursor-pointer rounded border-gray-300"
+					/>
+					<label htmlFor="select-all" className="cursor-pointer text-sm">
+						全选 ({selectedTestCaseIds.size}/{testCases.length})
+					</label>
+				</div>
+
 				<div className="space-y-2">
 					{testCases.map((testCase) => (
 						<div
 							key={testCase.id}
-							role="button"
-							tabIndex={0}
-							className={`cursor-pointer rounded-md border p-3 ${
+							className={`rounded-md border p-3 ${
 								selectedTestCase?.id === testCase.id
 									? "border-primary bg-primary/10"
 									: "border-border"
 							}`}
-							onClick={() => onTestCaseSelect(testCase)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" || e.key === " ") {
-									e.preventDefault();
-									onTestCaseSelect(testCase);
-								}
-							}}
 						>
-							<div className="flex items-start justify-between">
-								<div className="flex-1">
+							<div className="flex items-start gap-3">
+								<input
+									type="checkbox"
+									id={`test-case-${testCase.id}`}
+									checked={selectedTestCaseIds.has(testCase.id)}
+									onChange={(e) => {
+										e.stopPropagation();
+										handleToggleSelect(testCase.id);
+									}}
+									className="mt-1 h-4 w-4 cursor-pointer rounded border-gray-300"
+									onClick={(e) => e.stopPropagation()}
+								/>
+								<div
+									role="button"
+									tabIndex={0}
+									className="flex flex-1 cursor-pointer"
+									onClick={() => onTestCaseSelect(testCase)}
+									onKeyDown={(e) => {
+										if (e.key === "Enter" || e.key === " ") {
+											e.preventDefault();
+											onTestCaseSelect(testCase);
+										}
+									}}
+								>
+									<div className="flex flex-1 items-start justify-between">
+										<div className="flex-1">
 									<div className="font-medium">{testCase.query}</div>
 									{testCase.description && (
 										<div className="mt-1 text-sm text-muted-foreground">
@@ -194,27 +246,29 @@ export function TestCaseManager({
 										{categoryLabels[testCase.category]}
 									</div>
 								</div>
-								<div className="flex gap-2">
-									<button
-										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											setEditingTestCase(testCase);
-										}}
-										className="text-muted-foreground hover:text-foreground"
-									>
-										编辑
-									</button>
-									<button
-										type="button"
-										onClick={(e) => {
-											e.stopPropagation();
-											void handleDelete(testCase.id);
-										}}
-										className="text-muted-foreground hover:text-destructive"
-									>
-										<Trash2 className="h-4 w-4" />
-									</button>
+										<div className="flex gap-2">
+											<button
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													setEditingTestCase(testCase);
+												}}
+												className="text-muted-foreground hover:text-foreground"
+											>
+												编辑
+											</button>
+											<button
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													void handleDelete(testCase.id);
+												}}
+												className="text-muted-foreground hover:text-destructive"
+											>
+												<Trash2 className="h-4 w-4" />
+											</button>
+										</div>
+									</div>
 								</div>
 							</div>
 						</div>

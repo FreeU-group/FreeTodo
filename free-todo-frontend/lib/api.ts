@@ -490,6 +490,30 @@ export async function runBenchmarkTestCase(
 }
 
 /**
+ * 根据ID获取单个测试运行记录
+ */
+export async function getBenchmarkTestRun(
+	testRunId: number,
+): Promise<BenchmarkTestRun> {
+	const baseUrl = getStreamApiBaseUrl();
+	const response = await fetch(
+		`${baseUrl}/api/benchmark/test-runs/${testRunId}`,
+		{
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/**
  * 获取测试运行记录
  */
 export async function getBenchmarkTestRuns(
