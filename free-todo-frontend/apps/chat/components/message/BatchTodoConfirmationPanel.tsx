@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, CheckCircle2, Edit2, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { queryKeys, useCreateTodo, useDeleteTodo } from "@/lib/query";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { CreateTodoInput } from "@/lib/types";
@@ -73,16 +73,6 @@ export function BatchTodoConfirmationPanel({
 	const createTodoMutation = useCreateTodo();
 	const deleteTodoMutation = useDeleteTodo();
 	const queryClient = useQueryClient();
-
-	// 操作成功后，3秒后自动关闭
-	useEffect(() => {
-		if (isCompleted) {
-			const timer = setTimeout(() => {
-				onComplete();
-			}, 3000);
-			return () => clearTimeout(timer);
-		}
-	}, [isCompleted, onComplete]);
 
 	const handleToggleTodo = (id: string) => {
 		setEditableTodos((prev) =>
@@ -182,10 +172,6 @@ export function BatchTodoConfirmationPanel({
 		onComplete();
 	};
 
-	const handleClose = () => {
-		onComplete();
-	};
-
 	const selectedCount = editableTodos.filter((todo) => todo.isSelected).length;
 	const allSelected = editableTodos.length > 0 && selectedCount === editableTodos.length;
 
@@ -206,18 +192,8 @@ export function BatchTodoConfirmationPanel({
 					<CheckCircle2 className="h-5 w-5" />
 					{successMessage}
 				</div>
-				<div className="mb-4 whitespace-pre-wrap text-sm text-green-600 dark:text-green-300">
+				<div className="whitespace-pre-wrap text-sm text-green-600 dark:text-green-300">
 					{successDetail}
-				</div>
-				<div className="flex items-center gap-2 text-xs text-green-600/70 dark:text-green-400/70">
-					<span>将在 3 秒后自动关闭</span>
-					<button
-						type="button"
-						onClick={handleClose}
-						className="ml-auto rounded-md px-2 py-1 text-green-700 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/50"
-					>
-						立即关闭
-					</button>
 				</div>
 			</div>
 		);

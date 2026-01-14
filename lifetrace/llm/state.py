@@ -76,27 +76,62 @@ ALLOWED_SHORT_TASK_TOOLS: set[str] = {
     "delete_todo",
     "query_todo",
     "organize_todos",
+    "extract_todo",
+    "web_search",
 }
+
+
+def _validate_create_todo_args(args: dict[str, Any]) -> None:
+    """验证 create_todo 工具参数"""
+    if "name" not in args or not isinstance(args["name"], str) or not args["name"].strip():
+        raise ValueError("create_todo requires non-empty 'name'")
+
+
+def _validate_update_todo_args(args: dict[str, Any]) -> None:
+    """验证 update_todo 工具参数"""
+    if "todo_id" not in args:
+        raise ValueError("update_todo requires 'todo_id'")
+
+
+def _validate_delete_todo_args(args: dict[str, Any]) -> None:
+    """验证 delete_todo 工具参数"""
+    if "todo_id" not in args:
+        raise ValueError("delete_todo requires 'todo_id'")
+
+
+def _validate_organize_todos_args(args: dict[str, Any]) -> None:
+    """验证 organize_todos 工具参数"""
+    todo_ids = args.get("todo_ids")
+    if not isinstance(todo_ids, list) or not todo_ids:
+        raise ValueError("organize_todos requires non-empty 'todo_ids' list")
+
+
+def _validate_extract_todo_args(args: dict[str, Any]) -> None:
+    """验证 extract_todo 工具参数"""
+    if "text" not in args or not isinstance(args["text"], str) or not args["text"].strip():
+        raise ValueError("extract_todo requires non-empty 'text'")
+
+
+def _validate_web_search_args(args: dict[str, Any]) -> None:
+    """验证 web_search 工具参数"""
+    if "query" not in args:
+        raise ValueError("web_search requires 'query'")
 
 
 def _validate_tool_args(name: str, args: dict[str, Any]) -> None:
     """验证工具参数"""
-    if name == "create_todo":
-        if "name" not in args or not isinstance(args["name"], str) or not args["name"].strip():
-            raise ValueError("create_todo requires non-empty 'name'")
-    elif name == "update_todo":
-        if "todo_id" not in args:
-            raise ValueError("update_todo requires 'todo_id'")
-    elif name == "delete_todo":
-        if "todo_id" not in args:
-            raise ValueError("delete_todo requires 'todo_id'")
-    elif name == "query_todo":
-        # 对 query_todo 不强制更多字段，但保持参数为 dict
-        ...
-    elif name == "organize_todos":
-        todo_ids = args.get("todo_ids")
-        if not isinstance(todo_ids, list) or not todo_ids:
-            raise ValueError("organize_todos requires non-empty 'todo_ids' list")
+    validators = {
+        "create_todo": _validate_create_todo_args,
+        "update_todo": _validate_update_todo_args,
+        "delete_todo": _validate_delete_todo_args,
+        "query_todo": lambda _: None,  # query_todo 不强制更多字段
+        "organize_todos": _validate_organize_todos_args,
+        "extract_todo": _validate_extract_todo_args,
+        "web_search": _validate_web_search_args,
+    }
+    validator = validators.get(name)
+    if validator:
+        validator(args)
 
 
 def _validate_tool_decision(decision: ShortTaskDecision) -> None:

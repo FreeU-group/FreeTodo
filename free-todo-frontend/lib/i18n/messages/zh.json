@@ -295,7 +295,7 @@
 		"noTodoContext": "无待办上下文",
 		"userInput": "用户输入",
 		"loadHistoryFailed": "加载历史记录失败",
-		"noTodosAvailable": "当前没有待办，聊天上下文为空。",
+		"noTodosAvailable": "当前没有选中的待办（待办上下文为空）。",
 		"noTodosFound": "未发现待办事项",
 		"extractModalDescription": "请选择要添加的待办事项：",
 		"selectedCount": "已选择 {count} 项",

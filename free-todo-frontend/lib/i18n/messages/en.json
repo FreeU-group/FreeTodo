@@ -295,7 +295,7 @@
 		"noTodoContext": "No todo context",
 		"userInput": "User input",
 		"loadHistoryFailed": "Failed to load history",
-		"noTodosAvailable": "No todos available; chat context is empty.",
+		"noTodosAvailable": "No todos selected (todo context is empty).",
 		"noTodosFound": "No todos found",
 		"extractModalDescription": "Please select the todos to add:",
 		"selectedCount": "Selected {count} items",

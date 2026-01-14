@@ -37,14 +37,15 @@ export function MessageContent({
 }: MessageContentProps) {
 	const queryClient = useQueryClient();
 
-	// 提取计划和步骤信息（在移除标记之前）
-	const planInfo = extractPlanInfo(message.content || "");
-	const steps = extractSteps(message.content || "");
+	// 提取计划和步骤信息（在移除标记之前，用于上方的计划进度展示）
+	const rawContent = message.content || "";
+	const planInfo = extractPlanInfo(rawContent);
+	const steps = extractSteps(rawContent);
 	const hasPlan = planInfo !== null && steps.length > 0;
 
-	// 移除工具调用标记、计划和步骤标记后的内容
-	const contentWithoutToolCalls = message.content
-		? removePlanAndStepMarkers(removeToolCalls(message.content))
+	// 基础正文：移除工具调用标记、计划和步骤标记后的内容
+	const baseContent = rawContent
+		? removePlanAndStepMarkers(removeToolCalls(rawContent))
 		: "";
 
 	// 确定当前执行的步骤ID（用于显示进度）
@@ -66,14 +67,13 @@ export function MessageContent({
 		}
 	}
 
-	// 解析问题信息（在解析确认信息之前，因为问题可能包含确认信息）
-	const { question, contentWithoutQuestion } = parseQuestion(
-		message.content || "",
-	);
+	// 解析问题信息（先从已清洗的正文里解析问题注释）
+	const { question, contentWithoutQuestion } = parseQuestion(baseContent);
 
 	// 解析待确认信息，移除确认注释后的内容
-	const { confirmation, contentWithoutConfirmation } =
-		parseTodoConfirmation(contentWithoutQuestion || contentWithoutToolCalls);
+	const { confirmation, contentWithoutConfirmation } = parseTodoConfirmation(
+		contentWithoutQuestion,
+	);
 
 	// 无论是否启用联网搜索，只要消息内容包含 Sources 标记就解析
 	// 这样可以避免关闭联网搜索后，已包含 Sources 的消息显示异常

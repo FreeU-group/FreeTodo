@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, CheckCircle2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useCreateTodo, useDeleteTodo, useUpdateTodo } from "@/lib/query";
 import { toastError, toastSuccess } from "@/lib/toast";
 import type { CreateTodoInput, TodoPriority, TodoStatus, UpdateTodoInput } from "@/lib/types";
@@ -32,16 +32,6 @@ export function TodoConfirmationPanel({
 	const createTodoMutation = useCreateTodo();
 	const updateTodoMutation = useUpdateTodo();
 	const deleteTodoMutation = useDeleteTodo();
-
-	// 操作成功后，3秒后自动关闭
-	useEffect(() => {
-		if (isCompleted) {
-			const timer = setTimeout(() => {
-				onComplete();
-			}, 3000);
-			return () => clearTimeout(timer);
-		}
-	}, [isCompleted, onComplete]);
 
 	const handleConfirm = async () => {
 		setIsProcessing(true);
@@ -100,10 +90,6 @@ export function TodoConfirmationPanel({
 		onComplete();
 	};
 
-	const handleClose = () => {
-		onComplete();
-	};
-
 	// 已完成状态
 	if (isCompleted) {
 		const successMessages: Record<string, string> = {
@@ -118,18 +104,8 @@ export function TodoConfirmationPanel({
 					<CheckCircle2 className="h-5 w-5" />
 					{successMessages[confirmation.operation] || "操作已完成"}
 				</div>
-				<div className="mb-4 whitespace-pre-wrap text-sm text-green-600 dark:text-green-300">
+				<div className="whitespace-pre-wrap text-sm text-green-600 dark:text-green-300">
 					{confirmation.preview}
-				</div>
-				<div className="flex items-center gap-2 text-xs text-green-600/70 dark:text-green-400/70">
-					<span>将在 3 秒后自动关闭</span>
-					<button
-						type="button"
-						onClick={handleClose}
-						className="ml-auto rounded-md px-2 py-1 text-green-700 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/50"
-					>
-						立即关闭
-					</button>
 				</div>
 			</div>
 		);

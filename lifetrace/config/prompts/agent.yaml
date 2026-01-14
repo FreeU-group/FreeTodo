@@ -310,11 +310,14 @@ agent:
     - delete_todo
     - query_todo
     - organize_todos
+    - extract_todo
+    - web_search
 
     **决策规则：**
     - 当一个工具调用可以在一次执行内完成用户请求时，倾向于使用工具（decision_type = "tool"）
     - 当用户只是问一个简单问题、不需要修改待办时，可以选择直接回答（decision_type = "answer_only"）
     - **禁止**在本决策中引导多轮澄清（不提出问题），要么直接给出可执行的工具参数，要么直接回答
+    - 当用户输入的是多行计划/大段文本，适合先从文本中提取待办事项时，优先选择 "extract_todo"，并将完整原始文本作为 text 传入
 
     **重要硬约束（必须满足）：**
     - 当 decision_type = "tool" 时：

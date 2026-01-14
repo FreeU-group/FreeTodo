@@ -7,6 +7,7 @@ from typing import Any
 
 from lifetrace.llm.agent_response_generator import generate_final_response
 from lifetrace.llm.agent_tool_formatter import format_tool_result
+from lifetrace.llm.agent_tool_param_extractor import AgentToolParamExtractor
 from lifetrace.llm.state import AgentState, PlanStep, QuestionData
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
@@ -17,65 +18,28 @@ logger = get_logger()
 class AgentStepExecutorMixin:
     """Agent 步骤执行 Mixin"""
 
-    # 常量定义
-    MAX_QUERY_LENGTH = 100  # 最大查询长度
-    QUERY_PREVIEW_LENGTH = 50  # 查询预览长度
+    def __init__(self):
+        """初始化参数提取器"""
+        self._param_extractor = None
 
-    def _extract_search_query(self, instruction: str, state: AgentState) -> str:
-        """
-        从步骤指令和上下文中提取搜索查询词
-        """
-        # 简单规则：使用指令作为查询词，或从上下文中提取
-        # 可以后续用LLM优化
-        query = instruction.strip()
+    @property
+    def param_extractor(self) -> AgentToolParamExtractor:
+        """获取参数提取器实例（延迟初始化）"""
+        if self._param_extractor is None:
+            self._param_extractor = AgentToolParamExtractor(self.llm_client, self.tool_registry)
+        return self._param_extractor
 
-        # 如果指令太长，尝试提取关键词
-        if len(query) > self.MAX_QUERY_LENGTH:
-            # 简单提取：取前50个字符或到第一个句号
-            preview_len = self.QUERY_PREVIEW_LENGTH
-            query = query[:preview_len] if "." not in query[:preview_len] else query.split(".")[0]
-
-        return query
-
-    def _extract_tool_params_from_context(
-        self, step: PlanStep, state: AgentState
-    ) -> dict[str, Any]:
-        """
-        从上下文和步骤指令中提取工具参数
-        使用LLM或规则来提取参数
-        """
-        params = {}
-
-        # 提取查询关键词（用于web_search）
-        if step.suggested_tool == "web_search":
-            params["query"] = self._extract_search_query(step.instruction, state)
-
-        # 其他工具的参数提取可以根据需要扩展
-        # 例如：从scratchpad中提取之前步骤的结果作为参数
-
-        return params
-
-    def _check_required_params(self, tool, tool_params: dict[str, Any]) -> bool:
-        """
-        检查工具参数是否满足必需参数要求
-
-        Args:
-            tool: 工具对象
-            tool_params: 提取的工具参数
-
-        Returns:
-            True if all required parameters are provided, False otherwise
-        """
-        schema = tool.parameters_schema
-        required_params = schema.get("required", [])
-
-        # 检查所有必需参数是否都已提供
-        for param in required_params:
-            if param not in tool_params:
-                logger.debug(f"[Agent] 工具 {tool.name} 缺少必需参数: {param}")
-                return False
-
-        return True
+    @staticmethod
+    def _clean_json_response(response_text: str) -> str:
+        """清理LLM返回的JSON响应，移除markdown代码块标记"""
+        response_text = response_text.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        if response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        return response_text.strip()
 
     def _try_tool_first(self, step: PlanStep, state: AgentState) -> dict[str, Any] | None:
         """
@@ -92,16 +56,12 @@ class AgentStepExecutorMixin:
             logger.warning(f"[Agent] 建议的工具 {step.suggested_tool} 不存在")
             return None
 
-        # 尝试使用默认参数或从上下文中提取参数
-        tool_params = self._extract_tool_params_from_context(step, state)
-
-        # 检查必需参数是否都已提供
-        if not self._check_required_params(tool, tool_params):
-            logger.info(
-                f"[Agent] 工具 {step.suggested_tool} 缺少必需参数，跳过工具优先执行，交由LLM决策流程处理"
-            )
+        # 提取并验证工具参数
+        tool_params = self.param_extractor.extract_and_validate_tool_params(step, state, tool)
+        if tool_params is None:
             return None
 
+        # 执行工具
         try:
             tool_result = tool.execute(**tool_params)
             if tool_result.success:
@@ -112,7 +72,7 @@ class AgentStepExecutorMixin:
                     "output": formatted_result,
                     "tool_name": step.suggested_tool,
                 }
-            # 如果工具执行失败，返回None让后续逻辑处理
+            # 如果工具执行失败，返回失败状态
             logger.warning(
                 f"[Agent] 工具优先执行失败: {step.suggested_tool}, 错误: {tool_result.error}"
             )
@@ -129,30 +89,17 @@ class AgentStepExecutorMixin:
                 "error": str(e),
             }
 
-    def _format_scratchpad(self, scratchpad: list[dict[str, Any]]) -> str:
-        """格式化scratchpad为可读的上下文字符串"""
-        if not scratchpad:
-            return "无先前步骤"
-
-        parts = []
-        for s in scratchpad:
-            content_preview = str(s.get("content", ""))[:200]
-            parts.append(f"步骤 {s['step_id']}: {s.get('tool', 'unknown')} → {content_preview}...")
-        return "先前步骤:\n" + "\n".join(parts)
-
     def _generate_structured_question(
         self, step: PlanStep, state: AgentState, tool_failure_reason: str
     ) -> QuestionData:
-        """
-        生成结构化问题，包含问题文本和可能的答案选项
-        """
+        """生成结构化问题，包含问题文本和可能的答案选项"""
         # 调用LLM生成结构化问题
         question_prompt = get_prompt(
             "agent",
             "question_generator",
             step_instruction=step.instruction,
             tool_failure=tool_failure_reason,
-            context=self._format_scratchpad(state.scratchpad),
+            context=self.param_extractor._format_scratchpad(state.scratchpad),
         )
 
         if not question_prompt:
@@ -175,14 +122,7 @@ class AgentStepExecutorMixin:
             )
 
             response_text = response.choices[0].message.content.strip()
-
-            # 清理可能的markdown代码块
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-            response_text = response_text.strip()
-
+            response_text = self._clean_json_response(response_text)
             question_data = json.loads(response_text)
 
             return QuestionData(
@@ -204,45 +144,34 @@ class AgentStepExecutorMixin:
             )
 
     def _execute_with_best_effort(self, step: PlanStep, state: AgentState) -> dict[str, Any]:
-        """
-        问题预算已用完，使用最佳猜测继续执行
-        """
+        """问题预算已用完，使用最佳猜测继续执行"""
         logger.info(f"[Agent] 使用最佳猜测执行步骤 {step.id}")
+        if not step.suggested_tool:
+            return {"status": "failed", "output": "", "error": "问题预算已用完且最佳猜测执行失败"}
 
-        # 尝试使用默认参数执行工具
-        if step.suggested_tool:
-            tool = self.tool_registry.get_tool(step.suggested_tool)
-            if tool:
-                # 使用最小参数集尝试执行
-                try:
-                    # 对于web_search，至少需要query参数
-                    if step.suggested_tool == "web_search":
-                        params = {"query": step.instruction[:50]}
-                    else:
-                        params = {}
+        tool = self.tool_registry.get_tool(step.suggested_tool)
+        if not tool:
+            return {"status": "failed", "output": "", "error": "问题预算已用完且最佳猜测执行失败"}
 
-                    tool_result = tool.execute(**params)
-                    if tool_result.success:
-                        formatted_result = format_tool_result(step.suggested_tool, tool_result)
-                        return {
-                            "status": "success",
-                            "output": formatted_result,
-                            "tool_name": step.suggested_tool,
-                        }
-                except Exception as e:
-                    logger.warning(f"[Agent] 最佳猜测执行失败: {e}")
+        try:
+            params = {"query": step.instruction[:50]} if step.suggested_tool == "web_search" else {}
+            tool_result = tool.execute(**params)
+            if tool_result.success:
+                formatted_result = format_tool_result(step.suggested_tool, tool_result)
+                return {
+                    "status": "success",
+                    "output": formatted_result,
+                    "tool_name": step.suggested_tool,
+                }
+        except Exception as e:
+            logger.warning(f"[Agent] 最佳猜测执行失败: {e}")
 
-        # 如果最佳猜测也失败，返回失败状态
-        return {
-            "status": "failed",
-            "output": "",
-            "error": "问题预算已用完且最佳猜测执行失败",
-        }
+        return {"status": "failed", "output": "", "error": "问题预算已用完且最佳猜测执行失败"}
 
     def _try_web_search_fallback(self, step: PlanStep, state: AgentState) -> dict[str, Any] | None:
         """尝试使用 web_search 作为后备工具"""
         # 格式化scratchpad上下文
-        scratchpad_context = self._format_scratchpad(state.scratchpad)
+        scratchpad_context = self.param_extractor._format_scratchpad(state.scratchpad)
 
         # 获取工具列表
         tools_schema = self.tool_registry.get_tools_schema()
@@ -271,14 +200,7 @@ class AgentStepExecutorMixin:
             )
 
             response_text = response.choices[0].message.content.strip()
-
-            # 清理可能的markdown代码块
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-            response_text = response_text.strip()
-
+            response_text = self._clean_json_response(response_text)
             decision = json.loads(response_text)
             use_tool = decision.get("use_tool", False)
             tool_name = decision.get("tool_name")
@@ -337,7 +259,7 @@ class AgentStepExecutorMixin:
     ) -> dict[str, Any] | None:
         """调用LLM决定使用哪个工具"""
         # 格式化scratchpad上下文
-        scratchpad_context = self._format_scratchpad(state.scratchpad)
+        scratchpad_context = self.param_extractor._format_scratchpad(state.scratchpad)
 
         # 获取工具列表
         tools_schema = self.tool_registry.get_tools_schema()
@@ -366,14 +288,7 @@ class AgentStepExecutorMixin:
             )
 
             response_text = response.choices[0].message.content.strip()
-
-            # 清理可能的markdown代码块
-            if response_text.startswith("```json"):
-                response_text = response_text[7:]
-            if response_text.endswith("```"):
-                response_text = response_text[:-3]
-            response_text = response_text.strip()
-
+            response_text = self._clean_json_response(response_text)
             decision = json.loads(response_text)
             return decision
         except json.JSONDecodeError as e:
@@ -385,37 +300,19 @@ class AgentStepExecutorMixin:
 
     def _process_tool_execution_result(self, tool_name: str, tool_result: Any) -> dict[str, Any]:
         """处理工具执行结果"""
-        # 处理clarify_todo特殊情况
         if tool_name == "clarify_todo" and tool_result.success:
-            return {
-                "status": "needs_confirmation",
-                "output": tool_result.content,
-            }
+            return {"status": "needs_confirmation", "output": tool_result.content}
 
-        # 处理需要确认的情况
         if tool_result.metadata and tool_result.metadata.get("requires_confirmation"):
             formatted_result = format_tool_result(tool_name, tool_result)
             result_content = formatted_result.replace(f"工具 {tool_name} 执行结果：\n", "")
-            return {
-                "status": "needs_confirmation",
-                "output": result_content,
-            }
+            return {"status": "needs_confirmation", "output": result_content}
 
-        # 成功执行
         if tool_result.success:
             formatted_result = format_tool_result(tool_name, tool_result)
-            return {
-                "status": "success",
-                "output": formatted_result,
-                "tool_name": tool_name,
-            }
+            return {"status": "success", "output": formatted_result, "tool_name": tool_name}
 
-        # 执行失败
-        return {
-            "status": "failed",
-            "output": "",
-            "error": tool_result.error or "工具执行失败",
-        }
+        return {"status": "failed", "output": "", "error": tool_result.error or "工具执行失败"}
 
     def _execute_step_without_suggested_tool(
         self, step: PlanStep, state: AgentState
@@ -431,14 +328,9 @@ class AgentStepExecutorMixin:
 
         use_tool = decision.get("use_tool", False)
         if not use_tool:
-            return {
-                "status": "success",
-                "output": "步骤完成，无需工具",
-            }
+            return {"status": "success", "output": "步骤完成，无需工具"}
 
         tool_name = decision.get("tool_name")
-        tool_params = decision.get("tool_params", {})
-
         if not tool_name:
             return {
                 "status": "failed",
@@ -446,23 +338,11 @@ class AgentStepExecutorMixin:
                 "error": "LLM返回了use_tool=true但没有提供tool_name",
             }
 
-        # 执行工具
-        tool_result = self._execute_tool(tool_name, tool_params)
+        tool_result = self._execute_tool(tool_name, decision.get("tool_params", {}))
         return self._process_tool_execution_result(tool_name, tool_result)
 
     def _execute_step(self, state: AgentState, step: PlanStep) -> dict[str, Any]:
-        """
-        执行单个步骤（工具优先策略）
-
-        Returns:
-            {
-                "status": "success" | "needs_confirmation" | "needs_question" | "failed",
-                "output": str,
-                "tool_name": str (可选),
-                "error": str (可选),
-                "question_data": dict (可选，当status为needs_question时)
-            }
-        """
+        """执行单个步骤（工具优先策略）"""
         # 1. 如果步骤有建议的工具，优先尝试使用
         if step.suggested_tool:
             tool_result = self._try_tool_first(step, state)
@@ -517,7 +397,7 @@ class AgentStepExecutorMixin:
     ) -> Generator[str]:
         """使用用户答案执行工具"""
         # 从用户答案中提取工具参数
-        tool_params = self._extract_tool_params_from_answer(step, state, user_answer)
+        tool_params = self._extract_tool_params_from_answer(step, user_answer)
 
         tool = self.tool_registry.get_tool(step.suggested_tool)
         if not tool:
@@ -586,23 +466,16 @@ class AgentStepExecutorMixin:
         # 如果恢复失败，生成最终响应
         yield from self._generate_final_response_from_state(state)
 
-    def _extract_tool_params_from_answer(
-        self, step: PlanStep, state: AgentState, user_answer: str
-    ) -> dict[str, Any]:
-        """
-        从用户答案中提取工具参数
-        """
+    def _extract_tool_params_from_answer(self, step: PlanStep, user_answer: str) -> dict[str, Any]:
+        """从用户答案中提取工具参数"""
         params = {}
 
         # 对于web_search，用户答案可能是查询关键词
         if step.suggested_tool == "web_search":
-            # 结合步骤指令和用户答案
             if user_answer.strip():
                 params["query"] = user_answer.strip()
             else:
                 params["query"] = step.instruction[:50]
-
-        # 其他工具的参数提取可以根据需要扩展
 
         return params
 
