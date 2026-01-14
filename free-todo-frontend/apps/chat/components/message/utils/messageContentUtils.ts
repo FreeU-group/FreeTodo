@@ -2,6 +2,14 @@
 // 支持格式：[使用工具: tool_name] 或 [使用工具: tool_name | 关键词: query] 或 [使用工具: tool_name | param: value]
 const TOOL_CALL_PATTERN = /\[使用工具:\s*([^|\]]+)(?:\s*\|\s*([^\]]+))?\]/g;
 
+// 计划标记检测
+// 格式：[Plan] Generated N steps.
+const PLAN_PATTERN = /\[Plan\]\s+Generated\s+(\d+)\s+steps?\./gi;
+
+// 步骤标记检测
+// 格式：[Step X] instruction text
+const STEP_PATTERN = /\[Step\s+(\d+)\]\s+(.+?)(?=\n\n|$)/g;
+
 export type ToolCall = {
 	name: string;
 	params?: string;
@@ -34,6 +42,62 @@ export function extractToolCalls(content: string): Array<ToolCall> {
  */
 export function removeToolCalls(content: string): string {
 	return content.replace(TOOL_CALL_PATTERN, "").trim();
+}
+
+/**
+ * 移除计划和步骤标记（用于显示）
+ */
+export function removePlanAndStepMarkers(content: string): string {
+	let cleaned = content;
+	// 移除计划标记
+	cleaned = cleaned.replace(PLAN_PATTERN, "").trim();
+	// 移除步骤标记
+	cleaned = cleaned.replace(STEP_PATTERN, "").trim();
+	return cleaned;
+}
+
+export type PlanInfo = {
+	stepCount: number;
+	fullMatch: string;
+};
+
+export type StepInfo = {
+	stepId: number;
+	instruction: string;
+	fullMatch: string;
+};
+
+/**
+ * 提取计划信息
+ */
+export function extractPlanInfo(content: string): PlanInfo | null {
+	PLAN_PATTERN.lastIndex = 0;
+	const match = PLAN_PATTERN.exec(content);
+	if (match) {
+		return {
+			stepCount: parseInt(match[1], 10),
+			fullMatch: match[0],
+		};
+	}
+	return null;
+}
+
+/**
+ * 提取步骤信息
+ */
+export function extractSteps(content: string): Array<StepInfo> {
+	const steps: Array<StepInfo> = [];
+	STEP_PATTERN.lastIndex = 0;
+	let match: RegExpExecArray | null = STEP_PATTERN.exec(content);
+	while (match !== null) {
+		steps.push({
+			stepId: parseInt(match[1], 10),
+			instruction: match[2].trim(),
+			fullMatch: match[0],
+		});
+		match = STEP_PATTERN.exec(content);
+	}
+	return steps;
 }
 
 export type WebSearchSources = Array<{ title: string; url: string }>;
@@ -164,4 +228,40 @@ export function parseTodoConfirmation(
 		}
 	}
 	return { confirmation: null, contentWithoutConfirmation: content };
+}
+
+export type QuestionData = {
+	question_text: string;
+	question_id: string;
+	step_id: number;
+	suggested_answers: string[];
+	allow_custom: boolean;
+	context?: string;
+};
+
+const QUESTION_PATTERN = /<!-- AGENT_QUESTION:\s*({.+?})\s*-->/s;
+
+/**
+ * 解析并提取问题信息
+ */
+export function parseQuestion(
+	content: string,
+): {
+	question: QuestionData | null;
+	contentWithoutQuestion: string;
+} {
+	const match = content.match(QUESTION_PATTERN);
+	if (match) {
+		try {
+			const questionData = JSON.parse(match[1]);
+			const contentWithoutQuestion = content.replace(QUESTION_PATTERN, "").trim();
+			return {
+				question: questionData as QuestionData,
+				contentWithoutQuestion,
+			};
+		} catch (error) {
+			console.error("解析问题失败:", error);
+		}
+	}
+	return { question: null, contentWithoutQuestion: content };
 }

@@ -185,212 +185,221 @@ export const useChatController = ({
 		// 如果conversationId存在但历史记录为空，可能是正在加载，保持标志为true等待数据
 	}, [sessionHistory, conversationId, isStreaming]);
 
-	const handleSend = useCallback(async () => {
-		const text = inputValue.trim();
-		if (!text || isStreaming) return;
+	// 内部函数：发送消息的核心逻辑（接受消息文本作为参数）
+	const sendMessage = useCallback(
+		async (messageText: string) => {
+			if (!messageText.trim() || isStreaming) return;
 
-		// 检查 prompt 是否已加载（plan 和 edit 模式需要）
-		if (chatMode === "plan" && !planSystemPrompt) {
-			setError(t("promptNotLoaded") || "提示词正在加载中，请稍候...");
-			return;
-		}
-		if (chatMode === "edit" && !editSystemPrompt) {
-			setError(t("promptNotLoaded") || "提示词正在加载中，请稍候...");
-			return;
-		}
+			// 检查 prompt 是否已加载（plan 和 edit 模式需要）
+			if (chatMode === "plan" && !planSystemPrompt) {
+				setError(t("promptNotLoaded") || "提示词正在加载中，请稍候...");
+				return;
+			}
+			if (chatMode === "edit" && !editSystemPrompt) {
+				setError(t("promptNotLoaded") || "提示词正在加载中，请稍候...");
+				return;
+			}
 
-		setInputValue("");
-		setError(null);
+			setInputValue("");
+			setError(null);
 
-		// 当有选中待办时，使用完整的层级上下文（包含所有参数和父子关系）
-		// 否则使用简单的空上下文提示
-		const todoContext = hasSelection
-			? buildHierarchicalTodoContext(effectiveTodos, todos, t, tCommon)
-			: buildTodoContextBlock([], t("noTodoContext"), t);
-		const userLabel = t("userInput");
+			// 当有选中待办时，使用完整的层级上下文（包含所有参数和父子关系）
+			// 否则使用简单的空上下文提示
+			const todoContext = hasSelection
+				? buildHierarchicalTodoContext(effectiveTodos, todos, t, tCommon)
+				: buildTodoContextBlock([], t("noTodoContext"), t);
+			const userLabel = t("userInput");
 
-		// Build payload message based on chat mode
-		let payloadMessage: string;
-		if (chatMode === "plan") {
-			payloadMessage = `${planSystemPrompt}\n\n${userLabel}: ${text}`;
-		} else if (chatMode === "edit") {
-			// Edit mode: combine todo context with edit system prompt
-			payloadMessage = `${editSystemPrompt}\n\n${todoContext}\n\n${userLabel}: ${text}`;
-		} else if (chatMode === "difyTest") {
-			// Dify 测试模式：直接把用户输入作为消息，避免额外的前置 system prompt 干扰
-			payloadMessage = text;
-		} else {
-			// Ask mode: 包含待办上下文，帮助理解用户意图
-			payloadMessage = `${todoContext}\n\n${userLabel}: ${text}`;
-		}
-		const userMessage: ChatMessage = {
-			id: createId(),
-			role: "user",
-			content: text,
-		};
-		const assistantMessageId = createId();
+			// Build payload message based on chat mode
+			let payloadMessage: string;
+			if (chatMode === "plan") {
+				payloadMessage = `${planSystemPrompt}\n\n${userLabel}: ${messageText}`;
+			} else if (chatMode === "edit") {
+				// Edit mode: combine todo context with edit system prompt
+				payloadMessage = `${editSystemPrompt}\n\n${todoContext}\n\n${userLabel}: ${messageText}`;
+			} else if (chatMode === "difyTest") {
+				// Dify 测试模式：直接把用户输入作为消息，避免额外的前置 system prompt 干扰
+				payloadMessage = messageText;
+			} else {
+				// Ask mode: 包含待办上下文，帮助理解用户意图
+				payloadMessage = `${todoContext}\n\n${userLabel}: ${messageText}`;
+			}
+			const userMessage: ChatMessage = {
+				id: createId(),
+				role: "user",
+				content: messageText,
+			};
+			const assistantMessageId = createId();
 
-		setMessages((prev) => [
-			...prev,
-			userMessage,
-			{ id: assistantMessageId, role: "assistant", content: "" },
-		]);
-		setIsStreaming(true);
+			setMessages((prev) => [
+				...prev,
+				userMessage,
+				{ id: assistantMessageId, role: "assistant", content: "" },
+			]);
+			setIsStreaming(true);
 
-		// 创建新的 AbortController
-		const abortController = new AbortController();
-		abortControllerRef.current = abortController;
+			// 创建新的 AbortController
+			const abortController = new AbortController();
+			abortControllerRef.current = abortController;
 
-		let assistantContent = "";
+			let assistantContent = "";
 
-		try {
-			// 根据聊天模式选择后端模式
-			// ask 模式使用 agent（Agent会自动判断是否需要使用工具）
-			const modeForBackend =
-				chatMode === "difyTest"
-					? "dify_test"
-					: chatMode === "ask"
-						? "agent"
-						: chatMode;
+			try {
+				// 根据聊天模式选择后端模式
+				// ask 模式使用 agent（Agent会自动判断是否需要使用工具）
+				const modeForBackend =
+					chatMode === "difyTest"
+						? "dify_test"
+						: chatMode === "ask"
+							? "agent"
+							: chatMode;
 
-			await sendChatMessageStream(
-				{
-					message: payloadMessage,
-					conversationId: conversationId || undefined,
-					// 当发送格式化消息（包含todo上下文）时，设置useRag=false
-					// 因为前端已经构建了完整的prompt，后端只需要解析并保存用户输入部分
-					// agent 模式使用 useRag=false，因为工具调用逻辑在后端独立处理
-					useRag: false,
-					mode: modeForBackend,
-				},
-				(chunk) => {
-					// 检查是否已取消
-					if (abortController.signal.aborted) {
-						return;
-					}
-					assistantContent += chunk;
-					// 使用 flushSync 强制同步更新，确保流式输出效果
-					flushSync(() => {
+				await sendChatMessageStream(
+					{
+						message: payloadMessage,
+						conversationId: conversationId || undefined,
+						// 当发送格式化消息（包含todo上下文）时，设置useRag=false
+						// 因为前端已经构建了完整的prompt，后端只需要解析并保存用户输入部分
+						// agent 模式使用 useRag=false，因为工具调用逻辑在后端独立处理
+						useRag: false,
+						mode: modeForBackend,
+					},
+					(chunk) => {
+						// 检查是否已取消
+						if (abortController.signal.aborted) {
+							return;
+						}
+						assistantContent += chunk;
+						// 使用 flushSync 强制同步更新，确保流式输出效果
+						flushSync(() => {
+							setMessages((prev) =>
+								prev.map((msg) =>
+									msg.id === assistantMessageId
+										? { ...msg, content: assistantContent }
+										: msg,
+								),
+							);
+						});
+					},
+					(sessionId) => {
+						setConversationId(conversationId || sessionId);
+					},
+					abortController.signal,
+					locale,
+				);
+
+				if (!assistantContent) {
+					const fallback = t("noResponseReceived");
+					setMessages((prev) =>
+						prev.map((msg) =>
+							msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
+						),
+					);
+				} else if (chatMode === "plan") {
+					const { todos: parsedTodos, error: parseError } =
+						parsePlanTodos(assistantContent);
+					if (parseError) {
 						setMessages((prev) =>
 							prev.map((msg) =>
 								msg.id === assistantMessageId
-									? { ...msg, content: assistantContent }
+									? { ...msg, content: `${assistantContent}\n\n${parseError}` }
 									: msg,
 							),
 						);
-					});
-				},
-				(sessionId) => {
-					setConversationId(conversationId || sessionId);
-				},
-				abortController.signal,
-				locale,
-			);
+						setError(parseError);
+					} else {
+						const payloads = buildTodoPayloads(parsedTodos);
 
-			if (!assistantContent) {
-				const fallback = t("noResponseReceived");
-				setMessages((prev) =>
-					prev.map((msg) =>
-						msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
-					),
-				);
-			} else if (chatMode === "plan") {
-				const { todos: parsedTodos, error: parseError } =
-					parsePlanTodos(assistantContent);
-				if (parseError) {
-					setMessages((prev) =>
-						prev.map((msg) =>
-							msg.id === assistantMessageId
-								? { ...msg, content: `${assistantContent}\n\n${parseError}` }
-								: msg,
-						),
-					);
-					setError(parseError);
-				} else {
-					const payloads = buildTodoPayloads(parsedTodos);
+						// plan 模式：payloads 内的 id / parentTodoId 是前端临时 id（UUID），
+						// 需要顺序创建并把 parent 映射为后端数值 id
+						const clientIdToApiId = new Map<string, number>();
+						let successCount = 0;
+						for (const draft of payloads) {
+							const clientId = draft.id ?? createId();
+							const parentClientId = draft.parentTodoId;
+							const apiParentId =
+								typeof parentClientId === "string"
+									? (clientIdToApiId.get(parentClientId) ?? null)
+									: (parentClientId ?? null);
 
-					// plan 模式：payloads 内的 id / parentTodoId 是前端临时 id（UUID），
-					// 需要顺序创建并把 parent 映射为后端数值 id
-					const clientIdToApiId = new Map<string, number>();
-					let successCount = 0;
-					for (const draft of payloads) {
-						const clientId = draft.id ?? createId();
-						const parentClientId = draft.parentTodoId;
-						const apiParentId =
-							typeof parentClientId === "string"
-								? (clientIdToApiId.get(parentClientId) ?? null)
-								: (parentClientId ?? null);
-
-						// Create payload without the temporary string ID
-						const { id: _tempId, ...createPayload } = draft;
-						const created = await createTodo({
-							...createPayload,
-							// 若父任务未成功创建，则降级为根任务（避免整棵子树丢失）
-							parentTodoId: apiParentId,
-						});
-						if (created) {
-							clientIdToApiId.set(clientId, created.id);
-							successCount += 1;
+							// Create payload without the temporary string ID
+							const { id: _tempId, ...createPayload } = draft;
+							const created = await createTodo({
+								...createPayload,
+								// 若父任务未成功创建，则降级为根任务（避免整棵子树丢失）
+								parentTodoId: apiParentId,
+							});
+							if (created) {
+								clientIdToApiId.set(clientId, created.id);
+								successCount += 1;
+							}
 						}
-					}
 
-					const addedText = t("addedTodos", { count: successCount });
+						const addedText = t("addedTodos", { count: successCount });
+						setMessages((prev) =>
+							prev.map((msg) =>
+								msg.id === assistantMessageId
+									? { ...msg, content: `${assistantContent}\n\n${addedText}` }
+									: msg,
+							),
+						);
+					}
+				}
+			} catch (err) {
+				// 如果是用户主动取消，不显示错误
+				if (
+					abortController.signal.aborted ||
+					(err instanceof Error && err.name === "AbortError")
+				) {
+					// 如果已收到部分内容，保留它
+					if (assistantContent) {
+						// 内容已更新，不需要额外操作
+					} else {
+						// 如果没有内容，移除空的助手消息
+						setMessages((prev) =>
+							prev.filter((msg) => msg.id !== assistantMessageId),
+						);
+					}
+				} else {
+					console.error(err);
+					const fallback = t("errorOccurred");
 					setMessages((prev) =>
 						prev.map((msg) =>
-							msg.id === assistantMessageId
-								? { ...msg, content: `${assistantContent}\n\n${addedText}` }
-								: msg,
+							msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
 						),
 					);
+					setError(fallback);
 				}
+			} finally {
+				abortControllerRef.current = null;
+				setIsStreaming(false);
 			}
-		} catch (err) {
-			// 如果是用户主动取消，不显示错误
-			if (
-				abortController.signal.aborted ||
-				(err instanceof Error && err.name === "AbortError")
-			) {
-				// 如果已收到部分内容，保留它
-				if (assistantContent) {
-					// 内容已更新，不需要额外操作
-				} else {
-					// 如果没有内容，移除空的助手消息
-					setMessages((prev) =>
-						prev.filter((msg) => msg.id !== assistantMessageId),
-					);
-				}
-			} else {
-				console.error(err);
-				const fallback = t("errorOccurred");
-				setMessages((prev) =>
-					prev.map((msg) =>
-						msg.id === assistantMessageId ? { ...msg, content: fallback } : msg,
-					),
-				);
-				setError(fallback);
-			}
-		} finally {
-			abortControllerRef.current = null;
-			setIsStreaming(false);
-		}
-	}, [
-		buildTodoPayloads,
-		chatMode,
-		conversationId,
-		createTodo,
-		editSystemPrompt,
-		effectiveTodos,
-		hasSelection,
-		inputValue,
-		isStreaming,
-		locale,
-		parsePlanTodos,
-		planSystemPrompt,
-		t,
-		tCommon,
-		todos,
-		setConversationId,
-	]);
+		},
+		[
+			buildTodoPayloads,
+			chatMode,
+			conversationId,
+			createTodo,
+			editSystemPrompt,
+			effectiveTodos,
+			hasSelection,
+			isStreaming,
+			locale,
+			parsePlanTodos,
+			planSystemPrompt,
+			t,
+			tCommon,
+			todos,
+			setConversationId,
+		],
+	);
+
+	// 公开的 handleSend：从 inputValue 读取消息
+	const handleSend = useCallback(async () => {
+		const text = inputValue.trim();
+		if (!text) return;
+		await sendMessage(text);
+	}, [inputValue, sendMessage]);
 
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -442,5 +451,22 @@ export const useChatController = ({
 		todos,
 		// 暴露 abortControllerRef，供其他 hooks 使用（如 usePromptHandlers）
 		abortControllerRef,
+		handleQuestionAnswer: useCallback(
+			(questionId: string, answer: string) => {
+				// Send answer as a new message with special format to resume execution
+				// Format: "ANSWER_TO_QUESTION:{questionId}:{answer}"
+				const answerMessage = `ANSWER_TO_QUESTION:${questionId}:${answer}`;
+				void sendMessage(answerMessage);
+			},
+			[sendMessage],
+		),
+		handleQuestionSkip: useCallback(
+			(questionId: string) => {
+				// Send skip message to continue with best-effort
+				const skipMessage = `SKIP_QUESTION:${questionId}`;
+				void sendMessage(skipMessage);
+			},
+			[sendMessage],
+		),
 	};
 };

@@ -200,3 +200,155 @@ agent:
 
     如果没有找到todo，返回 {{"todos": []}}。
     只返回JSON，不要返回其他信息。
+
+  # 复杂度检测提示词
+  complexity_detector: |
+    分析用户查询，判断这是一个简单任务还是复杂任务。
+
+    **用户查询：**
+    {user_query}
+
+    **简单任务特征（不需要生成计划，直接执行）：**
+    - 单一工具调用即可完成（如"创建todo"、"删除todo ID 5"）
+    - 没有多步骤依赖关系
+    - 不需要前一步的输出作为下一步的输入
+    - 直接、明确的操作
+
+    **复杂任务特征（需要生成计划）：**
+    - 需要多个步骤（如"搜索X然后创建todo"）
+    - 步骤之间有依赖关系（步骤2需要步骤1的输出）
+    - 需要多工具协调
+    - 需要复杂推理
+
+    **示例：**
+    - "创建todo：完成报告" → 简单任务
+    - "删除todo ID 5" → 简单任务
+    - "搜索2025年考研信息然后创建todo" → 复杂任务
+    - "查找包含'会议'的todo并更新它们" → 复杂任务
+
+    **请以JSON格式返回：**
+    {{
+        "is_complex": true/false,
+        "reason": "简要说明原因（可选）"
+    }}
+
+    只返回JSON，不要返回其他信息。
+
+  # 规划器提示词
+  planner: |
+    你是一个专业的任务规划器。
+    目标：将用户查询分解为逻辑清晰的步骤序列。
+
+    **用户查询：**
+    {user_query}
+
+    **规则：**
+    1. 如果查询简单（如"创建todo"），输出1步计划。
+    2. 如果查询复杂（如"搜索X然后创建Y"），创建有依赖关系的多步骤计划。
+    3. 步骤1的输出将通过上下文传递给步骤2。
+
+    **输出格式（JSON数组）：**
+    [
+      {{"id": 1, "instruction": "搜索...", "suggested_tool": "web_search"}},
+      {{"id": 2, "instruction": "提取...", "suggested_tool": "extract_todo"}},
+      {{"id": 3, "instruction": "创建...", "suggested_tool": "create_todo"}}
+    ]
+
+    **每个步骤包含：**
+    - id: 步骤编号（从1开始）
+    - instruction: 该步骤的具体目标说明
+    - suggested_tool: 规划器认为适合的工具名称
+
+    只返回JSON数组，不要返回其他信息。
+
+  # 步骤执行器提示词
+  step_executor: |
+    你是一个步骤执行器。
+    当前目标：{current_instruction}
+    先前上下文：{scratchpad_context}
+
+    根据当前目标和先前步骤的结果，决定使用哪个工具。
+    如果先前步骤提供了数据，请在工具参数中使用这些数据。
+
+    **可用工具：**
+    {tools}
+
+    **返回格式（JSON）：**
+    {{
+        "use_tool": true/false,
+        "tool_name": "工具名称" 或 null,
+        "tool_params": {{"参数名": "参数值"}} 或 {{}}
+    }}
+
+    只返回JSON，不要返回其他信息。
+
+  # 短任务决策提示词（单次调用内完成决策 + 回答/工具选择）
+  short_task_decision: |
+    你是一个 Todo 助手，当前需要对用户的请求做一次性决策，用于**短任务**场景。
+
+    目标：在**一次调用内**同时完成：
+    1. 判断是直接回答用户（answer_only），还是调用某个 Todo 工具（tool）
+    2. 如果调用工具，给出**完整且可直接执行**的工具参数
+    3. 如果不调用工具，直接在本次响应中给出最终回答文本
+
+    **用户查询：**
+    {user_query}
+
+    **待办上下文（如果有）：**
+    {todo_context}
+
+    **可用短任务工具（仅限）：**
+    - create_todo
+    - update_todo
+    - delete_todo
+    - query_todo
+    - organize_todos
+
+    **决策规则：**
+    - 当一个工具调用可以在一次执行内完成用户请求时，倾向于使用工具（decision_type = "tool"）
+    - 当用户只是问一个简单问题、不需要修改待办时，可以选择直接回答（decision_type = "answer_only"）
+    - **禁止**在本决策中引导多轮澄清（不提出问题），要么直接给出可执行的工具参数，要么直接回答
+
+    **重要硬约束（必须满足）：**
+    - 当 decision_type = "tool" 时：
+      - tool_name 必须在上述可用工具列表中
+      - tool_args 必须包含该工具**最小可执行**所需的全部参数，且类型正确
+      - 不要留下“待补全”或模糊字段
+    - 当 decision_type = "answer_only" 时：
+      - 必须在 llm_direct_response 中给出完整的自然语言回答
+    - 如果你无法在本次调用内构造完全可执行的 tool_args，也无法直接回答，请返回一个**保守决策**：
+      - decision_type = "answer_only"
+      - 在 llm_direct_response 中解释你无法处理该短任务，并建议用户改写或走复杂模式
+
+    **返回格式（JSON）：**
+    {{
+      "decision_type": "tool" 或 "answer_only",
+      "tool_name": "工具名称或 null",
+      "tool_args": {{"参数名": 值}} 或 {{}},
+      "llm_direct_response": "当 decision_type = 'answer_only' 时的最终自然语言回答，否则为 null"
+    }}
+
+    只返回 JSON，不要返回其他任何内容。
+
+  # 问题生成器提示词
+  question_generator: |
+    你是一个问题生成器。当工具执行失败需要用户输入时，生成结构化问题。
+
+    **步骤指令：** {step_instruction}
+    **工具失败原因：** {tool_failure}
+    **上下文：** {context}
+
+    **要求：**
+    1. 生成一个清晰、简洁的问题
+    2. 提供3-5个可能的答案选项（如果适用）
+    3. 如果问题需要自由文本回答，设置allow_custom为true
+
+    **返回格式（JSON）：**
+    {{
+        "question_text": "问题文本",
+        "suggested_answers": ["选项1", "选项2", "选项3"],
+        "allow_custom": true/false,
+        "context": "问题的额外上下文说明（可选）"
+    }}
+
+    只返回JSON，不要返回其他信息。

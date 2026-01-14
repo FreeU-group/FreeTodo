@@ -22,6 +22,8 @@ type MessageListProps = {
 		input: UpdateTodoInput;
 	}) => Promise<Todo>;
 	isUpdating?: boolean;
+	onQuestionAnswer?: (questionId: string, answer: string) => void;
+	onQuestionSkip?: (questionId: string) => void;
 };
 
 export function MessageList({
@@ -33,6 +35,8 @@ export function MessageList({
 	effectiveTodos = [],
 	onUpdateTodo,
 	isUpdating = false,
+	onQuestionAnswer,
+	onQuestionSkip,
 }: MessageListProps) {
 	const { data: allTodos = [] } = useTodos();
 
@@ -150,6 +154,8 @@ export function MessageList({
 								messageMenuRefs.current.delete(messageId);
 							}
 						}}
+						onQuestionAnswer={onQuestionAnswer}
+						onQuestionSkip={onQuestionSkip}
 					/>
 				);
 			})}

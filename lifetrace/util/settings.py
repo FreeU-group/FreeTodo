@@ -127,6 +127,11 @@ settings = Dynaconf(
         Validator("tavily.max_results", default=5, is_type_of=int),
         Validator("tavily.include_domains", default=[]),
         Validator("tavily.exclude_domains", default=[]),
+        # Agent 配置
+        # 短任务执行模式：
+        # - "one_step"：使用新的 ShortTaskExecutor 单步执行路径（默认）
+        # - "legacy"：使用原有的响应式循环 `_execute_simple_task_loop`（仅用于紧急回退）
+        Validator("agent.short_task_mode", default="one_step"),
     ],
 )
 

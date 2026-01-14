@@ -153,6 +153,8 @@ export function ChatPanel() {
 					effectiveTodos={chatController.effectiveTodos}
 					onUpdateTodo={updateTodoMutation.mutateAsync}
 					isUpdating={updateTodoMutation.isPending}
+					onQuestionAnswer={chatController.handleQuestionAnswer}
+					onQuestionSkip={chatController.handleQuestionSkip}
 				/>
 			)}
 

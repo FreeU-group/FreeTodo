@@ -28,6 +28,8 @@ type MessageItemProps = {
 	onRemoveExtractionState: () => void;
 	onMenuButtonClick: (event: React.MouseEvent, messageId: string) => void;
 	onMessageBoxRef: (messageId: string, ref: HTMLDivElement | null) => void;
+	onQuestionAnswer?: (questionId: string, answer: string) => void;
+	onQuestionSkip?: (questionId: string) => void;
 };
 
 export function MessageItem({
@@ -44,6 +46,8 @@ export function MessageItem({
 	onRemoveExtractionState,
 	onMenuButtonClick,
 	onMessageBoxRef,
+	onQuestionAnswer,
+	onQuestionSkip,
 }: MessageItemProps) {
 	const tContextMenu = useTranslations("contextMenu");
 	const [hovered, setHovered] = useState(false);
@@ -188,7 +192,12 @@ export function MessageItem({
 									<MoreVertical className="h-3.5 w-3.5" />
 								</button>
 							)}
-							<MessageContent message={message} />
+							<MessageContent
+								message={message}
+								isStreaming={isStreaming && isLastMessage}
+								onQuestionAnswer={onQuestionAnswer}
+								onQuestionSkip={onQuestionSkip}
+							/>
 						</div>
 					</div>
 				</div>
