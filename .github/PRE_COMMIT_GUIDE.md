@@ -174,6 +174,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
+        exclude: pnpm-lock.yaml
       - id: check-toml
       - id: check-json
       - id: end-of-file-fixer
@@ -199,7 +200,7 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.8"]
-        files: ^free-todo-frontend/
+        files: ^(free-todo-frontend/)
 
   # Local hooks
   - repo: local
@@ -215,18 +216,18 @@ repos:
       # Frontend code line count check (max 500 lines of effective code)
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX code lines (max 500)
-        entry: node free-todo-frontend/scripts/check_code_lines.mts --include apps,components,lib --exclude lib/generated
+        entry: node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron,lib --exclude lib/generated
         language: system
         files: ^free-todo-frontend/.*\.(ts|tsx)$
-        pass_filenames: false
+        pass_filenames: true
 
       # Backend code line count check (max 500 lines of effective code)
       - id: check-backend-code-lines
         name: Check backend Python code lines (max 500)
-        entry: python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
+        entry: uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
         language: system
         files: ^lifetrace/.*\.py$
-        pass_filenames: false
+        pass_filenames: true
 ```
 
 **Key Configuration**:
@@ -341,7 +342,7 @@ Line count statistics **exclude** the following:
 ### Check Scope
 
 **Frontend Check Directories** (adjustable via parameters):
-- Include: `apps/`, `components/`, `lib/`
+- Include: `apps/`, `components/`, `electron/`, `lib/`
 - Exclude: `lib/generated/` (Orval auto-generated API code)
 
 **Backend Check Directories** (adjustable via parameters):
@@ -356,22 +357,22 @@ The script supports two execution modes:
 
 ```bash
 # Check all frontend TS/TSX files
-node free-todo-frontend/scripts/check_code_lines.mts
+node free-todo-frontend/scripts/check_code_lines.js
 
 # Check all backend Python files
-python lifetrace/scripts/check_code_lines.py
+uv run python lifetrace/scripts/check_code_lines.py
 
 # Use custom parameters
-node free-todo-frontend/scripts/check_code_lines.mts --include apps,components --exclude lib/generated --max 600
-python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__ --max 600
+node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron --exclude lib/generated --max 600
+uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__ --max 600
 ```
 
 **Mode 2: Check Specific Files (Pre-commit Mode)**
 
 ```bash
 # Check only specified files
-node free-todo-frontend/scripts/check_code_lines.mts apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
-python lifetrace/scripts/check_code_lines.py lifetrace/routers/chat.py lifetrace/services/todo.py
+node free-todo-frontend/scripts/check_code_lines.js apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
+uv run python lifetrace/scripts/check_code_lines.py lifetrace/routers/chat.py lifetrace/services/todo.py
 ```
 
 > **Note**: During `git commit`, pre-commit automatically passes staged files, checking only these files instead of the entire directory.

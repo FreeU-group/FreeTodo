@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "driver.js/dist/driver.css";
 
 /* Tailwind v4 自定义 dark 模式变体 - 基于 .dark 类 */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -296,4 +297,65 @@
 			background-position: -200% 0;
 		}
 	}
+}
+
+/* Driver.js custom styles for onboarding tour
+   Using high specificity selectors (html body) to override library defaults */
+html body .driver-popover {
+	background-color: oklch(var(--card));
+	color: oklch(var(--card-foreground));
+	border: 1px solid oklch(var(--border));
+	border-radius: var(--radius);
+	box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+html body .driver-popover-title {
+	font-size: 1.125rem;
+	font-weight: 600;
+	color: oklch(var(--foreground));
+}
+
+html body .driver-popover-description {
+	color: oklch(var(--muted-foreground));
+	line-height: 1.6;
+}
+
+html body .driver-popover-progress-text {
+	color: oklch(var(--muted-foreground));
+	font-size: 0.75rem;
+}
+
+html body .driver-popover-prev-btn,
+html body .driver-popover-next-btn {
+	background-color: oklch(var(--primary));
+	color: oklch(var(--primary-foreground));
+	border: none;
+	border-radius: calc(var(--radius) - 4px);
+	padding: 0.5rem 1rem;
+	font-weight: 500;
+	transition: opacity 0.2s ease;
+	text-shadow: none;
+}
+
+html body .driver-popover-prev-btn:hover,
+html body .driver-popover-next-btn:hover {
+	opacity: 0.9;
+}
+
+html body .driver-popover-prev-btn {
+	background-color: oklch(var(--secondary));
+	color: oklch(var(--secondary-foreground));
+}
+
+html body .driver-popover-close-btn {
+	color: oklch(var(--muted-foreground));
+}
+
+html body .driver-popover-close-btn:hover {
+	color: oklch(var(--foreground));
+}
+
+/* Dark mode specific adjustments */
+html body.dark .driver-popover {
+	box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
 }

@@ -174,6 +174,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
+        exclude: pnpm-lock.yaml
       - id: check-toml
       - id: check-json
       - id: end-of-file-fixer
@@ -199,7 +200,7 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.8"]
-        files: ^free-todo-frontend/
+        files: ^(free-todo-frontend/)
 
   # Local hooks
   - repo: local
@@ -215,24 +216,24 @@ repos:
       # 前端代码行数检查（有效代码行数上限 500 行）
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX code lines (max 500)
-        entry: node free-todo-frontend/scripts/check_code_lines.mts --include apps,components,lib --exclude lib/generated
+        entry: node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron,lib --exclude lib/generated
         language: system
         files: ^free-todo-frontend/.*\.(ts|tsx)$
-        pass_filenames: false
+        pass_filenames: true
 
       # 后端代码行数检查（有效代码行数上限 500 行）
       - id: check-backend-code-lines
         name: Check backend Python code lines (max 500)
-        entry: python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
+        entry: uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
         language: system
         files: ^lifetrace/.*\.py$
-        pass_filenames: false
+        pass_filenames: true
 ```
 
 **主要配置**：
 - `files: ^lifetrace/` - 只检查 `lifetrace/` 目录下的 Python 文件
 - `files: ^free-todo-frontend/` - 只检查 `free-todo-frontend/` 目录下的前端文件
-- `language_version: python3.13` - 指定 Python 版本
+- `language_version: python3.12` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
 - `additional_dependencies` - 为 Biome 指定依赖版本
 - `pass_filenames: true/false` - 是否将暂存的文件列表传给脚本
@@ -341,7 +342,7 @@ chmod +x .git/hooks/pre-commit
 ### 检查范围
 
 **前端检查目录**（可通过参数调整）：
-- 包含：`apps/`、`components/`、`lib/`
+- 包含：`apps/`、`components/`、`electron/`、`lib/`
 - 排除：`lib/generated/`（Orval 自动生成的 API 代码）
 
 **后端检查目录**（可通过参数调整）：
@@ -356,22 +357,22 @@ chmod +x .git/hooks/pre-commit
 
 ```bash
 # 检查前端所有 TS/TSX 文件
-node free-todo-frontend/scripts/check_code_lines.mts
+node free-todo-frontend/scripts/check_code_lines.js
 
 # 检查后端所有 Python 文件
-python lifetrace/scripts/check_code_lines.py
+uv run python lifetrace/scripts/check_code_lines.py
 
 # 使用自定义参数
-node free-todo-frontend/scripts/check_code_lines.mts --include apps,components --exclude lib/generated --max 600
-python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__ --max 600
+node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron --exclude lib/generated --max 600
+uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__ --max 600
 ```
 
 **模式 2：检查指定文件（pre-commit 模式）**
 
 ```bash
 # 只检查指定的文件
-node free-todo-frontend/scripts/check_code_lines.mts apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
-python lifetrace/scripts/check_code_lines.py lifetrace/routers/chat.py lifetrace/services/todo.py
+node free-todo-frontend/scripts/check_code_lines.js apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
+uv run python lifetrace/scripts/check_code_lines.py lifetrace/routers/chat.py lifetrace/services/todo.py
 ```
 
 > **注意**：在 `git commit` 时，pre-commit 会自动传入暂存的文件，只检查这些文件而不是整个目录。

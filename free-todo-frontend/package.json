@@ -44,6 +44,7 @@
 		"clsx": "^2.1.1",
 		"date-fns": "^3.6.0",
 		"dayjs": "^1.11.19",
+		"driver.js": "^1.4.0",
 		"framer-motion": "^12.23.26",
 		"lucide-react": "^0.561.0",
 		"next": "16.0.10",
@@ -72,9 +73,9 @@
 		"electron": "^39.2.7",
 		"electron-builder": "^26.0.12",
 		"esbuild": "^0.27.2",
-		"wait-on": "^7.2.0",
 		"orval": "^7.17.2",
 		"tailwindcss": "^4.1.18",
-		"typescript": "^5.9.3"
+		"typescript": "^5.9.3",
+		"wait-on": "^7.2.0"
 	}
 }

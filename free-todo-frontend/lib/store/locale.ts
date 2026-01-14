@@ -14,6 +14,10 @@ const DEFAULT_LOCALE: Locale = "en";
 interface LocaleState {
 	locale: Locale;
 	setLocale: (locale: Locale) => void;
+	/** Whether the store has been hydrated from localStorage */
+	_hasHydrated: boolean;
+	/** Set hydration state */
+	_setHasHydrated: (state: boolean) => void;
 }
 
 const isValidLocale = (value: string | null): value is Locale => {
@@ -38,22 +42,13 @@ const getSystemLocale = (): Locale => {
 };
 
 // 同步 locale 到 cookie，使服务端可以读取
+// 注意：必须使用同步的 document.cookie，不能使用异步的 Cookie Store API
+// 否则在 router.refresh() 或页面刷新时，cookie 可能还未设置完成
 const syncLocaleToCookie = (locale: Locale) => {
 	if (typeof document === "undefined") return;
 	// 设置 cookie，有效期 1 年
-	// 使用 Cookie Store API（如果可用），否则回退到 document.cookie
-	if ("cookieStore" in window && window.cookieStore) {
-		void (window.cookieStore as CookieStoreApi).set({
-			name: "locale",
-			value: locale,
-			path: "/",
-			maxAge: 60 * 60 * 24 * 365,
-			sameSite: "lax",
-		});
-	} else {
-		// biome-ignore lint/suspicious/noDocumentCookie: 作为 Cookie Store API 的回退方案
-		document.cookie = `locale=${locale};path=/;max-age=${60 * 60 * 24 * 365};SameSite=Lax`;
-	}
+	// biome-ignore lint/suspicious/noDocumentCookie: 需要同步设置 cookie 以确保刷新前完成
+	document.cookie = `locale=${locale};path=/;max-age=${60 * 60 * 24 * 365};SameSite=Lax`;
 };
 
 const localeStorage = {
@@ -95,6 +90,8 @@ export const useLocaleStore = create<LocaleState>()(
 	persist(
 		(set) => ({
 			locale: getSystemLocale(),
+			_hasHydrated: false,
+			_setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
 			setLocale: (locale) => {
 				// Immediately sync to cookie
 				syncLocaleToCookie(locale);
@@ -104,6 +101,10 @@ export const useLocaleStore = create<LocaleState>()(
 		{
 			name: "locale",
 			storage: createJSONStorage(() => localeStorage),
+			onRehydrateStorage: () => (state) => {
+				// Called when hydration is complete
+				state?._setHasHydrated(true);
+			},
 		},
 	),
 );

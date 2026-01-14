@@ -48,7 +48,7 @@ pnpm electron:build-linux
 - **Architecture**: Apple Silicon (arm64) or Intel (x64)
 - **Tools**:
   - Node.js 18+ and pnpm
-  - Python 3.13+
+  - Python 3.12
   - PyInstaller 6.0+
 
 ### Disk Space

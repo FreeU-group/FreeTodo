@@ -3,7 +3,7 @@
 ## Tech Stack Information
 
 - **Framework**: FastAPI + Uvicorn (async web framework)
-- **Language**: Python 3.13+
+- **Language**: Python 3.12
 - **ORM**: SQLAlchemy 2.x + SQLModel
 - **Database Migration**: Alembic
 - **Data Validation**: Pydantic 2.x

@@ -50,7 +50,7 @@ pnpm electron:build-linux
   - Intel (x64) - Intel 芯片
 - **开发工具**:
   - Node.js 18+ 和 pnpm
-  - Python 3.13+
+  - Python 3.12
   - PyInstaller 6.0+
 
 ### 磁盘空间
