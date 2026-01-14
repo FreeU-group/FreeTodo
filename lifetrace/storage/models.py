@@ -288,6 +288,66 @@ class ActivityEventRelation(SQLModel, table=True):
         return f"<ActivityEventRelation(id={self.id}, activity_id={self.activity_id})>"
 
 
+class BenchmarkTestCase(TimestampMixin, table=True):
+    """Benchmark测试用例模型"""
+
+    __tablename__ = "benchmark_test_cases"
+
+    id: int | None = Field(default=None, primary_key=True)
+    category: str = Field(
+        max_length=50
+    )  # 测试类别：intent_ambiguous, short_long_boundary, tool_conflict
+    query: str = Field(sa_column=Column(Text))  # 测试查询文本
+    description: str | None = Field(default=None, sa_column=Column(Text))  # 测试描述
+    expected_evaluation_points: str | None = Field(
+        default=None, sa_column=Column(Text)
+    )  # 期望的评估点（JSON格式）
+    order: int = Field(default=0)  # 排序字段
+
+    def __repr__(self):
+        return (
+            f"<BenchmarkTestCase(id={self.id}, category={self.category}, query={self.query[:50]})>"
+        )
+
+
+class BenchmarkTestRun(TimestampMixin, table=True):
+    """Benchmark测试运行记录模型"""
+
+    __tablename__ = "benchmark_test_runs"
+
+    id: int | None = Field(default=None, primary_key=True)
+    test_case_id: int  # 关联测试用例ID
+    session_id: str = Field(max_length=100)  # 关联的聊天会话ID
+    status: str = Field(
+        default="pending", max_length=20
+    )  # 运行状态：pending, running, completed, failed
+    started_at: datetime | None = None  # 开始时间
+    completed_at: datetime | None = None  # 完成时间
+    agent_response: str | None = Field(default=None, sa_column=Column(Text))  # Agent的完整响应
+    execution_log: str | None = Field(default=None, sa_column=Column(Text))  # 执行日志（JSON格式）
+
+    def __repr__(self):
+        return f"<BenchmarkTestRun(id={self.id}, test_case_id={self.test_case_id}, status={self.status})>"
+
+
+class BenchmarkTestResult(TimestampMixin, table=True):
+    """Benchmark测试结果和评估模型"""
+
+    __tablename__ = "benchmark_test_results"
+
+    id: int | None = Field(default=None, primary_key=True)
+    test_run_id: int  # 关联测试运行ID
+    evaluation_point: str = Field(max_length=50)  # 评估点名称
+    auto_evaluated: bool | None = None  # 自动评估结果（boolean）
+    manual_override: bool | None = None  # 手动覆盖结果（可选）
+    evaluation_details: str | None = Field(
+        default=None, sa_column=Column(Text)
+    )  # 评估详情（JSON格式）
+
+    def __repr__(self):
+        return f"<BenchmarkTestResult(id={self.id}, test_run_id={self.test_run_id}, evaluation_point={self.evaluation_point})>"
+
+
 # 为兼容旧代码，保留 Base 引用（指向 SQLModel.metadata）
 # 这样现有的 Base.metadata.create_all() 调用仍然有效
 Base = SQLModel

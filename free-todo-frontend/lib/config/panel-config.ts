@@ -7,6 +7,7 @@
 import {
 	Activity,
 	Award,
+	Beaker,
 	BookOpen,
 	CalendarDays,
 	Camera,
@@ -29,7 +30,8 @@ export type PanelFeature =
 	| "settings"
 	| "costTracking"
 	| "achievements"
-	| "debugShots";
+	| "debugShots"
+	| "benchmark";
 
 /**
  * 开发中的面板功能列表
@@ -41,6 +43,7 @@ export const DEV_IN_PROGRESS_FEATURES: PanelFeature[] = [
 	"activity",
 	"debugShots",
 	"achievements",
+	"benchmark",
 ];
 
 /**
@@ -57,6 +60,7 @@ export const ALL_PANEL_FEATURES: PanelFeature[] = [
 	"costTracking",
 	"achievements",
 	"debugShots",
+	"benchmark",
 ];
 
 /**
@@ -73,4 +77,5 @@ export const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	costTracking: DollarSign,
 	achievements: Award,
 	debugShots: Camera,
+	benchmark: Beaker,
 };

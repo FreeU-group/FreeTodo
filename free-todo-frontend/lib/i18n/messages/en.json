@@ -61,6 +61,8 @@
 		"screenshotsPlaceholder": "Event timeline with screenshots (dev mode only)",
 		"debugShotsLabel": "Debug Shots",
 		"debugShotsPlaceholder": "Placeholder: manage debugging screenshots (dev mode only)",
+		"benchmarkLabel": "Benchmark",
+		"benchmarkPlaceholder": "Placeholder: plug a benchmark component here",
 		"settings": {
 			"autoTodoDetectionTitle": "Auto Todo Detection",
 			"autoTodoDetectionDescription": "Automatically detect todos from screenshots of whitelisted apps and create draft todos for confirmation",
@@ -183,6 +185,7 @@
 		"achievements": "Achievements",
 		"screenshots": "Screenshots",
 		"debugShots": "Debug Shots",
+		"benchmark": "Benchmark",
 		"unassigned": "Unassigned"
 	},
 	"todoExtraction": {

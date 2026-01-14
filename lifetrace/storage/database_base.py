@@ -44,11 +44,14 @@ class DatabaseBase:
             # 导入所有模型以确保 metadata 包含所有表
             from lifetrace.storage import models  # noqa: F401
 
-            # 创建表（仅在新数据库时）
-            # 对于现有数据库，使用 Alembic 进行迁移
+            # 创建表（create_all 默认会检查表是否存在，不会覆盖已存在的表）
+            # 对于新数据库，创建所有表
+            # 对于现有数据库，只创建缺失的表（用于新添加的模型）
+            SQLModel.metadata.create_all(bind=self.engine)
             if not db_exists:
-                SQLModel.metadata.create_all(bind=self.engine)
                 logger.info(f"数据库初始化完成: {db_path}")
+            else:
+                logger.info(f"数据库表检查完成: {db_path}")
 
             # 性能优化：添加关键索引
             self._create_performance_indexes()

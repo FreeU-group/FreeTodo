@@ -356,3 +356,215 @@ export async function deleteNotification(
 		throw error;
 	}
 }
+
+// ============================================================================
+// Benchmark API
+// ============================================================================
+
+import type {
+	BenchmarkTestCase,
+	BenchmarkTestCaseCreate,
+	BenchmarkTestCaseUpdate,
+	BenchmarkTestResult,
+	BenchmarkTestResultUpdate,
+	BenchmarkTestRun,
+} from "@/apps/benchmark/types";
+
+/**
+ * 获取测试用例列表
+ */
+export async function getBenchmarkTestCases(
+	category?: string,
+): Promise<BenchmarkTestCase[]> {
+	const baseUrl = getStreamApiBaseUrl();
+	const url = category
+		? `${baseUrl}/api/benchmark/test-cases?category=${encodeURIComponent(category)}`
+		: `${baseUrl}/api/benchmark/test-cases`;
+
+	const response = await fetch(url, {
+		method: "GET",
+		headers: {
+			"Content-Type": "application/json",
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/**
+ * 创建测试用例
+ */
+export async function createBenchmarkTestCase(
+	data: BenchmarkTestCaseCreate,
+): Promise<BenchmarkTestCase> {
+	const baseUrl = getStreamApiBaseUrl();
+	const response = await fetch(`${baseUrl}/api/benchmark/test-cases`, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+		},
+		body: JSON.stringify(data),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/**
+ * 更新测试用例
+ */
+export async function updateBenchmarkTestCase(
+	testCaseId: number,
+	data: BenchmarkTestCaseUpdate,
+): Promise<BenchmarkTestCase> {
+	const baseUrl = getStreamApiBaseUrl();
+	const response = await fetch(
+		`${baseUrl}/api/benchmark/test-cases/${testCaseId}`,
+		{
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(data),
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/**
+ * 删除测试用例
+ */
+export async function deleteBenchmarkTestCase(
+	testCaseId: number,
+): Promise<void> {
+	const baseUrl = getStreamApiBaseUrl();
+	const response = await fetch(
+		`${baseUrl}/api/benchmark/test-cases/${testCaseId}`,
+		{
+			method: "DELETE",
+			headers: {
+				"Content-Type": "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+}
+
+/**
+ * 运行测试用例
+ */
+export async function runBenchmarkTestCase(
+	testCaseId: number,
+): Promise<{ test_run_id: number; status: string; message: string }> {
+	const baseUrl = getStreamApiBaseUrl();
+	const response = await fetch(
+		`${baseUrl}/api/benchmark/test-cases/${testCaseId}/run`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/**
+ * 获取测试运行记录
+ */
+export async function getBenchmarkTestRuns(
+	testCaseId?: number,
+	limit?: number,
+): Promise<BenchmarkTestRun[]> {
+	const baseUrl = getStreamApiBaseUrl();
+	const params = new URLSearchParams();
+	if (testCaseId) params.append("test_case_id", testCaseId.toString());
+	if (limit) params.append("limit", limit.toString());
+	const url = `${baseUrl}/api/benchmark/test-runs${
+		params.toString() ? `?${params.toString()}` : ""
+	}`;
+
+	const response = await fetch(url, {
+		method: "GET",
+		headers: {
+			"Content-Type": "application/json",
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/**
+ * 获取测试结果
+ */
+export async function getBenchmarkTestResults(
+	testRunId?: number,
+): Promise<BenchmarkTestResult[]> {
+	const baseUrl = getStreamApiBaseUrl();
+	const url = testRunId
+		? `${baseUrl}/api/benchmark/test-results?test_run_id=${testRunId}`
+		: `${baseUrl}/api/benchmark/test-results`;
+
+	const response = await fetch(url, {
+		method: "GET",
+		headers: {
+			"Content-Type": "application/json",
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
+
+/**
+ * 更新测试结果（手动覆盖）
+ */
+export async function updateBenchmarkTestResult(
+	testResultId: number,
+	data: BenchmarkTestResultUpdate,
+): Promise<BenchmarkTestResult> {
+	const baseUrl = getStreamApiBaseUrl();
+	const response = await fetch(
+		`${baseUrl}/api/benchmark/test-results/${testResultId}`,
+		{
+			method: "PUT",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(data),
+		},
+	);
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return response.json();
+}
