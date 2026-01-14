@@ -10,6 +10,7 @@ import { app, dialog } from "electron";
 import {
 	getServerMode,
 	HEALTH_CHECK_INTERVAL,
+	isDevelopment,
 	PORT_CONFIG,
 	PROCESS_CONFIG,
 	type ServerMode,
@@ -93,6 +94,20 @@ export class BackendServer extends ProcessManager {
 	}
 
 	/**
+	 * 检查后端是否已在运行
+	 */
+	private async checkExistingBackend(port: number): Promise<boolean> {
+		try {
+			const response = await fetch(`http://127.0.0.1:${port}/health`, {
+				signal: AbortSignal.timeout(2000),
+			});
+			return response.ok;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
 	 * 启动后端服务器
 	 */
 	async start(): Promise<void> {
@@ -101,6 +116,28 @@ export class BackendServer extends ProcessManager {
 			return;
 		}
 
+		const isDev = isDevelopment(app.isPackaged);
+
+		// 开发模式：检查后端是否已经在运行
+		if (isDev) {
+			const defaultPort = PORT_CONFIG.backend.default;
+			logger.info(`Development mode: checking if backend is already running on port ${defaultPort}...`);
+
+			if (await this.checkExistingBackend(defaultPort)) {
+				logger.info(`Backend already running on port ${defaultPort}, connecting to it...`);
+				this.port = defaultPort;
+				// 启动健康检查
+				this.startHealthCheck();
+				return;
+			}
+
+			// 后端未运行，用 Python 启动
+			logger.info("Backend not running, starting with Python...");
+			await this.startWithPython();
+			return;
+		}
+
+		// 打包模式：使用可执行文件
 		// 解析路径
 		this.resolveBackendPaths();
 
@@ -198,6 +235,87 @@ export class BackendServer extends ProcessManager {
 
 		// 验证后端模式是否匹配
 		await this.verifyBackendMode();
+
+		// 启动健康检查
+		this.startHealthCheck();
+	}
+
+	/**
+	 * 开发模式：使用 Python 启动后端
+	 */
+	private async startWithPython(): Promise<void> {
+		// 获取项目根目录
+		const projectRoot = path.resolve(__dirname, "../..");
+		const lifetraceDir = path.join(projectRoot, "..", "lifetrace");
+		const venvPython =
+			process.platform === "win32"
+				? path.join(projectRoot, "..", ".venv", "Scripts", "python.exe")
+				: path.join(projectRoot, "..", ".venv", "bin", "python");
+
+		// 动态端口分配
+		try {
+			this.port = await portManager.findAvailablePort(
+				PORT_CONFIG.backend.default,
+				PORT_CONFIG.backend.maxAttempts,
+			);
+			logger.info(`Backend will use port: ${this.port}`);
+		} catch (error) {
+			const errorMsg = `Failed to find available backend port: ${error instanceof Error ? error.message : String(error)}`;
+			logger.error(errorMsg);
+			dialog.showErrorBox("Port Allocation Error", errorMsg);
+			throw error;
+		}
+
+		logger.info("Starting backend with Python...");
+		logger.info(`Python path: ${venvPython}`);
+		logger.info(`Working directory: ${path.join(projectRoot, "..")}`);
+		logger.info(`Backend port: ${this.port}`);
+
+		// 启动 Python 后端
+		this.process = spawn(
+			venvPython,
+			["-m", "lifetrace.server", "--port", String(this.port), "--mode", "dev"],
+			{
+				cwd: path.join(projectRoot, ".."),
+				env: {
+					...process.env,
+					PYTHONUNBUFFERED: "1",
+				},
+				stdio: ["ignore", "pipe", "pipe"],
+			},
+		);
+
+		// 设置输出监听器
+		this.setupProcessOutputListeners(this.process);
+
+		// 设置错误处理
+		this.process.on("error", (error) => {
+			const errorMsg = `Failed to start Python backend: ${error.message}`;
+			logger.error(errorMsg);
+			dialog.showErrorBox(
+				"Backend Start Error",
+				`${errorMsg}\n\nMake sure Python virtual environment is set up.\n\nCheck logs at: ${logger.getLogFilePath()}`,
+			);
+			this.process = null;
+		});
+
+		// 设置退出处理
+		this.process.on("exit", (code, signal) => {
+			const exitMsg = `Python backend exited with code ${code}${signal ? `, signal ${signal}` : ""}`;
+			this.process = null;
+
+			if (this.isStopping) {
+				logger.info(`${exitMsg} (intentional shutdown)`);
+				return;
+			}
+
+			logger.error(exitMsg);
+		});
+
+		// 等待后端就绪
+		logger.console(`Waiting for Python backend at ${this.getUrl()} to be ready...`);
+		await this.waitForReady(this.getUrl(), this.config.readyTimeout);
+		logger.console(`Python backend is ready at ${this.getUrl()}!`);
 
 		// 启动健康检查
 		this.startHealthCheck();

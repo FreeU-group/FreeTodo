@@ -6,6 +6,7 @@
 import { app, dialog } from "electron";
 import { BackendServer } from "./backend-server";
 import { getServerMode, isDevelopment, TIMEOUT_CONFIG } from "./config";
+import { FloatingWindowManager } from "./floating-window-manager";
 import { setupIpcHandlers } from "./ipc-handlers";
 import { logger } from "./logger";
 import { NextServer } from "./next-server";
@@ -33,6 +34,8 @@ if (!gotTheLock) {
 	// NextServer 需要后端 URL，初始时使用默认值，启动后更新
 	const nextServer = new NextServer(backendServer.getUrl());
 	const windowManager = new WindowManager();
+	// 悬浮窗管理器（需要后端和前端 URL）
+	let floatingWindowManager: FloatingWindowManager | null = null;
 
 	// 设置全局异常处理
 	setupGlobalErrorHandlers();
@@ -76,7 +79,15 @@ if (!gotTheLock) {
 
 	// 应用准备就绪后启动
 	app.whenReady().then(async () => {
-		await bootstrap(backendServer, nextServer, windowManager);
+		await bootstrap(
+			backendServer,
+			nextServer,
+			windowManager,
+			() => floatingWindowManager,
+			(manager) => {
+				floatingWindowManager = manager;
+			},
+		);
 	});
 }
 
@@ -103,13 +114,12 @@ async function bootstrap(
 	backendServer: BackendServer,
 	nextServer: NextServer,
 	windowManager: WindowManager,
+	getFloatingWindowManager: () => FloatingWindowManager | null,
+	setFloatingWindowManager: (manager: FloatingWindowManager) => void,
 ): Promise<void> {
 	try {
 		// 记录启动信息
 		logStartupInfo();
-
-		// 设置 IPC 处理器
-		setupIpcHandlers(windowManager);
 
 		// 请求通知权限
 		await requestNotificationPermission();
@@ -123,11 +133,24 @@ async function bootstrap(
 		// 2. 启动 Next.js 前端服务器
 		await nextServer.start();
 
-		// 3. 创建窗口
+		// 3. 初始化悬浮窗管理器
+		const floatingManager = new FloatingWindowManager(
+			backendServer.getUrl(),
+			nextServer.getUrl(),
+		);
+		setFloatingWindowManager(floatingManager);
+
+		// 4. 设置 IPC 处理器（需要悬浮窗管理器）
+		setupIpcHandlers(windowManager, floatingManager);
+
+		// 5. 创建主窗口
 		windowManager.create(nextServer.getUrl());
 
+		// 6. 创建悬浮窗
+		floatingManager.create();
+
 		logger.info(
-			`Window created successfully. Frontend: ${nextServer.getUrl()}, Backend: ${backendServer.getUrl()}`,
+			`Windows created successfully. Frontend: ${nextServer.getUrl()}, Backend: ${backendServer.getUrl()}`,
 		);
 	} catch (error) {
 		handleStartupError(error);

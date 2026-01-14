@@ -1,7 +1,8 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useEffect } from "react";
+import { queryKeys } from "./keys";
 
 /**
  * 创建 QueryClient 实例的工厂函数
@@ -61,6 +62,33 @@ interface QueryProviderProps {
 }
 
 /**
+ * 监听 Electron 待办更新事件的组件
+ * 当悬浮窗提取待办后，自动刷新待办列表
+ */
+function ElectronTodosSync({ queryClient }: { queryClient: QueryClient }) {
+	useEffect(() => {
+		// 检查是否在 Electron 环境中
+		if (typeof window === "undefined" || !window.electronAPI?.onTodosUpdated) {
+			return;
+		}
+
+		// 监听待办更新事件
+		const unsubscribe = window.electronAPI.onTodosUpdated((data) => {
+			console.log(`[ElectronTodosSync] Todos updated, created ${data.createdCount} todos. Refreshing...`);
+			// 使待办查询失效，触发重新获取
+			queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+		});
+
+		// 清理监听器
+		return () => {
+			unsubscribe();
+		};
+	}, [queryClient]);
+
+	return null;
+}
+
+/**
  * TanStack Query Provider 组件
  * 为整个应用提供 QueryClient 上下文
  */
@@ -69,6 +97,9 @@ export function QueryProvider({ children }: QueryProviderProps) {
 	const [queryClient] = useState(() => getQueryClient());
 
 	return (
-		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		<QueryClientProvider client={queryClient}>
+			<ElectronTodosSync queryClient={queryClient} />
+			{children}
+		</QueryClientProvider>
 	);
 }

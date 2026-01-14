@@ -4,7 +4,9 @@
 	"private": true,
 	"main": "dist-electron/main.js",
 	"scripts": {
-		"dev": "node scripts/dev-with-auto-port.js",
+		"dev": "concurrently -k \"pnpm dev:web\" \"pnpm dev:electron-wait\"",
+		"dev:electron-wait": "wait-on http://localhost:3001 && pnpm electron:build-main && electron .",
+		"dev:web": "node scripts/dev-with-auto-port.js",
 		"dev:3001": "next dev --port 3001",
 		"dev:default-port": "next dev",
 		"build": "next build",
