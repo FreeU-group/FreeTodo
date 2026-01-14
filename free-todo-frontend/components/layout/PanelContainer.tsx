@@ -87,8 +87,6 @@ export function PanelContainer({
 				"bg-[oklch(var(--card))]",
 				"rounded-(--radius)",
 				"overflow-hidden",
-				// 水平方向增加一点外边距，让面板之间在任何模式下都有清晰间距
-				"mx-1.5",
 				// 边框样式：正常状态 vs 拖拽悬停状态
 				isOver && isVisible
 					? "border-2 border-primary/70"

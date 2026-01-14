@@ -51,10 +51,11 @@ export function ResizeHandle({
 			animate={{
 				opacity: isVisible ? 1 : 0,
 				scaleX: isVisible ? 1 : 0,
-				width: isVisible ? 2 : 0,
-				// 当可见时添加左右 margin 来创建间距（替代 container 的 gap）
-				marginLeft: isVisible ? 1 : 0,
-				marginRight: isVisible ? 1 : 0,
+				// 分隔条整体宽度控制为 1px，本身组件不再额外占据左右间距
+				width: isVisible ? 1 : 0,
+				// 取消左右 margin，让 panel 之间的间距再小一点
+				marginLeft: 0,
+				marginRight: 0,
 			}}
 			transition={ANIMATION_CONFIG.spring}
 			className={cn(
@@ -69,7 +70,8 @@ export function ResizeHandle({
 		>
 			<div
 				className={cn(
-					"pointer-events-none h-7 w-[2px] rounded-full transition-all duration-150",
+					// 分隔条本体也从 2px 调整为 1px
+					"pointer-events-none h-7 w-px rounded-full transition-all duration-150",
 					isDragging
 						? "bg-primary shadow-[0_0_0_1px_oklch(var(--primary))]"
 						: isHovered

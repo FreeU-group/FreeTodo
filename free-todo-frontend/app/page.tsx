@@ -273,8 +273,10 @@ export default function HomePage() {
 	// Panel 窗口尺寸常量
 	const MIN_PANEL_WIDTH = 400;
 	const MAX_PANEL_WIDTH = 1500;
-	const MIN_PANEL_HEIGHT = 250; // PanelRegion 最小高度（包括 Panels 容器 + BottomDock 60px + Dock 上方间距 6px）
-	const MAX_PANEL_HEIGHT = typeof window !== 'undefined' ? window.innerHeight - 40 - 48 - 8 : 1000; // PanelRegion 最大高度（窗口高度 - 顶部偏移40px - 标题栏48px - Dock 上方间距6px）
+	const MIN_PANEL_HEIGHT = 250; // PanelRegion 最小高度（包括 Panels 容器 + BottomDock 60px + Dock 上方间距 12px）
+	const MAX_PANEL_HEIGHT = typeof window !== 'undefined'
+		? window.innerHeight - 40 - 48 - 12
+		: 1000; // PanelRegion 最大高度（窗口高度 - 顶部偏移40px - 标题栏48px - Dock 上方间距12px）
 
 	// 使用自定义 hooks 管理 Panel 窗口功能
 	useElectronClickThrough({

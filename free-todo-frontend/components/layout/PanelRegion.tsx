@@ -40,8 +40,8 @@ interface PanelRegionProps {
 export function PanelRegion({
 	width,
 	height, // PanelRegion 总高度（包括 Panels 容器 + BottomDock 60px）
-	isFullscreenMode = false, // FULLSCREEN 模式下始终显示 3 个 panel
-	isInPanelMode = true, // PANEL 模式下 BottomDock 仅显示 panelA；FULLSCREEN 模式下显示 3 个
+	// isFullscreenMode 目前仅用于 props 兼容，逻辑上宽度规则一致，故不再解构使用
+	isInPanelMode = true,
 	isDraggingPanelA = false,
 	isDraggingPanelC = false,
 	isResizingPanel = false,
@@ -61,30 +61,43 @@ export function PanelRegion({
 	// 使用 useWindowAdaptivePanels 进行自适应管理
 	useWindowAdaptivePanels(containerRef);
 
-	// 根据模式决定显示哪些 Panel
-	// FULLSCREEN 模式下：始终显示 3 个 panel
-	// PANEL 模式下：根据宽度动态显示，但底部高度固定
+	// 根据宽度决定显示哪些 Panel 槽位（只受宽度影响）
+	// 无论 FULLSCREEN 还是 PANEL 模式，都按统一阈值：
+	// - width < 800：只显示 A
+	// - 800 <= width < 1200：显示 A / B
+	// - width >= 1200：显示 A / B / C
 	const PANEL_DUAL_THRESHOLD = 800;
 	const PANEL_TRIPLE_THRESHOLD = 1200;
-	const shouldShowPanelB = isFullscreenMode || width >= PANEL_DUAL_THRESHOLD;
-	const shouldShowPanelC = isFullscreenMode || width >= PANEL_TRIPLE_THRESHOLD;
+	const shouldShowPanelB = width >= PANEL_DUAL_THRESHOLD;
+	const shouldShowPanelC = width >= PANEL_TRIPLE_THRESHOLD;
 
-	// 计算实际显示的 panel 数量（用于 BottomDock）
+	// 面板可见性：由 store 控制（在 FULLSCREEN 入口处会确保三者默认打开）
+	const panelAVisible = isPanelAOpen;
+	const panelBVisible = isPanelBOpen;
+	const panelCVisible = isPanelCOpen;
+
+	// 实际应该渲染的 Panel（需要同时满足：宽度允许该槽位 + 该 Panel 处于打开状态）
+	const showPanelA = panelAVisible;
+	const showPanelB = shouldShowPanelB && panelBVisible;
+	const showPanelC = shouldShowPanelC && panelCVisible;
+
+	// 计算实际显示的 panel 槽位数量（用于 BottomDock）
+	// - 只由宽度阈值决定（1 / 2 / 3），和页面上可分配的槽位数保持同步
 	const visiblePanelCount = useMemo(() => {
-		if (isFullscreenMode) return 3; // FULLSCREEN 模式下始终显示 3 个
 		if (shouldShowPanelC) return 3;
 		if (shouldShowPanelB) return 2;
 		return 1;
-	}, [isFullscreenMode, shouldShowPanelB, shouldShowPanelC]);
+	}, [shouldShowPanelB, shouldShowPanelC]);
 
-	// 计算 layoutState：根据显示的 Panel 数量 + 当前 store 中的宽度配置分配宽度
+	// 计算 layoutState：根据「实际可见」的 Panel 数量 + 当前 store 中的宽度配置分配宽度
 	const layoutState = useMemo(() => {
-		// 三栏：左(A) / 中(B) / 右(C)
-		if (shouldShowPanelC) {
+		const clampedPanelA = Math.min(Math.max(panelAWidth, 0.1), 0.9);
+
+		// 三栏场景：A / B / C（A/B/C 都可见）
+		if (showPanelA && showPanelB && showPanelC) {
 			// panelCWidth 是右侧占比，panelAWidth 是左侧在剩余宽度中的比例
 			const baseWidth = 1 - panelCWidth;
 			const safeBase = baseWidth > 0 ? baseWidth : 1;
-			const clampedPanelA = Math.min(Math.max(panelAWidth, 0.1), 0.9);
 			const a = safeBase * clampedPanelA;
 			const c = panelCWidth;
 			const b = Math.max(0, 1 - a - c);
@@ -96,9 +109,17 @@ export function PanelRegion({
 			};
 		}
 
-		// 双栏：A / B，panelAWidth 为左侧比例
-		if (shouldShowPanelB) {
-			const clampedPanelA = Math.min(Math.max(panelAWidth, 0.1), 0.9);
+		// 双栏场景 1：A / C（A 和 C 可见，B 不可见）
+		if (showPanelA && !showPanelB && showPanelC) {
+			return {
+				panelAWidth: clampedPanelA,
+				panelBWidth: 0,
+				panelCWidth: 1 - clampedPanelA,
+			};
+		}
+
+		// 双栏场景 2：A / B（A 和 B 可见，C 不可见）
+		if (showPanelA && showPanelB && !showPanelC) {
 			return {
 				panelAWidth: clampedPanelA,
 				panelBWidth: 1 - clampedPanelA,
@@ -106,23 +127,58 @@ export function PanelRegion({
 			};
 		}
 
-		// 单栏：A 占满
+		// 双栏场景 3：B / C（只有 B 和 C 可见）
+		if (!showPanelA && showPanelB && showPanelC) {
+			const baseWidth = 1 - panelCWidth;
+			const safeBase = baseWidth > 0 ? baseWidth : 1;
+			const b = safeBase; // 左侧全部给 B
+			const c = panelCWidth;
+			return {
+				panelAWidth: 0,
+				panelBWidth: b,
+				panelCWidth: c,
+			};
+		}
+
+		// 单栏场景 1：只有 A
+		if (showPanelA && !showPanelB && !showPanelC) {
+			return {
+				panelAWidth: 1,
+				panelBWidth: 0,
+				panelCWidth: 0,
+			};
+		}
+
+		// 单栏场景 2：只有 B
+		if (!showPanelA && showPanelB && !showPanelC) {
+			return {
+				panelAWidth: 0,
+				panelBWidth: 1,
+				panelCWidth: 0,
+			};
+		}
+
+		// 单栏场景 3：只有 C
+		if (!showPanelA && !showPanelB && showPanelC) {
+			return {
+				panelAWidth: 0,
+				panelBWidth: 0,
+				panelCWidth: 1,
+			};
+		}
+
+		// 兜底：没有任何 Panel 被认为可见时，仍然保留 A
 		return {
 			panelAWidth: 1,
 			panelBWidth: 0,
 			panelCWidth: 0,
 		};
-	}, [shouldShowPanelB, shouldShowPanelC, panelAWidth, panelCWidth]);
+	}, [showPanelA, showPanelB, showPanelC, panelAWidth, panelCWidth]);
 
-	// 面板可见性：由 store 控制（在 FULLSCREEN 入口处会确保三者默认打开）
-	const panelAVisible = isPanelAOpen;
-	const panelBVisible = isPanelBOpen;
-	const panelCVisible = isPanelCOpen;
-
-	// ✅ 计算 Panels 容器的固定高度：PanelRegion 总高度 - BottomDock 高度(60px) - Dock 上方间距(6px)
+	// ✅ 计算 Panels 容器的固定高度：PanelRegion 总高度 - BottomDock 高度(60px) - Dock 上方间距(12px)
 	const panelsContainerHeight = useMemo(() => {
 		if (height && height > 0) {
-			return height - 60 - 8; // PanelRegion 高度 - BottomDock 60px - Dock 上方间距 6px
+			return height - 60 - 12; // PanelRegion 高度 - BottomDock 60px - Dock 上方间距 12px
 		}
 		return undefined; // 如果没有提供 height，使用 flex-1 自适应（兼容完整页面模式）
 	}, [height]);
@@ -198,6 +254,12 @@ export function PanelRegion({
 								: 1
 					}
 					isDragging={isDraggingPanelA || isDraggingPanelC || isResizingPanel}
+					// 当只有 A / C 两个 Panel（B 被关闭）时，A/C 中间不再额外加双倍边距，只留中间一条分隔条
+					className={
+						shouldShowPanelC && panelCVisible && shouldShowPanelB && !panelBVisible
+							? "mr-0"
+							: "mx-1"
+					}
 				>
 					<PanelContent position="panelA" />
 				</PanelContainer>
@@ -208,8 +270,8 @@ export function PanelRegion({
 							key="panelA-resize-handle"
 							onPointerDown={onPanelAResizePointerDown || (() => {})}
 							isDragging={isDraggingPanelA}
-							// 两个面板时也需要显示中间细线，所以这里始终可见
-							isVisible={true}
+							// 当中间 Panel 实际关闭时，隐藏这条分隔线，避免出现双分隔条
+							isVisible={panelBVisible}
 						/>
 
 						<PanelContainer
@@ -222,6 +284,7 @@ export function PanelRegion({
 									: 1 - layoutState.panelAWidth
 							}
 							isDragging={isDraggingPanelA || isDraggingPanelC || isResizingPanel}
+							className="mx-1"
 						>
 							<PanelContent position="panelB" />
 						</PanelContainer>
@@ -234,7 +297,8 @@ export function PanelRegion({
 							key="panelC-resize-handle"
 							onPointerDown={onPanelCResizePointerDown || (() => {})}
 							isDragging={isDraggingPanelC}
-							isVisible={true}
+							// 右侧分隔线只在右侧 Panel 实际可见时显示
+							isVisible={panelCVisible}
 						/>
 
 						<PanelContainer
@@ -243,6 +307,11 @@ export function PanelRegion({
 							isVisible={panelCVisible}
 							width={layoutState.panelCWidth}
 							isDragging={isDraggingPanelA || isDraggingPanelC || isResizingPanel}
+							className={
+								shouldShowPanelB && !panelBVisible && panelAVisible
+									? "ml-0"
+									: "mx-1"
+							}
 						>
 							<PanelContent position="panelC" />
 						</PanelContainer>
@@ -250,7 +319,7 @@ export function PanelRegion({
 				)}
 			</div>
 
-			{/* BottomDock：整条 60px 底部区域（Dock 与 Panels 之间留 6px 间距） */}
+			{/* BottomDock：整条 60px 底部区域（Dock 与 Panels 之间留 12px 间距） */}
 			{/* ✅ 保持单个 panel 时的逻辑：始终只显示 panelA 的 dock item，不受宽度变化影响 */}
 			<div
 				ref={(el) => {
@@ -269,7 +338,8 @@ export function PanelRegion({
 				className="relative flex h-[60px] shrink-0 items-center justify-center bg-primary-foreground dark:bg-accent"
 				style={{
 					pointerEvents: "auto",
-					marginTop: "6px", // ✅ Dock 到 Panel 内容区的间距（6px）
+					// 再略微加大一点间距，让 Dock 和 Panel 内容区之间更舒展
+					marginTop: "12px", // ✅ Dock 到 Panel 内容区的间距（12px）
 				}}
 			>
 				<BottomDock

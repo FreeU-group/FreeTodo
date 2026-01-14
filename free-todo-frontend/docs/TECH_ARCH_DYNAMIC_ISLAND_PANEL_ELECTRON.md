@@ -27,6 +27,52 @@
   - **如果把窗口宽度从“屏幕宽”变成“Panel 宽”（例如 ~500px）**，那么任何 `position: fixed` 的元素虽然仍是“fixed”，但它的可见区域与定位上下文仍然是这个变窄的窗口——视觉上就像“全局元素被挤进 Panel”。
   - 因此，Panel 模式需要一种“右侧内容 + 左侧透明空间”的窗口策略，或在 FULLSCREEN → PANEL 时避免把窗口缩到 Panel 宽。
 
+### 1.3 相关代码文件结构总览
+
+```text
+free-todo-frontend/
+├── app/
+│   └── page.tsx                          # HomePage：统一管理模式、PanelWindow 状态、点击穿透调用入口
+├── components/
+│   ├── dynamic-island/                   # 灵动岛三种模式的前端实现
+│   │   ├── DynamicIsland.tsx             # 主组件（协调 FLOAT / PANEL / FULLSCREEN）
+│   │   ├── DynamicIslandProvider.tsx     # Provider，用于检测 Electron 环境
+│   │   ├── PanelFeatureContext.tsx       # Panel 模式功能 Context
+│   │   ├── PanelTitleBar.tsx             # Panel 模式标题栏
+│   │   ├── PanelContent.tsx              # Panel 模式内容区域（含 BottomDock）
+│   │   ├── PanelSelectorMenu.tsx         # Panel 模式右键菜单
+│   │   ├── FloatContent.tsx              # FLOAT 模式内容
+│   │   ├── FullscreenControlBar.tsx      # FULLSCREEN 模式顶部控制栏
+│   │   ├── ContextMenu.tsx               # FLOAT 模式右键菜单
+│   │   ├── ResizeHandle.tsx              # Panel 模式窗口边缘缩放把手
+│   │   ├── electron-api.ts               # 渲染进程使用的 Electron API 封装
+│   │   ├── ElectronTransparentScript.tsx # 透明窗口辅助脚本
+│   │   ├── TransparentBody.tsx           # 透明 body 包装器
+│   │   ├── types.ts                      # IslandMode 等类型定义
+│   │   └── hooks/
+│   │       ├── useDynamicIslandClickThrough.ts # 灵动岛自身点击穿透管理（渲染层）
+│   │       ├── useDynamicIslandDrag.ts         # FLOAT 模式拖拽
+│   │       ├── useDynamicIslandHover.ts        # FLOAT 模式悬停展开/收起
+│   │       └── useDynamicIslandLayout.ts       # 三种模式下的布局计算
+│   └── layout/                         # PanelWindow + 多 panel 布局
+│       ├── PanelWindow.tsx             # Panel 模式右侧窗口容器（含左侧透明走廊）
+│       ├── PanelRegion.tsx             # 可复用的 panel 区域（panel 栏 + BottomDock）
+│       ├── PanelContainer.tsx          # 单个 panel 容器
+│       ├── PanelContent.tsx            # PanelRegion 内部的业务内容渲染
+│       ├── BottomDock.tsx              # Panel 底部 dock（功能切换）
+│       ├── ResizeHandle.tsx            # panel 之间的垂直拖拽把手
+│       └── AppHeader.tsx               # 顶部 header（包含模式切换按钮）
+├── lib/
+│   ├── hooks/
+│   │   └── useElectronClickThrough.ts  # 统一调用 Electron setIgnoreMouseEvents 的 hook
+│   └── store/
+│       ├── dynamic-island-store.ts     # mode / isEnabled 等灵动岛全局状态
+│       └── ui-store/                   # 面板开关、panel 宽度等 UI 状态
+└── electron/
+    ├── ipc-handlers.ts                 # 主进程 IPC 处理器（collapse/expand/expand-full + 动画）
+    └── window-manager.ts               # BrowserWindow 创建与管理
+```
+
 ---
 
 ## 2. 组件与分层架构（Renderer）

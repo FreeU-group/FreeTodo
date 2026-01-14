@@ -230,6 +230,13 @@ export function useElectronClickThrough({
 
 		// PANEL 模式：根据鼠标是否在 panel-window 区域内，动态切换点击穿透
 		if (mode === IslandMode.PANEL) {
+			// 进入 PANEL 模式时，先确保窗口默认是可交互的
+			try {
+				api.electronAPI.setIgnoreMouseEvents(false);
+			} catch {
+				// ignore
+			}
+
 			let lastInside = false;
 
 			const handleMouseMove = (event: MouseEvent) => {
@@ -242,13 +249,18 @@ export function useElectronClickThrough({
 				const rect = panelEl.getBoundingClientRect();
 				const x = event.clientX;
 				const y = event.clientY;
-				// ✅ 修复：确保顶部区域也被识别为 panel 内部（包括顶部调整区域）
-				// 使用 <= 和 >= 确保边界也被包含
-				const inside =
-					x >= rect.left &&
-					x <= rect.right &&
-					y >= rect.top &&
-					y <= rect.bottom;
+
+				// ✅ 修复：确保 Panel 顶部一小块区域也不会点击穿透
+				// - 正常 inside 规则：在 panel 矩形内部
+				// - 顶部扩展规则：在 panel 水平方向范围内，且在 panel 顶部以上一小段（例如 8px）
+				const withinHorizontal = x >= rect.left && x <= rect.right;
+				const withinVertical = y >= rect.top && y <= rect.bottom;
+				const withinTopBand =
+					withinHorizontal &&
+					y >= 0 &&
+					y < rect.top + 8; // 顶部扩展 8px 区域，同样视为 panel 内部
+
+				const inside = withinVertical || withinTopBand;
 
 				// 状态没变就不重复调用 IPC
 				if (inside === lastInside) return;
@@ -273,12 +285,17 @@ export function useElectronClickThrough({
 
 			window.addEventListener("mousemove", handleMouseMove);
 
-			// 初始化：如果一开始鼠标就在 panel 上，需要主动触发一次
-			//（例如从其它模式切换进来时）
+			// 初始化：根据当前 panel 实际位置，在 panel 内部触发一次 mousemove
+			// 避免从 FLOAT → PANEL 时，刚出现 panel 的短时间内是“穿透”的
 			requestAnimationFrame(() => {
+				const panelEl = document.querySelector(
+					"[data-panel-window]",
+				) as HTMLElement | null;
+				if (!panelEl) return;
+				const rect = panelEl.getBoundingClientRect();
 				const initEvent = new MouseEvent("mousemove", {
-					clientX: window.innerWidth / 2,
-					clientY: window.innerHeight / 2,
+					clientX: rect.left + Math.max(1, rect.width / 2),
+					clientY: rect.top + Math.max(1, rect.height / 2),
 				});
 				handleMouseMove(initEvent);
 			});

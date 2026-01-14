@@ -116,7 +116,8 @@ export function PanelWindow({
 				<div
 					role="button"
 					tabIndex={-1}
-					className="resize-handle absolute top-0 left-0 right-0 h-1 cursor-ns-resize bg-primary-foreground dark:bg-accent hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
+					// 略微减小高度，让顶部调整条更细一点
+					className="resize-handle absolute top-0 left-0 right-0 h-px cursor-ns-resize bg-primary-foreground dark:bg-accent hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
 					onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => {
 						e.stopPropagation();
 						onPanelResizeStart(e, 'top');
@@ -159,7 +160,8 @@ export function PanelWindow({
 				<div
 					role="button"
 					tabIndex={-1}
-					className="resize-handle absolute left-0 top-12 bottom-0 w-1 cursor-ew-resize hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
+					// 略微减小宽度，让左右调整条更细一点
+					className="resize-handle absolute left-0 top-12 bottom-0 w-px cursor-ew-resize hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
 					onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => {
 						e.stopPropagation();
 						onPanelResizeStart(e, 'left');
@@ -174,7 +176,8 @@ export function PanelWindow({
 				<div
 					role="button"
 					tabIndex={-1}
-					className="resize-handle absolute right-0 top-12 bottom-0 w-1 cursor-ew-resize hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
+					// 略微减小宽度，让左右调整条更细一点
+					className="resize-handle absolute right-0 top-12 bottom-0 w-px cursor-ew-resize hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
 					onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => {
 						e.stopPropagation();
 						onPanelResizeStart(e, 'right');
@@ -189,7 +192,8 @@ export function PanelWindow({
 				<div
 					role="button"
 					tabIndex={-1}
-					className="resize-handle absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
+					// 略微减小高度，让底部调整条更细一点
+					className="resize-handle absolute bottom-0 left-0 right-0 h-px cursor-ns-resize hover:bg-[oklch(var(--primary))]/20 transition-colors z-50"
 					onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => {
 						e.stopPropagation();
 						onPanelResizeStart(e, 'bottom');

@@ -19,6 +19,15 @@
 - **CSS 注入**：动态修改窗口样式（透明度、圆角等）
 - **窗口管理 API**：`setIgnoreMouseEvents`、`setAlwaysOnTop`、`setBounds` 等
 
+### 全局常驻 Overlay 设计（新实现）
+
+- 灵动岛现在作为一个**全局常驻 overlay 层**存在：
+  - 最外层容器始终是 `position: fixed; inset: 0; pointer-events: none; z-index: 1000002`。
+  - 通过 `ref` 回调 + `requestAnimationFrame` 连续调用 `style.setProperty(..., 'important')`，确保上述属性不会被其他样式覆盖。
+- 三种模式（FLOAT / PANEL / FULLSCREEN）只是改变「内容层」（PanelWindow / 全屏页面）的布局和 Electron 窗口策略：
+  - 灵动岛的布局计算固定使用 `layoutMode = IslandMode.FLOAT`，保证拖拽位置和吸边逻辑在所有模式下统一。
+  - N 徽章等全局元素也应放在这一 overlay 层内，确保不会因为窗口变窄而被“挤进 Panel”。
+
 ### Electron IPC 通信机制
 
 **IPC（Inter-Process Communication）** 是 Electron 中主进程（Main Process）和渲染进程（Renderer Process）之间通信的桥梁。
@@ -71,20 +80,25 @@ ipcMain.handle("collapse-window", async () => {
 
 #### 1. 点击穿透（Click-Through）
 
-**实现方式**：
-- 使用 Electron 的 `setIgnoreMouseEvents(true, { forward: true })` API
-- `forward: true` 允许鼠标移动事件仍能到达浏览器，用于检测悬停
-- FLOAT 模式默认启用，悬停时禁用；PANEL/FULLSCREEN 模式禁用
+**实现方式（两层控制）**：
 
-**代码位置**：`hooks/useDynamicIslandClickThrough.ts`
+- **渲染层 hook**：`components/dynamic-island/hooks/useDynamicIslandClickThrough.ts`
+  - 负责灵动岛本身在 FLOAT 模式下，依据悬停/拖拽状态切换局部 `pointer-events`。
+- **窗口层 hook**：`lib/hooks/useElectronClickThrough.ts`
+  - 统一调用 Electron 的 `setIgnoreMouseEvents`，根据模式和鼠标位置控制整窗是否穿透。
 
-```typescript
-// 启用点击穿透
-ipcRenderer.send("set-ignore-mouse-events", true, { forward: true });
+**当前行为**：
 
-// 禁用点击穿透
-ipcRenderer.send("set-ignore-mouse-events", false);
-```
+- **FLOAT 模式**：
+  - 窗口层：`setIgnoreMouseEvents(true, { forward: true })`，整窗穿透但仍可接收 `mousemove`。
+  - 渲染层：灵动岛在 hover/drag 时打开局部 `pointer-events`，实现“悬浮但可交互”。
+- **PANEL 模式**：
+  - 进入 PANEL 时立即 `setIgnoreMouseEvents(false)`，确保一开始就能点击 PanelWindow。
+  - 监听全局 `mousemove`，根据 `[data-panel-window]` 的 `getBoundingClientRect()`：
+    - 鼠标在 panel 内部（含顶部 8px 扩展区域）→ `setIgnoreMouseEvents(false)`。
+    - 鼠标在 panel 外部透明区域 → `setIgnoreMouseEvents(true, { forward: true })`。
+- **FULLSCREEN 模式**：
+  - 始终 `setIgnoreMouseEvents(false)`，整窗可交互。
 
 #### 2. 窗口动画过渡
 
@@ -142,31 +156,19 @@ const throttledHandleMouseMove = (e: MouseEvent) => {
 };
 ```
 
-#### 5. 透明度恢复
+#### 5. 透明度与可见性恢复（配合全局 overlay）
 
-**问题**：从 PANEL/FULLSCREEN 折叠到 FLOAT 时，窗口可能消失
+**问题**：从 PANEL/FULLSCREEN 折叠到 FLOAT 时，如果主进程仍保留 `opacity: 0` 等样式，灵动岛窗口可能出现“看不见但还在”的状态。
 
-**解决方案**：
-- Electron 主进程在折叠时注入 `opacity: 0` CSS
-- 前端在模式切换到 FLOAT 时，通过 `<style>` 标签注入 `opacity: 1 !important` 覆盖
-- 使用 `useEffect` 监听模式变化，自动恢复透明度
+**解决方案（新实现）**：
 
-**代码位置**：`DynamicIsland.tsx` 的 `useEffect` 钩子
+- 主进程在折叠/动画期间仍可以注入 `opacity: 0`，避免尺寸变化过程闪现内容。
+- `DynamicIsland` 挂载与模式切换时，通过 `useEffect` 与 `ref` 回调：
+  - 对 overlay 容器本身强制 `opacity: 1; visibility: visible`。
+  - 必要时通过 `<style>` 注入 `html, body, #__next { opacity: 1 !important; }`，覆盖遗留样式。
+- 这样可以保证：只要渲染进程在运行，灵动岛 overlay 层始终可见，不会“突然消失”。
 
-```typescript
-useEffect(() => {
-  if (mode === IslandMode.FLOAT) {
-    const style = document.createElement("style");
-    style.id = "restore-opacity-float-mode";
-    style.textContent = `
-      html, body, #__next, #__next > div {
-        opacity: 1 !important;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-}, [mode]);
-```
+**代码位置**：`components/dynamic-island/DynamicIsland.tsx` 中关于 overlay 容器样式修复的 `useEffect` 与 `ref` 逻辑。
 
 #### 6. 窗口圆角实现
 
@@ -188,13 +190,18 @@ win.webContents.insertCSS(`
 
 #### 7. 布局计算
 
-**实现方式**：
-- 根据模式和状态（悬停、位置）计算布局属性
-- FLOAT 模式：收起 36x36px，展开 135x48px
-- PANEL 模式：100% x 100%，16px 圆角
-- FULLSCREEN 模式：100vw x 100vh
+**实现方式（全局常驻后）**：
 
-**代码位置**：`hooks/useDynamicIslandLayout.ts`
+- 核心思路：**无论外部 mode 是 FLOAT / PANEL / FULLSCREEN，布局计算统一使用 FLOAT 语义**。
+  - 在 `DynamicIsland` 内部固定 `const layoutMode = IslandMode.FLOAT;`。
+  - 通过 `useDynamicIslandLayout` 只根据拖拽位置/吸边状态计算 `left/right/top/bottom` 和收起/展开尺寸。
+- 尺寸语义：
+  - 收起：约 36x36px。
+  - 展开：约 135x48px。
+- PANEL / FULLSCREEN 模式时：
+  - 灵动岛仍按 FLOAT 语义布局，只是背景内容从桌面 → PanelWindow / 全屏工作台。
+
+**代码位置**：`components/dynamic-island/hooks/useDynamicIslandLayout.ts`
 
 #### 8. Framer Motion 动画
 
@@ -220,34 +227,30 @@ win.webContents.insertCSS(`
 ### 实现流程
 
 #### FLOAT 模式初始化
-1. 窗口创建时设置 `alwaysOnTop: true`、`resizable: false`、`movable: false`
-2. 启用点击穿透：`setIgnoreMouseEvents(true, { forward: true })`
-3. 设置高 z-index（999999）确保置顶
-4. 监听全局鼠标移动，检测悬停
 
-#### 模式切换流程
+1. 窗口创建时设置 `alwaysOnTop: true`、`resizable: false`、`movable: false`。
+2. 启用点击穿透：`setIgnoreMouseEvents(true, { forward: true })`。
+3. 保持窗口背景透明，只通过灵动岛 overlay 渲染内容。
+4. 监听全局鼠标移动，检测悬停。
+
+#### 模式切换流程（窗口层 + 前端层）
+
 1. **FLOAT → PANEL**：
-   - 调用 `expandWindow()` IPC
-   - 主进程设置窗口可调整大小和可移动
-   - 动画过渡到面板尺寸（500x80%屏幕高度）
-   - 注入圆角 CSS
-   - 禁用点击穿透
-   - 前端切换模式状态
+   - 前端调用 `expandWindow()` IPC，请求展开为「Panel 宽度 + 左侧透明走廊」的宽窗。
+   - 主进程设置窗口可调整大小和可移动，注入 panel 圆角 / 透明背景 CSS，并动画到目标 bounds。
+   - `useElectronClickThrough` 禁用整窗穿透，并根据 `[data-panel-window]` rect 做区域穿透。
+   - 前端切换模式状态为 `PANEL`，`PanelContent` 渲染当前功能。
 
 2. **PANEL → FLOAT**：
-   - 调用 `collapseWindow()` IPC
-   - 主进程注入 `opacity: 0` CSS
-   - 动画过渡到原始边界
-   - 启用点击穿透
-   - 前端注入 `opacity: 1 !important` 恢复可见性
-   - 前端切换模式状态
+   - 前端调用 `collapseWindow()` IPC。
+   - 主进程注入 `opacity: 0`，动画回到小岛尺寸，动画结束后启用整窗点击穿透。
+   - 前端通过 overlay 样式修复确保灵动岛重新可见，并将模式切回 `FLOAT`。
 
 3. **PANEL → FULLSCREEN**：
-   - 调用 `expandWindowFull()` IPC
-   - 主进程最大化窗口
-   - 设置 `resizable: false`、`movable: false`
-   - 禁用点击穿透
-   - 前端切换模式状态
+   - 前端调用 `expandWindowFull()` IPC。
+   - 主进程最大化窗口，清理 panel 圆角/clip-path。
+   - 始终禁用整窗穿透。
+   - 前端切换模式状态为 `FULLSCREEN`，`FullscreenControlBar` 渲染。
 
 ---
 
@@ -257,26 +260,42 @@ win.webContents.insertCSS(`
 
 ```
 components/dynamic-island/
-├── DynamicIsland.tsx              # 主组件（382 行）
-├── DynamicIslandProvider.tsx       # Provider 组件，用于检测 Electron 环境
-├── PanelFeatureContext.tsx         # Context，用于在 Panel 模式中共享当前功能
-├── PanelTitleBar.tsx               # Panel 模式标题栏组件
-├── PanelContent.tsx                # Panel 模式内容区域，包含底部 Dock
-├── PanelSelectorMenu.tsx           # 右键菜单，用于功能选择
-├── FloatContent.tsx                # FLOAT 模式内容（收起/展开状态）
-├── FullscreenControlBar.tsx        # FULLSCREEN 模式顶部控制栏
-├── ContextMenu.tsx                 # FLOAT 模式右键上下文菜单
-├── ResizeHandle.tsx                # PANEL 模式自定义缩放把手
-├── electron-api.ts                 # Electron API 封装
-├── ElectronTransparentScript.tsx   # 透明窗口支持脚本
-├── TransparentBody.tsx             # 透明 body 包装器
-├── types.ts                         # 类型定义（IslandMode 枚举）
-├── index.ts                         # 公共导出
-└── hooks/                           # 自定义 Hooks
-    ├── useDynamicIslandClickThrough.ts  # 点击穿透管理
-    ├── useDynamicIslandDrag.ts          # 拖拽功能
-    ├── useDynamicIslandHover.ts         # 悬停状态管理
-    └── useDynamicIslandLayout.ts        # 布局计算
+├── DynamicIsland.tsx                  # 灵动岛主组件（协调三种模式）
+├── DynamicIslandProvider.tsx         # Provider 组件，用于检测 Electron 环境
+├── PanelFeatureContext.tsx           # Panel 模式功能上下文
+├── PanelTitleBar.tsx                 # Panel 模式标题栏
+├── PanelContent.tsx                  # Panel 模式内容区域（包含 BottomDock）
+├── PanelSelectorMenu.tsx             # Panel 模式右键菜单
+├── FloatContent.tsx                  # FLOAT 模式内容（收起/展开）
+├── FullscreenControlBar.tsx          # FULLSCREEN 模式顶部控制栏
+├── ContextMenu.tsx                   # FLOAT 模式右键上下文菜单
+├── ResizeHandle.tsx                  # PANEL 模式自定义缩放把手
+├── electron-api.ts                   # 前端使用的 Electron API 封装
+├── ElectronTransparentScript.tsx     # 透明窗口支持脚本
+├── TransparentBody.tsx               # 透明 body 包装器
+├── types.ts                          # 类型定义（IslandMode 枚举等）
+├── index.ts                          # 公共导出
+└── hooks/                            # 自定义 Hooks
+    ├── useDynamicIslandClickThrough.ts  # 点击穿透管理（渲染层）
+    ├── useDynamicIslandDrag.ts          # FLOAT 模式拖拽
+    ├── useDynamicIslandHover.ts         # FLOAT 模式悬停展开/收起
+    └── useDynamicIslandLayout.ts        # 根据模式计算布局
+
+components/layout/
+├── PanelWindow.tsx                   # Panel 模式右侧窗口容器（含透明占位区 + panel 区域）
+├── PanelRegion.tsx                   # 可复用 Panel 区域（上面 panel 栏 + 下面 BottomDock）
+├── PanelContainer.tsx                # 单个 panel 容器（控制宽度、间距、拖拽态）
+├── PanelContent.tsx                  # PanelRegion 中的业务内容渲染
+├── ResizeHandle.tsx                  # Panel 之间的垂直分隔/拖拽把手
+├── BottomDock.tsx                    # 面板底部 dock（功能切换入口）
+└── AppHeader.tsx                     # 顶部应用 header（包含模式切换按钮）
+
+lib/hooks/
+└── useElectronClickThrough.ts        # 统一控制 Electron setIgnoreMouseEvents 的 hook
+
+electron/
+├── ipc-handlers.ts                   # 主进程 IPC 入口（collapse/expand/expand-full + 动画）
+└── window-manager.ts                 # BrowserWindow 管理与创建
 ```
 
 ### 组件层次结构
@@ -374,12 +393,15 @@ DynamicIslandProvider
 
 ### useDynamicIslandClickThrough
 
-**用途**：管理透明窗口的点击穿透行为。
+**用途**：管理灵动岛自身在 FLOAT 模式下的点击穿透与交互区域（渲染层）。
 
-**行为**：
-- FLOAT 模式：默认启用点击穿透，悬停时禁用
-- PANEL 模式：禁用点击穿透
-- FULLSCREEN 模式：禁用点击穿透
+**行为（新实现）**：
+
+- FLOAT 模式：
+  - 配合窗口层的 `setIgnoreMouseEvents(true, { forward: true })`，通过局部 `pointer-events` 控制实际可点击区域。
+  - 悬停/拖拽时打开交互，离开时恢复为只展示但不阻挡桌面。
+- PANEL / FULLSCREEN 模式：
+  - 主要交由 `useElectronClickThrough` 控制整窗行为，本 hook 只做必要的样式修复。
 
 ### useDynamicIslandDrag
 
@@ -417,19 +439,20 @@ DynamicIslandProvider
 ### 窗口管理
 
 **IPC 处理器**（位于 `electron/ipc-handlers.ts`）：
+
 - `collapse-window`：折叠到 FLOAT 模式
-  - 转换期间设置透明度为 0
-  - 动画化窗口边界
-  - 启用点击穿透
-  - 设置始终置顶
+  - 如当前窗口为 maximized，先 `unmaximize()` 再执行动画。
+  - 转换期间注入 `opacity: 0` 并动画化窗口边界。
+  - 结束后启用整窗点击穿透，并保持窗口置顶。
 - `expand-window`：展开到 PANEL 模式
-  - 使窗口可调整大小和可移动
-  - 设置窗口边界
-  - 禁用点击穿透
+  - 使窗口可调整大小和可移动。
+  - 计算 `expandedWidth = panelWidth + overlayGutter`，将 PanelWindow 固定在右侧，左侧保留透明区域给全局 overlay。
+  - 注入圆角与透明背景 CSS。
+  - 窗口级点击穿透由 `useElectronClickThrough` 按鼠标位置实时切换。
 - `expand-window-full`：展开到 FULLSCREEN 模式
-  - 最大化窗口
-  - 设置 resizable=false，movable=false
-  - 禁用点击穿透
+  - 最大化窗口。
+  - 清理 Panel 模式的圆角/clip-path。
+  - 设置 `resizable=false`、`movable=false`，并禁用点击穿透。
 
 ### 窗口属性
 
@@ -443,7 +466,7 @@ DynamicIslandProvider
 - `alwaysOnTop: true`
 - `resizable: true`
 - `movable: true`
-- `ignoreMouseEvents: false`
+- `ignoreMouseEvents`：由 `useElectronClickThrough` 根据鼠标是否在 PanelWindow 内部动态切换。
 
 **FULLSCREEN 模式**：
 - `alwaysOnTop: true`
@@ -481,42 +504,36 @@ Panel 模式底部 Dock 通过以下方式与设置同步：
 
 ### FLOAT → PANEL
 
-1. 用户点击展开按钮或按 "4" 键
-2. 调用 `expandWindow()` IPC
-3. 窗口展开到面板大小
-4. 模式切换到 PANEL
-5. PanelContent 渲染当前功能
+1. 用户点击展开按钮或按 "4" 键。
+2. 前端调用 `expandWindow()` IPC，请求主进程展开到「Panel 宽度 + 左侧透明走廊」。
+3. 窗口动画到目标 bounds，右侧显示 PanelWindow，左侧留出透明区。
+4. 模式切换到 `PANEL`，`PanelContent` 渲染当前功能。
 
 ### PANEL → FULLSCREEN
 
-1. 用户点击全屏按钮
-2. 调用 `expandWindowFull()` IPC
-3. 窗口最大化
-4. 模式切换到 FULLSCREEN
-5. FullscreenControlBar 渲染
+1. 用户点击全屏按钮。
+2. 前端调用 `expandWindowFull()` IPC。
+3. 窗口最大化并清理 Panel 圆角/clip-path。
+4. 模式切换到 `FULLSCREEN`，`FullscreenControlBar` 渲染。
 
 ### PANEL → FLOAT
 
-1. 用户点击折叠按钮
-2. 调用 `collapseWindow()` IPC
-3. 窗口透明度设置为 0
-4. 窗口动画到原始边界
-5. 通过 CSS 注入恢复透明度
-6. 模式切换到 FLOAT
-7. 启用点击穿透
+1. 用户点击折叠按钮。
+2. 前端调用 `collapseWindow()` IPC。
+3. 主进程动画窗口到小岛尺寸并重新开启整窗点击穿透。
+4. 前端通过 overlay 样式修复恢复灵动岛可见性，并将模式切换到 `FLOAT`。
 
 ### FULLSCREEN → PANEL
 
-1. 用户点击退出全屏按钮
-2. 调用 `expandWindow()` IPC
-3. 窗口调整到面板大小
-4. 模式切换到 PANEL
+1. 用户点击退出全屏按钮。
+2. **不再主动调用 `expandWindow()`**，只切换前端模式为 `PANEL`，保持窗口仍为最大化宽度。
+3. Panel 模式的 PanelWindow 使用右侧布局呈现，灵动岛等全局 overlay 依然按照 fixed 坐标保持在原位置。
 
 ### FULLSCREEN → FLOAT
 
-1. 用户点击折叠按钮或按 Escape 键
-2. 调用 `collapseWindow()` IPC
-3. 与 PANEL → FLOAT 相同
+1. 用户点击折叠按钮或按 Escape 键。
+2. 调用 `collapseWindow()` IPC。
+3. 与 PANEL → FLOAT 相同。
 
 ---
 
@@ -531,12 +548,12 @@ Panel 模式底部 Dock 通过以下方式与设置同步：
 
 ## 🎨 样式
 
-### Z-Index 层级
+### Z-Index 层级（新实现）
 
-- FLOAT 模式容器：`z-index: 999999`
-- PANEL 模式容器：`z-index: 30`
-- FULLSCREEN 控制栏：`z-index: 100010+`
-- 缩放把手：`z-index: 50`（PANEL 模式）
+- 全局 overlay 容器（灵动岛 + N 徽章等）：`z-index: 1000002`
+- PanelWindow 主容器：`z-index: 1000001`
+- FULLSCREEN 控制栏：`z-index: 100010+`（在内容层之上，但仍低于全局 overlay）
+- Panel 模式缩放把手：`z-index: 50`
 - 上下文菜单：`z-index: 100-101`
 
 ### 动画
@@ -577,14 +594,14 @@ Panel 模式底部 Dock 通过以下方式与设置同步：
 
 ## ✅ 最佳实践
 
-1. **始终恢复透明度**：切换到 FLOAT 模式时
-2. **使用 Context 共享状态**：在 PanelTitleBar 和 PanelContent 之间
-3. **与设置同步**：使用 `getAvailableFeatures()` 获取功能列表
-4. **处理水合错误**：在需要的地方使用 `suppressHydrationWarning`
-5. **节流鼠标事件**：使用 `requestAnimationFrame` 提升性能
-6. **阻止按钮拖拽**：通过检查 `target.closest('button')`
-7. **使用高 z-index**：FLOAT 模式确保可见性
-8. **延迟点击穿透**：模式转换后允许渲染完成
+1. **保证 overlay 永远可见**：在 `DynamicIsland` 中持续修复 overlay 容器的 `position/z-index/opacity/visibility`。
+2. **使用 Context 共享状态**：在 `PanelTitleBar` 和 `PanelContent` 之间传递当前功能等信息。
+3. **与设置同步**：使用 `getAvailableFeatures()` 获取功能列表，保证 Panel 与设置面板一致。
+4. **处理水合错误**：在需要的地方使用 `suppressHydrationWarning`。
+5. **节流鼠标事件**：使用 `requestAnimationFrame` 提升性能，避免全局 `mousemove` 抖动。
+6. **阻止按钮拖拽**：通过检查 `target.closest('button')` 防止拖拽误触。
+7. **保持正确的 z-index 关系**：确保 overlay > PanelWindow > 其他内容。
+8. **同步更新点击穿透状态**：模式切换时立即更新 `setIgnoreMouseEvents` 与相关 CSS，避免出现几秒钟“看得见但点不到”或“穿透但不可交互”的状态。
 
 ---
 

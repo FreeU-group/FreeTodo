@@ -33,19 +33,13 @@ export function useDynamicIslandClickThrough(mode: IslandMode) {
 	}, []);
 
 	useEffect(() => {
-		// 注意：点击穿透设置已由 app/page.tsx 统一管理
-		// 这里只在 FLOAT 模式下设置点击穿透，用于 hover 时的临时控制
-		// PANEL 和 FULLSCREEN 模式的点击穿透由 app/page.tsx 控制
 		if (mode === IslandMode.FLOAT) {
-			// Delay setting click-through to ensure window state is updated
-			setTimeout(() => {
-				setIgnoreMouse(true);
-			}, 100);
-			console.log(
-				"[DynamicIsland] Switched to FLOAT mode, will enable click-through in 100ms",
-			);
+			// FLOAT 模式下：立即开启点击穿透（窗口级别），由 useElectronClickThrough 负责区域判断
+			setIgnoreMouse(true);
+		} else {
+			// 切换离开 FLOAT（例如到 PANEL）时，确保立即关闭点击穿透
+			setIgnoreMouse(false);
 		}
-		// PANEL 和 FULLSCREEN 模式不在这里设置，由 app/page.tsx 统一管理
 	}, [mode, setIgnoreMouse]);
 
 	return setIgnoreMouse;

@@ -7,7 +7,7 @@
 
 "use client";
 
-import { ChevronsUpDown, Maximize2, Minimize2, X } from "lucide-react";
+import { Minimize2, Square, X } from "lucide-react";
 import Image from "next/image";
 import { LayoutSelector } from "@/components/common/layout/LayoutSelector";
 import { ThemeToggle } from "@/components/common/theme/ThemeToggle";
@@ -115,7 +115,8 @@ export function AppHeader({
 							}}
 							style={{ pointerEvents: "auto" }}
 						>
-							<Maximize2 size={14} />
+							{/* 使用方形图标以匹配系统窗口的“最大化”视觉 */}
+							<Square size={14} />
 						</button>
 						{/* Panel 模式：关闭 Panel 按钮 */}
 						<button
@@ -202,7 +203,8 @@ export function AppHeader({
 								}
 							}}
 						>
-							<ChevronsUpDown size={15} />
+							{/* 使用 X 图标，表示关闭当前最大化模式并回到灵动岛（FLOAT） */}
+							<X size={15} />
 						</button>
 					</>
 				) : null}
