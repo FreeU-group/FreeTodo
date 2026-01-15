@@ -260,7 +260,7 @@ export function useElectronClickThrough({
 					y >= 0 &&
 					y < rect.top + 8; // 顶部扩展 8px 区域，同样视为 panel 内部
 
-				const inside = withinVertical || withinTopBand;
+				const inside = (withinHorizontal && withinVertical) || withinTopBand;
 
 				// 状态没变就不重复调用 IPC
 				if (inside === lastInside) return;
