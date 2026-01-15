@@ -265,7 +265,7 @@ Free Todo's panel switch bar contains some panels that are currently under devel
 │   └── README.md               # Frontend documentation
 ├── pyproject.toml              # Python project configuration
 ├── uv.lock                     # uv lock file
-├── LICENSE                     # Apache 2.0 License
+├── LICENSE                     # FreeU Community License
 ├── README.md                   # This file (English)
 └── README_CN.md                # Chinese README
 ```

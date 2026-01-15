@@ -263,7 +263,7 @@ Free Todo 的面板开关栏里有一些正在开发中的面板，这些面板�
 │   └── README.md               # 前端文档
 ├── pyproject.toml              # Python 项目配置
 ├── uv.lock                     # uv 锁定文件
-├── LICENSE                     # Apache 2.0 许可证
+├── LICENSE                     # FreeU Community License 许可证
 ├── README.md                   # 英文 README
 └── README_CN.md                # 中文 README（本文件）
 ```
