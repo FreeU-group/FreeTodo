@@ -35,8 +35,8 @@ export class WindowManager {
 	 */
 	private getPreloadPath(): string {
 		if (app.isPackaged) {
-			// 打包环境：preload.js 和 main.js 在同一个目录（应用根目录）
-			return path.join(app.getAppPath(), "preload.js");
+			// 打包环境：preload.js 在 dist-electron 目录下（和 main.js 在同一目录）
+			return path.join(app.getAppPath(), "dist-electron", "preload.js");
 		}
 		// 开发环境：使用编译后的文件路径（dist-electron 目录）
 		return path.join(__dirname, "preload.js");

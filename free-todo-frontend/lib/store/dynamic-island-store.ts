@@ -39,14 +39,14 @@ export const useDynamicIslandStore = create<DynamicIslandState>((set, get) => ({
 			panelVisible: mode === IslandMode.PANEL,
 		})),
 	toggleEnabled: () => set((state) => ({ isEnabled: !state.isEnabled })),
-	showPanel: () =>
+	showPanel: () => {
+		const currentMode = get().mode;
+		const newMode = currentMode === IslandMode.MAXIMIZE ? IslandMode.MAXIMIZE : IslandMode.PANEL;
 		set({
 			panelVisible: true,
-			mode:
-				get().mode === IslandMode.MAXIMIZE
-					? IslandMode.MAXIMIZE
-					: IslandMode.PANEL,
-		}),
+			mode: newMode,
+		});
+	},
 	hidePanel: () =>
 		set((state) => ({
 			panelVisible: false,

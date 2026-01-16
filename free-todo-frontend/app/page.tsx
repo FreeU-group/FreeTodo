@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getElectronAPI } from "@/components/dynamic-island/electron-api";
 import { IslandMode } from "@/components/dynamic-island/types";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { PanelRegion } from "@/components/layout/PanelRegion";
@@ -26,23 +27,40 @@ export default function HomePage() {
 	// 所有 hooks 必须在条件返回之前调用（React Hooks 规则）
 	const { mode, setMode, hidePanel } = useDynamicIslandStore();
 
+	// 使用 mounted 状态来避免 SSR 水合不匹配
+	// 在服务器端和初始客户端渲染时，始终渲染最大化模式
+	// 只有在水合完成后（mounted 为 true），才根据实际环境决定显示模式
+	const [mounted, setMounted] = useState(false);
+
 	// Panel 模式切换函数
 	const onModeChange = useCallback((newMode: IslandMode) => {
 		console.log(`[HomePage] onModeChange called: ${newMode}, current mode: ${mode}`);
+		const isElectronEnv = mounted ? isElectronEnvironment() : false;
 		if (newMode === IslandMode.MAXIMIZE) {
 			setMode(IslandMode.MAXIMIZE);
 		} else if (newMode === IslandMode.FLOAT) {
 			// 切换到 FLOAT 模式时，确保 Panel 关闭
 			hidePanel();
 		} else {
+			if (newMode === IslandMode.PANEL && isElectronEnv) {
+				const api = getElectronAPI();
+				if (api.electronAPI?.expandWindow) {
+					const expandResult = api.electronAPI.expandWindow();
+					if (expandResult instanceof Promise) {
+						expandResult.then(() => {
+							setMode(newMode);
+						}).catch(() => {
+							setMode(newMode);
+						});
+					} else {
+						setMode(newMode);
+					}
+					return;
+				}
+			}
 			setMode(newMode);
 		}
-	}, [setMode, mode, hidePanel]);
-
-	// 使用 mounted 状态来避免 SSR 水合不匹配
-	// 在服务器端和初始客户端渲染时，始终渲染最大化模式
-	// 只有在水合完成后（mounted 为 true），才根据实际环境决定显示模式
-	const [mounted, setMounted] = useState(false);
+	}, [setMode, mode, hidePanel, mounted]);
 	useEffect(() => {
 		setMounted(true);
 
