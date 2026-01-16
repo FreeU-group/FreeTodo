@@ -189,7 +189,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	/**
 	 * 截图并提取待办事项
 	 */
-	captureAndExtractTodos: async (): Promise<{
+	captureAndExtractTodos: async (
+		panelBounds?: { x: number; y: number; width: number; height: number } | null,
+	): Promise<{
 		success: boolean;
 		message: string;
 		extractedTodos: Array<{
@@ -201,6 +203,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		}>;
 		createdCount: number;
 	}> => {
-		return await ipcRenderer.invoke("capture-and-extract-todos");
+		return await ipcRenderer.invoke("capture-and-extract-todos", panelBounds);
 	},
 });

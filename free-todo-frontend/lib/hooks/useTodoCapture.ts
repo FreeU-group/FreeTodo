@@ -44,8 +44,28 @@ export function useTodoCapture() {
 			setResult(null);
 			toastInfo("正在截图...");
 
+			// 获取 panel 的位置信息（如果存在）
+			let panelBounds: { x: number; y: number; width: number; height: number } | null = null;
+			try {
+				const panelElement = document.querySelector('[data-panel-window]') as HTMLElement;
+				if (panelElement) {
+					const rect = panelElement.getBoundingClientRect();
+					// getBoundingClientRect 返回的是相对于视口的位置
+					// 在 Electron 中，窗口坐标就是相对于窗口左上角的
+					// 后端会加上窗口在屏幕上的位置来得到屏幕坐标
+					panelBounds = {
+						x: rect.left,
+						y: rect.top,
+						width: rect.width,
+						height: rect.height,
+					};
+				}
+			} catch (error) {
+				console.warn("Failed to get panel bounds:", error);
+			}
+
 			// 调用 Electron API 截图并提取待办
-			const response = await api.electronAPI.captureAndExtractTodos();
+			const response = await api.electronAPI.captureAndExtractTodos(panelBounds);
 
 			if (response.success) {
 				const createdCount = response.createdCount ?? 0;

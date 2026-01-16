@@ -66,7 +66,7 @@ export function AppHeader({
 						className="object-contain hidden dark:block"
 					/>
 				</div>
-				<h1 className="text-lg font-semibold tracking-tight text-foreground">
+				<h1 className="text-lg font-semibold tracking-tight text-foreground hidden md:block">
 					Free Todo: Your AI Secretary
 				</h1>
 			</div>

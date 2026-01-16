@@ -14,7 +14,9 @@ export type ElectronAPI = typeof window & {
 		resizeWindow?: (dx: number, dy: number, pos: string) => void;
 		quit?: () => void;
 		setWindowBackgroundColor?: (color: string) => void;
-		captureAndExtractTodos?: () => Promise<{
+		captureAndExtractTodos?: (
+			panelBounds?: { x: number; y: number; width: number; height: number } | null,
+		) => Promise<{
 			success: boolean;
 			message: string;
 			extractedTodos: Array<{
