@@ -82,16 +82,18 @@ export function AppHeader({
 			)}
 
 			{/* 右侧：工具按钮 + 根据模式显示不同的控制按钮 */}
-			<div className="flex items-center gap-2 shrink-0">
-				{/* 工具按钮：LayoutSelector, ThemeToggle, LanguageToggle, SettingsToggle */}
-				<LayoutSelector showChevron={false} />
-				<ThemeToggle />
-				<LanguageToggle />
-				<SettingsToggle />
+			<div className="flex items-center gap-2 min-w-0">
+				{/* 工具按钮：LayoutSelector, ThemeToggle, LanguageToggle, SettingsToggle - 可以收缩，优先收缩 */}
+				<div className="flex items-center gap-2 min-w-0" style={{ overflow: 'hidden', flexShrink: 1, flexGrow: 0 }}>
+					<LayoutSelector showChevron={false} />
+					<ThemeToggle />
+					<LanguageToggle />
+					<SettingsToggle />
+				</div>
 
-				{/* 根据模式显示不同的控制按钮 */}
+				{/* 根据模式显示不同的控制按钮 - 固定不收缩 */}
 				{isPanelMode ? (
-					<>
+					<div className="flex items-center gap-2 shrink-0" style={{ flexShrink: 0 }}>
 						{/* Panel 模式：最大化按钮 */}
 						<button
 							type="button"
@@ -115,7 +117,7 @@ export function AppHeader({
 							}}
 							style={{ pointerEvents: "auto" }}
 						>
-							{/* 使用方形图标以匹配系统窗口的“最大化”视觉 */}
+							{/* 使用方形图标以匹配系统窗口的"最大化"视觉 */}
 							<Square size={14} />
 						</button>
 						{/* Panel 模式：关闭 Panel 按钮 */}
@@ -133,9 +135,9 @@ export function AppHeader({
 						>
 							<X size={14} />
 						</button>
-					</>
+					</div>
 				) : isMaximizeMode ? (
-					<>
+					<div className="flex items-center gap-2 shrink-0" style={{ flexShrink: 0 }}>
 						{/* 全屏模式：切换回 Panel 按钮 */}
 						<button
 							type="button"
@@ -206,7 +208,7 @@ export function AppHeader({
 							{/* 使用 X 图标，表示关闭当前最大化模式并回到灵动岛（FLOAT） */}
 							<X size={15} />
 						</button>
-					</>
+					</div>
 				) : null}
 			</div>
 		</header>
