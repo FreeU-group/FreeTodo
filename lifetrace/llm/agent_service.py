@@ -40,6 +40,8 @@ class AgentService(
         # legacy: 使用原有的 _execute_simple_task_loop（仅用于紧急回退）
         self.short_task_mode: str = settings.get("agent.short_task_mode", "one_step")
         self._short_task_executor = ShortTaskExecutor(self.tool_registry)
+        # 初始化参数提取器（延迟初始化，由 property 管理）
+        self._param_extractor = None
 
     def execute_long_task_entry(
         self,
