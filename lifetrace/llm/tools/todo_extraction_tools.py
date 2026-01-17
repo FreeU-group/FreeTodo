@@ -187,7 +187,8 @@ class ExtractTodoTool(Tool):
         system_prompt = prompt
         user_prompt = (
             f"请从以下文本中提取待办事项(todo)：\n\n{text}\n\n"
-            f"请以JSON格式返回，每个todo包含name（必填）和description（可选）字段。"
+            f"请以JSON格式返回，每个todo包含name（必填）、description（可选）和parent_name（可选）字段。"
+            f"如果文本中包含多个相关任务，应该全部提取出来，并识别主任务和子任务的层级关系。"
             f"如果没有找到todo，返回空数组。"
         )
 
@@ -198,7 +199,7 @@ class ExtractTodoTool(Tool):
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.3,
-            max_tokens=1000,
+            max_tokens=2000,  # 增加token限制，支持提取多个任务
         )
 
         return response.choices[0].message.content.strip()
@@ -235,6 +236,8 @@ class ExtractTodoTool(Tool):
             todo_info = f"{i}. {todo.get('name', '未命名')}"
             if todo.get("description"):
                 todo_info += f"\n   描述: {todo.get('description')}"
+            if todo.get("parent_name"):
+                todo_info += f"\n   父任务: {todo.get('parent_name')}"
             todo_list.append(todo_info)
 
         content = f"从文本中提取到 {len(todos)} 个todo：\n" + "\n".join(todo_list)
@@ -260,19 +263,51 @@ class ExtractTodoTool(Tool):
         """获取默认提取提示词"""
         return """你是一个专业的待办事项提取助手。
 请从用户提供的文本中提取出所有待办事项(todo)。
-每个todo应该包含：
-- name: 待办名称（必填，简洁明确）
-- description: 待办描述（可选，详细说明）
 
-请以JSON格式返回：
+**要求：**
+- 每个todo应该包含：name（必填，简洁明确）和description（可选，详细说明）
+- 只提取明确的、可执行的待办事项
+- 如果文本中包含多个todo，全部提取出来
+- **如果任务有层级关系，使用 parent_name 字段表示父任务名称**
+- **当文本中提到主任务和子任务时，应该组织成层级结构**
+
+**请以JSON格式返回：**
 {
   "todos": [
     {
-      "name": "待办名称",
-      "description": "待办描述（可选）"
+      "name": "待办名称（简洁明确）",
+      "description": "待办描述（可选，详细说明）",
+      "parent_name": "父任务名称（可选，如果该待办是某个任务的子任务）"
     }
   ]
 }
+
+**层级任务示例：**
+如果文本提到"学习新技能"作为主任务，包含"阅读相关书籍"、"完成实践项目"等子任务，应该这样组织：
+{
+  "todos": [
+    {
+      "name": "学习新技能",
+      "description": "整体学习计划",
+      "parent_name": null
+    },
+    {
+      "name": "阅读相关书籍",
+      "description": "阅读基础理论书籍",
+      "parent_name": "学习新技能"
+    },
+    {
+      "name": "完成实践项目",
+      "description": "通过实际项目巩固知识",
+      "parent_name": "学习新技能"
+    }
+  ]
+}
+
+**注意：**
+- 如果文本中没有明确的层级关系，所有待办的 parent_name 都应该是 null
+- parent_name 必须与某个待办的 name 完全匹配
+- 一个待办最多只能有一个父任务
 
 如果没有找到todo，返回 {"todos": []}。
 只返回JSON，不要返回其他信息。"""

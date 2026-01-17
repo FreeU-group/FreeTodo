@@ -10,6 +10,7 @@ import type { CreateTodoInput } from "@/lib/types";
 type ExtractedTodo = {
 	name: string;
 	description?: string;
+	parent_name?: string | null;
 };
 
 type BatchDeleteTodo = {
@@ -141,18 +142,70 @@ export function BatchTodoConfirmationPanel({
 				queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 				toastSuccess(`成功删除 ${selectedTodos.length} 个待办事项`);
 			} else {
-				// 批量创建选中的todo
-				const createPromises = selectedTodos.map((todo) => {
+				// 批量创建选中的todo，支持多级层级结构
+				// 使用按层级深度排序的方式，逐层创建
+
+				// 计算每个待办的层级深度
+				const calculateDepth = (
+					todo: ExtractedTodo,
+					todos: ExtractedTodo[],
+					depth = 0,
+					visited = new Set<string>(),
+				): number => {
+					if (!todo.parent_name || todo.parent_name === null) {
+						return 0;
+					}
+					// 防止循环引用
+					if (visited.has(todo.name)) {
+						return depth;
+					}
+					visited.add(todo.name);
+					const parent = todos.find((t) => t.name === todo.parent_name);
+					if (!parent) {
+						return depth;
+					}
+					return calculateDepth(parent, todos, depth + 1, visited);
+				};
+
+				// 为每个待办计算深度
+				const todosWithDepth = selectedTodos.map((todo) => ({
+					todo,
+					depth: calculateDepth(todo, selectedTodos),
+				}));
+
+				// 按深度排序（深度小的先创建）
+				todosWithDepth.sort((a, b) => a.depth - b.depth);
+
+				// 创建映射表：name -> todo_id
+				const nameToIdMap = new Map<string, number>();
+
+				// 按层级逐层创建
+				for (const { todo } of todosWithDepth) {
+					const parentId =
+						todo.parent_name && todo.parent_name !== null
+							? nameToIdMap.get(todo.parent_name)
+							: undefined;
+
+					if (todo.parent_name && todo.parent_name !== null && !parentId) {
+						console.warn(
+							`找不到父任务: ${todo.parent_name}，将作为独立待办创建`,
+						);
+					}
+
 					const input: CreateTodoInput = {
 						name: todo.name,
 						description: todo.description || undefined,
 						status: "active",
 						priority: "none",
+						...(parentId !== undefined && { parentTodoId: parentId }),
 					};
-					return createTodoMutation.mutateAsync(input);
-				});
 
-				await Promise.all(createPromises);
+					const created = await createTodoMutation.mutateAsync(input);
+					if (created) {
+						nameToIdMap.set(todo.name, created.id);
+					}
+				}
+
 				// 刷新待办列表
 				queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
 				toastSuccess(`成功创建 ${selectedTodos.length} 个待办事项`);

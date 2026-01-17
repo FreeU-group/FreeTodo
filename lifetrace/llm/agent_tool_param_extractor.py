@@ -50,6 +50,21 @@ class AgentToolParamExtractor:
             params["query"] = self._extract_search_query(step.instruction, state)
             return params
 
+        # 对于 extract_todo，如果上一步是 web_search，直接提取完整的搜索结果内容
+        if step.suggested_tool == "extract_todo":
+            # 查找上一步的 web_search 结果
+            if state.scratchpad:
+                last_step = state.scratchpad[-1]
+                if last_step.get("tool") == "web_search":
+                    # 提取完整的搜索结果内容
+                    search_content = last_step.get("content", "")
+                    if search_content:
+                        params["text"] = search_content
+                        logger.info(
+                            f"[Agent] 从web_search结果中提取完整内容，长度: {len(search_content)} 字符",
+                        )
+                        return params
+
         # 对于其他工具，如果规则无法提取，返回空字典
         return params
 

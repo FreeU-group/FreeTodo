@@ -3,9 +3,12 @@
 从配置文件中加载 LLM 提示词
 """
 
+import os
+
 import yaml
 
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.prompt_template import template_string
 
 logger = get_logger()
 
@@ -72,6 +75,37 @@ class PromptLoader:
             logger.error(f"加载提示词配置失败: {e}")
             self._prompts = {}
 
+    def _is_prompt_enabled(self, category: str, key: str) -> bool:
+        """
+        检查 prompt 模块是否启用
+
+        通过环境变量 LIFETRACE_PROMPT_{CATEGORY}_{KEY} 控制模块启用/禁用
+        格式：LIFETRACE_PROMPT_{CATEGORY}_{KEY}=0/1 或 false/true
+
+        Args:
+            category: 提示词分类
+            key: 提示词键名
+
+        Returns:
+            True 如果模块启用（默认），False 如果被禁用
+        """
+        # 构建环境变量名：LIFETRACE_PROMPT_{CATEGORY}_{KEY}
+        env_var_name = f"LIFETRACE_PROMPT_{category.upper()}_{key.upper()}"
+        env_var = os.environ.get(env_var_name)
+
+        if env_var is None:
+            # 没有设置环境变量，默认启用
+            return True
+
+        # 检查环境变量的值
+        env_var_lower = env_var.strip().lower()
+        # 如果值为 '0' 或 'false'，则禁用
+        if env_var_lower in ("0", "false"):
+            return False
+
+        # 其他值（'1', 'true', 或任意值）都视为启用
+        return True
+
     def get_prompt(self, category: str, key: str, **kwargs) -> str:
         """
         获取提示词
@@ -83,8 +117,17 @@ class PromptLoader:
 
         Returns:
             格式化后的提示词字符串
+
+        Note:
+            - 如果模块被环境变量禁用，返回空字符串
+            - 使用严格的模板验证（template_string）替代 format()
         """
         try:
+            # 检查模块是否启用
+            if not self._is_prompt_enabled(category, key):
+                logger.debug(f"提示词模块已禁用: {category}.{key} (环境变量)")
+                return ""
+
             # 获取提示词模板
             prompt_template = self._prompts.get(category, {}).get(key, "")
 
@@ -92,9 +135,9 @@ class PromptLoader:
                 logger.warning(f"未找到提示词: {category}.{key}")
                 return ""
 
-            # 如果有格式化参数，进行格式化
+            # 如果有格式化参数，使用严格的模板验证
             if kwargs:
-                return prompt_template.format(**kwargs)
+                return template_string(prompt_template, kwargs)
 
             return prompt_template
 

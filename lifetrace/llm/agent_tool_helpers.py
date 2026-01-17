@@ -169,6 +169,13 @@ class AgentToolHelpersMixin:
         system_prompt += get_language_instruction(lang)
         messages.append({"role": "system", "content": system_prompt})
 
+        # 环境上下文（新增）
+        from lifetrace.util.environment_context import get_environment_context
+
+        env_context = get_environment_context()
+        if env_context:
+            messages.append({"role": "user", "content": env_context})
+
         # 添加待办上下文（如果有）
         if todo_context:
             messages.append(

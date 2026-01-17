@@ -64,23 +64,8 @@ class AgentStepExecutorMixin:
         # 执行工具
         try:
             tool_result = tool.execute(**tool_params)
-            if tool_result.success:
-                formatted_result = format_tool_result(step.suggested_tool, tool_result)
-                logger.info(f"[Agent] 工具优先执行成功: {step.suggested_tool}")
-                return {
-                    "status": "success",
-                    "output": formatted_result,
-                    "tool_name": step.suggested_tool,
-                }
-            # 如果工具执行失败，返回失败状态
-            logger.warning(
-                f"[Agent] 工具优先执行失败: {step.suggested_tool}, 错误: {tool_result.error}"
-            )
-            return {
-                "status": "failed",
-                "output": "",
-                "error": tool_result.error or "工具执行失败",
-            }
+            # 使用统一的工具结果处理方法，确保正确处理 requires_confirmation
+            return self._process_tool_execution_result(step.suggested_tool, tool_result)
         except Exception as e:
             logger.warning(f"[Agent] 工具 {step.suggested_tool} 执行异常: {e}")
             return {
@@ -301,9 +286,11 @@ class AgentStepExecutorMixin:
     def _process_tool_execution_result(self, tool_name: str, tool_result: Any) -> dict[str, Any]:
         """处理工具执行结果"""
         if tool_name == "clarify_todo" and tool_result.success:
+            logger.info(f"[Agent] 工具 {tool_name} 需要用户确认")
             return {"status": "needs_confirmation", "output": tool_result.content}
 
         if tool_result.metadata and tool_result.metadata.get("requires_confirmation"):
+            logger.info(f"[Agent] 工具 {tool_name} 需要用户确认")
             formatted_result = format_tool_result(tool_name, tool_result)
             result_content = formatted_result.replace(f"工具 {tool_name} 执行结果：\n", "")
             return {"status": "needs_confirmation", "output": result_content}
@@ -346,8 +333,13 @@ class AgentStepExecutorMixin:
         # 1. 如果步骤有建议的工具，优先尝试使用
         if step.suggested_tool:
             tool_result = self._try_tool_first(step, state)
-            if tool_result and tool_result["status"] == "success":
-                return tool_result
+            if tool_result:
+                # 如果工具需要确认，直接返回确认状态
+                if tool_result["status"] == "needs_confirmation":
+                    return tool_result
+                # 如果工具执行成功，直接返回
+                if tool_result["status"] == "success":
+                    return tool_result
 
             # 如果工具执行失败，在询问用户之前，先检查是否需要 web_search
             # 这允许 LLM 在执行失败时尝试联网搜索获取实时信息
