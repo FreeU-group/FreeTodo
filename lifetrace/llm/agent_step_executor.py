@@ -329,7 +329,13 @@ class AgentStepExecutorMixin:
         return self._process_tool_execution_result(tool_name, tool_result)
 
     def _execute_step(self, state: AgentState, step: PlanStep) -> dict[str, Any]:
-        """执行单个步骤（工具优先策略）"""
+        """
+        执行单个步骤（工具优先策略）
+
+        **冻结节点**：此方法必须遵守Planner的权威性契约。
+        - 如果 step.suggested_tool 存在，必须走工具路径，禁止再次调用LLM重新决策
+        - 工具失败后直接问用户，不再尝试web_search fallback或其他LLM决策
+        """
         # 1. 如果步骤有建议的工具，优先尝试使用
         if step.suggested_tool:
             tool_result = self._try_tool_first(step, state)
@@ -341,17 +347,13 @@ class AgentStepExecutorMixin:
                 if tool_result["status"] == "success":
                     return tool_result
 
-            # 如果工具执行失败，在询问用户之前，先检查是否需要 web_search
-            # 这允许 LLM 在执行失败时尝试联网搜索获取实时信息
-            if step.suggested_tool != "web_search":
-                web_search_result = self._try_web_search_fallback(step, state)
-                if web_search_result:
-                    return web_search_result
-
-            # 如果工具执行失败且 web_search 不可用或也失败，处理失败情况
+            # **冻结契约**：当 step.suggested_tool 存在且工具失败时，
+            # 必须直接进入问题生成流程，禁止调用LLM重新决策（如web_search fallback）
+            # 这确保了Planner的权威性：planner给出的工具建议必须被尊重
             return self._handle_tool_failure_with_question(step, state, tool_result)
 
         # 2. 如果没有建议的工具，使用原有LLM决策逻辑
+        # 注意：_try_web_search_fallback 仅用于没有 suggested_tool 的场景
         return self._execute_step_without_suggested_tool(step, state)
 
     def _continue_executing_remaining_steps(self, state: AgentState) -> Generator[str]:
