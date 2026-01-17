@@ -50,7 +50,7 @@ win:
     - target: nsis
       arch:
         - x64
-  icon: public/logo.png
+  icon: public/favicon.ico
   artifactName: '${productName}-${version}-win-${arch}.${ext}'
 
 portable:
