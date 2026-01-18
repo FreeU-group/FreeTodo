@@ -240,6 +240,17 @@ class AgentSimpleTaskMixin:
         # 默认使用新的 one-step 短任务执行路径
         logger.info("[Agent] 短任务使用 one-step 执行器路径")
 
+        # 检测批量删除场景（在one-step路径中也要检测）
+        batch_delete_mode, batch_delete_todo_ids = detect_batch_delete_scenario(
+            user_query, todo_context
+        )
+        if batch_delete_mode:
+            logger.info(
+                f"[Agent] one-step路径检测到批量删除场景，待删除{len(batch_delete_todo_ids)}个待办: {batch_delete_todo_ids}"
+            )
+            yield from self._handle_initial_batch_delete(batch_delete_todo_ids, todo_context)
+            return
+
         decision = self._decide_short_task_action(
             user_query=user_query,
             todo_context=todo_context,

@@ -44,9 +44,6 @@ class AgentPlanningMixin:
             "再",
             "先",
             "再",
-            "调研",
-            "总结",
-            "整理",
         ]
 
         # 简单模式：明确CRUD/查询操作，强制走short路径

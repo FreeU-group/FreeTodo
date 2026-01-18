@@ -294,6 +294,34 @@ def _get_conversation_history(
     return conversation_history
 
 
+def _parse_research_confirmation(message_text: str) -> tuple[bool, str | None]:
+    """解析调研确认消息
+
+    Args:
+        message_text: 原始消息文本
+
+    Returns:
+        (is_research_confirmation, web_search_content) 元组
+    """
+    if "<!-- RESEARCH_CONFIRMATION:" in message_text:
+        try:
+            import json
+            import re
+
+            pattern = r"<!-- RESEARCH_CONFIRMATION:\s*({.+?})\s*-->"
+            match = re.search(pattern, message_text, re.DOTALL)
+            if match:
+                confirmation_data = json.loads(match.group(1))
+                confirmed = confirmation_data.get("confirmed", False)
+                web_search_content = confirmation_data.get("web_search_content", "")
+                if confirmed and web_search_content:
+                    return True, web_search_content
+        except Exception as e:
+            logger.warning(f"[stream][agent] 解析调研确认失败: {e}")
+
+    return False, None
+
+
 def _create_agent_streaming_response(
     message: ChatMessage,
     chat_service: ChatService,
@@ -303,15 +331,31 @@ def _create_agent_streaming_response(
     """处理 Agent 模式，支持工具调用"""
     logger.info("[stream] 进入 Agent 模式")
 
-    # 保存用户消息
-    chat_service.add_message(
-        session_id=session_id,
-        role="user",
-        content=message.message,
-    )
+    # 检测是否是调研确认消息
+    is_research_confirmation, web_search_content = _parse_research_confirmation(message.message)
+
+    # 保存用户消息（如果是确认消息，保存为简化消息）
+    if is_research_confirmation:
+        chat_service.add_message(
+            session_id=session_id,
+            role="user",
+            content="确认整理调研结果为待办事项",
+        )
+    else:
+        chat_service.add_message(
+            session_id=session_id,
+            role="user",
+            content=message.message,
+        )
 
     # 创建 Agent 服务
     agent_service = AgentService()
+
+    # 如果是调研确认，直接处理确认逻辑
+    if is_research_confirmation and web_search_content:
+        return _handle_research_confirmation_streaming(
+            agent_service, chat_service, session_id, web_search_content, lang
+        )
 
     # 解析待办上下文
     todo_context, user_query = _parse_todo_context(message.message)
@@ -351,6 +395,62 @@ def _create_agent_streaming_response(
     }
     return StreamingResponse(
         agent_token_generator(), media_type="text/plain; charset=utf-8", headers=headers
+    )
+
+
+def _handle_research_confirmation_streaming(
+    agent_service: AgentService,
+    chat_service: ChatService,
+    session_id: str,
+    web_search_content: str,
+    lang: str = "zh",
+) -> StreamingResponse:
+    """处理调研确认，执行extract_todo"""
+    logger.info("[stream][agent] 处理调研确认")
+
+    def research_confirmation_generator():
+        total_content = ""
+        try:
+            # 创建一个简化的 AgentState 用于执行 extract_todo
+            from lifetrace.llm.state import AgentState
+
+            state = AgentState(
+                user_query="从调研结果中提取可操作的待办事项",
+                todo_context=None,
+            )
+            state.pending_research_confirmation = {
+                "web_search_content": web_search_content,
+                "step_id": 0,
+            }
+
+            # 调用 resume_after_research_confirmation
+            for chunk in agent_service.resume_after_research_confirmation(
+                state=state, user_confirmed=True
+            ):
+                total_content += chunk
+                yield chunk
+
+            # 保存完整的助手回复
+            if total_content:
+                chat_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=total_content,
+                )
+                logger.info("[stream][agent] 调研确认结果已保存到数据库")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"[stream][agent] 调研确认处理失败: {e}")
+            yield "调研确认处理失败，请检查后端配置。"
+
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "X-Session-Id": session_id,
+    }
+    return StreamingResponse(
+        research_confirmation_generator(),
+        media_type="text/plain; charset=utf-8",
+        headers=headers,
     )
 
 

@@ -224,10 +224,16 @@ export const useChatController = ({
 				// Ask mode: 包含待办上下文，帮助理解用户意图
 				payloadMessage = `${todoContext}\n\n${userLabel}: ${messageText}`;
 			}
+			// 检测是否是调研确认消息，如果是，保存友好的消息到列表
+			let displayMessage = messageText;
+			if (messageText.includes("<!-- RESEARCH_CONFIRMATION:")) {
+				displayMessage = "确认整理调研结果为待办事项";
+			}
+
 			const userMessage: ChatMessage = {
 				id: createId(),
 				role: "user",
-				content: messageText,
+				content: displayMessage, // 使用友好的显示消息
 			};
 			const assistantMessageId = createId();
 
@@ -465,6 +471,19 @@ export const useChatController = ({
 				// Send skip message to continue with best-effort
 				const skipMessage = `SKIP_QUESTION:${questionId}`;
 				void sendMessage(skipMessage);
+			},
+			[sendMessage],
+		),
+		handleResearchConfirm: useCallback(
+			(confirmed: boolean, webSearchContent: string) => {
+				// Send research confirmation message with special format
+				// Format: <!-- RESEARCH_CONFIRMATION: {"confirmed": true/false, "web_search_content": "..."} -->
+				const confirmationData = JSON.stringify({
+					confirmed,
+					web_search_content: webSearchContent,
+				});
+				const confirmationMessage = `<!-- RESEARCH_CONFIRMATION: ${confirmationData} -->`;
+				void sendMessage(confirmationMessage);
 			},
 			[sendMessage],
 		),

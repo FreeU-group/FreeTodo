@@ -56,6 +56,15 @@ export function removePlanAndStepMarkers(content: string): string {
 	return cleaned;
 }
 
+/**
+ * 移除确认标记（用于显示）
+ */
+export function removeConfirmationMarkers(content: string): string {
+	// 移除 RESEARCH_CONFIRMATION 注释
+	const researchConfirmationPattern = /<!--\s*RESEARCH_CONFIRMATION:\s*({.+?})\s*-->/s;
+	return content.replace(researchConfirmationPattern, "").trim();
+}
+
 export type PlanInfo = {
 	stepCount: number;
 	fullMatch: string;
@@ -198,6 +207,12 @@ export type TodoConfirmationData =
 			todos: Array<{ id: number; name: string }>;
 			parent_title: string;
 			todo_ids: number[];
+			preview: string;
+	  }
+	| {
+			type: "research_to_todos_confirmation";
+			operation: "research_to_todos";
+			web_search_content: string;
 			preview: string;
 	  };
 

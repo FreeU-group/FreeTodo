@@ -155,6 +155,7 @@ export function ChatPanel() {
 					isUpdating={updateTodoMutation.isPending}
 					onQuestionAnswer={chatController.handleQuestionAnswer}
 					onQuestionSkip={chatController.handleQuestionSkip}
+					onResearchConfirm={chatController.handleResearchConfirm}
 				/>
 			)}
 

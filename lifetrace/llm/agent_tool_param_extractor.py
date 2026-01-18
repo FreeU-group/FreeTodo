@@ -14,6 +14,7 @@ class AgentToolParamExtractor:
 
     MAX_QUERY_LENGTH = 100  # 最大查询长度
     QUERY_PREVIEW_LENGTH = 50  # 查询预览长度
+    MIN_GENERIC_CONTENT_LENGTH = 10  # 泛化模式的最小具体内容长度
 
     def __init__(self, llm_client, tool_registry):
         self.llm_client = llm_client
@@ -30,15 +31,52 @@ class AgentToolParamExtractor:
             parts.append(f"步骤 {s['step_id']}: {s.get('tool', 'unknown')} → {content_preview}...")
         return "先前步骤:\n" + "\n".join(parts)
 
-    def _extract_search_query(self, instruction: str, state: AgentState) -> str:
-        """从步骤指令和上下文中提取搜索查询词"""
-        query = instruction.strip()
+    def _extract_search_query(self, instruction: str, state: AgentState) -> str | None:
+        """从步骤指令和上下文中提取搜索查询词
 
-        # 如果指令太长，尝试提取关键词
+        保守策略：
+        - 如果instruction已经很具体（不包含代词），直接使用
+        - 如果instruction包含代词或太泛化，返回None标记，触发LLM提取
+        - 避免简单的关键词提取，防止破坏用户意图
+
+        Returns:
+            str: 具体的查询词（如果规则可以提取）
+            None: 表示需要LLM提取（instruction包含代词或太泛化）
+        """
+        instruction_text = instruction.strip()
+
+        # 检测是否包含代词，表示需要从上下文中解析
+        pronoun_indicators = ["该任务", "这个任务", "上述任务", "该todo", "这个todo"]
+        has_pronoun = any(indicator in instruction_text for indicator in pronoun_indicators)
+
+        # 检测是否太泛化（只包含通用搜索动词，没有具体内容）
+        generic_patterns = [
+            "搜索关于",
+            "搜索如何",
+            "查找相关信息",
+            "搜索方法和最佳实践",
+            "搜索相关信息",
+        ]
+        is_too_generic = any(
+            pattern in instruction_text
+            and len(instruction_text) - len(pattern) < self.MIN_GENERIC_CONTENT_LENGTH
+            for pattern in generic_patterns
+        )
+
+        # 如果包含代词或太泛化，标记为需要LLM提取
+        if has_pronoun or is_too_generic:
+            logger.info(
+                f"[Agent] instruction包含代词或过于泛化，将使用LLM提取查询: {instruction_text[:50]}"
+            )
+            return None  # 返回None，让系统fallback到LLM提取
+
+        # 如果instruction已经很具体，直接使用（但要限制长度）
+        query = instruction_text
         if len(query) > self.MAX_QUERY_LENGTH:
             preview_len = self.QUERY_PREVIEW_LENGTH
             query = query[:preview_len] if "." not in query[:preview_len] else query.split(".")[0]
 
+        logger.info(f"[Agent] 规则提取查询成功: {query[:50]}")
         return query
 
     def extract_tool_params_from_context(self, step: PlanStep, state: AgentState) -> dict[str, Any]:
@@ -47,7 +85,12 @@ class AgentToolParamExtractor:
 
         # 提取查询关键词（用于web_search）
         if step.suggested_tool == "web_search":
-            params["query"] = self._extract_search_query(step.instruction, state)
+            query = self._extract_search_query(step.instruction, state)
+            if query is None:
+                # 返回空字典，触发LLM提取（它已有完整的上下文：user_query、instruction、scratchpad）
+                logger.info("[Agent] web_search查询需要LLM提取，返回空字典触发fallback")
+                return {}
+            params["query"] = query
             return params
 
         # 对于 extract_todo，如果上一步是 web_search，直接提取完整的搜索结果内容
@@ -76,10 +119,14 @@ class AgentToolParamExtractor:
         tool_schema = tool.parameters_schema
         tool_schema_json = json.dumps(tool_schema, ensure_ascii=False, indent=2)
 
+        # 格式化待办上下文（如果有）
+        todo_context_text = state.todo_context if state.todo_context else "无"
+
         prompt = f"""你是一个工具参数提取器。
 当前步骤指令：{step.instruction}
 先前上下文：{scratchpad_context}
 用户原始查询：{state.user_query}
+待办上下文：{todo_context_text}
 
 需要为工具 "{tool.name}" 提取参数。
 
@@ -87,11 +134,12 @@ class AgentToolParamExtractor:
 {tool_schema_json}
 
 **提取规则：**
-1. 仔细分析步骤指令和先前上下文，找出所有可用的信息
+1. 仔细分析步骤指令、先前上下文和待办上下文，找出所有可用的信息
 2. 对于必需参数，必须从上下文中提取或推断出合理的值
 3. 如果参数是数组类型（如 missing_fields），请根据上下文推断应该包含哪些值
-4. 如果参数是字符串类型（如 user_input, text），请从用户查询或步骤指令中提取
-5. 如果确实无法提取某个必需参数，可以使用空字符串或空数组作为默认值，但尽量提取有意义的值
+4. 如果参数是字符串类型（如 user_input, text, query），请从用户查询、步骤指令或待办上下文中提取
+5. **重要**：当用户查询包含"这个任务"、"该任务"等代词时，必须参考待办上下文来理解具体任务内容
+6. 如果确实无法提取某个必需参数，可以使用空字符串或空数组作为默认值，但尽量提取有意义的值
 
 **返回格式（JSON）：**
 {{

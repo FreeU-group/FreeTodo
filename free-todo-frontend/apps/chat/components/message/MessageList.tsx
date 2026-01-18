@@ -24,6 +24,7 @@ type MessageListProps = {
 	isUpdating?: boolean;
 	onQuestionAnswer?: (questionId: string, answer: string) => void;
 	onQuestionSkip?: (questionId: string) => void;
+	onResearchConfirm?: (confirmed: boolean, webSearchContent: string) => void;
 };
 
 export function MessageList({
@@ -37,6 +38,7 @@ export function MessageList({
 	isUpdating = false,
 	onQuestionAnswer,
 	onQuestionSkip,
+	onResearchConfirm,
 }: MessageListProps) {
 	const { data: allTodos = [] } = useTodos();
 
@@ -156,6 +158,7 @@ export function MessageList({
 						}}
 						onQuestionAnswer={onQuestionAnswer}
 						onQuestionSkip={onQuestionSkip}
+						onResearchConfirm={onResearchConfirm}
 					/>
 				);
 			})}

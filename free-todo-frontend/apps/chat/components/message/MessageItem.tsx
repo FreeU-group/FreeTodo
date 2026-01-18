@@ -30,6 +30,7 @@ type MessageItemProps = {
 	onMessageBoxRef: (messageId: string, ref: HTMLDivElement | null) => void;
 	onQuestionAnswer?: (questionId: string, answer: string) => void;
 	onQuestionSkip?: (questionId: string) => void;
+	onResearchConfirm?: (confirmed: boolean, webSearchContent: string) => void;
 };
 
 export function MessageItem({
@@ -48,6 +49,7 @@ export function MessageItem({
 	onMessageBoxRef,
 	onQuestionAnswer,
 	onQuestionSkip,
+	onResearchConfirm,
 }: MessageItemProps) {
 	const tContextMenu = useTranslations("contextMenu");
 	const [hovered, setHovered] = useState(false);
@@ -197,6 +199,7 @@ export function MessageItem({
 								isStreaming={isStreaming && isLastMessage}
 								onQuestionAnswer={onQuestionAnswer}
 								onQuestionSkip={onQuestionSkip}
+								onResearchConfirm={onResearchConfirm}
 							/>
 						</div>
 					</div>

@@ -33,6 +33,7 @@ class AgentState(BaseModel):
     """Agent 执行状态模型（长任务用）"""
 
     user_query: str
+    todo_context: str | None = Field(default=None, description="待办事项上下文")
     plan: list[PlanStep] = []
     current_step_index: int = 0
     scratchpad: list[dict[str, Any]] = []  # 存储执行历史: {step_id, tool, content}
@@ -46,6 +47,12 @@ class AgentState(BaseModel):
     pending_question: dict[str, Any] | None = Field(
         default=None,
         description="暂停时存储的问题数据",
+    )
+
+    # 调研确认状态（新增）
+    pending_research_confirmation: dict[str, Any] | None = Field(
+        default=None,
+        description="暂停时存储的调研确认数据，包含web_search结果",
     )
 
 

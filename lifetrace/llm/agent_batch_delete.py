@@ -205,6 +205,14 @@ def detect_batch_delete_scenario(
     """
     检测是否是批量删除场景
 
+    批量删除场景定义（严格）：
+    - 用户明确说"删除这些待办"、"删除它们"等（包含"这些"/"它们" + "删除"）
+    - 且用户没有指定任何语义过滤条件（如"考研相关的"、"已完成的"等）
+    - 且上下文中包含多个待办
+
+    如果不是严格的批量删除（有语义限定），返回False，让LLM判断：
+    - LLM会先query_todo（如果需要），然后根据语义过滤，最后批量删除匹配的
+
     Args:
         user_query: 用户查询
         todo_context: 待办上下文
@@ -212,19 +220,57 @@ def detect_batch_delete_scenario(
     Returns:
         (是否是批量删除场景, 待删除的待办ID列表)
     """
-    if not (
-        any(word in user_query for word in ["这些", "它们", "这些待办"]) and "删除" in user_query
-    ):
+    # 检测是否包含批量删除关键词
+    has_batch_keywords = any(word in user_query for word in ["这些", "它们", "这些待办"])
+    has_delete = "删除" in user_query
+
+    if not (has_batch_keywords and has_delete):
         return False, []
 
     if not todo_context:
+        return False, []
+
+    # 检测是否有语义限定词（表示需要过滤）
+    # 如果有这些词，说明不是"删除所有"，而是"删除匹配条件的"
+    semantic_filters = [
+        "相关的",
+        "包含",
+        "匹配",
+        "符合",
+        "属于",
+        "考研",
+        "工作",
+        "学习",
+        "生活",  # 常见的语义限定词示例
+        "已完成",
+        "进行中",
+        "已取消",  # 状态限定
+    ]
+
+    # 检测是否有明确的语义过滤意图
+    # 例如："删除这些待办中考研相关的" 包含"相关的"
+    #      "删除考研相关的待办" 包含"考研"+"相关的"
+    #      "删除名称包含X的待办" 包含"包含"
+    has_semantic_filter = any(filter_word in user_query for filter_word in semantic_filters)
+
+    # 更精确的检测：如果"这些"后面有"的"或具体描述（可能表示语义限定）
+    # 例如："删除这些待办中考研相关的" vs "删除这些待办"
+    # 简单规则：如果"这些"后面有"的"或具体词汇（不是简单的"待办"），可能是语义限定
+    pattern_after_these = r"这些(?:待办)?.*?(?:的|相关|包含|匹配)"
+    has_explicit_filter_after_these = bool(re.search(pattern_after_these, user_query))
+
+    if has_semantic_filter or has_explicit_filter_after_these:
+        # 用户指定了语义过滤，让LLM判断（LLM会先query_todo，然后过滤）
+        logger.info(
+            f"[Agent] 用户指定了语义过滤条件，不触发批量删除所有，交由LLM判断: {user_query[:50]}"
+        )
         return False, []
 
     selected_todo_ids = extract_selected_todo_ids(todo_context)
 
     if len(selected_todo_ids) > 1:
         logger.info(
-            f"[Agent] 检测到批量删除场景，待删除{len(selected_todo_ids)}个待办: {selected_todo_ids}"
+            f"[Agent] 检测到批量删除场景（无语义限定），待删除{len(selected_todo_ids)}个待办: {selected_todo_ids}"
         )
         return True, selected_todo_ids
 
