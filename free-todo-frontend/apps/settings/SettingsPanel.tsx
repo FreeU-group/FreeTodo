@@ -18,6 +18,7 @@ import {
 	SchedulerSection,
 	SettingsSection,
 	TavilyConfigSection,
+	VoiceInputSection,
 	VersionInfoSection,
 } from "./components";
 
@@ -58,6 +59,9 @@ export function SettingsPanel() {
 
 				{/* Dock 显示模式设置 */}
 				<DockDisplayModeSection loading={loading} />
+
+				{/* 语音输入设置 */}
+				<VoiceInputSection config={config} loading={loading} />
 
 				{/* 面板开关 */}
 				<PanelSwitchesSection loading={loading} />

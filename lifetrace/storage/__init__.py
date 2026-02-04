@@ -5,6 +5,7 @@ Storage 模块
 
 from lifetrace.storage.database import (
     activity_mgr,
+    audio_mgr,
     chat_mgr,
     db_base,
     event_mgr,
@@ -27,6 +28,7 @@ __all__ = [
     "stats_mgr",
     "journal_mgr",
     "activity_mgr",
+    "audio_mgr",
     # 数据库基础
     "db_base",
     "get_session",

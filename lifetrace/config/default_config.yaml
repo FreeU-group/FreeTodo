@@ -16,6 +16,7 @@ server:
 base_dir: data
 database_path: lifetrace.db
 screenshots_dir: screenshots/
+audio_dir: audio/
 
 # 日志配置
 logging:
@@ -100,6 +101,27 @@ jobs:
     interval: 30 # 检查间隔（秒），默认30秒检查一次
     params:
       reminder_window_minutes: 5 # 提醒时间窗口（分钟），在 DDL 前多少分钟提醒
+  audio_transcription:
+    id: audio_transcription # 任务ID
+    name: 音频转写 # 任务显示名称（中文）
+    enabled: false # 是否启用音频转写任务（默认关闭）
+    interval: 10 # 扫描待处理音频的间隔（秒）
+
+# 音频转写（离线）
+audio_transcription:
+  enabled: true
+  model: small
+  device: auto
+  compute_type: auto
+  beam_size: 5
+  language: auto
+  vad_filter: true
+  vad_parameters:
+    min_silence_duration_ms: 500
+  diarization:
+    enabled: false
+    model: pyannote/speaker-diarization-3.1
+    auth_token: ""
 
 # 向量数据库配置
 vector_db:

@@ -93,10 +93,11 @@ export function TodoContextMenu({
 		const chatPosition = getFeatureByPosition("panelA");
 		if (chatPosition !== "chat") {
 			// 找到聊天功能所在的位置，或分配到第一个可用位置
-			const positions: Array<"panelA" | "panelB" | "panelC"> = [
+			const positions: Array<"panelA" | "panelB" | "panelC" | "panelD"> = [
 				"panelA",
 				"panelB",
 				"panelC",
+				"panelD",
 			];
 			for (const pos of positions) {
 				if (getFeatureByPosition(pos) === "chat") {

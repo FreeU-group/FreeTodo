@@ -24,22 +24,41 @@ depends_on = None
 
 def upgrade() -> None:
     """删除项目和任务相关的表和字段"""
+    bind = op.get_bind()
+    existing_tables = {
+        row[0]
+        for row in bind.execute(
+            sa.text("SELECT name FROM sqlite_master WHERE type='table' AND name IS NOT NULL")
+        ).fetchall()
+    }
+
+    def _drop_table_if_exists(table_name: str) -> None:
+        if table_name in existing_tables:
+            op.drop_table(table_name)
+
     # 1. 删除 event_task_relations 表
-    op.drop_table("event_task_relations")
+    _drop_table_if_exists("event_task_relations")
 
     # 2. 删除 task_progress 表
-    op.drop_table("task_progress")
+    _drop_table_if_exists("task_progress")
 
     # 3. 删除 tasks 表
-    op.drop_table("tasks")
+    _drop_table_if_exists("tasks")
 
     # 4. 删除 projects 表
-    op.drop_table("projects")
+    _drop_table_if_exists("projects")
 
     # 5. 从 events 表中删除 task_id 和 auto_association_attempted 字段
-    with op.batch_alter_table("events") as batch_op:
-        batch_op.drop_column("task_id")
-        batch_op.drop_column("auto_association_attempted")
+    if "events" in existing_tables:
+        columns = {
+            row[1]
+            for row in bind.execute(sa.text("PRAGMA table_info(events)")).fetchall()
+        }
+        with op.batch_alter_table("events") as batch_op:
+            if "task_id" in columns:
+                batch_op.drop_column("task_id")
+            if "auto_association_attempted" in columns:
+                batch_op.drop_column("auto_association_attempted")
 
 
 def downgrade() -> None:

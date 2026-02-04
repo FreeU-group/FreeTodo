@@ -172,6 +172,16 @@ def get_screenshots_dir() -> Path:
     return Path(screenshots_dir)
 
 
+def get_audio_dir() -> Path:
+    """Get audio storage directory."""
+    from lifetrace.util.settings import settings
+
+    audio_dir = settings.get("audio_dir", "audio/")
+    if not os.path.isabs(audio_dir):
+        return get_user_data_dir() / audio_dir
+    return Path(audio_dir)
+
+
 def get_scheduler_database_path() -> Path:
     """获取调度器数据库路径
 

@@ -60,6 +60,8 @@ export interface AppConfig {
 	jobsRecorderInterval?: number;
 	jobsRecorderParamsBlacklistEnabled?: boolean;
 	jobsRecorderParamsBlacklistApps?: string[];
+	voiceInputHotkey?: string;
+	voiceInputLanguage?: string;
 	[key: string]: unknown;
 }
 

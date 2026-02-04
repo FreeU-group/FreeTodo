@@ -68,6 +68,46 @@ class OCRResult(TimestampMixin, table=True):
         return f"<OCRResult(id={self.id}, screenshot_id={self.screenshot_id})>"
 
 
+class AudioRecord(TimestampMixin, table=True):
+    """Audio record metadata."""
+
+    __tablename__ = "audio_records"
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str | None = Field(default=None, max_length=200)
+    file_path: str = Field(max_length=500, unique=True)
+    file_hash: str = Field(max_length=64)
+    file_size: int
+    duration: float | None = None
+    sample_rate: int | None = None
+    channels: int | None = None
+    language: str | None = Field(default=None, max_length=10)
+    status: str = Field(default="pending", max_length=20)
+    diarization_enabled: bool = False
+    error_message: str | None = Field(default=None, sa_column=Column(Text))
+
+    def __repr__(self):
+        return f"<AudioRecord(id={self.id}, file={self.file_path}, status={self.status})>"
+
+
+class AudioSegment(TimestampMixin, table=True):
+    """Audio transcription segment."""
+
+    __tablename__ = "audio_segments"
+
+    id: int | None = Field(default=None, primary_key=True)
+    audio_id: int
+    speaker: str | None = Field(default=None, max_length=50)
+    start_time: float
+    end_time: float
+    text_content: str | None = Field(default=None, sa_column=Column(Text))
+    confidence: float | None = None
+    language: str | None = Field(default=None, max_length=10)
+
+    def __repr__(self):
+        return f"<AudioSegment(id={self.id}, audio_id={self.audio_id}, speaker={self.speaker})>"
+
+
 class Event(TimestampMixin, table=True):
     """事件模型（按前台应用连续使用区间聚合截图）"""
 

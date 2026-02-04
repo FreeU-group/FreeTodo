@@ -1,0 +1,9 @@
+{
+  "name": "free-todo-root",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -C free-todo-frontend dev",
+    "build": "pnpm -C free-todo-frontend build",
+    "start": "pnpm -C free-todo-frontend start"
+  }
+}

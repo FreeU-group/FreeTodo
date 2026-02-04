@@ -1,7 +1,9 @@
-import { AtSign, Send, Square } from "lucide-react";
+import { AtSign, Mic, Send, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useVoiceHotkey } from "@/lib/hooks/useVoiceHotkey";
+import { useVoiceInput } from "@/lib/hooks/useVoiceInput";
 import { cn } from "@/lib/utils";
 
 type InputBoxProps = {
@@ -48,9 +50,14 @@ export function InputBox({
 	maxHeight = "40vh",
 }: InputBoxProps) {
 	const t = useTranslations("chat");
+	const tVoice = useTranslations("voiceInput");
 	const isSendDisabled = !inputValue.trim() || isStreaming;
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const prevInputValueRef = useRef<string>(inputValue);
+	const [voiceStatus, setVoiceStatus] = useState<"recording" | "transcribing" | null>(
+		null,
+	);
+	const { hotkeyCode, hotkeyLabel, language } = useVoiceHotkey();
 
 	// 判断是否使用单行紧凑布局：Mode Switcher 菜单没打开的时候使用它
 	const isCompactLayout = !modeMenuOpen;
@@ -102,9 +109,53 @@ export function InputBox({
 		[onChange, adjustHeight],
 	);
 
+	const handleVoiceText = useCallback(
+		(text: string) => {
+			const next = inputValue.trim() ? `${inputValue} ${text}` : text;
+			onChange(next);
+			requestAnimationFrame(() => {
+				adjustHeight();
+			});
+		},
+		[adjustHeight, inputValue, onChange],
+	);
+
+	const voice = useVoiceInput({
+		onText: handleVoiceText,
+		targetRef: textareaRef,
+		language: language === "auto" ? undefined : language,
+		hotkeyCode,
+		onStatusChange: setVoiceStatus,
+	});
+	const voiceStatusLabel =
+		voiceStatus === "recording"
+			? tVoice("recording")
+			: voiceStatus === "transcribing"
+				? tVoice("transcribing")
+				: null;
+
 	// 右侧按钮组（@ 按钮和发送/停止按钮）
 	const actionButtons = (
 		<div className="flex items-center gap-1">
+			<button
+				type="button"
+				onClick={voice.toggleRecording}
+				className={cn(
+					"flex h-8 w-8 items-center justify-center rounded-lg",
+					voice.isRecording
+						? "bg-red-500 text-white"
+						: "text-muted-foreground hover:bg-foreground/5",
+					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				)}
+				aria-label={
+					voice.isRecording
+						? tVoice("stopRecording")
+						: tVoice("startRecording")
+				}
+				title={tVoice("shortcutHint", { key: hotkeyLabel })}
+			>
+				<Mic className="h-4 w-4" />
+			</button>
 			<button
 				type="button"
 				onClick={onAtClick}
@@ -190,6 +241,22 @@ export function InputBox({
 					{/* 右侧：按钮组 */}
 					{actionButtons}
 				</div>
+				{voiceStatusLabel && (
+					<div className="mt-1 text-xs text-muted-foreground">
+						{voiceStatusLabel}
+					</div>
+				)}
+				{voice.error && (
+					<div className="mt-1 text-xs text-red-500">
+						{voice.error === "unsupported"
+							? tVoice("unsupported")
+							: voice.error === "permission"
+								? tVoice("permissionDenied")
+								: voice.error === "empty"
+									? tVoice("empty")
+									: tVoice("uploadFailed")}
+					</div>
+				)}
 			</div>
 		);
 	}
@@ -229,6 +296,22 @@ export function InputBox({
 				{/* 右下角：按钮组 */}
 				{actionButtons}
 			</div>
+			{voiceStatusLabel && (
+				<div className="mt-1 text-xs text-muted-foreground">
+					{voiceStatusLabel}
+				</div>
+			)}
+			{voice.error && (
+				<div className="mt-1 text-xs text-red-500">
+					{voice.error === "unsupported"
+						? tVoice("unsupported")
+						: voice.error === "permission"
+							? tVoice("permissionDenied")
+							: voice.error === "empty"
+								? tVoice("empty")
+								: tVoice("uploadFailed")}
+				</div>
+			)}
 		</div>
 	);
 }
