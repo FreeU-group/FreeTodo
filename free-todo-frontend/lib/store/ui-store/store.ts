@@ -18,8 +18,10 @@ export const useUiStore = create<UiStoreState>()(
 			isPanelAOpen: DEFAULT_PANEL_STATE.isPanelAOpen,
 			isPanelBOpen: DEFAULT_PANEL_STATE.isPanelBOpen,
 			isPanelCOpen: DEFAULT_PANEL_STATE.isPanelCOpen,
+			isPanelDOpen: DEFAULT_PANEL_STATE.isPanelDOpen,
 			panelAWidth: DEFAULT_PANEL_STATE.panelAWidth,
 			panelCWidth: DEFAULT_PANEL_STATE.panelCWidth,
+			panelDWidth: DEFAULT_PANEL_STATE.panelDWidth,
 			// 动态功能分配初始状态：默认分配
 			panelFeatureMap: DEFAULT_PANEL_STATE.panelFeatureMap,
 			// 默认没有禁用的功能
@@ -70,6 +72,18 @@ export const useUiStore = create<UiStoreState>()(
 					};
 				}),
 
+			togglePanelD: () =>
+				set((state) => {
+					const newIsOpen = !state.isPanelDOpen;
+					const newAutoClosedPanels = newIsOpen
+						? []
+						: state.autoClosedPanels.filter((pos) => pos !== "panelD");
+					return {
+						isPanelDOpen: newIsOpen,
+						autoClosedPanels: newAutoClosedPanels,
+					};
+				}),
+
 			// 位置槽位宽度设置方法
 			setPanelAWidth: (width: number) =>
 				set((state) => {
@@ -94,6 +108,20 @@ export const useUiStore = create<UiStoreState>()(
 
 					return {
 						panelCWidth: clampWidth(width),
+					};
+				}),
+
+			setPanelDWidth: (width: number) =>
+				set((state) => {
+					if (
+						!state.isPanelDOpen ||
+						(!state.isPanelAOpen && !state.isPanelBOpen && !state.isPanelCOpen)
+					) {
+						return state;
+					}
+
+					return {
+						panelDWidth: clampWidth(width),
 					};
 				}),
 
@@ -180,6 +208,8 @@ export const useUiStore = create<UiStoreState>()(
 						return state.isPanelBOpen;
 					case "panelC":
 						return state.isPanelCOpen;
+					case "panelD":
+						return state.isPanelDOpen;
 				}
 			},
 
@@ -197,6 +227,9 @@ export const useUiStore = create<UiStoreState>()(
 					case "panelC":
 						state.togglePanelC();
 						break;
+					case "panelD":
+						state.togglePanelD();
+						break;
 				}
 			},
 
@@ -212,6 +245,8 @@ export const useUiStore = create<UiStoreState>()(
 						return 1 - state.panelAWidth;
 					case "panelC":
 						return state.panelCWidth;
+					case "panelD":
+						return state.panelDWidth;
 				}
 			},
 
@@ -231,6 +266,9 @@ export const useUiStore = create<UiStoreState>()(
 					case "panelC":
 						state.setPanelCWidth(width);
 						break;
+					case "panelD":
+						state.setPanelDWidth(width);
+						break;
 				}
 			},
 
@@ -243,11 +281,15 @@ export const useUiStore = create<UiStoreState>()(
 					isPanelAOpen: layout.isPanelAOpen,
 					isPanelBOpen: layout.isPanelBOpen,
 					isPanelCOpen: layout.isPanelCOpen,
+					isPanelDOpen: layout.isPanelDOpen,
 					...(layout.panelAWidth !== undefined && {
 						panelAWidth: layout.panelAWidth,
 					}),
 					...(layout.panelCWidth !== undefined && {
 						panelCWidth: layout.panelCWidth,
+					}),
+					...(layout.panelDWidth !== undefined && {
+						panelDWidth: layout.panelDWidth,
 					}),
 				});
 			},
@@ -290,6 +332,9 @@ export const useUiStore = create<UiStoreState>()(
 						case "panelC":
 							updates.isPanelCOpen = false;
 							break;
+						case "panelD":
+							updates.isPanelDOpen = false;
+							break;
 					}
 					return updates;
 				}),
@@ -321,6 +366,9 @@ export const useUiStore = create<UiStoreState>()(
 						case "panelC":
 							updates.isPanelCOpen = true;
 							break;
+						case "panelD":
+							updates.isPanelDOpen = true;
+							break;
 					}
 					return updates;
 				}),
@@ -343,7 +391,7 @@ export const useUiStore = create<UiStoreState>()(
 				})),
 		}),
 		{
-			name: "ui-panel-config",
+			name: "ui-panel-config-v2",
 			storage: createJSONStorage(() => {
 				const customStorage = {
 					getItem: (name: string): string | null => {
@@ -382,6 +430,15 @@ export const useUiStore = create<UiStoreState>()(
 								state.panelCWidth = DEFAULT_PANEL_STATE.panelCWidth;
 							}
 
+							if (
+								typeof state.panelDWidth === "number" &&
+								!Number.isNaN(state.panelDWidth)
+							) {
+								state.panelDWidth = clampWidth(state.panelDWidth);
+							} else {
+								state.panelDWidth = DEFAULT_PANEL_STATE.panelDWidth;
+							}
+
 							// 验证布尔值
 							if (typeof state.isPanelAOpen !== "boolean") {
 								state.isPanelAOpen = DEFAULT_PANEL_STATE.isPanelAOpen;
@@ -391,6 +448,9 @@ export const useUiStore = create<UiStoreState>()(
 							}
 							if (typeof state.isPanelCOpen !== "boolean") {
 								state.isPanelCOpen = DEFAULT_PANEL_STATE.isPanelCOpen;
+							}
+							if (typeof state.isPanelDOpen !== "boolean") {
+								state.isPanelDOpen = DEFAULT_PANEL_STATE.isPanelDOpen;
 							}
 
 							// 校验禁用功能列表
@@ -409,6 +469,7 @@ export const useUiStore = create<UiStoreState>()(
 									"panelA",
 									"panelB",
 									"panelC",
+									"panelD",
 								];
 								state.autoClosedPanels = state.autoClosedPanels.filter(
 									(pos: unknown): pos is PanelPosition =>

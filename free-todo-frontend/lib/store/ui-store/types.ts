@@ -11,8 +11,10 @@ export interface LayoutPreset {
 	isPanelAOpen: boolean;
 	isPanelBOpen: boolean;
 	isPanelCOpen: boolean;
+	isPanelDOpen: boolean;
 	panelAWidth?: number;
 	panelCWidth?: number;
+	panelDWidth?: number;
 }
 
 // UI Store 状态接口
@@ -21,9 +23,11 @@ export interface UiStoreState {
 	isPanelAOpen: boolean;
 	isPanelBOpen: boolean;
 	isPanelCOpen: boolean;
+	isPanelDOpen: boolean;
 	// 位置槽位宽度
 	panelAWidth: number;
 	panelCWidth: number;
+	panelDWidth: number;
 	// panelBWidth 是计算值，不需要单独存储
 	// 动态功能分配映射：每个位置当前显示的功能
 	panelFeatureMap: Record<PanelPosition, PanelFeature | null>;
@@ -39,9 +43,11 @@ export interface UiStoreState {
 	togglePanelA: () => void;
 	togglePanelB: () => void;
 	togglePanelC: () => void;
+	togglePanelD: () => void;
 	// 位置槽位宽度设置方法
 	setPanelAWidth: (width: number) => void;
 	setPanelCWidth: (width: number) => void;
+	setPanelDWidth: (width: number) => void;
 	// panelBWidth 是计算值，不需要单独设置方法
 	// 动态功能分配方法
 	setPanelFeature: (position: PanelPosition, feature: PanelFeature) => void;

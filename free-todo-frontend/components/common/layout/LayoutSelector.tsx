@@ -57,7 +57,8 @@ export function LayoutSelector({ showChevron = true }: LayoutSelectorProps) {
 			const match =
 				preset.panelFeatureMap.panelA === panelFeatureMap.panelA &&
 				preset.panelFeatureMap.panelB === panelFeatureMap.panelB &&
-				preset.panelFeatureMap.panelC === panelFeatureMap.panelC;
+				preset.panelFeatureMap.panelC === panelFeatureMap.panelC &&
+				preset.panelFeatureMap.panelD === panelFeatureMap.panelD;
 			if (match) return preset.id;
 		}
 		return null;

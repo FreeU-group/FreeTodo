@@ -8,6 +8,7 @@ import { CalendarPanel } from "@/apps/calendar/CalendarPanel";
 import { ChatPanel } from "@/apps/chat/ChatPanel";
 import { CostTrackingPanel } from "@/apps/cost-tracking";
 import { DebugCapturePanel } from "@/apps/debug/DebugCapturePanel";
+import { DiaryPanel } from "@/apps/diary";
 import { SettingsPanel } from "@/apps/settings";
 import { TodoDetail } from "@/apps/todo-detail";
 import { TodoList } from "@/apps/todo-list";
@@ -159,6 +160,16 @@ export function PanelContent({ position }: PanelContentProps) {
 			</PanelPositionProvider>
 		);
 	}
+
+	// 如果是日记功能，显示日记组件
+	if (feature === "diary") {
+		return (
+			<PanelPositionProvider position={position}>
+				<DiaryPanel />
+			</PanelPositionProvider>
+		);
+	}
+
 
 	// 其他功能显示占位符
 	return (

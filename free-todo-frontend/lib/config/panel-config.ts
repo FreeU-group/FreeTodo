@@ -7,7 +7,6 @@
 import {
 	Activity,
 	Award,
-	BookOpen,
 	CalendarDays,
 	Camera,
 	DollarSign,
@@ -15,10 +14,11 @@ import {
 	ListTodo,
 	type LucideIcon,
 	MessageSquare,
+	Mic,
 	Settings,
 } from "lucide-react";
 
-export type PanelPosition = "panelA" | "panelB" | "panelC";
+export type PanelPosition = "panelA" | "panelB" | "panelC" | "panelD";
 export type PanelFeature =
 	| "calendar"
 	| "activity"
@@ -37,7 +37,6 @@ export type PanelFeature =
  * 在设置面板的"开发选项"中统一管理
  */
 export const DEV_IN_PROGRESS_FEATURES: PanelFeature[] = [
-	"diary",
 	"activity",
 	"debugShots",
 	"achievements",
@@ -68,7 +67,7 @@ export const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	todos: ListTodo,
 	chat: MessageSquare,
 	todoDetail: FileText,
-	diary: BookOpen,
+	diary: Mic,
 	settings: Settings,
 	costTracking: DollarSign,
 	achievements: Award,

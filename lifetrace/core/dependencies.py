@@ -176,6 +176,21 @@ def get_ocr_processor():
     return _ocr_processor
 
 
+# ========== Audio transcription service ==========
+
+_audio_transcription_service = None
+
+
+def get_audio_transcription_service():
+    """Get audio transcription service (lazy singleton)."""
+    global _audio_transcription_service
+    if _audio_transcription_service is None:
+        from lifetrace.services.audio_transcription_service import AudioTranscriptionService
+
+        _audio_transcription_service = AudioTranscriptionService()
+    return _audio_transcription_service
+
+
 # ========== 配置依赖注入 ==========
 
 

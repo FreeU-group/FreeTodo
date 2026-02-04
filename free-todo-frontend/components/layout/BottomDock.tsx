@@ -193,9 +193,11 @@ export function BottomDock({ className }: BottomDockProps) {
 		isPanelAOpen,
 		isPanelBOpen,
 		isPanelCOpen,
+		isPanelDOpen,
 		togglePanelA,
 		togglePanelB,
 		togglePanelC,
+		togglePanelD,
 		getFeatureByPosition,
 		setPanelFeature,
 		dockDisplayMode,
@@ -302,6 +304,7 @@ export function BottomDock({ className }: BottomDockProps) {
 		panelA: null,
 		panelB: null,
 		panelC: null,
+		panelD: null,
 	});
 
 	// 监听外部事件以程序化打开右键菜单（用于引导流程）
@@ -326,7 +329,7 @@ export function BottomDock({ className }: BottomDockProps) {
 
 			// 回退到使用 feature 参数
 			if (targetFeature) {
-				const positions: PanelPosition[] = ["panelA", "panelB", "panelC"];
+				const positions: PanelPosition[] = ["panelA", "panelB", "panelC", "panelD"];
 				for (const pos of positions) {
 					if (getFeatureByPosition(pos) === targetFeature) {
 						const anchorEl = itemRefs.current[pos];
@@ -358,13 +361,14 @@ export function BottomDock({ className }: BottomDockProps) {
 	// 基于配置生成 dock items，每个位置槽位对应一个 item
 	// 在 SSR 时使用默认值，避免 hydration 错误
 	const DOCK_ITEMS: DockItem[] = (
-		["panelA", "panelB", "panelC"] as PanelPosition[]
+		["panelA", "panelB", "panelC", "panelD"] as PanelPosition[]
 	).map((position) => {
 		// 在 SSR 时使用默认功能分配，客户端挂载后使用实际值
 		const defaultFeatureMap: Record<PanelPosition, PanelFeature> = {
 			panelA: "todos",
-			panelB: "todoDetail",
-			panelC: "chat",
+			panelB: "chat",
+			panelC: "diary",
+			panelD: "todoDetail",
 		};
 		const feature = mounted
 			? getFeatureByPosition(position)
@@ -385,6 +389,10 @@ export function BottomDock({ className }: BottomDockProps) {
 			case "panelC":
 				isActive = isPanelCOpen;
 				onClick = togglePanelC;
+				break;
+		case "panelD":
+				isActive = isPanelDOpen;
+				onClick = togglePanelD;
 				break;
 		}
 

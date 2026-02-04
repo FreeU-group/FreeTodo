@@ -70,113 +70,150 @@ class DatabaseBase:
                         )
                     ).fetchall()
                 ]
-                # 定义需要创建的索引
+                # 定义需要创建的索引（table_name, index_name, create_sql）
                 indexes_to_create = [
                     (
+                        "ocr_results",
                         "idx_ocr_results_screenshot_id",
                         "CREATE INDEX IF NOT EXISTS idx_ocr_results_screenshot_id ON ocr_results(screenshot_id)",
                     ),
                     (
+                        "audio_records",
+                        "idx_audio_records_status",
+                        "CREATE INDEX IF NOT EXISTS idx_audio_records_status ON audio_records(status)",
+                    ),
+                    (
+                        "audio_segments",
+                        "idx_audio_segments_audio_id",
+                        "CREATE INDEX IF NOT EXISTS idx_audio_segments_audio_id ON audio_segments(audio_id)",
+                    ),
+                    (
+                        "screenshots",
                         "idx_screenshots_created_at",
                         "CREATE INDEX IF NOT EXISTS idx_screenshots_created_at ON screenshots(created_at)",
                     ),
                     (
+                        "screenshots",
                         "idx_screenshots_app_name",
                         "CREATE INDEX IF NOT EXISTS idx_screenshots_app_name ON screenshots(app_name)",
                     ),
                     (
+                        "screenshots",
                         "idx_screenshots_event_id",
                         "CREATE INDEX IF NOT EXISTS idx_screenshots_event_id ON screenshots(event_id)",
                     ),
                     (
+                        "todos",
                         "idx_todos_parent_todo_id",
                         "CREATE INDEX IF NOT EXISTS idx_todos_parent_todo_id ON todos(parent_todo_id)",
                     ),
                     (
+                        "todos",
                         "idx_todos_status",
                         "CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status)",
                     ),
                     (
+                        "todos",
                         "idx_todos_deleted_at",
                         "CREATE INDEX IF NOT EXISTS idx_todos_deleted_at ON todos(deleted_at)",
                     ),
                     (
+                        "todos",
                         "idx_todos_priority",
                         "CREATE INDEX IF NOT EXISTS idx_todos_priority ON todos(priority)",
                     ),
                     (
+                        "todos",
                         "idx_todos_order",
                         'CREATE INDEX IF NOT EXISTS idx_todos_order ON todos("order")',
                     ),
                     (
+                        "attachments",
                         "idx_attachments_file_hash",
                         "CREATE INDEX IF NOT EXISTS idx_attachments_file_hash ON attachments(file_hash)",
                     ),
                     (
+                        "attachments",
                         "idx_attachments_deleted_at",
                         "CREATE INDEX IF NOT EXISTS idx_attachments_deleted_at ON attachments(deleted_at)",
                     ),
                     (
+                        "todo_attachment_relations",
                         "idx_todo_attachment_relations_todo_id",
                         "CREATE INDEX IF NOT EXISTS idx_todo_attachment_relations_todo_id ON todo_attachment_relations(todo_id)",
                     ),
                     (
+                        "todo_attachment_relations",
                         "idx_todo_attachment_relations_attachment_id",
                         "CREATE INDEX IF NOT EXISTS idx_todo_attachment_relations_attachment_id ON todo_attachment_relations(attachment_id)",
                     ),
                     (
+                        "tags",
                         "idx_tags_tag_name_unique",
                         "CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_tag_name_unique ON tags(tag_name)",
                     ),
                     (
+                        "tags",
                         "idx_tags_deleted_at",
                         "CREATE INDEX IF NOT EXISTS idx_tags_deleted_at ON tags(deleted_at)",
                     ),
                     (
+                        "todo_tag_relations",
                         "idx_todo_tag_relations_todo_id",
                         "CREATE INDEX IF NOT EXISTS idx_todo_tag_relations_todo_id ON todo_tag_relations(todo_id)",
                     ),
                     (
+                        "todo_tag_relations",
                         "idx_todo_tag_relations_tag_id",
                         "CREATE INDEX IF NOT EXISTS idx_todo_tag_relations_tag_id ON todo_tag_relations(tag_id)",
                     ),
                     (
+                        "journals",
                         "idx_journals_date",
                         "CREATE INDEX IF NOT EXISTS idx_journals_date ON journals(date)",
                     ),
                     (
+                        "journals",
                         "idx_journals_deleted_at",
                         "CREATE INDEX IF NOT EXISTS idx_journals_deleted_at ON journals(deleted_at)",
                     ),
                     (
+                        "journal_tag_relations",
                         "idx_journal_tag_relations_journal_id",
                         "CREATE INDEX IF NOT EXISTS idx_journal_tag_relations_journal_id ON journal_tag_relations(journal_id)",
                     ),
                     (
+                        "journal_tag_relations",
                         "idx_journal_tag_relations_tag_id",
                         "CREATE INDEX IF NOT EXISTS idx_journal_tag_relations_tag_id ON journal_tag_relations(tag_id)",
                     ),
                     (
+                        "activities",
                         "idx_activities_start_time",
                         "CREATE INDEX IF NOT EXISTS idx_activities_start_time ON activities(start_time)",
                     ),
                     (
+                        "activities",
                         "idx_activities_end_time",
                         "CREATE INDEX IF NOT EXISTS idx_activities_end_time ON activities(end_time)",
                     ),
                     (
+                        "activity_event_relations",
                         "idx_activity_event_relations_activity_id",
                         "CREATE INDEX IF NOT EXISTS idx_activity_event_relations_activity_id ON activity_event_relations(activity_id)",
                     ),
                     (
+                        "activity_event_relations",
                         "idx_activity_event_relations_event_id",
                         "CREATE INDEX IF NOT EXISTS idx_activity_event_relations_event_id ON activity_event_relations(event_id)",
                     ),
                     (
+                        "chats",
                         "idx_chats_session_id",
                         "CREATE INDEX IF NOT EXISTS idx_chats_session_id ON chats(session_id)",
                     ),
                     (
+                        "messages",
                         "idx_messages_chat_id",
                         "CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id)",
                     ),
@@ -184,7 +221,17 @@ class DatabaseBase:
 
                 # 创建索引
                 created_count = 0
-                for index_name, create_sql in indexes_to_create:
+                # 预先收集现有表
+                existing_tables = [
+                    row[0]
+                    for row in conn.execute(
+                        text("SELECT name FROM sqlite_master WHERE type='table' AND name IS NOT NULL")
+                    ).fetchall()
+                ]
+
+                for table_name, index_name, create_sql in indexes_to_create:
+                    if table_name not in existing_tables:
+                        continue
                     if index_name not in existing_indexes:
                         conn.execute(text(create_sql))
                         created_count += 1

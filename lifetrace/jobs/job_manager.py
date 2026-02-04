@@ -9,6 +9,7 @@ from lifetrace.jobs.activity_aggregator import (
 )
 from lifetrace.jobs.clean_data import execute_clean_data_task, get_clean_data_instance
 from lifetrace.jobs.deadline_reminder import execute_deadline_reminder_task
+from lifetrace.jobs.audio_transcription import execute_audio_transcription_task
 from lifetrace.jobs.ocr import execute_ocr_task
 from lifetrace.jobs.recorder import execute_capture_task, get_recorder_instance
 from lifetrace.jobs.scheduler import get_scheduler_manager
@@ -53,6 +54,7 @@ class JobManager:
 
         # 启动 DDL 提醒任务
         self._start_deadline_reminder_job()
+        self._start_audio_transcription_job()
 
         logger.info("所有后台任务已启动")
 
@@ -251,7 +253,32 @@ class JobManager:
             logger.error(f"启动 DDL 提醒任务失败: {e}", exc_info=True)
 
 
+    def _start_audio_transcription_job(self):
+        """????????"""
+        enabled = settings.get("jobs.audio_transcription.enabled", False)
+
+        try:
+            interval = settings.get("jobs.audio_transcription.interval", 10)
+            job_id = settings.get("jobs.audio_transcription.id", "audio_transcription")
+            self.scheduler_manager.add_interval_job(
+                func=execute_audio_transcription_task,
+                job_id="audio_transcription_job",
+                name=job_id,
+                seconds=interval,
+                replace_existing=True,
+            )
+            logger.info(f"??????????????: {interval}?")
+
+            if not enabled:
+                self.scheduler_manager.pause_job("audio_transcription_job")
+                logger.info("?????????????")
+        except Exception as e:
+            logger.error(f"??????????: {e}", exc_info=True)
+
+
 # 全局单例
+
+
 _job_manager_instance: JobManager | None = None
 
 

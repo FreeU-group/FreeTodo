@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from lifetrace.jobs.job_manager import get_job_manager
 from lifetrace.routers import (
     activity,
+    audio,
     chat,
     cost_tracking,
     event,
@@ -114,6 +115,7 @@ logger.info(f"LLM配置状态: {config_status}")
 # 注册所有路由
 app.include_router(health.router)
 app.include_router(config_router.router)
+app.include_router(audio.router)
 app.include_router(chat.router)
 app.include_router(activity.router)
 app.include_router(search.router)

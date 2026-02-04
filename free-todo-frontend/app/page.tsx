@@ -27,10 +27,13 @@ export default function HomePage() {
 		isPanelAOpen,
 		isPanelBOpen,
 		isPanelCOpen,
+		isPanelDOpen,
 		panelAWidth,
 		panelCWidth,
+		panelDWidth,
 		setPanelAWidth,
 		setPanelCWidth,
+		setPanelDWidth,
 	} = useUiStore();
 	const { currentNotification, setNotification } = useNotificationStore();
 	const [isDraggingPanelA, setIsDraggingPanelA] = useState(false);
@@ -171,120 +174,50 @@ export default function HomePage() {
 	}, [config]);
 
 	const layoutState = useMemo(() => {
-		// 计算基础宽度（不包括 panelC）
-		const baseWidth = isPanelCOpen ? 1 - panelCWidth : 1;
 		const actualPanelCWidth = isPanelCOpen ? panelCWidth : 0;
+		const actualPanelDWidth = isPanelDOpen ? panelDWidth : 0;
+		const baseWidth = Math.max(0, 1 - actualPanelCWidth - actualPanelDWidth);
 
-		// 所有面板都关闭的情况
-		if (!isPanelAOpen && !isPanelBOpen && !isPanelCOpen) {
-			return {
-				showPanelA: false,
-				showPanelB: false,
-				showPanelC: false,
-				panelAWidth: 0,
-				panelBWidth: 0,
-				panelCWidth: 0,
-				showPanelAResizeHandle: false,
-				showPanelCResizeHandle: false,
-			};
+		const showPanelA = isPanelAOpen;
+		const showPanelB = isPanelBOpen;
+		const showPanelC = isPanelCOpen;
+		const showPanelD = isPanelDOpen;
+
+		let panelAWidthActual = 0;
+		let panelBWidthActual = 0;
+
+		if (showPanelA && showPanelB) {
+			panelAWidthActual = panelAWidth * baseWidth;
+			panelBWidthActual = baseWidth - panelAWidthActual;
+		} else if (showPanelA && !showPanelB) {
+			panelAWidthActual = baseWidth;
+			panelBWidthActual = 0;
+		} else if (!showPanelA && showPanelB) {
+			panelAWidthActual = 0;
+			panelBWidthActual = baseWidth;
 		}
 
-		if (isPanelAOpen && isPanelBOpen && isPanelCOpen) {
-			// 三个面板都打开
-			return {
-				showPanelA: true,
-				showPanelB: true,
-				showPanelC: true,
-				panelAWidth: panelAWidth * baseWidth,
-				panelBWidth: (1 - panelAWidth) * baseWidth,
-				panelCWidth: actualPanelCWidth,
-				showPanelAResizeHandle: true,
-				showPanelCResizeHandle: true,
-			};
-		}
-
-		if (isPanelAOpen && isPanelBOpen) {
-			// 只有 panelA 和 panelB 打开
-			return {
-				showPanelA: true,
-				showPanelB: true,
-				showPanelC: false,
-				panelAWidth: panelAWidth,
-				panelBWidth: 1 - panelAWidth,
-				panelCWidth: 0,
-				showPanelAResizeHandle: true,
-				showPanelCResizeHandle: false,
-			};
-		}
-
-		if (isPanelBOpen && isPanelCOpen) {
-			// 只有 panelB 和 panelC 打开
-			return {
-				showPanelA: false,
-				showPanelB: true,
-				showPanelC: true,
-				panelAWidth: 0,
-				panelBWidth: baseWidth,
-				panelCWidth: actualPanelCWidth,
-				showPanelAResizeHandle: false,
-				showPanelCResizeHandle: true,
-			};
-		}
-
-		if (isPanelAOpen && isPanelCOpen) {
-			// 只有 panelA 和 panelC 打开
-			return {
-				showPanelA: true,
-				showPanelB: false,
-				showPanelC: true,
-				panelAWidth: baseWidth,
-				panelBWidth: 0,
-				panelCWidth: actualPanelCWidth,
-				showPanelAResizeHandle: false,
-				showPanelCResizeHandle: true,
-			};
-		}
-
-		if (isPanelAOpen && !isPanelBOpen) {
-			// 只有 panelA 打开
-			return {
-				showPanelA: true,
-				showPanelB: false,
-				showPanelC: isPanelCOpen,
-				panelAWidth: baseWidth,
-				panelBWidth: 0,
-				panelCWidth: actualPanelCWidth,
-				showPanelAResizeHandle: false,
-				showPanelCResizeHandle: isPanelCOpen,
-			};
-		}
-
-		if (!isPanelAOpen && isPanelBOpen) {
-			// 只有 panelB 打开
-			return {
-				showPanelA: false,
-				showPanelB: true,
-				showPanelC: isPanelCOpen,
-				panelAWidth: 0,
-				panelBWidth: baseWidth,
-				panelCWidth: actualPanelCWidth,
-				showPanelAResizeHandle: false,
-				showPanelCResizeHandle: isPanelCOpen,
-			};
-		}
-
-		// 只有 panelC 打开
 		return {
-			showPanelA: false,
-			showPanelB: false,
-			showPanelC: true,
-			panelAWidth: 0,
-			panelBWidth: 0,
+			showPanelA,
+			showPanelB,
+			showPanelC,
+			showPanelD,
+			panelAWidth: panelAWidthActual,
+			panelBWidth: panelBWidthActual,
 			panelCWidth: actualPanelCWidth,
-			showPanelAResizeHandle: false,
-			showPanelCResizeHandle: false,
+			panelDWidth: actualPanelDWidth,
+			showPanelAResizeHandle: showPanelA && showPanelB,
+			showPanelCResizeHandle: showPanelC && !showPanelD && (showPanelA || showPanelB),
 		};
-	}, [isPanelAOpen, isPanelBOpen, isPanelCOpen, panelAWidth, panelCWidth]);
+	}, [
+		isPanelAOpen,
+		isPanelBOpen,
+		isPanelCOpen,
+		isPanelDOpen,
+		panelAWidth,
+		panelCWidth,
+		panelDWidth,
+	]);
 
 	const handlePanelADragAtClientX = useCallback(
 		(clientX: number) => {
@@ -300,8 +233,11 @@ export default function HomePage() {
 			// 当 panelC 打开时，panelA 的宽度是相对于 baseWidth 的比例
 			// baseWidth = 1 - panelCWidth
 			// 所以需要将 ratio 转换为相对于 baseWidth 的比例
-			if (isPanelCOpen) {
-				const baseWidth = 1 - panelCWidth;
+			if (isPanelCOpen || isPanelDOpen) {
+				const baseWidth =
+					1 -
+					(isPanelCOpen ? panelCWidth : 0) -
+					(isPanelDOpen ? panelDWidth : 0);
 				if (baseWidth > 0) {
 					const adjustedRatio = ratio / baseWidth;
 					setPanelAWidth(adjustedRatio);
@@ -312,11 +248,12 @@ export default function HomePage() {
 				setPanelAWidth(ratio);
 			}
 		},
-		[setPanelAWidth, isPanelCOpen, panelCWidth],
+		[setPanelAWidth, isPanelCOpen, panelCWidth, isPanelDOpen, panelDWidth],
 	);
 
 	const handlePanelCDragAtClientX = useCallback(
 		(clientX: number) => {
+			if (isPanelDOpen) return;
 			const container = containerRef.current;
 			if (!container) return;
 
@@ -328,7 +265,7 @@ export default function HomePage() {
 			// panelCWidth 是从右侧开始计算的，所以是 1 - ratio
 			setPanelCWidth(1 - ratio);
 		},
-		[setPanelCWidth],
+		[setPanelCWidth, isPanelDOpen],
 	);
 
 	const handlePanelAResizePointerDown = (
@@ -477,6 +414,16 @@ export default function HomePage() {
 						>
 							<PanelContent position="panelC" />
 						</PanelContainer>
+					<PanelContainer
+						key="panelD"
+						position="panelD"
+						isVisible={layoutState.showPanelD}
+						width={layoutState.showPanelD ? layoutState.panelDWidth : 0}
+						isDragging={isDraggingPanelA || isDraggingPanelC}
+					>
+						<PanelContent position="panelD" />
+					</PanelContainer>
+
 					</div>
 				</div>
 

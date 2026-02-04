@@ -102,6 +102,19 @@ export const useChatController = ({
 	// 用于取消流式请求的 AbortController
 	const abortControllerRef = useRef<AbortController | null>(null);
 
+	useEffect(() => {
+		const handler = (event: Event) => {
+			const custom = event as CustomEvent<{ text?: string }>;
+			const text = custom.detail?.text;
+			if (!text) return;
+			setInputValue(text);
+		};
+		window.addEventListener("chat:prefill", handler as EventListener);
+		return () => {
+			window.removeEventListener("chat:prefill", handler as EventListener);
+		};
+	}, []);
+
 	const historyError = sessionsError ? t("loadHistoryFailed") : null;
 
 	const selectedTodos = useMemo(

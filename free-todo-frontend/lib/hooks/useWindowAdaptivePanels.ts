@@ -37,12 +37,14 @@ export function useWindowAdaptivePanels(
 			if (state.isPanelAOpen) count++;
 			if (state.isPanelBOpen) count++;
 			if (state.isPanelCOpen) count++;
+			if (state.isPanelDOpen) count++;
 			return count;
 		};
 
 		// 找到最右侧打开的panel
 		const getRightmostOpenPanel = (): PanelPosition | null => {
 			const state = storeRef.current;
+			if (state.isPanelDOpen) return "panelD";
 			// 优先级：panelC > panelB > panelA（从右到左）
 			if (state.isPanelCOpen) return "panelC";
 			if (state.isPanelBOpen) return "panelB";

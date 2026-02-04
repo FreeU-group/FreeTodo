@@ -1,11 +1,13 @@
 "use client";
 
-import { Check, Paperclip, X } from "lucide-react";
+import { Check, Mic, Paperclip, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SectionHeader } from "@/components/common/layout/SectionHeader";
+import { useVoiceHotkey } from "@/lib/hooks/useVoiceHotkey";
+import { useVoiceInput } from "@/lib/hooks/useVoiceInput";
 import type { TodoAttachment } from "@/lib/types";
 
 interface DescriptionSectionProps {
@@ -24,12 +26,34 @@ export function DescriptionSection({
 	onDescriptionChange,
 }: DescriptionSectionProps) {
 	const t = useTranslations("todoDetail");
+	const tVoice = useTranslations("voiceInput");
 	const [isEditing, setIsEditing] = useState(false);
 	const [editValue, setEditValue] = useState(description || "");
+	const [voiceStatus, setVoiceStatus] = useState<"recording" | "transcribing" | null>(
+		null,
+	);
+	const { hotkeyCode, hotkeyLabel, language } = useVoiceHotkey();
 	// 本地显示值，用于乐观更新
 	const [displayValue, setDisplayValue] = useState(description || "");
 	const [isHovered, setIsHovered] = useState(false);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const voice = useVoiceInput({
+		onText: (text) => {
+			const next = editValue.trim() ? `${editValue} ${text}` : text;
+			setEditValue(next);
+			adjustTextareaHeight();
+		},
+		targetRef: textareaRef,
+		language: language === "auto" ? undefined : language,
+		hotkeyCode,
+		onStatusChange: setVoiceStatus,
+	});
+	const voiceStatusLabel =
+		voiceStatus === "recording"
+			? tVoice("recording")
+			: voiceStatus === "transcribing"
+				? tVoice("transcribing")
+				: null;
 	const hasAttachments = attachments && attachments.length > 0;
 	const justSavedRef = useRef<boolean>(false);
 
@@ -137,7 +161,38 @@ export function DescriptionSection({
 								placeholder="输入描述..."
 								className="w-full min-h-[80px] resize-none rounded-md border border-primary bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
 							/>
-							<div className="mt-2 flex justify-end gap-2">
+							<div className="mt-2 flex items-center justify-between gap-2">
+								<div className="flex items-center gap-2">
+									<button
+										type="button"
+										onClick={voice.toggleRecording}
+										className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										aria-label={
+											voice.isRecording
+												? tVoice("stopRecording")
+												: tVoice("startRecording")
+										}
+										title={tVoice("shortcutHint", { key: hotkeyLabel })}
+									>
+										<Mic className="h-4 w-4" />
+									</button>
+									{voiceStatusLabel && (
+										<span className="text-xs text-muted-foreground">
+											{voiceStatusLabel}
+										</span>
+									)}
+									{voice.error && (
+										<span className="text-xs text-red-500">
+											{voice.error === "unsupported"
+												? tVoice("unsupported")
+												: voice.error === "permission"
+													? tVoice("permissionDenied")
+													: voice.error === "empty"
+														? tVoice("empty")
+														: tVoice("uploadFailed")}
+										</span>
+									)}
+								</div>
 								<button
 									type="button"
 									onClick={handleCancel}

@@ -11,3 +11,4 @@ export { SettingsSection } from "./SettingsSection";
 export { TavilyConfigSection } from "./TavilyConfigSection";
 export { ToggleSwitch } from "./ToggleSwitch";
 export { VersionInfoSection } from "./VersionInfoSection";
+export { VoiceInputSection } from "./VoiceInputSection";
