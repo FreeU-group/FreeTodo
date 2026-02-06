@@ -125,7 +125,7 @@
 		"baseline-browser-mapping": "^2.9.19",
 		"concurrently": "^9.2.1",
 		"cross-env": "^10.1.0",
-		"electron": "^40.1.0",
+		"electron": "^40.2.1",
 		"electron-builder": "^26.7.0",
 		"electron-builder-squirrel-windows": "26.7.0",
 		"esbuild": "^0.27.2",
