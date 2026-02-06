@@ -85,7 +85,7 @@
 		"@tauri-apps/api": "2.9.1",
 		"@tiptap/core": "^3.18.0",
 		"@tiptap/extension-placeholder": "^3.18.0",
-		"@tiptap/pm": "^3.18.0",
+		"@tiptap/pm": "^3.19.0",
 		"@tiptap/react": "^3.18.0",
 		"@tiptap/starter-kit": "^3.18.0",
 		"clsx": "^2.1.1",
