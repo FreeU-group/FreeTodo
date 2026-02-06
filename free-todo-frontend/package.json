@@ -87,7 +87,7 @@
 		"@tiptap/extension-placeholder": "^3.18.0",
 		"@tiptap/pm": "^3.18.0",
 		"@tiptap/react": "^3.18.0",
-		"@tiptap/starter-kit": "^3.18.0",
+		"@tiptap/starter-kit": "^3.19.0",
 		"clsx": "^2.1.1",
 		"date-fns": "^4.1.0",
 		"dayjs": "^1.11.19",
