@@ -117,7 +117,7 @@
 		"@tauri-apps/cli": "2.9.1",
 		"@types/dom-speech-recognition": "^0.0.7",
 		"@types/markdown-it": "^14.1.2",
-		"@types/node": "^25.1.0",
+		"@types/node": "^25.2.1",
 		"@types/react": "^19.2.10",
 		"@types/react-dom": "^19.2.3",
 		"@types/turndown": "^5.0.6",
