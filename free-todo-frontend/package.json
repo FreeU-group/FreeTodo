@@ -92,7 +92,7 @@
 		"date-fns": "^4.1.0",
 		"dayjs": "^1.11.19",
 		"driver.js": "^1.4.0",
-		"framer-motion": "^12.29.2",
+		"framer-motion": "^12.33.0",
 		"jimp": "^1.6.0",
 		"lucide-react": "^0.563.0",
 		"markdown-it": "^14.1.0",
