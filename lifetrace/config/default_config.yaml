@@ -245,6 +245,13 @@ tavily:
 # 音频识别配置（阿里云Fun-ASR）
 audio:
   is_24x7: false # 7x24小时录制模式（自动启动录音，默认关闭）
+  extraction_gate:
+    enabled: false # 是否启用"先用 LLM 判断再提取"的 gate
+    model: "" # gate 使用模型；留空则使用 llm.model
+    max_chars: 2500 # gate 单次调用输入最大字符数（过长自动分块）
+    max_seconds: 300 # gate/提取分块最大时长（秒），0=不按时长分块
+    max_tokens: 160 # gate 输出最大 token
+    temperature: 0.0 # gate 温度（建议 0）
   asr:
     api_key: YOUR_LLM_KEY_HERE # 阿里云百炼API Key
     base_url: wss://dashscope.aliyuncs.com/api-ws/v1/inference/ # WebSocket地址

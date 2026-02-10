@@ -189,7 +189,7 @@ def _create_realtime_nlp_handler(  # noqa: C901
     task_set: set[asyncio.Task],
     throttle_seconds: float = 8.0,
 ):
-    """Realtime optimize/extract during recording (only on final sentences)."""
+    """Realtime todo extraction during recording (only on final sentences)."""
 
     class _RealtimeNlpThrottler:
         def __init__(self):
@@ -217,35 +217,24 @@ def _create_realtime_nlp_handler(  # noqa: C901
                 is_connected_ref[0] = False
                 logger.warning(f"Failed to send {name} to client: {e}")
 
-        async def _compute(self, text_snapshot: str) -> tuple[str, dict[str, Any]]:
-            optimized = text_snapshot
-            extracted: dict[str, Any] = {"todos": [], "schedules": []}
+        async def _compute(self, text_snapshot: str) -> dict[str, Any]:
+            extracted: dict[str, Any] = {"todos": []}
             try:
-                optimized = await audio_service.optimize_transcription_text(text_snapshot)
-            except Exception as e:
-                logger.error(f"实时优化失败: {e}")
-            try:
-                extracted = await audio_service.extraction_service.extract_todos_and_schedules(
-                    text_snapshot
-                )
+                extracted = await audio_service.extraction_service.extract_todos(text_snapshot)
             except Exception as e:
                 logger.error(f"实时提取失败: {e}")
-            return optimized, extracted
+            compat_extracted = {**extracted, "schedules": []}
+            return compat_extracted
 
         async def _run_once(self) -> None:
             text_snapshot = self._buffer.strip()
             if not text_snapshot:
                 return
-            optimized, extracted = await self._compute(text_snapshot)
-
-            preview = optimized.replace("\n", " ")[:200]
+            extracted = await self._compute(text_snapshot)
             todos_preview = extracted.get("todos", [])
-            schedules_preview = extracted.get("schedules", [])
-            logger.info("实时优化/提取完成，准备推送给前端")
-            logger.info(f"优化预览: {preview}")
-            logger.info(f"提取结果: todos={todos_preview}, schedules={schedules_preview}")
+            logger.info("实时提取完成，准备推送给前端")
+            logger.info(f"提取结果: todos={todos_preview}")
 
-            await self._send("OptimizedTextChanged", {"text": optimized})
             await self._send(
                 "ExtractionChanged",
                 {"todos": extracted.get("todos", []), "schedules": extracted.get("schedules", [])},
@@ -466,7 +455,7 @@ async def _save_transcription_if_any(
     await audio_service.save_transcription(
         recording_id=recording_id,
         original_text=text,
-        auto_optimize=True,
+        auto_optimize=False,
         segment_timestamps=segment_timestamps,
     )
 

@@ -129,13 +129,13 @@ class HardwareAudioSession:
                 await self.audio_service.save_transcription(
                     recording_id=recording_id,
                     original_text=marked_text,
-                    auto_optimize=False,  # 先不优化，结束时再优化
+                    auto_optimize=False,
                 )
         except Exception as e:
             logger.error(f"[hardware] 更新转录失败: {e}", exc_info=True)
 
     async def _finalize(self) -> None:
-        """会话结束：保存 WAV 文件、触发 LLM 优化。"""
+        """会话结束：保存 WAV 文件和转录文本。"""
         try:
             if not self.audio_chunks:
                 logger.info(f"[hardware] 设备 {self.uid} 无音频数据，跳过保存")
@@ -183,14 +183,14 @@ class HardwareAudioSession:
             # 完成录音
             self.audio_service.complete_recording(recording_id)
 
-            # 触发 LLM 优化（如果有转录文本）
+            # 保存最终转录（不做 LLM 优化）
             if self.transcription_lines:
                 transcription_text = "\n".join(self.transcription_lines)
                 marked_text = f"🎙️ [硬件设备]\n{transcription_text}"
                 await self.audio_service.save_transcription(
                     recording_id=recording_id,
                     original_text=marked_text,
-                    auto_optimize=True,  # 会话结束时触发优化
+                    auto_optimize=False,
                 )
 
             logger.info(

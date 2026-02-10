@@ -10,11 +10,14 @@ from typing import Any, cast
 from sqlmodel import select
 
 from lifetrace.llm.llm_client import LLMClient
+from lifetrace.services.audio_extraction.gate import should_extract_with_llm_gate
+from lifetrace.services.audio_extraction.text_chunking import chunk_transcription
 from lifetrace.storage import get_session
 from lifetrace.storage.models import Transcription
 from lifetrace.storage.sql_utils import col
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.prompt_loader import get_prompt
+from lifetrace.util.settings import settings
 from lifetrace.util.token_usage_logger import log_token_usage
 
 logger = get_logger()
@@ -348,75 +351,184 @@ class AudioExtractionService:
                     for item in todos
                 ]
 
-        # 处理 schedules
+        # 兼容旧模型输出：将 schedules 降级合并到 todos
         if "schedules" in result:
-            schedules = result["schedules"]
+            schedules = result.get("schedules") or []
+            todos = result.get("todos") or []
+            if not isinstance(todos, list):
+                todos = []
+
+            converted: list[dict[str, Any]] = []
             if schedules and isinstance(schedules[0], str):
-                result["schedules"] = [
+                converted = [
                     {
                         "title": item,
-                        "time": None,
                         "description": None,
+                        "start_time": None,
                         "source_text": item,
                     }
                     for item in schedules
+                    if isinstance(item, str) and item.strip()
                 ]
+            elif schedules and isinstance(schedules[0], dict):
+                for schedule in schedules:
+                    if not isinstance(schedule, dict):
+                        continue
+                    converted.append(
+                        {
+                            "title": schedule.get("title") or schedule.get("source_text") or "",
+                            "description": schedule.get("description"),
+                            "start_time": schedule.get("time") or schedule.get("start_time"),
+                            "source_text": schedule.get("source_text") or schedule.get("title"),
+                        }
+                    )
+
+            if converted:
+                result["todos"] = [*todos, *converted]
+            result.pop("schedules", None)
 
         return result
 
-    async def extract_todos_and_schedules(self, text: str) -> dict[str, Any]:
-        """从转录文本中提取待办和日程
+    async def extract_todos(  # noqa: C901, PLR0912, PLR0915
+        self,
+        text: str,
+        force: bool = False,
+        segment_timestamps: list[float] | None = None,
+    ) -> dict[str, Any]:
+        """从转录文本中提取待办（可按 chunk + gate）。
 
         Args:
             text: 转录文本
 
         Returns:
-            包含todos和schedules的字典
+            包含 todos（及可选 gate 元数据）的字典
         """
         try:
             if not self.llm_client.is_available():
                 logger.warning("LLM客户端不可用，跳过提取")
-                return {"todos": [], "schedules": []}
+                return {"todos": []}
 
-            # 加载提示词
-            system_prompt, user_prompt = self._load_extraction_prompts(text)
+            chunk_chars = int(settings.get("audio.extraction_gate.max_chars", 2500))
+            chunk_seconds = int(settings.get("audio.extraction_gate.max_seconds", 0))
+            chunk_objs = chunk_transcription(
+                text=text,
+                max_chars=chunk_chars,
+                max_seconds=chunk_seconds,
+                segment_timestamps=segment_timestamps,
+            )
+            if not chunk_objs:
+                return {"todos": []}
 
-            # 调用 LLM
+            gate_meta: dict[str, Any] | None = None
+            chunk_gate: list[dict[str, Any]] = []
+
+            if not force:
+                should_extract_any = False
+                for index, chunk_obj in enumerate(chunk_objs):
+                    chunk_text = chunk_obj["text"]
+                    should_extract, reason, gate_data = await should_extract_with_llm_gate(
+                        text=chunk_text,
+                        llm_client=self.llm_client,
+                    )
+                    chunk_gate.append(
+                        {
+                            "i": index + 1,
+                            "should_extract": bool(should_extract),
+                            "reason": reason,
+                            "gate": gate_data if isinstance(gate_data, dict) else None,
+                            "start_line": chunk_obj.get("start_line"),
+                            "end_line": chunk_obj.get("end_line"),
+                            "start_s": chunk_obj.get("start_s"),
+                            "end_s": chunk_obj.get("end_s"),
+                        }
+                    )
+                    if should_extract:
+                        should_extract_any = True
+
+                gate_meta = {
+                    "should_extract": bool(should_extract_any),
+                    "reason": "ok",
+                    "data": {
+                        "chunked": len(chunk_objs) > 1,
+                        "chunk_count": len(chunk_objs),
+                        "chunk_max_chars": chunk_chars,
+                        "chunk_max_seconds": chunk_seconds,
+                        "chunks": chunk_gate,
+                    },
+                }
+
+                if not should_extract_any:
+                    logger.info(
+                        f"audio extraction gate: skip (chunks={len(chunk_objs)}, reason=all_false)"
+                    )
+                    return {"todos": [], "gate": gate_meta}
+
+            extracted_items: list[dict[str, Any]] = []
             client = self.llm_client
             client._initialize_client()
-
             openai_client = client._get_client()
-            response = cast(
-                "Any",
-                openai_client.chat.completions.create(
-                    model=client.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=0.3,
-                ),
-            )
 
-            # 解析响应
-            result_text = (response.choices[0].message.content or "").strip()
-            result = self._parse_llm_response(result_text)
-            usage = getattr(response, "usage", None)
-            if usage:
-                log_token_usage(
-                    model=client.model,
-                    input_tokens=usage.prompt_tokens,
-                    output_tokens=usage.completion_tokens,
-                    endpoint="audio_extraction",
-                    user_query=text[:200],
-                    response_type="todo_schedule_extraction",
-                    feature_type="audio_extraction",
+            for index, chunk_obj in enumerate(chunk_objs):
+                if not force and chunk_gate and not chunk_gate[index].get("should_extract"):
+                    continue
+
+                chunk_text = chunk_obj["text"]
+                system_prompt, user_prompt = self._load_extraction_prompts(chunk_text)
+
+                response = cast(
+                    "Any",
+                    openai_client.chat.completions.create(
+                        model=client.model,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        temperature=0.3,
+                    ),
                 )
 
-            # 规范化结果格式
-            result = self._normalize_extraction_result(result)
+                usage = getattr(response, "usage", None)
+                if usage:
+                    endpoint = "audio_extract"
+                    if len(chunk_objs) > 1:
+                        endpoint = f"{endpoint}|chunk:{index + 1}/{len(chunk_objs)}"
+                    log_token_usage(
+                        model=client.model,
+                        input_tokens=usage.prompt_tokens,
+                        output_tokens=usage.completion_tokens,
+                        endpoint=endpoint,
+                        user_query=chunk_text,
+                        response_type="extract",
+                        feature_type="audio",
+                    )
 
-            return result
+                result_text = (response.choices[0].message.content or "").strip()
+                result = self._parse_llm_response(result_text)
+                result = self._normalize_extraction_result(result)
+
+                todos = result.get("todos", [])
+                if isinstance(todos, list):
+                    extracted_items.extend(todos)
+
+            enriched = self._enrich_extracted_items("todo", extracted_items)
+            deduped: list[dict[str, Any]] = []
+            seen: set[str] = set()
+            for item in enriched:
+                key = str(item.get("dedupe_key") or item.get("id") or "")
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(item)
+
+            output: dict[str, Any] = {"todos": deduped}
+            if gate_meta is not None:
+                output["gate"] = gate_meta
+            return output
         except Exception as e:
-            logger.error(f"提取待办和日程失败: {e}")
-            return {"todos": [], "schedules": []}
+            logger.error(f"提取待办失败: {e}")
+            return {"todos": []}
+
+    async def extract_todos_and_schedules(self, text: str, force: bool = False) -> dict[str, Any]:
+        """兼容旧接口：返回 todos + 空 schedules。"""
+        result = await self.extract_todos(text=text, force=force)
+        return {**result, "schedules": []}
