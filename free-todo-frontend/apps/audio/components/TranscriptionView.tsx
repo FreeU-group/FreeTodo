@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface TodoItem {
@@ -19,6 +19,7 @@ interface TranscriptionViewProps {
 	selectedSegmentIndex?: number | null;
 	onSegmentClick?: (index: number) => void;
 	isLoadingTimeline?: boolean;
+	isRecording?: boolean;
 }
 
 interface TextSegment {
@@ -35,6 +36,7 @@ export function TranscriptionView({
 	selectedSegmentIndex = null,
 	onSegmentClick,
 	isLoadingTimeline = false,
+	isRecording = false,
 }: TranscriptionViewProps) {
 	const transcriptionRef = useRef<HTMLDivElement>(null);
 	const userNearBottomRef = useRef(true);
@@ -170,6 +172,7 @@ export function TranscriptionView({
 		if (contentHash === lastContentHashRef.current) return;
 		lastContentHashRef.current = contentHash;
 
+		if (!isRecording) return;
 		if (!userNearBottomRef.current) return;
 
 		const el = transcriptionRef.current;
@@ -177,9 +180,10 @@ export function TranscriptionView({
 		requestAnimationFrame(() => {
 			el.scrollTop = el.scrollHeight;
 		});
-	}, [partialText, displayedTextKey]);
+	}, [isRecording, partialText, displayedTextKey]);
 
-	useLayoutEffect(() => {
+	useEffect(() => {
+		if (!isRecording) return;
 		userNearBottomRef.current = true;
 		const el = transcriptionRef.current;
 		if (el) {
@@ -187,7 +191,7 @@ export function TranscriptionView({
 				el.scrollTop = el.scrollHeight;
 			});
 		}
-	}, []);
+	}, [isRecording]);
 
 	const hasContent = text.length > 0 || partialText.length > 0;
 	const showLoading = isLoadingTimeline && !hasContent;

@@ -439,14 +439,28 @@ export function AudioPanel() {
 			return;
 		}
 
+		let isFetching = false;
+		const pollTimelineSilently = async () => {
+			if (isFetching) return;
+			isFetching = true;
+			try {
+				// 后台轮询不应反复触发“获取中”提示，避免停录后闪烁
+				await loadTimeline(undefined, true);
+			} finally {
+				isFetching = false;
+			}
+		};
+
 		console.log("[AudioPanel] 启动自动轮询（每秒）");
-		// 立即加载一次
-		loadTimeline((loading) => setIsLoadingTimeline(loading), true);
+		// 轮询开始前清理一次 loading，避免沿用停录流程中的旧状态
+		setIsLoadingTimeline(false);
+		// 立即静默加载一次
+		void pollTimelineSilently();
 
 		// 每秒轮询
 		const interval = setInterval(() => {
 			console.log("[AudioPanel] 轮询：加载时间线");
-			loadTimeline((loading) => setIsLoadingTimeline(loading), true);
+			void pollTimelineSilently();
 		}, 1000);
 
 		return () => {
@@ -499,6 +513,7 @@ export function AudioPanel() {
 			<TranscriptionView
 				text={transcriptionText}
 				partialText={isRecording && isViewingCurrentDate ? partialText : ""}
+				isRecording={isRecording && isViewingCurrentDate}
 				segmentTodos={segmentTodos}
 				segmentTimesSec={segmentTimesSec}
 				segmentTimeLabels={segmentTimeLabels}

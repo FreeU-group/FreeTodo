@@ -100,11 +100,17 @@ export function useStopRecordingConfirm({
 						}, 1000);
 						return;
 					}
+				} else if (pollCount >= maxPolls) {
+					// 接口返回异常结构时兜底，避免 loading 一直卡住
+					setIsExtracting(false);
+					setIsLoadingTimeline(false);
+					return;
 				}
 			} catch (error) {
 				console.error("Failed to check new recording:", error);
 				if (pollCount >= maxPolls) {
 					setIsExtracting(false);
+					setIsLoadingTimeline(false);
 					return;
 				}
 			}
