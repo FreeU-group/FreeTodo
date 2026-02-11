@@ -33,12 +33,10 @@ PCM_SILENCE_RMS = 20
 INT16_MAX = 32767
 INT16_MIN = -32768
 
-# ---- Windowed RMS AGC constants ----
-AGC_WINDOW_SAMPLES = SAMPLE_RATE  # 1-second window (16000 samples)
-AGC_TARGET_RMS = 3000.0  # target RMS ~-20 dBFS
-AGC_NOISE_FLOOR_RMS = 80.0  # below this → noise/silence, don't amplify
-MAX_AGC_GAIN = 6.0  # max gain per window
-AGC_SMOOTHING = 0.7  # gain smoothing between windows (0–1, higher = smoother)
+# ---- Peak-based AGC constants (V1) ----
+MAX_AGC_GAIN = 4.0
+AGC_APPLY_THRESHOLD_GAIN = 1.05
+AGC_TARGET_PEAK_RATIO = 0.85
 DURATION_PCM_WALL_RATIO_WARN_THRESHOLD = 0.7
 
 # 分段存储配置
@@ -321,6 +319,10 @@ async def _audio_stream_generator(
         segment_timestamps_ref: 用于存储从客户端接收的时间戳数组的引用
         should_segment_ref: 用于标记是否需要分段（外部可以设置此标志来触发分段）
     """
+    chunk_count = 0
+    chunk_bytes_total = 0
+    loop_started_at = get_utc_now()
+
     while True:
         try:
             data = await websocket.receive()
@@ -330,6 +332,8 @@ async def _audio_stream_generator(
             if "bytes" in data:
                 chunk = data["bytes"]
                 if chunk:
+                    chunk_count += 1
+                    chunk_bytes_total += len(chunk)
                     audio_chunks.append(chunk)
                     # 实时转写链路：对发送给 ASR 的音频做 AGC（不改动原始落盘数据）
                     yield _apply_agc_to_pcm(logger, chunk, log_stats=False, warn_silence=False)
@@ -352,71 +356,63 @@ async def _audio_stream_generator(
             logger.error(f"Error in audio stream generator: {e}")
             break
 
+    elapsed = max((get_utc_now() - loop_started_at).total_seconds(), 0.001)
+    pcm_seconds = chunk_bytes_total / (SAMPLE_RATE * 2)
+    capture_ratio = pcm_seconds / elapsed
+    logger.info(
+        "Audio stream summary: "
+        f"chunks={chunk_count}, bytes={chunk_bytes_total}, "
+        f"pcm={pcm_seconds:.2f}s, wall={elapsed:.2f}s, ratio={capture_ratio:.3f}"
+    )
+
 
 def _parse_init_message(logger, init_message: dict[str, Any]) -> bool:
     logger.info(f"Received init message: {init_message}")
     return bool(init_message.get("is_24x7", False))
 
 
-def _compute_window_gains(samples: array.array, total: int) -> list[float]:
-    """Compute per-window RMS-based gains with noise gate."""
-    window = AGC_WINDOW_SAMPLES
-    n_windows = (total + window - 1) // window
-    gains: list[float] = []
-    for i in range(n_windows):
-        start = i * window
-        end = min(start + window, total)
-        seg = samples[start:end]
-        rms = (sum(s * s for s in seg) / len(seg)) ** 0.5
-        if rms < AGC_NOISE_FLOOR_RMS:
-            gains.append(1.0)
-        else:
-            gains.append(min(AGC_TARGET_RMS / rms, MAX_AGC_GAIN))
-    # Smooth gains to avoid abrupt volume jumps
-    smoothed: list[float] = [gains[0]]
-    for i in range(1, len(gains)):
-        smoothed.append(AGC_SMOOTHING * smoothed[-1] + (1 - AGC_SMOOTHING) * gains[i])
-    return smoothed
-
-
-def _apply_agc_to_pcm(
+def _apply_agc_to_pcm(  # noqa: C901
     logger,
     pcm_bytes: bytes,
     *,
     log_stats: bool = True,
     warn_silence: bool = True,
 ) -> bytes:
-    """Windowed RMS-based AGC with noise gate and gain smoothing."""
+    """Peak-based AGC (V1)."""
     try:
         samples = array.array("h")
         samples.frombytes(pcm_bytes)
         if not samples:
             return pcm_bytes
 
-        total = len(samples)
-        overall_rms = (sum(s * s for s in samples) / total) ** 0.5
-        overall_max = max(abs(s) for s in samples)
+        max_abs = max(abs(s) for s in samples)
+        rms = (sum(s * s for s in samples) / len(samples)) ** 0.5
         if log_stats:
             logger.info(
-                f"录音原始PCM: samples={total}, max_abs={overall_max}, rms={overall_rms:.2f}"
+                f"录音原始PCM: samples={len(samples)}, max_abs={max_abs}, rms={rms:.2f}"
             )
 
-        if overall_max < PCM_SILENCE_MAX_ABS and overall_rms < PCM_SILENCE_RMS:
+        if max_abs < PCM_SILENCE_MAX_ABS and rms < PCM_SILENCE_RMS:
             if warn_silence:
                 logger.warning("录音PCM振幅极低，可能无声；请检查麦克风/权限/设备输入。")
             return pcm_bytes
 
-        smoothed = _compute_window_gains(samples, total)
-        if log_stats:
-            logger.info(
-                f"分段RMS AGC: windows={len(smoothed)}, "
-                f"gain range=[{min(smoothed):.2f}, {max(smoothed):.2f}]"
-            )
+        target_peak = AGC_TARGET_PEAK_RATIO * INT16_MAX
+        gain = target_peak / max_abs if max_abs > 0 else 1.0
+        gain = min(gain, MAX_AGC_GAIN)
+        if gain <= AGC_APPLY_THRESHOLD_GAIN:
+            return pcm_bytes
 
-        window = AGC_WINDOW_SAMPLES
-        for i in range(total):
-            v = int(samples[i] * smoothed[i // window])
-            samples[i] = max(INT16_MIN, min(INT16_MAX, v))
+        if log_stats:
+            logger.info(f"应用自动增益: x{gain:.2f}")
+
+        for i in range(len(samples)):
+            v = int(samples[i] * gain)
+            if v > INT16_MAX:
+                v = INT16_MAX
+            elif v < INT16_MIN:
+                v = INT16_MIN
+            samples[i] = v
         return samples.tobytes()
     except Exception as e:
         logger.debug(f"音量检测失败: {e}")
