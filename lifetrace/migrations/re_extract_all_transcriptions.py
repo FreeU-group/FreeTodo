@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""批量重新提取转录记录的待办和日程
+"""批量重新提取转录记录的待办。
 
 查找转录记录，检查每条记录是否需要重新提取：
-- 有 original_text 但 extracted_todos 或 extracted_schedules 为空或 "[]"
-- 有 optimized_text 但 extracted_todos_optimized 或 extracted_schedules_optimized 为空或 "[]"
-为需要提取的记录重新提取待办和日程
+- 有 original_text 但 extracted_todos 为空或 "[]"
+为需要提取的记录重新提取待办
 
 支持命令行参数：
   --days N          只处理最近 N 天的记录
@@ -55,45 +54,18 @@ def is_empty_extraction(extracted: str | None) -> bool:
     return False
 
 
-def needs_extraction(transcription: Transcription) -> tuple[bool, bool]:
-    """检查转录记录是否需要提取
-
-    Returns:
-        (needs_original_extraction, needs_optimized_extraction)
-    """
-    needs_original = False
-    needs_optimized = False
-
-    # 检查原文提取
-    if (
+def needs_extraction(transcription: Transcription) -> bool:
+    """检查转录记录是否需要提取"""
+    return bool(
         transcription.original_text
         and transcription.original_text.strip()
-        and (
-            is_empty_extraction(transcription.extracted_todos)
-            or is_empty_extraction(transcription.extracted_schedules)
-        )
-    ):
-        needs_original = True
-
-    # 检查优化文本提取
-    if (
-        transcription.optimized_text
-        and transcription.optimized_text.strip()
-        and (
-            is_empty_extraction(transcription.extracted_todos_optimized)
-            or is_empty_extraction(transcription.extracted_schedules_optimized)
-        )
-    ):
-        needs_optimized = True
-
-    return needs_original, needs_optimized
+        and is_empty_extraction(transcription.extracted_todos)
+    )
 
 
 async def re_extract_transcription(
     transcription: Transcription,
     extraction_service: AudioExtractionService,
-    needs_original: bool,
-    needs_optimized: bool,
 ) -> dict[str, Any]:
     """重新提取单个转录记录
 
@@ -104,67 +76,31 @@ async def re_extract_transcription(
         "transcription_id": transcription.id,
         "recording_id": transcription.audio_recording_id,
         "original_extracted": False,
-        "optimized_extracted": False,
         "errors": [],
     }
 
-    # 提取原文
-    if needs_original:
-        try:
-            if transcription.id is None:
-                raise ValueError("Transcription must have an id before updating.")
-            logger.info(
-                f"提取原文: transcription_id={transcription.id}, "
-                f"recording_id={transcription.audio_recording_id}, "
-                f"text_length={len(transcription.original_text or '')}"
-            )
-            result = await extraction_service.extract_todos_and_schedules(
-                transcription.original_text or ""
-            )
-            extraction_service.update_extraction(
-                transcription_id=transcription.id,
-                todos=result.get("todos", []),
-                schedules=result.get("schedules", []),
-            )
-            results["original_extracted"] = True
-            logger.info(
-                f"✓ 原文提取完成: transcription_id={transcription.id}, "
-                f"todos={len(result.get('todos', []))}, "
-                f"schedules={len(result.get('schedules', []))}"
-            )
-        except Exception as e:
-            error_msg = f"原文提取失败: {e}"
-            logger.error(f"✗ {error_msg}")
-            results["errors"].append(error_msg)
-
-    # 提取优化文本
-    if needs_optimized:
-        try:
-            if transcription.id is None:
-                raise ValueError("Transcription must have an id before updating.")
-            logger.info(
-                f"提取优化文本: transcription_id={transcription.id}, "
-                f"recording_id={transcription.audio_recording_id}, "
-                f"text_length={len(transcription.optimized_text or '')}"
-            )
-            result = await extraction_service.extract_todos_and_schedules(
-                transcription.optimized_text or ""
-            )
-            extraction_service.update_extraction(
-                transcription_id=transcription.id,
-                todos=result.get("todos", []),
-                schedules=result.get("schedules", []),
-            )
-            results["optimized_extracted"] = True
-            logger.info(
-                f"✓ 优化文本提取完成: transcription_id={transcription.id}, "
-                f"todos={len(result.get('todos', []))}, "
-                f"schedules={len(result.get('schedules', []))}"
-            )
-        except Exception as e:
-            error_msg = f"优化文本提取失败: {e}"
-            logger.error(f"✗ {error_msg}")
-            results["errors"].append(error_msg)
+    try:
+        if transcription.id is None:
+            raise ValueError("Transcription must have an id before updating.")
+        logger.info(
+            f"提取原文: transcription_id={transcription.id}, "
+            f"recording_id={transcription.audio_recording_id}, "
+            f"text_length={len(transcription.original_text or '')}"
+        )
+        result = await extraction_service.extract_todos(transcription.original_text or "")
+        extraction_service.update_extraction(
+            transcription_id=transcription.id,
+            todos=result.get("todos", []),
+        )
+        results["original_extracted"] = True
+        logger.info(
+            f"✓ 原文提取完成: transcription_id={transcription.id}, "
+            f"todos={len(result.get('todos', []))}"
+        )
+    except Exception as e:
+        error_msg = f"原文提取失败: {e}"
+        logger.error(f"✗ {error_msg}")
+        results["errors"].append(error_msg)
 
     return results
 
@@ -189,7 +125,7 @@ def parse_ids(ids_str: str) -> list[int]:
 def setup_argument_parser() -> argparse.ArgumentParser:
     """设置命令行参数解析器"""
     parser = argparse.ArgumentParser(
-        description="批量重新提取转录记录的待办和日程",
+        description="批量重新提取转录记录的待办",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -234,7 +170,7 @@ def log_start_info(
 ) -> None:
     """记录开始信息"""
     logger.info("=" * 60)
-    logger.info("开始批量重新提取转录记录的待办和日程")
+    logger.info("开始批量重新提取转录记录的待办")
     if start_date or end_date:
         logger.info(f"日期范围: {start_date or '无限制'} 至 {end_date or '无限制'}")
     if ids:
@@ -246,7 +182,7 @@ def find_transcriptions_needing_extraction(
     start_date: datetime | None,
     end_date: datetime | None,
     ids: list[int] | None,
-) -> list[tuple[int, bool, bool]]:
+) -> list[int]:
     """查找需要提取的转录记录"""
     needs_extraction_list = []
     with get_session() as session:
@@ -269,30 +205,26 @@ def find_transcriptions_needing_extraction(
         # 在会话内检查需要提取的记录
         for transcription in transcriptions:
             # 在会话内访问所有属性，避免延迟加载问题
-            needs_original, needs_optimized = needs_extraction(transcription)
-            if needs_original or needs_optimized:
+            if needs_extraction(transcription):
                 # 保存 transcription_id 而不是对象本身，避免会话分离问题
-                needs_extraction_list.append((transcription.id, needs_original, needs_optimized))
+                needs_extraction_list.append(transcription.id)
 
     return needs_extraction_list
 
 
 async def process_extractions(
-    needs_extraction_list: list[tuple[int, bool, bool]],
+    needs_extraction_list: list[int],
     extraction_service: AudioExtractionService,
 ) -> dict[str, int]:
     """处理提取任务"""
     stats = {
         "total": len(needs_extraction_list),
         "original_extracted": 0,
-        "optimized_extracted": 0,
         "errors": 0,
     }
 
     # 逐个提取
-    for idx, (transcription_id, needs_original, needs_optimized) in enumerate(
-        needs_extraction_list, 1
-    ):
+    for idx, transcription_id in enumerate(needs_extraction_list, 1):
         # 重新获取转录记录（在新的会话中）
         with get_session() as session:
             transcription = session.get(Transcription, transcription_id)
@@ -306,15 +238,11 @@ async def process_extractions(
                 f"recording_id={transcription.audio_recording_id}"
             )
 
-            result = await re_extract_transcription(
-                transcription, extraction_service, needs_original, needs_optimized
-            )
+            result = await re_extract_transcription(transcription, extraction_service)
 
             # 在会话内更新统计
             if result["original_extracted"]:
                 stats["original_extracted"] += 1
-            if result["optimized_extracted"]:
-                stats["optimized_extracted"] += 1
             if result["errors"]:
                 stats["errors"] += 1
 
@@ -327,7 +255,6 @@ def log_final_stats(stats: dict[str, int]) -> None:
     logger.info("提取完成统计:")
     logger.info(f"  总记录数: {stats['total']}")
     logger.info(f"  原文提取成功: {stats['original_extracted']}")
-    logger.info(f"  优化文本提取成功: {stats['optimized_extracted']}")
     logger.info(f"  错误数: {stats['errors']}")
     logger.info("=" * 60)
 
