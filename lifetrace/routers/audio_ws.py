@@ -465,7 +465,6 @@ async def _save_transcription_if_any(
     await audio_service.save_transcription(
         recording_id=recording_id,
         original_text=text,
-        auto_optimize=False,
         segment_timestamps=segment_timestamps,
     )
 

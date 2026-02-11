@@ -125,7 +125,6 @@ async def re_extract_transcription(
                 transcription_id=transcription.id,
                 todos=result.get("todos", []),
                 schedules=result.get("schedules", []),
-                optimized=False,
             )
             results["original_extracted"] = True
             logger.info(
@@ -155,7 +154,6 @@ async def re_extract_transcription(
                 transcription_id=transcription.id,
                 todos=result.get("todos", []),
                 schedules=result.get("schedules", []),
-                optimized=True,
             )
             results["optimized_extracted"] = True
             logger.info(

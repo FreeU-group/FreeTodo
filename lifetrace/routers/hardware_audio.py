@@ -129,7 +129,6 @@ class HardwareAudioSession:
                 await self.audio_service.save_transcription(
                     recording_id=recording_id,
                     original_text=marked_text,
-                    auto_optimize=False,
                 )
         except Exception as e:
             logger.error(f"[hardware] 更新转录失败: {e}", exc_info=True)
@@ -190,7 +189,6 @@ class HardwareAudioSession:
                 await self.audio_service.save_transcription(
                     recording_id=recording_id,
                     original_text=marked_text,
-                    auto_optimize=False,
                 )
 
             logger.info(

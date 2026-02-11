@@ -107,17 +107,12 @@ def _parse_date_param(date: str | None) -> datetime:
         return get_utc_now().astimezone()
 
 
-def _build_timeline_item(
-    rec: dict[str, Any], transcription: dict[str, Any] | None, optimized: bool
-) -> dict[str, Any]:
+def _build_timeline_item(rec: dict[str, Any], transcription: dict[str, Any] | None) -> dict[str, Any]:
     """构建时间线项"""
     text = ""
     segment_timestamps: list[float] | None = None
     if transcription:
-        if optimized and transcription.get("optimized_text"):
-            text = transcription.get("optimized_text") or ""
-        else:
-            text = transcription.get("original_text") or ""
+        text = transcription.get("original_text") or ""
         # 解析时间戳（如果存在）
         timestamps_str = transcription.get("segment_timestamps")
         if timestamps_str:
@@ -141,7 +136,7 @@ def _build_timeline_item(
 
 
 @router.get("/timeline")
-async def get_timeline(date: str | None = Query(None), optimized: bool = Query(False)):
+async def get_timeline(date: str | None = Query(None)):
     """按日期返回录音时间线（含转录文本）"""
     try:
         target_date = _parse_date_param(date)
@@ -151,7 +146,7 @@ async def get_timeline(date: str | None = Query(None), optimized: bool = Query(F
             if not rec:
                 continue
             transcription = audio_service.get_transcription(int(rec["id"]))
-            timeline_item = _build_timeline_item(rec, transcription, optimized)
+            timeline_item = _build_timeline_item(rec, transcription)
             timeline.append(timeline_item)
 
         return JSONResponse({"timeline": timeline})
@@ -203,20 +198,16 @@ def _load_extracted_json(transcription: dict[str, Any], field: str) -> list[dict
         return []
 
 
-def _refresh_extracted_from_db(
-    transcription_id: int, recording_id: int, optimized: bool
-) -> list[dict[str, Any]]:
+def _refresh_extracted_from_db(transcription_id: int, recording_id: int) -> list[dict[str, Any]]:
     """从数据库刷新提取结果（只读取，不清空）。
 
     Args:
         transcription_id: 转录ID
         recording_id: 录音ID
-        optimized: 是否使用优化文本的提取结果
-
     Returns:
         todos 列表
     """
-    _ = transcription_id, optimized
+    _ = transcription_id
     try:
         # 直接读取数据库，不要调用 update_extraction（会清空数据）
         refreshed = audio_service.get_transcription(recording_id)
@@ -229,25 +220,18 @@ def _refresh_extracted_from_db(
         return []
 
 
-def _parse_extracted(
-    transcription: dict[str, Any],
-    optimized: bool = False,
-) -> list[dict[str, Any]]:
+def _parse_extracted(transcription: dict[str, Any]) -> list[dict[str, Any]]:
     """Parse extracted todos and backfill legacy fields.
 
     Args:
         transcription: 转录数据字典
-        optimized: 是否使用优化文本的提取结果
-
     Returns:
         todos 列表
     """
     todos = _load_extracted_json(transcription, "extracted_todos")
 
     # Backfill legacy items and persist so clients always get id/dedupe_key/linked
-    refreshed_todos = _refresh_extracted_from_db(
-        int(transcription["id"]), transcription["audio_recording_id"], optimized
-    )
+    refreshed_todos = _refresh_extracted_from_db(int(transcription["id"]), transcription["audio_recording_id"])
     if refreshed_todos:
         return refreshed_todos
 
@@ -255,20 +239,18 @@ def _parse_extracted(
 
 
 @router.get("/transcription/{recording_id}")
-async def get_transcription(recording_id: int, optimized: bool = Query(False)):
+async def get_transcription(recording_id: int):
     """获取转录文本"""
     try:
         transcription = audio_service.get_transcription(recording_id)
         if not transcription:
             return JSONResponse({"error": "转录不存在"}, status_code=404)
 
-        _ = optimized
         text = transcription["original_text"]
         if not text:
             text = ""
 
-        # 根据 optimized 参数选择对应的提取结果
-        todos = _parse_extracted(transcription, optimized=optimized)
+        todos = _parse_extracted(transcription)
 
         return JSONResponse(
             {
@@ -294,21 +276,17 @@ class AudioLinkRequest(BaseModel):
 
 
 @router.post("/transcription/{recording_id}/link")
-async def link_extracted_items(
-    recording_id: int, request: AudioLinkRequest, optimized: bool = Query(False)
-):
+async def link_extracted_items(recording_id: int, request: AudioLinkRequest):
     """Mark extracted items as linked to todos (persisted in transcription JSON).
 
     Args:
         recording_id: 录音ID
         request: 链接请求
-        optimized: 是否更新优化文本的提取结果
     """
     try:
         result = audio_service.extraction_service.link_extracted_items(
             recording_id=recording_id,
             links=[link.model_dump() for link in request.links],
-            optimized=optimized,
         )
         return JSONResponse(result)
     except Exception as e:
@@ -317,12 +295,11 @@ async def link_extracted_items(
 
 
 @router.post("/extract")
-async def extract_todos(recording_id: int, optimized: bool = Query(False), force: bool = Query(False)):
+async def extract_todos(recording_id: int, force: bool = Query(False)):
     """提取待办事项
 
     Args:
         recording_id: 录音ID
-        optimized: 是否从优化文本提取（False=从原文提取）
         force: 是否强制提取（True=跳过 gate）
     """
     try:
@@ -330,21 +307,19 @@ async def extract_todos(recording_id: int, optimized: bool = Query(False), force
         if not transcription:
             return JSONResponse({"error": "转录不存在"}, status_code=404)
 
-        _ = optimized
         text = transcription.get("original_text") or ""
         if not text:
             return JSONResponse({"error": "转录文本为空"}, status_code=400)
 
         segment_timestamps: list[float] | None = None
-        if not optimized:
-            try:
-                ts_raw = transcription.get("segment_timestamps")
-                if ts_raw:
-                    parsed = json.loads(ts_raw)
-                    if isinstance(parsed, list) and parsed and isinstance(parsed[0], (int, float)):
-                        segment_timestamps = [float(item) for item in parsed]
-            except Exception:
-                segment_timestamps = None
+        try:
+            ts_raw = transcription.get("segment_timestamps")
+            if ts_raw:
+                parsed = json.loads(ts_raw)
+                if isinstance(parsed, list) and parsed and isinstance(parsed[0], (int, float)):
+                    segment_timestamps = [float(item) for item in parsed]
+        except Exception:
+            segment_timestamps = None
 
         result = await audio_service.extraction_service.extract_todos(
             text,
@@ -353,7 +328,7 @@ async def extract_todos(recording_id: int, optimized: bool = Query(False), force
         )
         compat_result = {**result, "schedules": []}
 
-        # 更新提取结果（根据 optimized 参数更新对应字段）
+        # 更新提取结果
         with get_session() as session:
             # 查询转录记录（一个 recording_id 只应该有一条）
             trans = session.exec(
@@ -365,7 +340,6 @@ async def extract_todos(recording_id: int, optimized: bool = Query(False), force
                 audio_service.update_extraction(
                     transcription_id=trans.id,
                     todos=result.get("todos", []),
-                    optimized=optimized,
                 )
 
         return JSONResponse(compat_result)

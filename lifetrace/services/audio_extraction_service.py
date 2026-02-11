@@ -88,7 +88,6 @@ class AudioExtractionService:
         transcription_id: int,
         todos: list[dict] | None = None,
         schedules: list[dict] | None = None,
-        optimized: bool = False,
     ) -> Transcription | None:
         """更新提取结果
 
@@ -96,7 +95,6 @@ class AudioExtractionService:
             transcription_id: 转录ID
             todos: 待办事项列表
             schedules: 日程安排列表
-            optimized: 是否为优化文本的提取结果
 
         Returns:
             更新后的Transcription对象
@@ -104,37 +102,26 @@ class AudioExtractionService:
         with get_session() as session:
             transcription = session.get(Transcription, transcription_id)
             if transcription:
-                if optimized:
-                    if todos is not None:
-                        transcription.extracted_todos_optimized = json.dumps(
-                            self._enrich_extracted_items("todo", todos), ensure_ascii=False
-                        )
-                    if schedules is not None:
-                        transcription.extracted_schedules_optimized = json.dumps(
-                            self._enrich_extracted_items("schedule", schedules), ensure_ascii=False
-                        )
-                else:
-                    if todos is not None:
-                        transcription.extracted_todos = json.dumps(
-                            self._enrich_extracted_items("todo", todos), ensure_ascii=False
-                        )
-                    if schedules is not None:
-                        transcription.extracted_schedules = json.dumps(
-                            self._enrich_extracted_items("schedule", schedules), ensure_ascii=False
-                        )
+                if todos is not None:
+                    transcription.extracted_todos = json.dumps(
+                        self._enrich_extracted_items("todo", todos), ensure_ascii=False
+                    )
+                if schedules is not None:
+                    transcription.extracted_schedules = json.dumps(
+                        self._enrich_extracted_items("schedule", schedules), ensure_ascii=False
+                    )
                 transcription.extraction_status = "completed"
                 session.commit()
                 session.refresh(transcription)
             return transcription
 
     def _load_extraction_from_transcription(
-        self, transcription: Transcription, optimized: bool
+        self, transcription: Transcription
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """从转录对象中加载提取结果
 
         Args:
             transcription: 转录对象
-            optimized: 是否加载优化文本的提取结果
 
         Returns:
             (todos, schedules) 元组
@@ -142,28 +129,16 @@ class AudioExtractionService:
         todos: list[dict[str, Any]] = []
         schedules: list[dict[str, Any]] = []
 
-        if optimized:
-            if transcription.extracted_todos_optimized:
-                try:
-                    todos = json.loads(transcription.extracted_todos_optimized)
-                except Exception:
-                    todos = []
-            if transcription.extracted_schedules_optimized:
-                try:
-                    schedules = json.loads(transcription.extracted_schedules_optimized)
-                except Exception:
-                    schedules = []
-        else:
-            if transcription.extracted_todos:
-                try:
-                    todos = json.loads(transcription.extracted_todos)
-                except Exception:
-                    todos = []
-            if transcription.extracted_schedules:
-                try:
-                    schedules = json.loads(transcription.extracted_schedules)
-                except Exception:
-                    schedules = []
+        if transcription.extracted_todos:
+            try:
+                todos = json.loads(transcription.extracted_todos)
+            except Exception:
+                todos = []
+        if transcription.extracted_schedules:
+            try:
+                schedules = json.loads(transcription.extracted_schedules)
+            except Exception:
+                schedules = []
 
         return todos, schedules
 
@@ -239,14 +214,12 @@ class AudioExtractionService:
         self,
         recording_id: int,
         links: list[dict[str, Any]],
-        optimized: bool = False,
     ) -> dict[str, Any]:
         """标记提取项为已链接到待办（持久化在转录JSON中）
 
         Args:
             recording_id: 录音ID
             links: 链接列表
-            optimized: 是否更新优化文本的提取结果
 
         Returns:
             包含更新数量的字典
@@ -262,7 +235,7 @@ class AudioExtractionService:
             if not transcription:
                 raise ValueError("transcription not found")
 
-            todos, schedules = self._load_extraction_from_transcription(transcription, optimized)
+            todos, schedules = self._load_extraction_from_transcription(transcription)
 
             # Backfill missing fields for legacy stored items (and persist)
             todos = self._enrich_extracted_items("todo", todos)
@@ -275,14 +248,8 @@ class AudioExtractionService:
                 links, todo_by_id, todo_by_dedupe, sched_by_id, sched_by_dedupe
             )
 
-            if optimized:
-                transcription.extracted_todos_optimized = json.dumps(todos, ensure_ascii=False)
-                transcription.extracted_schedules_optimized = json.dumps(
-                    schedules, ensure_ascii=False
-                )
-            else:
-                transcription.extracted_todos = json.dumps(todos, ensure_ascii=False)
-                transcription.extracted_schedules = json.dumps(schedules, ensure_ascii=False)
+            transcription.extracted_todos = json.dumps(todos, ensure_ascii=False)
+            transcription.extracted_schedules = json.dumps(schedules, ensure_ascii=False)
             session.add(transcription)
             session.commit()
 
