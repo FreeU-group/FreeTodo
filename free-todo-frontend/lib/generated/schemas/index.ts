@@ -160,7 +160,6 @@ export * from './messageTodoExtractionResponseErrorMessage';
 export * from './newChatRequest';
 export * from './newChatRequestSessionId';
 export * from './newChatResponse';
-export * from './optimizeTranscriptionApiAudioOptimizePostParams';
 export * from './planQuestionnaireRequest';
 export * from './planQuestionnaireRequestSessionId';
 export * from './planQuestionnaireRequestTodoId';

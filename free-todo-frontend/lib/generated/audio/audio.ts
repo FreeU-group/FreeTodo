@@ -32,7 +32,6 @@ import type {
   GetTranscriptionApiAudioTranscriptionRecordingIdGetParams,
   HTTPValidationError,
   LinkExtractedItemsApiAudioTranscriptionRecordingIdLinkPostParams,
-  OptimizeTranscriptionApiAudioOptimizePostParams
 } from '.././schemas';
 
 import { customFetcher } from '../../api/fetcher';
@@ -549,7 +548,6 @@ export function useGetTranscriptionApiAudioTranscriptionRecordingIdGet<TData = A
 Args:
     recording_id: 录音ID
     request: 链接请求
-    optimized: 是否更新优化文本的提取结果
  * @summary Link Extracted Items
  */
 export type linkExtractedItemsApiAudioTranscriptionRecordingIdLinkPostResponse200 = {
@@ -647,102 +645,6 @@ export const useLinkExtractedItemsApiAudioTranscriptionRecordingIdLinkPost = <TE
         TContext
       > => {
       return useMutation(getLinkExtractedItemsApiAudioTranscriptionRecordingIdLinkPostMutationOptions(options), queryClient);
-    }
-    /**
- * 优化转录文本（使用LLM）
- * @summary Optimize Transcription
- */
-export type optimizeTranscriptionApiAudioOptimizePostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type optimizeTranscriptionApiAudioOptimizePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-    
-export type optimizeTranscriptionApiAudioOptimizePostResponseSuccess = (optimizeTranscriptionApiAudioOptimizePostResponse200) & {
-  headers: Headers;
-};
-export type optimizeTranscriptionApiAudioOptimizePostResponseError = (optimizeTranscriptionApiAudioOptimizePostResponse422) & {
-  headers: Headers;
-};
-
-export type optimizeTranscriptionApiAudioOptimizePostResponse = (optimizeTranscriptionApiAudioOptimizePostResponseSuccess | optimizeTranscriptionApiAudioOptimizePostResponseError)
-
-export const getOptimizeTranscriptionApiAudioOptimizePostUrl = (params: OptimizeTranscriptionApiAudioOptimizePostParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/audio/optimize?${stringifiedParams}` : `/api/audio/optimize`
-}
-
-export const optimizeTranscriptionApiAudioOptimizePost = async (params: OptimizeTranscriptionApiAudioOptimizePostParams, options?: RequestInit): Promise<optimizeTranscriptionApiAudioOptimizePostResponse> => {
-  
-  return customFetcher<optimizeTranscriptionApiAudioOptimizePostResponse>(getOptimizeTranscriptionApiAudioOptimizePostUrl(params),
-  {      
-    ...options,
-    method: 'POST'
-    
-    
-  }
-);}
-
-
-
-
-export const getOptimizeTranscriptionApiAudioOptimizePostMutationOptions = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof optimizeTranscriptionApiAudioOptimizePost>>, TError,{params: OptimizeTranscriptionApiAudioOptimizePostParams}, TContext>, request?: SecondParameter<typeof customFetcher>}
-): UseMutationOptions<Awaited<ReturnType<typeof optimizeTranscriptionApiAudioOptimizePost>>, TError,{params: OptimizeTranscriptionApiAudioOptimizePostParams}, TContext> => {
-
-const mutationKey = ['optimizeTranscriptionApiAudioOptimizePost'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-      
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof optimizeTranscriptionApiAudioOptimizePost>>, {params: OptimizeTranscriptionApiAudioOptimizePostParams}> = (props) => {
-          const {params} = props ?? {};
-
-          return  optimizeTranscriptionApiAudioOptimizePost(params,requestOptions)
-        }
-
-
-
-        
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type OptimizeTranscriptionApiAudioOptimizePostMutationResult = NonNullable<Awaited<ReturnType<typeof optimizeTranscriptionApiAudioOptimizePost>>>
-    
-    export type OptimizeTranscriptionApiAudioOptimizePostMutationError = HTTPValidationError
-
-    /**
- * @summary Optimize Transcription
- */
-export const useOptimizeTranscriptionApiAudioOptimizePost = <TError = HTTPValidationError,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof optimizeTranscriptionApiAudioOptimizePost>>, TError,{params: OptimizeTranscriptionApiAudioOptimizePostParams}, TContext>, request?: SecondParameter<typeof customFetcher>}
- , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof optimizeTranscriptionApiAudioOptimizePost>>,
-        TError,
-        {params: OptimizeTranscriptionApiAudioOptimizePostParams},
-        TContext
-      > => {
-      return useMutation(getOptimizeTranscriptionApiAudioOptimizePostMutationOptions(options), queryClient);
     }
     /**
  * 提取待办事项和日程安排

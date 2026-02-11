@@ -8,5 +8,4 @@
 
 export type GetTimelineApiAudioTimelineGetParams = {
 date?: string | null;
-optimized?: boolean;
 };

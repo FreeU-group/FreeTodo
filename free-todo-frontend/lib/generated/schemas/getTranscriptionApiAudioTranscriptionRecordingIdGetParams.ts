@@ -7,5 +7,4 @@
  */
 
 export type GetTranscriptionApiAudioTranscriptionRecordingIdGetParams = {
-optimized?: boolean;
 };

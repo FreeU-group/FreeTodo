@@ -7,5 +7,4 @@
  */
 
 export type LinkExtractedItemsApiAudioTranscriptionRecordingIdLinkPostParams = {
-optimized?: boolean;
 };
