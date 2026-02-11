@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 // 注意：需要运行 orval 生成 API hooks 后才能使用
 import { useTestAsrConfigApiTestAsrConfigPost } from "@/lib/generated/config/config";
 import { useSaveConfig } from "@/lib/query";
-import { toastError, toastSuccess } from "@/lib/toast";
+import { toastError } from "@/lib/toast";
 import { SettingsSection } from "./SettingsSection";
 
 interface AudioAsrConfigSectionProps {
@@ -58,21 +58,11 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 		if (config.audioAsrHeartbeat !== undefined) setHeartbeat((config.audioAsrHeartbeat as boolean) ?? false);
 	}, [config]);
 
-	const handleSave = async () => {
+	const savePartialConfig = async (partial: Record<string, unknown>) => {
 		try {
 			await saveConfigMutation.mutateAsync({
-				data: {
-					audioAsrApiKey: apiKey.trim(),
-					audioAsrBaseUrl: baseUrl.trim(),
-					audioAsrModel: model.trim(),
-					audioAsrSampleRate: Number(sampleRate) || 16000,
-					audioAsrFormat: format.trim() || "pcm",
-					audioAsrSemanticPunctuationEnabled: semanticPunc,
-					audioAsrMaxSentenceSilence: Number(maxSilence) || 1300,
-					audioAsrHeartbeat: heartbeat,
-				},
+				data: partial,
 			});
-			toastSuccess(t("saveSuccess"));
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
 			toastError(t("saveFailed", { error: msg }));
@@ -158,7 +148,11 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 							placeholder="sk-..."
 							value={apiKey}
 							onChange={(e) => setApiKey(e.target.value)}
-							onBlur={handleSave}
+							onBlur={() =>
+								void savePartialConfig({
+									audioAsrApiKey: apiKey.trim(),
+								})
+							}
 							disabled={isLoading}
 						/>
 						<p className="mt-1 text-xs text-muted-foreground">
@@ -185,7 +179,11 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 							placeholder="wss://dashscope.aliyuncs.com/api-ws/v1/inference/"
 							value={baseUrl}
 							onChange={(e) => setBaseUrl(e.target.value)}
-							onBlur={handleSave}
+							onBlur={() =>
+								void savePartialConfig({
+									audioAsrBaseUrl: baseUrl.trim(),
+								})
+							}
 							disabled={isLoading}
 						/>
 					</div>
@@ -203,7 +201,11 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 						placeholder="fun-asr-realtime"
 						value={model}
 						onChange={(e) => setModel(e.target.value)}
-						onBlur={handleSave}
+						onBlur={() =>
+							void savePartialConfig({
+								audioAsrModel: model.trim(),
+							})
+						}
 						disabled={isLoading}
 					/>
 				</div>
@@ -218,7 +220,11 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 						value={sampleRate}
 						onChange={(e) => setSampleRate(parseInt(e.target.value, 10) || 16000)}
-						onBlur={handleSave}
+						onBlur={() =>
+							void savePartialConfig({
+								audioAsrSampleRate: Number(sampleRate) || 16000,
+							})
+						}
 						disabled={isLoading}
 					/>
 				</div>
@@ -232,7 +238,11 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 						placeholder="pcm"
 						value={format}
 						onChange={(e) => setFormat(e.target.value)}
-						onBlur={handleSave}
+						onBlur={() =>
+							void savePartialConfig({
+								audioAsrFormat: format.trim() || "pcm",
+							})
+						}
 						disabled={isLoading}
 					/>
 				</div>
@@ -247,7 +257,11 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 						value={maxSilence}
 						onChange={(e) => setMaxSilence(parseInt(e.target.value, 10) || 1300)}
-						onBlur={handleSave}
+						onBlur={() =>
+							void savePartialConfig({
+								audioAsrMaxSentenceSilence: Number(maxSilence) || 1300,
+							})
+						}
 						disabled={isLoading}
 					/>
 				</div>
@@ -258,10 +272,10 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 						id="semantic-punc"
 						checked={semanticPunc}
 						onChange={(e) => {
-							setSemanticPunc(e.target.checked);
-							// 立即保存
-							saveConfigMutation.mutate({
-								data: { audioAsrSemanticPunctuationEnabled: e.target.checked },
+							const checked = e.target.checked;
+							setSemanticPunc(checked);
+							void savePartialConfig({
+								audioAsrSemanticPunctuationEnabled: checked,
 							});
 						}}
 						disabled={isLoading}
@@ -278,9 +292,10 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 						id="asr-heartbeat"
 						checked={heartbeat}
 						onChange={(e) => {
-							setHeartbeat(e.target.checked);
-							saveConfigMutation.mutate({
-								data: { audioAsrHeartbeat: e.target.checked },
+							const checked = e.target.checked;
+							setHeartbeat(checked);
+							void savePartialConfig({
+								audioAsrHeartbeat: checked,
 							});
 						}}
 						disabled={isLoading}
