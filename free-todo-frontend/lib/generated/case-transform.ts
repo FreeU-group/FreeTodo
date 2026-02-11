@@ -8,6 +8,10 @@
  * @example "user_notes" -> "userNotes"
  */
 export function toCamelCase(str: string): string {
+	if (str === "audio_is_24x7") {
+		return "audioIs24x7";
+	}
+
 	return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
@@ -16,6 +20,10 @@ export function toCamelCase(str: string): string {
  * @example "userNotes" -> "user_notes"
  */
 export function toSnakeCase(str: string): string {
+	if (str === "audioIs24x7") {
+		return "audio_is_24x7";
+	}
+
 	return str.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
 
