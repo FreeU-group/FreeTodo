@@ -227,7 +227,9 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 
 			// 获取麦克风权限
 			console.log("[AudioRecordingStore] 请求麦克风权限...");
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: { noiseSuppression: true },
+			});
 			console.log("[AudioRecordingStore] ✅ 麦克风权限已获取");
 			mediaStreamRef = stream;
 

@@ -104,8 +104,8 @@ export function isRecordingCrossDate(
 	durationSec: number,
 	selectedDate: Date
 ): boolean {
-	const startDateStr = startTime.toISOString().split("T")[0];
-	const selectedDateStr = selectedDate.toISOString().split("T")[0];
+	const startDateStr = getLocalDateString(startTime);
+	const selectedDateStr = getLocalDateString(selectedDate);
 
 	// 如果开始日期与选择日期不同，肯定跨日期
 	if (startDateStr !== selectedDateStr) {
@@ -114,7 +114,7 @@ export function isRecordingCrossDate(
 
 	// 计算结束时间
 	const endTime = new Date(startTime.getTime() + durationSec * 1000);
-	const endDateStr = endTime.toISOString().split("T")[0];
+	const endDateStr = getLocalDateString(endTime);
 
 	// 如果结束日期与开始日期不同，跨日期
 	return endDateStr !== startDateStr;

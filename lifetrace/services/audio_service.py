@@ -46,9 +46,10 @@ class AudioService:
         Returns:
             音频目录路径（格式：audio/2025/01/17/）
         """
-        year = date.strftime("%Y")
-        month = date.strftime("%m")
-        day = date.strftime("%d")
+        local_date = to_local(date) or date
+        year = local_date.strftime("%Y")
+        month = local_date.strftime("%m")
+        day = local_date.strftime("%d")
         audio_dir = self.audio_base_dir / year / month / day
         audio_dir.mkdir(parents=True, exist_ok=True)
         return audio_dir
@@ -63,11 +64,12 @@ class AudioService:
         Returns:
             音频文件路径
         """
-        audio_dir = self.get_audio_dir_for_date(date)
+        local_date = to_local(date) or date
+        audio_dir = self.get_audio_dir_for_date(local_date)
         if filename:
             return audio_dir / filename
         # 自动生成文件名：HHMMSS.wav
-        timestamp = date.strftime("%H%M%S")
+        timestamp = local_date.strftime("%H%M%S")
         return audio_dir / f"{timestamp}.wav"
 
     def create_recording(
