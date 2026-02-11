@@ -12,7 +12,6 @@ interface UseAudioRecordingControlProps {
 	currentRecordingDateRef: React.MutableRefObject<Date | null>;
 	liveRecordingStateRef: React.MutableRefObject<{
 		text: string;
-		optimizedText: string;
 		partialText: string;
 		segmentTimesSec: number[];
 		segmentOffsetsSec: number[];
@@ -24,7 +23,6 @@ interface UseAudioRecordingControlProps {
 	recordingStartedAtRef: React.MutableRefObject<Date | null>;
 	lastFinalEndMsRef: React.MutableRefObject<number | null>;
 	setTranscriptionText: (text: string | ((prev: string) => string)) => void;
-	setOptimizedText: (text: string | ((prev: string) => string)) => void;
 	setPartialText: (text: string) => void;
 	setSegmentTimesSec: (times: number[] | ((prev: number[]) => number[])) => void;
 	setSegmentOffsetsSec: (offsets: number[] | ((prev: number[]) => number[])) => void;
@@ -48,7 +46,6 @@ export function useAudioRecordingControl({
 	recordingStartedAtRef,
 	lastFinalEndMsRef,
 	setTranscriptionText,
-	setOptimizedText,
 	setPartialText,
 	setSegmentTimesSec,
 	setSegmentOffsetsSec,
@@ -103,9 +100,9 @@ export function useAudioRecordingControl({
 		// 录制开始：记录起始时间用于段落时间标签
 		recordingStartedAtMsRef.current = performance.now();
 		recordingStartedAtRef.current = now;
-	lastFinalEndMsRef.current = null; // 重置，第一段文本使用录音开始时间
-	// 开始录音前，清空本次会话的实时高亮状态
-	setLiveTodos([]);
+		lastFinalEndMsRef.current = null; // 重置，第一段文本使用录音开始时间
+		// 开始录音前，清空本次会话的实时高亮状态
+		setLiveTodos([]);
 
 		console.log("准备调用 startRecording，isRecordingRef.current:", isRecordingRef.current);
 		await startRecording(
@@ -157,7 +154,6 @@ export function useAudioRecordingControl({
 					// 清空 liveRecordingStateRef，因为数据已经保存到后端
 					liveRecordingStateRef.current = {
 						text: "",
-						optimizedText: "",
 						partialText: "",
 						segmentTimesSec: [],
 						segmentOffsetsSec: [],
@@ -263,12 +259,6 @@ export function useAudioRecordingControl({
 				const isViewingCurrentDate = selectedDateStr === nowDateStr;
 
 				// 始终更新持久化状态，无论是否在查看当前日期
-				if (typeof data.optimizedText === "string") {
-					liveRecordingStateRef.current = {
-						...liveRecordingStateRef.current,
-						optimizedText: data.optimizedText,
-					};
-				}
 				if (Array.isArray(data.todos)) {
 					liveRecordingStateRef.current = {
 						...liveRecordingStateRef.current,
@@ -282,7 +272,6 @@ export function useAudioRecordingControl({
 				}
 
 				// 查看当前日期：同步更新 UI 状态
-				if (typeof data.optimizedText === "string") setOptimizedText(data.optimizedText);
 				if (Array.isArray(data.todos)) setLiveTodos(data.todos);
 			},
 			(error) => {
@@ -303,7 +292,6 @@ export function useAudioRecordingControl({
 		formatDateTime,
 		getSegmentDate,
 		setTranscriptionText,
-		setOptimizedText,
 		setPartialText,
 		setLiveTodos,
 		setSelectedSegmentIndex,

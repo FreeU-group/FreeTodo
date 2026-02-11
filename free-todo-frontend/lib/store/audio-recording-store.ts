@@ -22,7 +22,6 @@ interface TodoItem {
 type TranscriptionCallback = (text: string, isFinal: boolean) => void
 
 type RealtimeNlpCallback = (data: {
-		optimizedText?: string;
 		todos?: TodoItem[];
 	}) => void
 
@@ -43,8 +42,6 @@ interface AudioRecordingState {
 	transcriptionText: string;
 	/** 正在识别的部分文本（未确认） */
 	partialText: string;
-	/** 优化后的文本 */
-	optimizedText: string;
 	/** 段落时间（秒） */
 	segmentTimesSec: number[];
 	/** 段落时间标签 */
@@ -77,8 +74,6 @@ interface AudioRecordingActions {
 	appendTranscriptionText: (text: string) => void;
 	/** 设置部分文本 */
 	setPartialText: (text: string) => void;
-	/** 设置优化文本 */
-	setOptimizedText: (text: string) => void;
 	/** 追加段落数据 */
 	appendSegmentData: (data: {
 		timeSec: number;
@@ -204,7 +199,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 	// ===== 转录数据 =====
 	transcriptionText: "",
 	partialText: "",
-	optimizedText: "",
 	segmentTimesSec: [],
 	segmentTimeLabels: [],
 	segmentRecordingIds: [],
@@ -322,15 +316,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 							const isFinal = data.payload?.is_final || false;
 							if (text && currentOnTranscription) {
 								currentOnTranscription(text, isFinal);
-							}
-							return;
-						}
-
-						// 实时优化文本
-						if (data.header?.name === "OptimizedTextChanged") {
-							const text = data.payload?.text;
-							if (currentOnRealtimeNlp && typeof text === "string") {
-								currentOnRealtimeNlp({ optimizedText: text });
 							}
 							return;
 						}
@@ -561,10 +546,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 		set({ partialText: text });
 	},
 
-	setOptimizedText: (text) => {
-		set({ optimizedText: text });
-	},
-
 	appendSegmentData: (data) => {
 		set((state) => ({
 			segmentTimesSec: [...state.segmentTimesSec, data.timeSec],
@@ -582,7 +563,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 		set({
 			transcriptionText: "",
 			partialText: "",
-			optimizedText: "",
 			segmentTimesSec: [],
 			segmentTimeLabels: [],
 			segmentRecordingIds: [],

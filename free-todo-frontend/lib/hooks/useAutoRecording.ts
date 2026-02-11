@@ -21,22 +21,18 @@ export function useAutoRecording() {
 	const { data: config, isLoading: configLoading } = useConfig();
 	const autoStartEnabled = (config?.audioIs24x7 as boolean | undefined) ?? false;
 
-	// 从全局 store 获取状态和方法
 	const isRecording = useAudioRecordingStore((state) => state.isRecording);
 	const startRecording = useAudioRecordingStore((state) => state.startRecording);
 	const updateLastFinalEnd = useAudioRecordingStore((state) => state.updateLastFinalEnd);
 	const appendTranscriptionText = useAudioRecordingStore((state) => state.appendTranscriptionText);
 	const setPartialText = useAudioRecordingStore((state) => state.setPartialText);
-	const setOptimizedText = useAudioRecordingStore((state) => state.setOptimizedText);
 	const appendSegmentData = useAudioRecordingStore((state) => state.appendSegmentData);
 	const setLiveTodos = useAudioRecordingStore((state) => state.setLiveTodos);
 	const clearSessionData = useAudioRecordingStore((state) => state.clearSessionData);
 
-	// 用于防止重复启动
 	const isStartingRef = useRef(false);
 	const hasAutoStartedRef = useRef(false);
 
-	// 启动录音的核心逻辑
 	const doStartRecording = useCallback(async () => {
 		if (isRecording || isStartingRef.current) {
 			console.log("[useAutoRecording] 已在录音中或正在启动，忽略启动请求");
@@ -47,33 +43,25 @@ export function useAutoRecording() {
 		isStartingRef.current = true;
 
 		try {
-			// 清空会话数据
 			clearSessionData();
 
-			// 启动录音，始终使用 7×24 模式（启用分段保存和自动重连）
 			await startRecording(
 				(text, isFinal) => {
-					// 处理分段保存通知
 					if (isFinal && text.startsWith("__SEGMENT_SAVED__")) {
 						console.log("[useAutoRecording] 收到分段保存通知");
 						return;
 					}
 
 					if (isFinal) {
-						// 获取 store 状态计算时间
 						const storeState = useAudioRecordingStore.getState();
 						const currentRecordingStartedAt = storeState.recordingStartedAt ?? Date.now();
 						const currentLastFinalEndMs = storeState.lastFinalEndMs;
 						const segmentStartMs = currentLastFinalEndMs ?? currentRecordingStartedAt;
 						const elapsedSec = (segmentStartMs - currentRecordingStartedAt) / 1000;
 
-						// 更新时间戳
 						updateLastFinalEnd(Date.now());
-
-						// 追加转录文本
 						appendTranscriptionText(text);
 
-						// 追加段落数据
 						const start = storeState.recordingStartedDate ?? new Date();
 						const segmentDate = getSegmentDate(start, elapsedSec, new Date());
 						appendSegmentData({
@@ -88,13 +76,12 @@ export function useAutoRecording() {
 					}
 				},
 				(data) => {
-					if (typeof data.optimizedText === "string") setOptimizedText(data.optimizedText);
 					if (Array.isArray(data.todos)) setLiveTodos(data.todos);
 				},
 				(error) => {
 					console.error("[useAutoRecording] Recording error:", error);
 				},
-				true // 始终使用 7×24 模式
+				true,
 			);
 
 			console.log("[useAutoRecording] ✅ 录音启动成功");
@@ -113,28 +100,22 @@ export function useAutoRecording() {
 		appendTranscriptionText,
 		appendSegmentData,
 		setPartialText,
-		setOptimizedText,
 		setLiveTodos,
 	]);
 
-	// 应用启动时自动开始录音（仅在配置开启时）
 	useEffect(() => {
-		// 等待配置加载完成
 		if (configLoading) {
 			return;
 		}
 
-		// 如果已经自动启动过，不再重复启动
 		if (hasAutoStartedRef.current) {
 			return;
 		}
 
-		// 如果配置开启且未在录音中，自动启动录音
 		if (autoStartEnabled && !isRecording && !isStartingRef.current) {
 			console.log("[useAutoRecording] 自动启动录音已开启，准备自动启动...");
 			hasAutoStartedRef.current = true;
 
-			// 延迟一点启动，确保应用完全初始化
 			const timer = setTimeout(() => {
 				doStartRecording();
 			}, 1500);

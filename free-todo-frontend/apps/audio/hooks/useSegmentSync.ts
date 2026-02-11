@@ -8,9 +8,7 @@ interface UseSegmentSyncOptions {
 	currentTime: number;
 	segmentRecordingIds: number[];
 	segmentOffsetsSec: number[];
-	activeTab: "original" | "optimized";
 	transcriptionText: string;
-	optimizedText: string;
 }
 
 interface UseSegmentSyncReturn {
@@ -30,9 +28,7 @@ export function useSegmentSync({
 	currentTime,
 	segmentRecordingIds,
 	segmentOffsetsSec,
-	activeTab,
 	transcriptionText,
-	optimizedText,
 }: UseSegmentSyncOptions): UseSegmentSyncReturn {
 	const [selectedSegmentIndex, setSelectedSegmentIndex] = useState<number | null>(null);
 
@@ -77,10 +73,9 @@ export function useSegmentSync({
 	// 计算当前选中段落的文本
 	const currentSegmentText = useMemo(() => {
 		if (selectedSegmentIndex == null) return "";
-		const baseText = activeTab === "original" ? transcriptionText : optimizedText;
-		const lines = baseText.split("\n").filter((s) => s.trim());
+		const lines = transcriptionText.split("\n").filter((s) => s.trim());
 		return lines[selectedSegmentIndex] ?? "";
-	}, [selectedSegmentIndex, transcriptionText, optimizedText, activeTab]);
+	}, [selectedSegmentIndex, transcriptionText]);
 
 	return {
 		selectedSegmentIndex,

@@ -18,7 +18,6 @@ export function useAudioRecording() {
 		async (
 			onTranscription: (text: string, isFinal: boolean) => void,
 			onRealtimeNlp?: (data: {
-				optimizedText?: string;
 				todos?: Array<{ title: string; description?: string; deadline?: string }>;
 			}) => void,
 			onError?: (error: Error) => void,
