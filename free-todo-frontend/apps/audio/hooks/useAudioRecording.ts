@@ -20,7 +20,6 @@ export function useAudioRecording() {
 			onRealtimeNlp?: (data: {
 				optimizedText?: string;
 				todos?: Array<{ title: string; description?: string; deadline?: string }>;
-				schedules?: Array<{ title: string; time?: string; description?: string }>;
 			}) => void,
 			onError?: (error: Error) => void,
 			is24x7: boolean = false,

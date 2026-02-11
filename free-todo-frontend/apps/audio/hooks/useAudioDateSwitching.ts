@@ -16,7 +16,6 @@ interface UseAudioDateSwitchingProps {
 		segmentRecordingIds: number[];
 		segmentTimeLabels: string[];
 		todos: Array<{ title: string; description?: string; deadline?: string; source_text?: string }>;
-		schedules: Array<{ title: string; time?: string; description?: string; source_text?: string }>;
 	}>;
 	currentLoadingDateRef: React.MutableRefObject<string | null>;
 	setTranscriptionText: (text: string | ((prev: string) => string)) => void;
@@ -27,7 +26,6 @@ interface UseAudioDateSwitchingProps {
 	setSegmentRecordingIds: (ids: number[] | ((prev: number[]) => number[])) => void;
 	setSegmentTimeLabels: (labels: string[] | ((prev: string[]) => string[])) => void;
 	setLiveTodos: (todos: Array<{ title: string; description?: string; deadline?: string; source_text?: string }>) => void;
-	setLiveSchedules: (schedules: Array<{ title: string; time?: string; description?: string; source_text?: string }>) => void;
 	setIsLoadingTimeline: (loading: boolean) => void;
 	loadTimeline: (callback: (loading: boolean) => void, forceReload?: boolean) => void;
 }
@@ -46,7 +44,6 @@ export function useAudioDateSwitching({
 	setSegmentRecordingIds,
 	setSegmentTimeLabels,
 	setLiveTodos,
-	setLiveSchedules,
 	setIsLoadingTimeline,
 	loadTimeline,
 }: UseAudioDateSwitchingProps) {
@@ -142,7 +139,6 @@ export function useAudioDateSwitching({
 						}
 						setPartialText(liveState.partialText);
 						setLiveTodos(liveState.todos);
-						setLiveSchedules(liveState.schedules);
 					}
 				}
 			});
@@ -165,7 +161,6 @@ export function useAudioDateSwitching({
 			setSegmentRecordingIds([]);
 			setSegmentTimeLabels([]);
 			setLiveTodos([]);
-			setLiveSchedules([]);
 
 			// 加载该日期的时间线（回看数据）
 			loadTimeline((loading) => {
@@ -190,7 +185,6 @@ export function useAudioDateSwitching({
 		setOptimizedText,
 		setPartialText,
 		setLiveTodos,
-		setLiveSchedules,
 		setIsLoadingTimeline,
 		currentLoadingDateRef,
 		liveRecordingStateRef,

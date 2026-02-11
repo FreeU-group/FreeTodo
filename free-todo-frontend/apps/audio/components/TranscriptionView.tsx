@@ -12,13 +12,6 @@ interface TodoItem {
 	source_text?: string;
 }
 
-interface ScheduleItem {
-	title: string;
-	time?: string;
-	description?: string;
-	source_text?: string;
-}
-
 interface TranscriptionViewProps {
 	originalText: string;
 	optimizedText: string;
@@ -27,8 +20,6 @@ interface TranscriptionViewProps {
 	onTabChange: (tab: "original" | "optimized") => void;
 	/** 每个文本段对应的待办高亮列表（与时间线一一对应） */
 	segmentTodos?: TodoItem[][];
-	/** 每个文本段对应的日程高亮列表（与时间线一一对应） */
-	segmentSchedules?: ScheduleItem[][];
 	isRecording?: boolean;
 	segmentTimesSec?: number[];
 	segmentTimeLabels?: string[];
@@ -39,7 +30,7 @@ interface TranscriptionViewProps {
 
 interface TextSegment {
 	text: string;
-	highlight?: "todo" | "schedule";
+	highlight?: "todo";
 }
 
 export function TranscriptionView({
@@ -49,7 +40,6 @@ export function TranscriptionView({
 	activeTab,
 	onTabChange,
 	segmentTodos = [],
-	segmentSchedules = [],
 	isRecording = false,
 	segmentTimesSec = [],
 	segmentTimeLabels = [],
@@ -127,11 +117,10 @@ export function TranscriptionView({
 
 		// 为每个段落创建高亮
 		const computed = segments.map((segment, segmentIndex) => {
-			const highlights: Array<{ start: number; end: number; type: "todo" | "schedule" }> = [];
+			const highlights: Array<{ start: number; end: number; type: "todo" }> = [];
 
 			// 当前段落对应的高亮数据（按录音ID预先拆分好）
 			const todosForSegment = segmentTodos[segmentIndex] ?? [];
-			const schedulesForSegment = segmentSchedules[segmentIndex] ?? [];
 
 			// 高亮待办事项：优先使用 LLM 明确给出的 source_text，其次再用 title / description / deadline 进行匹配
 			todosForSegment.forEach((todo) => {
@@ -165,41 +154,6 @@ export function TranscriptionView({
 								start: normalized.start,
 								end: normalized.end,
 								type: "todo",
-							});
-						}
-					}
-				});
-			});
-
-			// 高亮日程安排：优先使用 source_text，其次再用 title / description / time
-			schedulesForSegment.forEach((schedule) => {
-				const candidates = new Set<string>();
-				if (schedule.source_text?.trim()) candidates.add(schedule.source_text.trim());
-				if (schedule.title?.trim()) candidates.add(schedule.title.trim());
-				if (schedule.description?.trim()) candidates.add(schedule.description.trim());
-				if (schedule.time?.trim()) candidates.add(schedule.time.trim());
-
-				candidates.forEach((searchText) => {
-					if (!searchText || searchText.length < 2) return;
-					let hasDirectMatch = false;
-				let index = segment.indexOf(searchText);
-				while (index !== -1) {
-						hasDirectMatch = true;
-					highlights.push({
-						start: index,
-						end: index + searchText.length,
-						type: "schedule",
-					});
-					index = segment.indexOf(searchText, index + searchText.length);
-				}
-
-					if (!hasDirectMatch) {
-						const normalized = findNormalizedMatch(segment, searchText);
-						if (normalized) {
-							highlights.push({
-								start: normalized.start,
-								end: normalized.end,
-								type: "schedule",
 							});
 						}
 					}
@@ -242,7 +196,7 @@ export function TranscriptionView({
 			return textSegments.length > 0 ? textSegments : [{ text: segment }];
 		});
 		return computed;
-	}, [originalText, optimizedText, activeTab, segmentTodos, segmentSchedules]);
+	}, [originalText, optimizedText, activeTab, segmentTodos]);
 
 	// 当前实际展示的整段文本（用于滚动计算等）
 	const displayedTextKey = useMemo(

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getAudioApiBaseUrl } from "../utils/getAudioApiBaseUrl";
 import {
 	calculateSegmentOffset,
 	formatDateTime,
@@ -18,8 +19,8 @@ type DateCacheData = {
 	segmentTimeLabels: string[];
 	segmentTimesSec: number[];
 	recordingDurations: Record<number, number>;
-	extractionsByRecordingId: Record<number, { todos?: TodoItem[]; schedules?: ScheduleItem[] }>;
-	optimizedExtractionsByRecordingId: Record<number, { todos?: TodoItem[]; schedules?: ScheduleItem[] }>;
+	extractionsByRecordingId: Record<number, { todos?: TodoItem[] }>;
+	optimizedExtractionsByRecordingId: Record<number, { todos?: TodoItem[] }>;
 	timestamp: number; // 缓存时间戳
 };
 
@@ -37,17 +38,6 @@ type TodoItem = {
 	linked_todo_id?: number | null;
 };
 
-type ScheduleItem = {
-	id?: string;
-	dedupe_key?: string;
-	title: string;
-	time?: string;
-	description?: string;
-	source_text?: string;
-	linked?: boolean;
-	linked_todo_id?: number | null;
-};
-
 export function useAudioData(
 	selectedDate: Date,
 	activeTab: "original" | "optimized",
@@ -55,6 +45,7 @@ export function useAudioData(
 	setOptimizedText: (text: string) => void,
 	// isRecording 参数已移除，日期切换逻辑现在在 AudioPanel 中处理
 ) {
+	const apiBaseUrl = getAudioApiBaseUrl();
 	const [selectedRecordingId, setSelectedRecordingId] = useState<number | null>(null);
 	const [selectedRecordingDurationSec, setSelectedRecordingDurationSec] = useState<number>(0);
 	const [recordingDurations, setRecordingDurations] = useState<Record<number, number>>({});
@@ -63,10 +54,10 @@ export function useAudioData(
 	const [segmentTimeLabels, setSegmentTimeLabels] = useState<string[]>([]);
 	const [segmentTimesSec, setSegmentTimesSec] = useState<number[]>([]);
 	const [extractionsByRecordingId, setExtractionsByRecordingId] = useState<
-		Record<number, { todos?: TodoItem[]; schedules?: ScheduleItem[] }>
+		Record<number, { todos?: TodoItem[] }>
 	>({});
 	const [optimizedExtractionsByRecordingId, setOptimizedExtractionsByRecordingId] = useState<
-		Record<number, { todos?: TodoItem[]; schedules?: ScheduleItem[] }>
+		Record<number, { todos?: TodoItem[] }>
 	>({});
 
 	// 数据缓存：按日期字符串存储
@@ -130,7 +121,6 @@ export function useAudioData(
 
 	const loadRecordings = useCallback(async (opts?: { forceSelectLatest?: boolean }) => {
 		try {
-			const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
 			const dateStr = getDateString(selectedDate);
 			const response = await fetch(`${apiBaseUrl}/api/audio/recordings?date=${dateStr}`);
 			const data = await response.json();
@@ -152,7 +142,7 @@ export function useAudioData(
 		} catch (error) {
 			console.error("Failed to load recordings:", error);
 		}
-	}, [selectedDate, selectedRecordingId]);
+	}, [apiBaseUrl, selectedDate, selectedRecordingId]);
 
 	const loadTimeline = useCallback(async (onLoadingChange?: (loading: boolean) => void, forceReload = false) => {
 		try {
@@ -171,7 +161,6 @@ export function useAudioData(
 			// 通知开始加载
 			if (onLoadingChange) onLoadingChange(true);
 
-			const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
 			const response = await fetch(
 				`${apiBaseUrl}/api/audio/timeline?date=${dateStr}&optimized=${activeTab === "optimized"}`
 			);
@@ -276,7 +265,7 @@ export function useAudioData(
 			// 通知加载完成
 			if (onLoadingChange) onLoadingChange(false);
 		}
-	}, [activeTab, selectedDate, setTranscriptionText, setOptimizedText, restoreFromCache, cleanExpiredCache, extractionsByRecordingId, optimizedExtractionsByRecordingId]);
+	}, [activeTab, apiBaseUrl, selectedDate, setTranscriptionText, setOptimizedText, restoreFromCache, cleanExpiredCache, extractionsByRecordingId, optimizedExtractionsByRecordingId]);
 
 	useEffect(() => {
 		loadRecordings();
@@ -314,7 +303,6 @@ export function useAudioData(
 	useEffect(() => {
 		const uniqueIds = Array.from(new Set(segmentRecordingIds.filter((id) => id && id > 0)));
 		if (uniqueIds.length === 0) return;
-		const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
 		const controller = new AbortController();
 		const isOptimized = activeTab === "optimized";
 
@@ -326,17 +314,16 @@ export function useAudioData(
 							`${apiBaseUrl}/api/audio/transcription/${id}?optimized=${isOptimized}`,
 							{ signal: controller.signal }
 						);
-						const data = await resp.json();
-						const todos: TodoItem[] = Array.isArray(data.todos) ? data.todos : [];
-						const schedules: ScheduleItem[] = Array.isArray(data.schedules) ? data.schedules : [];
-						return { id, todos, schedules };
-					})
-				);
-				setExtractionsByRecordingId((prev) => {
-					const next = { ...prev };
-					for (const r of results) {
-						next[r.id] = { todos: r.todos, schedules: r.schedules };
-					}
+							const data = await resp.json();
+							const todos: TodoItem[] = Array.isArray(data.todos) ? data.todos : [];
+							return { id, todos };
+						})
+					);
+					setExtractionsByRecordingId((prev) => {
+						const next = { ...prev };
+						for (const r of results) {
+							next[r.id] = { todos: r.todos };
+						}
 					// 更新缓存
 					const dateStr = getDateString(selectedDate);
 					const cache = dateCacheRef.current.get(dateStr);
@@ -354,13 +341,12 @@ export function useAudioData(
 		})();
 
 		return () => controller.abort();
-	}, [segmentRecordingIds, activeTab, selectedDate]);
+	}, [apiBaseUrl, segmentRecordingIds, activeTab, selectedDate]);
 
 	// 单独加载优化文本的提取结果，用于"关联到待办"弹窗
 	useEffect(() => {
 		const uniqueIds = Array.from(new Set(segmentRecordingIds.filter((id) => id && id > 0)));
 		if (uniqueIds.length === 0) return;
-		const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
 		const controller = new AbortController();
 		const missingIds = uniqueIds.filter((id) => !optimizedExtractionsByRecordingId[id]);
 		if (missingIds.length === 0) return;
@@ -372,17 +358,16 @@ export function useAudioData(
 						const resp = await fetch(`${apiBaseUrl}/api/audio/transcription/${id}?optimized=true`, {
 							signal: controller.signal,
 						});
-						const data = await resp.json();
-						const todos: TodoItem[] = Array.isArray(data.todos) ? data.todos : [];
-						const schedules: ScheduleItem[] = Array.isArray(data.schedules) ? data.schedules : [];
-						return { id, todos, schedules };
-					})
-				);
-				setOptimizedExtractionsByRecordingId((prev) => {
-					const next = { ...prev };
-					for (const r of results) {
-						next[r.id] = { todos: r.todos, schedules: r.schedules };
-					}
+							const data = await resp.json();
+							const todos: TodoItem[] = Array.isArray(data.todos) ? data.todos : [];
+							return { id, todos };
+						})
+					);
+					setOptimizedExtractionsByRecordingId((prev) => {
+						const next = { ...prev };
+						for (const r of results) {
+							next[r.id] = { todos: r.todos };
+						}
 					// 更新缓存
 					const dateStr = getDateString(selectedDate);
 					const cache = dateCacheRef.current.get(dateStr);
@@ -400,7 +385,7 @@ export function useAudioData(
 		})();
 
 		return () => controller.abort();
-	}, [segmentRecordingIds, optimizedExtractionsByRecordingId, selectedDate]);
+	}, [apiBaseUrl, segmentRecordingIds, optimizedExtractionsByRecordingId, selectedDate]);
 
 	return {
 		selectedRecordingId,

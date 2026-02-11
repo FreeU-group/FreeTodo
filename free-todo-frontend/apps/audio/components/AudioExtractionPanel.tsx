@@ -19,23 +19,12 @@ type TodoItem = {
 	linked_todo_id?: number | null;
 };
 
-type ScheduleItem = {
-	id?: string;
-	dedupe_key?: string;
-	title: string;
-	time?: string;
-	description?: string;
-	source_text?: string;
-	linked?: boolean;
-	linked_todo_id?: number | null;
-};
-
 interface ExtractionPanelProps {
 	dateKey: string;
 	segmentRecordingIds: number[];
-	extractionsByRecordingId: Record<number, { todos?: TodoItem[]; schedules?: ScheduleItem[] }>;
+	extractionsByRecordingId: Record<number, { todos?: TodoItem[] }>;
 	setExtractionsByRecordingId: React.Dispatch<
-		React.SetStateAction<Record<number, { todos?: TodoItem[]; schedules?: ScheduleItem[] }>>
+		React.SetStateAction<Record<number, { todos?: TodoItem[] }>>
 	>;
 	parseTimeToIsoWithDate: (raw?: string | null) => string | undefined;
 	// 录音中的实时提取结果（recId=0 表示录音中）
@@ -46,7 +35,6 @@ interface ExtractionPanelProps {
 		deadline?: string;
 		source_text?: string;
 	}>;
-	liveSchedules?: Array<{ title: string; time?: string; description?: string; source_text?: string }>;
 	isRecording?: boolean;
 	isExtracting?: boolean; // 后端正在提取中
 }
@@ -58,7 +46,6 @@ export function AudioExtractionPanel({
 	setExtractionsByRecordingId,
 	parseTimeToIsoWithDate,
 	liveTodos = [],
-	liveSchedules = [],
 	isRecording = false,
 	isExtracting = false,
 }: ExtractionPanelProps) {
@@ -74,7 +61,7 @@ export function AudioExtractionPanel({
 		deadline?: string;
 		rawTime?: string;
 		tags: string[];
-		_meta: { recordingIds: number[]; kind: "todo" | "schedule"; itemKey: string };
+		_meta: { recordingIds: number[]; kind: "todo"; itemKey: string };
 	};
 
 	const extractionTodosForModal = useMemo(() => {
@@ -82,7 +69,7 @@ export function AudioExtractionPanel({
 		const aggregated = new Map<string, ModalItem>();
 
 		// 先处理录音中的实时提取结果（recId=0）
-		if (isRecording && (liveTodos.length > 0 || liveSchedules.length > 0)) {
+		if (isRecording && liveTodos.length > 0) {
 			for (const item of liveTodos) {
 				const itemKey = (item.source_text || item.title || "").toString();
 				if (!itemKey) continue;
@@ -97,23 +84,6 @@ export function AudioExtractionPanel({
 						rawTime: liveTime || item.source_text || undefined,
 						tags: [tAudio("linkTodoTag")],
 						_meta: { recordingIds: [0], kind: "todo", itemKey },
-					});
-				}
-			}
-
-			for (const item of liveSchedules) {
-				const itemKey = (item.source_text || item.title || "").toString();
-				if (!itemKey) continue;
-				const mapKey = `schedule:${itemKey}`;
-				if (!aggregated.has(mapKey)) {
-					aggregated.set(mapKey, {
-						key: `audio:${dateKey}:${mapKey}:live`,
-						name: item.source_text || item.title || tAudio("scheduleFallbackTitle"),
-						description: item.source_text || item.description || item.time || undefined,
-						deadline: parseTimeToIsoWithDate(item.time || null),
-						rawTime: item.time || item.source_text || undefined,
-						tags: [tAudio("scheduleTag")],
-						_meta: { recordingIds: [0], kind: "schedule", itemKey },
 					});
 				}
 			}
@@ -132,7 +102,7 @@ export function AudioExtractionPanel({
 					continue;
 				}
 				const mapKey = `todo:${itemKey}`;
-				const scheduleTime = item.startTime ?? item.start_time ?? item.deadline ?? null;
+				const todoTime = item.startTime ?? item.start_time ?? item.deadline ?? null;
 				const existing = aggregated.get(mapKey);
 				if (existing) {
 					if (!existing._meta.recordingIds.includes(recId)) {
@@ -143,36 +113,10 @@ export function AudioExtractionPanel({
 						key: `audio:${dateKey}:${mapKey}`,
 						name: item.source_text || item.title,
 						description: item.source_text || item.description || undefined,
-						deadline: parseTimeToIsoWithDate(scheduleTime),
-						rawTime: scheduleTime || item.source_text || undefined,
+						deadline: parseTimeToIsoWithDate(todoTime),
+						rawTime: todoTime || item.source_text || undefined,
 						tags: [tAudio("linkTodoTag")],
 						_meta: { recordingIds: [recId], kind: "todo", itemKey },
-					});
-				}
-			}
-
-			for (const item of ext.schedules ?? []) {
-				const itemKey = (item.dedupe_key || item.id || "").toString();
-				if (!itemKey) continue;
-				if (item?.linked || item?.linked_todo_id) {
-					aggregated.delete(`schedule:${itemKey}`);
-					continue;
-				}
-				const mapKey = `schedule:${itemKey}`;
-				const existing = aggregated.get(mapKey);
-				if (existing) {
-					if (!existing._meta.recordingIds.includes(recId)) {
-						existing._meta.recordingIds.push(recId);
-					}
-				} else {
-					aggregated.set(mapKey, {
-						key: `audio:${dateKey}:${mapKey}`,
-						name: item.source_text || item.title || tAudio("scheduleFallbackTitle"),
-						description: item.source_text || item.description || item.time || undefined,
-						deadline: parseTimeToIsoWithDate(item.time || null),
-						rawTime: item.time || item.source_text || undefined,
-						tags: [tAudio("scheduleTag")],
-						_meta: { recordingIds: [recId], kind: "schedule", itemKey },
 					});
 				}
 			}
@@ -187,20 +131,14 @@ export function AudioExtractionPanel({
 		tAudio,
 		isRecording,
 		liveTodos,
-		liveSchedules,
 	]);
 
-	const filteredTodoCount = extractionTodosForModal.filter((x) =>
-		x.tags.includes(tAudio("linkTodoTag"))
-	).length;
-	const filteredScheduleCount = extractionTodosForModal.filter((x) =>
-		x.tags.includes(tAudio("scheduleTag"))
-	).length;
-	const hasExtraction = filteredTodoCount + filteredScheduleCount > 0;
+	const filteredTodoCount = extractionTodosForModal.length;
+	const hasExtraction = filteredTodoCount > 0;
 
 	return (
 		<>
-			{(hasExtraction || isExtracting || (isRecording && (liveTodos.length > 0 || liveSchedules.length > 0))) ? (
+			{(hasExtraction || isExtracting || (isRecording && liveTodos.length > 0)) ? (
 				<div className="flex items-center justify-between px-4 py-2 border-b border-[oklch(var(--border))] bg-[oklch(var(--muted))]/40">
 					<div className="flex items-center gap-2">
 						{isExtracting && (
@@ -209,9 +147,9 @@ export function AudioExtractionPanel({
 								<span>提取中...</span>
 							</div>
 						)}
-						{(hasExtraction || (isRecording && (liveTodos.length > 0 || liveSchedules.length > 0))) && (
+						{(hasExtraction || (isRecording && liveTodos.length > 0)) && (
 							<div className="text-sm text-[oklch(var(--muted-foreground))]">
-								{`待添加 ${filteredTodoCount} 个待办，${filteredScheduleCount} 个日程`}
+								{`待添加 ${filteredTodoCount} 个待办`}
 							</div>
 						)}
 					</div>
@@ -242,24 +180,21 @@ export function AudioExtractionPanel({
 				onSelectedTodoIndexesChange={(next) => setSelectedIndexes(next)}
 				onSuccessWithCreated={async (created) => {
 					// 聚合按 recordingId 调用 link API（减少请求次数）
-					const byRec = new Map<
-						number,
-						Array<{ kind: "todo" | "schedule"; item_id: string; todo_id: number }>
-					>();
-				for (const row of created) {
-					const item = extractionTodosForModal[row.index] as unknown as {
-						_meta?: { recordingIds: number[]; kind: "todo" | "schedule"; itemKey: string };
-					};
-					const meta = item?._meta;
-					if (!meta?.recordingIds?.length || !meta.itemKey) continue;
-					for (const recId of meta.recordingIds) {
-						// 跳过 recId=0（实时提取结果，还没有保存到数据库）
-						if (recId <= 0) continue;
-						const arr = byRec.get(recId) ?? [];
-						arr.push({ kind: meta.kind, item_id: meta.itemKey, todo_id: row.todoId });
-						byRec.set(recId, arr);
+					const byRec = new Map<number, Array<{ kind: "todo"; item_id: string; todo_id: number }>>();
+					for (const row of created) {
+						const item = extractionTodosForModal[row.index] as unknown as {
+							_meta?: { recordingIds: number[]; kind: "todo"; itemKey: string };
+						};
+						const meta = item?._meta;
+						if (!meta?.recordingIds?.length || !meta.itemKey) continue;
+						for (const recId of meta.recordingIds) {
+							// 跳过 recId=0（实时提取结果，还没有保存到数据库）
+							if (recId <= 0) continue;
+							const arr = byRec.get(recId) ?? [];
+							arr.push({ kind: "todo", item_id: meta.itemKey, todo_id: row.todoId });
+							byRec.set(recId, arr);
+						}
 					}
-				}
 
 					// 前端即时标记 linked，避免再次出现（优化用户体验）
 					setExtractionsByRecordingId((prev) => {
@@ -268,11 +203,8 @@ export function AudioExtractionPanel({
 							const ext = next[recId];
 							if (!ext) continue;
 
-							const todoLinks = links.filter((l) => l.kind === "todo");
-							const schedLinks = links.filter((l) => l.kind === "schedule");
-
-							if (todoLinks.length > 0) {
-								const keyToTodoId = new Map(todoLinks.map((l) => [l.item_id, l.todo_id]));
+							if (links.length > 0) {
+								const keyToTodoId = new Map(links.map((l) => [l.item_id, l.todo_id]));
 								next[recId] = {
 									...ext,
 									todos: (ext.todos ?? []).map((t) => {
@@ -281,20 +213,6 @@ export function AudioExtractionPanel({
 										const linkedTodoId = keyToTodoId.get(k);
 										if (!linkedTodoId) return t;
 										return { ...t, linked: true, linked_todo_id: linkedTodoId };
-									}),
-								};
-							}
-
-							if (schedLinks.length > 0) {
-								const keyToTodoId = new Map(schedLinks.map((l) => [l.item_id, l.todo_id]));
-								next[recId] = {
-									...next[recId],
-									schedules: (next[recId].schedules ?? []).map((s) => {
-										const k = (s.dedupe_key || s.id || "").toString();
-										if (!k) return s;
-										const linkedTodoId = keyToTodoId.get(k);
-										if (!linkedTodoId) return s;
-										return { ...s, linked: true, linked_todo_id: linkedTodoId };
 									}),
 								};
 							}
@@ -307,7 +225,7 @@ export function AudioExtractionPanel({
 						await linkAndRefresh(byRec, (recordingId, data) => {
 							setExtractionsByRecordingId((prev) => {
 								const next = { ...prev };
-								next[recordingId] = { todos: data.todos, schedules: data.schedules };
+								next[recordingId] = { todos: data.todos };
 								return next;
 							});
 						});

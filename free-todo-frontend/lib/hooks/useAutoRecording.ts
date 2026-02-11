@@ -30,7 +30,6 @@ export function useAutoRecording() {
 	const setOptimizedText = useAudioRecordingStore((state) => state.setOptimizedText);
 	const appendSegmentData = useAudioRecordingStore((state) => state.appendSegmentData);
 	const setLiveTodos = useAudioRecordingStore((state) => state.setLiveTodos);
-	const setLiveSchedules = useAudioRecordingStore((state) => state.setLiveSchedules);
 	const clearSessionData = useAudioRecordingStore((state) => state.clearSessionData);
 
 	// 用于防止重复启动
@@ -91,7 +90,6 @@ export function useAutoRecording() {
 				(data) => {
 					if (typeof data.optimizedText === "string") setOptimizedText(data.optimizedText);
 					if (Array.isArray(data.todos)) setLiveTodos(data.todos);
-					if (Array.isArray(data.schedules)) setLiveSchedules(data.schedules);
 				},
 				(error) => {
 					console.error("[useAutoRecording] Recording error:", error);
@@ -117,7 +115,6 @@ export function useAutoRecording() {
 		setPartialText,
 		setOptimizedText,
 		setLiveTodos,
-		setLiveSchedules,
 	]);
 
 	// 应用启动时自动开始录音（仅在配置开启时）

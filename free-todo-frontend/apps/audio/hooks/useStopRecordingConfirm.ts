@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useAudioRecordingStore } from "@/lib/store/audio-recording-store";
+import { getAudioApiBaseUrl } from "../utils/getAudioApiBaseUrl";
 
 interface UseStopRecordingConfirmOptions {
 	selectedDate: Date;
@@ -29,6 +30,7 @@ export function useStopRecordingConfirm({
 	loadRecordings,
 	loadTimeline,
 }: UseStopRecordingConfirmOptions): UseStopRecordingConfirmReturn {
+	const apiBaseUrl = getAudioApiBaseUrl();
 	const [showStopConfirm, setShowStopConfirm] = useState(false);
 	const [isExtracting, setIsExtracting] = useState(false);
 	const [isLoadingTimeline, setIsLoadingTimeline] = useState(false);
@@ -60,7 +62,6 @@ export function useStopRecordingConfirm({
 		const checkNewRecording = async () => {
 			pollCount++;
 			try {
-				const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
 				const dateStr = selectedDate.toISOString().split("T")[0];
 				const response = await fetch(`${apiBaseUrl}/api/audio/recordings?date=${dateStr}`);
 				const data = await response.json();
@@ -112,7 +113,7 @@ export function useStopRecordingConfirm({
 		};
 
 		setTimeout(checkNewRecording, 800);
-	}, [selectedDate, stopRecording, loadRecordings, loadTimeline]);
+	}, [apiBaseUrl, selectedDate, stopRecording, loadRecordings, loadTimeline]);
 
 	return {
 		showStopConfirm,

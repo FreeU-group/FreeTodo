@@ -19,7 +19,6 @@ interface UseAudioRecordingControlProps {
 		segmentRecordingIds: number[];
 		segmentTimeLabels: string[];
 		todos: Array<{ title: string; description?: string; deadline?: string; source_text?: string }>;
-		schedules: Array<{ title: string; time?: string; description?: string; source_text?: string }>;
 	}>;
 	recordingStartedAtMsRef: React.MutableRefObject<number>;
 	recordingStartedAtRef: React.MutableRefObject<Date | null>;
@@ -32,7 +31,6 @@ interface UseAudioRecordingControlProps {
 	setSegmentRecordingIds: (ids: number[] | ((prev: number[]) => number[])) => void;
 	setSegmentTimeLabels: (labels: string[] | ((prev: string[]) => string[])) => void;
 	setLiveTodos: (todos: Array<{ title: string; description?: string; deadline?: string; source_text?: string }>) => void;
-	setLiveSchedules: (schedules: Array<{ title: string; time?: string; description?: string; source_text?: string }>) => void;
 	setSelectedSegmentIndex: (index: number | null) => void;
 	loadTimeline: (callback: (loading: boolean) => void, forceReload?: boolean) => void;
 	setIsLoadingTimeline: (loading: boolean) => void;
@@ -57,7 +55,6 @@ export function useAudioRecordingControl({
 	setSegmentRecordingIds,
 	setSegmentTimeLabels,
 	setLiveTodos,
-	setLiveSchedules,
 	setSelectedSegmentIndex,
 	loadTimeline,
 	setIsLoadingTimeline,
@@ -106,10 +103,9 @@ export function useAudioRecordingControl({
 		// 录制开始：记录起始时间用于段落时间标签
 		recordingStartedAtMsRef.current = performance.now();
 		recordingStartedAtRef.current = now;
-		lastFinalEndMsRef.current = null; // 重置，第一段文本使用录音开始时间
-		// 开始录音前，清空本次会话的实时高亮状态
-		setLiveTodos([]);
-		setLiveSchedules([]);
+	lastFinalEndMsRef.current = null; // 重置，第一段文本使用录音开始时间
+	// 开始录音前，清空本次会话的实时高亮状态
+	setLiveTodos([]);
 
 		console.log("准备调用 startRecording，isRecordingRef.current:", isRecordingRef.current);
 		await startRecording(
@@ -168,7 +164,6 @@ export function useAudioRecordingControl({
 						segmentRecordingIds: [],
 						segmentTimeLabels: [],
 						todos: [],
-						schedules: [],
 					};
 
 					// 如果正在查看当前日期，需要重新加载时间线以显示已保存的历史数据
@@ -176,7 +171,6 @@ export function useAudioRecordingControl({
 						// 清空实时状态（因为已保存到后端）
 						setPartialText("");
 						setLiveTodos([]);
-						setLiveSchedules([]);
 
 						// 延迟重新加载时间线，给后端时间保存数据
 						setTimeout(() => {
@@ -281,12 +275,6 @@ export function useAudioRecordingControl({
 						todos: data.todos,
 					};
 				}
-				if (Array.isArray(data.schedules)) {
-					liveRecordingStateRef.current = {
-						...liveRecordingStateRef.current,
-						schedules: data.schedules,
-					};
-				}
 
 				// 如果不在当前日期，只更新 ref，不更新 UI
 				if (!isViewingCurrentDate) {
@@ -296,7 +284,6 @@ export function useAudioRecordingControl({
 				// 查看当前日期：同步更新 UI 状态
 				if (typeof data.optimizedText === "string") setOptimizedText(data.optimizedText);
 				if (Array.isArray(data.todos)) setLiveTodos(data.todos);
-				if (Array.isArray(data.schedules)) setLiveSchedules(data.schedules);
 			},
 			(error) => {
 				console.error("Recording error:", error);
@@ -319,7 +306,6 @@ export function useAudioRecordingControl({
 		setOptimizedText,
 		setPartialText,
 		setLiveTodos,
-		setLiveSchedules,
 		setSelectedSegmentIndex,
 		setIsLoadingTimeline,
 		currentRecordingDateRef,

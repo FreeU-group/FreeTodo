@@ -19,19 +19,11 @@ interface TodoItem {
 	source_text?: string;
 }
 
-interface ScheduleItem {
-	title: string;
-	time?: string;
-	description?: string;
-	source_text?: string;
-}
-
 type TranscriptionCallback = (text: string, isFinal: boolean) => void
 
 type RealtimeNlpCallback = (data: {
 		optimizedText?: string;
 		todos?: TodoItem[];
-		schedules?: ScheduleItem[];
 	}) => void
 
 type ErrorCallback = (error: Error) => void
@@ -63,8 +55,6 @@ interface AudioRecordingState {
 	segmentOffsetsSec: number[];
 	/** 实时提取的待办 */
 	liveTodos: TodoItem[];
-	/** 实时提取的日程 */
-	liveSchedules: ScheduleItem[];
 }
 
 interface AudioRecordingActions {
@@ -98,8 +88,6 @@ interface AudioRecordingActions {
 	}) => void;
 	/** 设置实时待办 */
 	setLiveTodos: (todos: TodoItem[]) => void;
-	/** 设置实时日程 */
-	setLiveSchedules: (schedules: ScheduleItem[]) => void;
 	/** 清空录音会话数据（开始新录音时调用） */
 	clearSessionData: () => void;
 }
@@ -222,7 +210,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 	segmentRecordingIds: [],
 	segmentOffsetsSec: [],
 	liveTodos: [],
-	liveSchedules: [],
 
 	// ===== Actions =====
 
@@ -351,11 +338,9 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 						// 实时提取结果
 						if (data.header?.name === "ExtractionChanged") {
 							const todos = data.payload?.todos;
-							const schedules = data.payload?.schedules;
 							if (currentOnRealtimeNlp) {
 								currentOnRealtimeNlp({
 									todos: Array.isArray(todos) ? todos : [],
-									schedules: Array.isArray(schedules) ? schedules : [],
 								});
 							}
 							return;
@@ -593,10 +578,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 		set({ liveTodos: todos });
 	},
 
-	setLiveSchedules: (schedules) => {
-		set({ liveSchedules: schedules });
-	},
-
 	clearSessionData: () => {
 		set({
 			transcriptionText: "",
@@ -607,7 +588,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 			segmentRecordingIds: [],
 			segmentOffsetsSec: [],
 			liveTodos: [],
-			liveSchedules: [],
 		});
 	},
 }));
