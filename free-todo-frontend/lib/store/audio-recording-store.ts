@@ -91,10 +91,16 @@ type AudioRecordingStore = AudioRecordingState & AudioRecordingActions;
 
 // ========== 模块级资源存储（不可序列化） ==========
 
+const TARGET_SAMPLE_RATE = 16000;
+const MAX_BUFFERED_SECONDS = 10;
+const MAX_BUFFERED_PCM_BYTES = TARGET_SAMPLE_RATE * 2 * MAX_BUFFERED_SECONDS; // PCM16 mono
+
 let wsRef: WebSocket | null = null;
 let audioContextRef: AudioContext | null = null;
 let processorRef: ScriptProcessorNode | null = null;
 let mediaStreamRef: MediaStream | null = null;
+let bufferedPcmQueue: ArrayBuffer[] = [];
+let bufferedPcmBytes = 0;
 
 // 回调函数引用（用于在 WebSocket 消息中调用）
 let currentOnTranscription: TranscriptionCallback | null = null;
@@ -171,6 +177,9 @@ function cleanupRecordingResources(segmentTimestamps?: number[], isReconnecting 
 		wsRef = null;
 	}
 
+	bufferedPcmQueue = [];
+	bufferedPcmBytes = 0;
+
 	// 如果不是重连，清理回调引用和重连状态
 	if (!isReconnecting) {
 		currentOnTranscription = null;
@@ -207,79 +216,120 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 
 	// ===== Actions =====
 
-	startRecording: async (onTranscription, onRealtimeNlp, onError, is24x7 = false) => {
-		// 如果已经在录音且不是内部重连，直接返回
-		if (get().isRecording && !isReconnectingInternally) {
-			console.warn("[AudioRecordingStore] Already recording, ignoring start request");
-			return;
-		}
-
-		try {
-			// 设置 7×24 模式标志
-			currentIs24x7 = is24x7;
-			shouldReconnectRef = is24x7; // 7×24 模式启用自动重连
-
-			// 如果是重连成功，重置重连计数
-			if (reconnectAttemptsRef > 0) {
-				reconnectAttemptsRef = 0;
-				console.log("[AudioRecordingStore] WebSocket 重连成功");
+		startRecording: async (onTranscription, onRealtimeNlp, onError, is24x7 = false) => {
+			// 如果已经在录音且不是内部重连，直接返回
+			if (get().isRecording && !isReconnectingInternally) {
+				console.warn("[AudioRecordingStore] Already recording, ignoring start request");
+				return;
 			}
 
-			// 获取麦克风权限
-			console.log("[AudioRecordingStore] 请求麦克风权限...");
-			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: { noiseSuppression: true },
-			});
-			console.log("[AudioRecordingStore] ✅ 麦克风权限已获取");
-			mediaStreamRef = stream;
+			try {
+				// 设置 7×24 模式标志
+				currentIs24x7 = is24x7;
+				shouldReconnectRef = is24x7; // 7×24 模式启用自动重连
 
-			// 保存回调引用
-			currentOnTranscription = onTranscription;
-			currentOnRealtimeNlp = onRealtimeNlp || null;
-			currentOnError = onError || null;
-
-			// 连接到后端 WebSocket
-			const apiBaseUrl = getApiBaseUrl();
-			const wsUrl = apiBaseUrl.replace("http://", "ws://").replace("https://", "wss://");
-			const wsEndpoint = `${wsUrl}/api/audio/transcribe`;
-			const ws = new WebSocket(wsEndpoint);
-			ws.binaryType = "arraybuffer";
-
-			ws.onopen = () => {
-				// 发送初始化消息
-				ws.send(JSON.stringify({ is_24x7: is24x7 }));
-
-				// 使用 WebAudio 直接发送 PCM16(16k) 到后端
+				// 重要：AudioContext 需要尽可能在用户手势（点击）触发的调用栈内创建/恢复，
+				// 否则某些浏览器/环境会将其保持为 suspended，导致长时间无音频回调 → 录音严重丢帧。
 				type AudioContextCtor = typeof AudioContext & {
 					webkitAudioContext?: typeof AudioContext;
 				};
 				const AudioCtx = (window.AudioContext ||
 					(window as unknown as { webkitAudioContext?: typeof AudioContext })
 						.webkitAudioContext) as AudioContextCtor;
-				const audioContext = new AudioCtx({ sampleRate: 16000 });
+				const audioContext = new AudioCtx({ sampleRate: TARGET_SAMPLE_RATE });
 				audioContextRef = audioContext;
+				void audioContext.resume().catch((e) => {
+					console.warn("[AudioRecordingStore] AudioContext resume failed:", e);
+				});
+
+				// 如果是重连成功，重置重连计数
+				if (reconnectAttemptsRef > 0) {
+					reconnectAttemptsRef = 0;
+					console.log("[AudioRecordingStore] WebSocket 重连成功");
+				}
+
+				// 获取麦克风权限
+				console.log("[AudioRecordingStore] 请求麦克风权限...");
+				const stream = await navigator.mediaDevices.getUserMedia({
+					audio: {
+						echoCancellation: true,
+						noiseSuppression: true,
+						autoGainControl: true,
+						channelCount: 1,
+					},
+				});
+				console.log("[AudioRecordingStore] ✅ 麦克风权限已获取");
+				mediaStreamRef = stream;
+
+			// 保存回调引用
+				currentOnTranscription = onTranscription;
+				currentOnRealtimeNlp = onRealtimeNlp || null;
+				currentOnError = onError || null;
+
+				// 初始化本地缓冲（WebSocket 尚未 OPEN 时先暂存一小段 PCM）
+				bufferedPcmQueue = [];
+				bufferedPcmBytes = 0;
 
 				const source = audioContext.createMediaStreamSource(stream);
 				const processor = audioContext.createScriptProcessor(4096, 1, 1);
 				processorRef = processor;
 
 				processor.onaudioprocess = (e) => {
-					if (ws.readyState !== WebSocket.OPEN) return;
+					const ws = wsRef;
 					const input = e.inputBuffer.getChannelData(0); // Float32 [-1, 1]
-					// 转 Int16 little-endian
 					const buffer = new ArrayBuffer(input.length * 2);
 					const view = new DataView(buffer);
 					for (let i = 0; i < input.length; i++) {
 						const s = Math.max(-1, Math.min(1, input[i]));
 						view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
 					}
-					ws.send(buffer);
+
+					if (ws && ws.readyState === WebSocket.OPEN) {
+						ws.send(buffer);
+						return;
+					}
+
+					bufferedPcmQueue.push(buffer);
+					bufferedPcmBytes += buffer.byteLength;
+					while (bufferedPcmBytes > MAX_BUFFERED_PCM_BYTES && bufferedPcmQueue.length > 0) {
+						const dropped = bufferedPcmQueue.shift();
+						if (dropped) bufferedPcmBytes -= dropped.byteLength;
+					}
 				};
 
 				source.connect(processor);
-				processor.connect(audioContext.destination);
+				const silentGain = audioContext.createGain();
+				silentGain.gain.value = 0;
+				processor.connect(silentGain);
+				silentGain.connect(audioContext.destination);
 
-				// 记录开始时间并更新状态
+				// 连接到后端 WebSocket
+				const apiBaseUrl = getApiBaseUrl();
+				const wsUrl = apiBaseUrl.replace("http://", "ws://").replace("https://", "wss://");
+				const wsEndpoint = `${wsUrl}/api/audio/transcribe`;
+				const ws = new WebSocket(wsEndpoint);
+				ws.binaryType = "arraybuffer";
+				wsRef = ws;
+
+				ws.onopen = () => {
+					// 发送初始化消息
+					ws.send(JSON.stringify({ is_24x7: is24x7 }));
+
+					// 刷新缓冲：把 WebSocket 建连期间缓存的音频补发出去（最多 MAX_BUFFERED_SECONDS）
+					if (bufferedPcmQueue.length > 0) {
+						for (const chunk of bufferedPcmQueue) {
+							try {
+								ws.send(chunk);
+							} catch {
+								break;
+							}
+						}
+						bufferedPcmQueue = [];
+						bufferedPcmBytes = 0;
+					}
+				};
+
+				// 记录开始时间并更新状态（不等待 ws.onopen，避免 UI/逻辑误判“未录音”）
 				const now = Date.now();
 				set({
 					isRecording: true,
@@ -287,9 +337,8 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 					recordingStartedDate: new Date(),
 					lastFinalEndMs: null,
 				});
-			};
 
-			ws.onmessage = (event) => {
+				ws.onmessage = (event) => {
 				try {
 					if (typeof event.data === "string") {
 						const data = JSON.parse(event.data);
@@ -361,7 +410,7 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 				// 这样可以避免在自动重连场景下 UI 闪烁
 			};
 
-			ws.onclose = (event) => {
+				ws.onclose = (event) => {
 				// 正常关闭（用户主动停止或服务器正常关闭）
 				if (event.wasClean) {
 					set({
@@ -375,13 +424,14 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 					return;
 				}
 
-				// 如果已经被标记为不应该重连（用户主动关闭），直接设置为停止状态
-				if (!shouldReconnectRef) {
-					console.log("[AudioRecordingStore] 已禁用自动重连，跳过重连");
-					set({
-						isRecording: false,
-						recordingStartedAt: null,
-						recordingStartedDate: null,
+					// 如果已经被标记为不应该重连（用户主动关闭），直接设置为停止状态
+					if (!shouldReconnectRef) {
+						console.log("[AudioRecordingStore] 已禁用自动重连，跳过重连");
+						cleanupRecordingResources();
+						set({
+							isRecording: false,
+							recordingStartedAt: null,
+							recordingStartedDate: null,
 						lastFinalEndMs: null,
 					});
 					return;
@@ -433,12 +483,13 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 					return;
 				}
 
-				// 超过最大重连次数或非 7×24 模式：彻底停止
-				set({
-					isRecording: false,
-					recordingStartedAt: null,
-					recordingStartedDate: null,
-					lastFinalEndMs: null,
+					// 超过最大重连次数或非 7×24 模式：彻底停止
+					cleanupRecordingResources();
+					set({
+						isRecording: false,
+						recordingStartedAt: null,
+						recordingStartedDate: null,
+						lastFinalEndMs: null,
 				});
 
 				// 异常关闭提供详细错误信息
@@ -496,13 +547,20 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 			};
 
 			wsRef = ws;
-		} catch (error) {
-			console.error("Failed to start recording:", error);
-			if (onError) {
-				onError(error as Error);
+			} catch (error) {
+				console.error("Failed to start recording:", error);
+				cleanupRecordingResources();
+				set({
+					isRecording: false,
+					recordingStartedAt: null,
+					recordingStartedDate: null,
+					lastFinalEndMs: null,
+				});
+				if (onError) {
+					onError(error as Error);
+				}
 			}
-		}
-	},
+		},
 
 	stopRecording: (segmentTimestamps) => {
 		// 停止自动重连

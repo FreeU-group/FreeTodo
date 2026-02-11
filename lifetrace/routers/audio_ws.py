@@ -39,6 +39,7 @@ AGC_TARGET_RMS = 3000.0  # target RMS ~-20 dBFS
 AGC_NOISE_FLOOR_RMS = 80.0  # below this → noise/silence, don't amplify
 MAX_AGC_GAIN = 6.0  # max gain per window
 AGC_SMOOTHING = 0.7  # gain smoothing between windows (0–1, higher = smoother)
+DURATION_PCM_WALL_RATIO_WARN_THRESHOLD = 0.7
 
 # 分段存储配置
 SEGMENT_DURATION_MINUTES = 30  # 30分钟分段
@@ -323,6 +324,9 @@ async def _audio_stream_generator(
     while True:
         try:
             data = await websocket.receive()
+            if data.get("type") == "websocket.disconnect":
+                logger.info("WebSocket disconnected in audio stream generator")
+                break
             if "bytes" in data:
                 chunk = data["bytes"]
                 if chunk:
@@ -459,7 +463,16 @@ def _persist_recording(
         return None, None
 
     pcm_bytes = b"".join(audio_chunks)
-    duration = (get_utc_now() - recording_started_at).total_seconds()
+    duration_pcm = len(pcm_bytes) / (SAMPLE_RATE * 2)  # 16-bit mono
+    duration_wall = (get_utc_now() - recording_started_at).total_seconds()
+    if (
+        duration_wall > 0
+        and (duration_pcm / duration_wall) < DURATION_PCM_WALL_RATIO_WARN_THRESHOLD
+    ):
+        logger.warning(
+            f"录音时长异常：PCM={duration_pcm:.2f}s < wall={duration_wall:.2f}s，"
+            "可能前端音频回调/发送被挂起导致严重丢帧"
+        )
 
     pcm_bytes = _apply_agc_to_pcm(logger, pcm_bytes)
     wav_bytes = _pcm16le_to_wav(pcm_bytes)
@@ -471,11 +484,11 @@ def _persist_recording(
     recording_id = audio_service.create_recording(
         file_path=str(file_path),
         file_size=len(wav_bytes),
-        duration=duration,
+        duration=duration_pcm,
         is_24x7=is_24x7,
     )
     audio_service.complete_recording(recording_id)
-    return recording_id, duration
+    return recording_id, duration_pcm
 
 
 async def _save_transcription_if_any(
