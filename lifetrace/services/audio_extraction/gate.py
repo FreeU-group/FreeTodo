@@ -92,8 +92,21 @@ async def should_extract_with_llm_gate(  # noqa: PLR0911
     *, text: str, llm_client
 ) -> tuple[bool, str, dict[str, Any] | None]:
     """用更便宜/短输出的 LLM 调用判断是否需要执行完整提取。"""
-    if not text or not text.strip():
+    clean_text = (text or "").strip()
+    if not clean_text:
         return False, "empty_text", None
+
+    try:
+        min_text_length = max(0, int(settings.get("audio.extraction_gate.min_text_length", 0)))
+    except (TypeError, ValueError):
+        min_text_length = 0
+
+    if min_text_length > 0 and len(clean_text) < min_text_length:
+        return (
+            False,
+            "too_short",
+            {"min_text_length": min_text_length, "text_length": len(clean_text)},
+        )
 
     if not llm_client.is_available():
         return False, "llm_unavailable", None
@@ -109,7 +122,7 @@ async def should_extract_with_llm_gate(  # noqa: PLR0911
         user_prompt = get_prompt(
             "transcription_extraction_gate",
             "user_prompt",
-            text=text.strip(),
+            text=clean_text,
         )
         if not system_prompt or not user_prompt:
             logger.warning("无法加载 gate 提示词，跳过 gate，直接执行提取")
@@ -131,7 +144,7 @@ async def should_extract_with_llm_gate(  # noqa: PLR0911
                 input_tokens=int(response.usage.prompt_tokens or 0),
                 output_tokens=int(response.usage.completion_tokens or 0),
                 endpoint="audio_extract_gate",
-                user_query=text.strip(),
+                user_query=clean_text,
                 response_type="gate",
                 feature_type="audio",
             )

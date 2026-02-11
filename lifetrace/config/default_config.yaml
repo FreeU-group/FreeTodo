@@ -248,6 +248,7 @@ audio:
   extraction_gate:
     enabled: true # 是否启用"先用 LLM 判断再提取"的 gate
     model: "" # gate 使用模型；留空则使用 llm.model
+    min_text_length: 5 # gate 最小文本长度（字符）；低于该值直接跳过提取
     max_chars: 2500 # gate 单次调用输入最大字符数（过长自动分块）
     max_seconds: 300 # gate/提取分块最大时长（秒），0=不按时长分块
     max_tokens: 160 # gate 输出最大 token
