@@ -323,7 +323,8 @@ async def _audio_stream_generator(
                 chunk = data["bytes"]
                 if chunk:
                     audio_chunks.append(chunk)
-                    yield chunk
+                    # 实时转写链路：对发送给 ASR 的音频做 AGC（不改动原始落盘数据）
+                    yield _apply_agc_to_pcm(logger, chunk, log_stats=False, warn_silence=False)
                 continue
             if "text" in data:
                 try:
@@ -349,7 +350,13 @@ def _parse_init_message(logger, init_message: dict[str, Any]) -> bool:
     return bool(init_message.get("is_24x7", False))
 
 
-def _apply_agc_to_pcm(logger, pcm_bytes: bytes) -> bytes:
+def _apply_agc_to_pcm(  # noqa: C901
+    logger,
+    pcm_bytes: bytes,
+    *,
+    log_stats: bool = True,
+    warn_silence: bool = True,
+) -> bytes:
     try:
         samples = array.array("h")
         samples.frombytes(pcm_bytes)
@@ -358,10 +365,12 @@ def _apply_agc_to_pcm(logger, pcm_bytes: bytes) -> bytes:
 
         max_abs = max(abs(s) for s in samples)
         rms = (sum(s * s for s in samples) / len(samples)) ** 0.5
-        logger.info(f"录音原始PCM: samples={len(samples)}, max_abs={max_abs}, rms={rms:.2f}")
+        if log_stats:
+            logger.info(f"录音原始PCM: samples={len(samples)}, max_abs={max_abs}, rms={rms:.2f}")
 
         if max_abs < PCM_SILENCE_MAX_ABS and rms < PCM_SILENCE_RMS:
-            logger.warning("录音PCM振幅极低，可能无声；请检查麦克风/权限/设备输入。")
+            if warn_silence:
+                logger.warning("录音PCM振幅极低，可能无声；请检查麦克风/权限/设备输入。")
             return pcm_bytes
 
         target_peak = AGC_TARGET_PEAK_RATIO * INT16_MAX
@@ -370,7 +379,8 @@ def _apply_agc_to_pcm(logger, pcm_bytes: bytes) -> bytes:
         if gain <= AGC_APPLY_THRESHOLD_GAIN:
             return pcm_bytes
 
-        logger.info(f"应用自动增益: x{gain:.2f}")
+        if log_stats:
+            logger.info(f"应用自动增益: x{gain:.2f}")
         for i in range(len(samples)):
             v = int(samples[i] * gain)
             if v > INT16_MAX:
