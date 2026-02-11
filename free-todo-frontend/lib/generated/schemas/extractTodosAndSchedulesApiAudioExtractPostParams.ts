@@ -8,5 +8,4 @@
 
 export type ExtractTodosAndSchedulesApiAudioExtractPostParams = {
 recording_id: number;
-optimized?: boolean;
 };

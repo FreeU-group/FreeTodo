@@ -749,7 +749,6 @@ export const useOptimizeTranscriptionApiAudioOptimizePost = <TError = HTTPValida
 
 Args:
     recording_id: 录音ID
-    optimized: 是否从优化文本提取（False=从原文提取）
  * @summary Extract Todos And Schedules
  */
 export type extractTodosAndSchedulesApiAudioExtractPostResponse200 = {

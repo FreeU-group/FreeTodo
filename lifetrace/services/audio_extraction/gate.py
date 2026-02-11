@@ -92,10 +92,6 @@ async def should_extract_with_llm_gate(  # noqa: PLR0911
     *, text: str, llm_client
 ) -> tuple[bool, str, dict[str, Any] | None]:
     """用更便宜/短输出的 LLM 调用判断是否需要执行完整提取。"""
-    enabled = bool(settings.get("audio.extraction_gate.enabled", False))
-    if not enabled:
-        return True, "disabled", None
-
     if not text or not text.strip():
         return False, "empty_text", None
 

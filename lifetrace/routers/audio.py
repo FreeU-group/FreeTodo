@@ -107,7 +107,9 @@ def _parse_date_param(date: str | None) -> datetime:
         return get_utc_now().astimezone()
 
 
-def _build_timeline_item(rec: dict[str, Any], transcription: dict[str, Any] | None) -> dict[str, Any]:
+def _build_timeline_item(
+    rec: dict[str, Any], transcription: dict[str, Any] | None
+) -> dict[str, Any]:
     """构建时间线项"""
     text = ""
     segment_timestamps: list[float] | None = None
@@ -231,7 +233,9 @@ def _parse_extracted(transcription: dict[str, Any]) -> list[dict[str, Any]]:
     todos = _load_extracted_json(transcription, "extracted_todos")
 
     # Backfill legacy items and persist so clients always get id/dedupe_key/linked
-    refreshed_todos = _refresh_extracted_from_db(int(transcription["id"]), transcription["audio_recording_id"])
+    refreshed_todos = _refresh_extracted_from_db(
+        int(transcription["id"]), transcription["audio_recording_id"]
+    )
     if refreshed_todos:
         return refreshed_todos
 
@@ -295,12 +299,11 @@ async def link_extracted_items(recording_id: int, request: AudioLinkRequest):
 
 
 @router.post("/extract")
-async def extract_todos(recording_id: int, force: bool = Query(False)):
+async def extract_todos(recording_id: int):
     """提取待办事项
 
     Args:
         recording_id: 录音ID
-        force: 是否强制提取（True=跳过 gate）
     """
     try:
         transcription = audio_service.get_transcription(recording_id)
@@ -316,14 +319,13 @@ async def extract_todos(recording_id: int, force: bool = Query(False)):
             ts_raw = transcription.get("segment_timestamps")
             if ts_raw:
                 parsed = json.loads(ts_raw)
-                if isinstance(parsed, list) and parsed and isinstance(parsed[0], (int, float)):
+                if isinstance(parsed, list) and parsed and isinstance(parsed[0], int | float):
                     segment_timestamps = [float(item) for item in parsed]
         except Exception:
             segment_timestamps = None
 
         result = await audio_service.extraction_service.extract_todos(
             text,
-            force=bool(force),
             segment_timestamps=segment_timestamps,
         )
         compat_result = {**result, "schedules": []}

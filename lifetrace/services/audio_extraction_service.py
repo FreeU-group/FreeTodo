@@ -359,10 +359,9 @@ class AudioExtractionService:
     async def extract_todos(  # noqa: C901, PLR0912, PLR0915
         self,
         text: str,
-        force: bool = False,
         segment_timestamps: list[float] | None = None,
     ) -> dict[str, Any]:
-        """从转录文本中提取待办（可按 chunk + gate）。
+        """从转录文本中提取待办（按 chunk + gate）。
 
         Args:
             text: 转录文本
@@ -389,46 +388,45 @@ class AudioExtractionService:
             gate_meta: dict[str, Any] | None = None
             chunk_gate: list[dict[str, Any]] = []
 
-            if not force:
-                should_extract_any = False
-                for index, chunk_obj in enumerate(chunk_objs):
-                    chunk_text = chunk_obj["text"]
-                    should_extract, reason, gate_data = await should_extract_with_llm_gate(
-                        text=chunk_text,
-                        llm_client=self.llm_client,
-                    )
-                    chunk_gate.append(
-                        {
-                            "i": index + 1,
-                            "should_extract": bool(should_extract),
-                            "reason": reason,
-                            "gate": gate_data if isinstance(gate_data, dict) else None,
-                            "start_line": chunk_obj.get("start_line"),
-                            "end_line": chunk_obj.get("end_line"),
-                            "start_s": chunk_obj.get("start_s"),
-                            "end_s": chunk_obj.get("end_s"),
-                        }
-                    )
-                    if should_extract:
-                        should_extract_any = True
+            should_extract_any = False
+            for index, chunk_obj in enumerate(chunk_objs):
+                chunk_text = chunk_obj["text"]
+                should_extract, reason, gate_data = await should_extract_with_llm_gate(
+                    text=chunk_text,
+                    llm_client=self.llm_client,
+                )
+                chunk_gate.append(
+                    {
+                        "i": index + 1,
+                        "should_extract": bool(should_extract),
+                        "reason": reason,
+                        "gate": gate_data if isinstance(gate_data, dict) else None,
+                        "start_line": chunk_obj.get("start_line"),
+                        "end_line": chunk_obj.get("end_line"),
+                        "start_s": chunk_obj.get("start_s"),
+                        "end_s": chunk_obj.get("end_s"),
+                    }
+                )
+                if should_extract:
+                    should_extract_any = True
 
-                gate_meta = {
-                    "should_extract": bool(should_extract_any),
-                    "reason": "ok",
-                    "data": {
-                        "chunked": len(chunk_objs) > 1,
-                        "chunk_count": len(chunk_objs),
-                        "chunk_max_chars": chunk_chars,
-                        "chunk_max_seconds": chunk_seconds,
-                        "chunks": chunk_gate,
-                    },
-                }
+            gate_meta = {
+                "should_extract": bool(should_extract_any),
+                "reason": "ok",
+                "data": {
+                    "chunked": len(chunk_objs) > 1,
+                    "chunk_count": len(chunk_objs),
+                    "chunk_max_chars": chunk_chars,
+                    "chunk_max_seconds": chunk_seconds,
+                    "chunks": chunk_gate,
+                },
+            }
 
-                if not should_extract_any:
-                    logger.info(
-                        f"audio extraction gate: skip (chunks={len(chunk_objs)}, reason=all_false)"
-                    )
-                    return {"todos": [], "gate": gate_meta}
+            if not should_extract_any:
+                logger.info(
+                    f"audio extraction gate: skip (chunks={len(chunk_objs)}, reason=all_false)"
+                )
+                return {"todos": [], "gate": gate_meta}
 
             extracted_items: list[dict[str, Any]] = []
             client = self.llm_client
@@ -436,7 +434,7 @@ class AudioExtractionService:
             openai_client = client._get_client()
 
             for index, chunk_obj in enumerate(chunk_objs):
-                if not force and chunk_gate and not chunk_gate[index].get("should_extract"):
+                if chunk_gate and not chunk_gate[index].get("should_extract"):
                     continue
 
                 chunk_text = chunk_obj["text"]
@@ -495,7 +493,7 @@ class AudioExtractionService:
             logger.error(f"提取待办失败: {e}")
             return {"todos": []}
 
-    async def extract_todos_and_schedules(self, text: str, force: bool = False) -> dict[str, Any]:
+    async def extract_todos_and_schedules(self, text: str) -> dict[str, Any]:
         """兼容旧接口：返回 todos + 空 schedules。"""
-        result = await self.extract_todos(text=text, force=force)
+        result = await self.extract_todos(text=text)
         return {**result, "schedules": []}
