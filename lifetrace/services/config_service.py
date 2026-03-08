@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml
 
+from lifetrace.core.config_watcher import reload_with_callbacks
 from lifetrace.jobs.scheduler import get_scheduler_manager
 from lifetrace.llm.llm_client import LLMClient
 from lifetrace.services.asr_client import ASRClient
@@ -595,10 +596,10 @@ class ConfigService:
         # 3. 更新配置文件
         self.update_config_file(new_settings, config_path)
 
-        # 4. 重新加载配置（使用封装函数，正确处理返回值）
-        reload_success = reload_settings()
+        # 4. 重新加载配置并触发变更回调（config_watcher 会检测差异并通知订阅者）
+        reload_success = reload_with_callbacks()
         if reload_success:
-            logger.info("配置已重新加载到内存")
+            logger.info("配置已重新加载到内存（含变更回调）")
         else:
             logger.warning("配置重新加载失败，但文件已保存")
 
