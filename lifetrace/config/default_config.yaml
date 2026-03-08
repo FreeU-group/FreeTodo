@@ -51,6 +51,7 @@ backend_modules:
     - plugin
     - memory
     - omi_compat
+    - location
 
 # Omi App / 硬件兼容层配置
 omi_compat:

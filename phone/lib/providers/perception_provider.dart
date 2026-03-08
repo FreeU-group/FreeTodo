@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -11,6 +13,8 @@ class PerceptionProvider extends ChangeNotifier {
   bool _gpsEnabled = false;
   bool _clipboardEnabled = false;
   bool _notificationListenerEnabled = false;
+  String _gpsStatus = '';
+  StreamSubscription<String>? _gpsStatusSub;
 
   PerceptionProvider() {
     _loadSettings();
@@ -23,6 +27,11 @@ class PerceptionProvider extends ChangeNotifier {
     _clipboardEnabled = false;
     _notificationListenerEnabled = false;
 
+    _gpsStatusSub = LocationReporter.instance.statusStream.listen((s) {
+      _gpsStatus = s;
+      notifyListeners();
+    });
+
     if (_gpsEnabled) {
       LocationReporter.instance.start();
     }
@@ -33,6 +42,7 @@ class PerceptionProvider extends ChangeNotifier {
   bool get gpsEnabled => _gpsEnabled;
   bool get clipboardEnabled => _clipboardEnabled;
   bool get notificationListenerEnabled => _notificationListenerEnabled;
+  String get gpsStatus => _gpsStatus;
 
   Future<void> setPerceptionEnabled(bool value) async {
     if (_perceptionEnabled == value) return;
@@ -118,6 +128,7 @@ class PerceptionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _gpsStatusSub?.cancel();
     LocationReporter.instance.stop();
     super.dispose();
   }

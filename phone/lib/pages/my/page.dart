@@ -234,6 +234,9 @@ class _MyPageState extends State<MyPage> with AutomaticKeepAliveClientMixin {
           _switchTile(
             icon: FontAwesomeIcons.locationDot,
             title: 'GPS 位置',
+            subtitle: perceptionProvider.gpsEnabled && perceptionProvider.gpsStatus.isNotEmpty
+                ? perceptionProvider.gpsStatus
+                : null,
             value: perceptionProvider.gpsEnabled,
             onChanged: (value) => perceptionProvider.setGpsEnabled(value, context),
           ),
@@ -490,13 +493,14 @@ class _MyPageState extends State<MyPage> with AutomaticKeepAliveClientMixin {
   Widget _switchTile({
     required IconData icon,
     required String title,
+    String? subtitle,
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
     return _baseTile(
       icon: icon,
       title: title,
-      subtitle: null,
+      subtitle: subtitle,
       iconColor: value ? MobileTokens.accent : MobileTokens.textSecondary,
       trailing: Switch(
         value: value,
