@@ -1,0 +1,264 @@
+"use client";
+
+import {
+	ChevronLeft,
+	ChevronRight,
+	Clock,
+	Loader2,
+	RefreshCw,
+	ScrollText,
+} from "lucide-react";
+import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
+
+import { PanelHeader } from "@/components/common/layout/PanelHeader";
+import { cn } from "@/lib/utils";
+
+function todayStr(): string {
+	const d = new Date();
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function shiftDate(dateStr: string, days: number): string {
+	const d = new Date(dateStr);
+	d.setDate(d.getDate() + days);
+	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+interface EventBlock {
+	time: string;
+	title: string;
+	lines: string[];
+}
+
+function parseEventsMarkdown(markdown: string): EventBlock[] {
+	const blocks: EventBlock[] = [];
+	const lines = markdown.split("\n");
+	let current: EventBlock | null = null;
+
+	for (const line of lines) {
+		const h2 = line.match(/^##\s+(.+)/);
+		if (h2) {
+			if (current) blocks.push(current);
+			const raw = h2[1].trim();
+			const timeMatch = raw.match(/^(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(.+)/);
+			if (timeMatch) {
+				current = { time: timeMatch[1], title: timeMatch[2], lines: [] };
+			} else {
+				current = { time: "", title: raw, lines: [] };
+			}
+			continue;
+		}
+
+		const h3 = line.match(/^###\s+(.+)/);
+		if (h3) {
+			if (current) blocks.push(current);
+			current = { time: "", title: h3[1].trim(), lines: [] };
+			continue;
+		}
+
+		if (current) {
+			if (line.trim()) current.lines.push(line);
+		}
+	}
+	if (current) blocks.push(current);
+	return blocks;
+}
+
+function EventCard({ block }: { block: EventBlock }) {
+	return (
+		<div className="rounded-lg border border-border bg-card p-3.5 transition-all hover:shadow-sm">
+			<div className="mb-2 flex items-center gap-2">
+				{block.time && (
+					<span className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+						<Clock className="h-3 w-3" />
+						{block.time}
+					</span>
+				)}
+				<h3 className="text-sm font-medium text-foreground">
+					{block.title}
+				</h3>
+			</div>
+			{block.lines.length > 0 && (
+				<div className="space-y-1 text-sm leading-relaxed text-muted-foreground">
+				{block.lines.map((line) => {
+					const trimmed = line.replace(/^[-*]\s*/, "").trim();
+					if (!trimmed) return null;
+					const key = `${block.title}-${trimmed.slice(0, 32)}`;
+
+					if (line.match(/^[-*]\s/)) {
+						return (
+							<div key={key} className="flex gap-2">
+								<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
+								<span>{trimmed}</span>
+							</div>
+						);
+					}
+					return <p key={key}>{trimmed}</p>;
+					})}
+				</div>
+			)}
+		</div>
+	);
+}
+
+export function EventStreamPanel() {
+	const t = useTranslations("page");
+	const tEvent = useTranslations("eventStream");
+
+	const [date, setDate] = useState(todayStr);
+	const [content, setContent] = useState<string>("");
+	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState<string | null>(null);
+	const [availableDates, setAvailableDates] = useState<string[]>([]);
+
+	const isToday = date === todayStr();
+
+	const fetchDates = useCallback(async () => {
+		try {
+			const resp = await fetch("/api/memory/dates");
+			if (resp.ok) {
+				const data = await resp.json();
+				setAvailableDates(data.dates ?? []);
+			}
+		} catch {
+			// ignore
+		}
+	}, []);
+
+	const fetchEvents = useCallback(async (dateStr: string) => {
+		try {
+			setLoading(true);
+			setError(null);
+			const resp = await fetch(`/api/memory/date/${dateStr}`);
+			if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+			const data = await resp.json();
+			setContent(data.content || "");
+		} catch (e) {
+			setError(e instanceof Error ? e.message : String(e));
+			setContent("");
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		fetchDates();
+	}, [fetchDates]);
+
+	useEffect(() => {
+		fetchEvents(date);
+	}, [date, fetchEvents]);
+
+	const blocks = content ? parseEventsMarkdown(content) : [];
+	const hasContent = blocks.length > 0;
+	const hasPrev = availableDates.some((d) => d < date);
+
+	return (
+		<div className="relative flex h-full flex-col overflow-hidden bg-background">
+			<PanelHeader
+				icon={ScrollText}
+				title={t("eventStreamLabel")}
+				actions={
+					<button
+						type="button"
+						onClick={() => fetchEvents(date)}
+						disabled={loading}
+						className={cn(
+							"flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+							"text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+							"disabled:pointer-events-none disabled:opacity-50",
+						)}
+						aria-label={tEvent("refresh")}
+					>
+						<RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+					</button>
+				}
+			/>
+
+			{/* Date navigator */}
+			<div className="flex items-center justify-between border-b border-border px-4 py-2">
+				<button
+					type="button"
+					onClick={() => setDate(shiftDate(date, -1))}
+					disabled={!hasPrev}
+					className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-30"
+					aria-label={tEvent("prevDay")}
+				>
+					<ChevronLeft className="h-4 w-4" />
+				</button>
+
+				<div className="flex items-center gap-2">
+					<input
+						type="date"
+						value={date}
+						max={todayStr()}
+						onChange={(e) => e.target.value && setDate(e.target.value)}
+						className="rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+					/>
+					{!isToday && (
+						<button
+							type="button"
+							onClick={() => setDate(todayStr())}
+							className="rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/20"
+						>
+							{tEvent("today")}
+						</button>
+					)}
+				</div>
+
+				<button
+					type="button"
+					onClick={() => setDate(shiftDate(date, 1))}
+					disabled={isToday}
+					className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:opacity-30"
+					aria-label={tEvent("nextDay")}
+				>
+					<ChevronRight className="h-4 w-4" />
+				</button>
+			</div>
+
+			{/* Content */}
+			<div className="flex-1 overflow-y-auto px-4 py-4">
+				{loading && (
+					<div className="flex h-full items-center justify-center">
+						<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+					</div>
+				)}
+
+				{error && !loading && (
+					<div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+						<p className="text-sm text-muted-foreground">{tEvent("loadError")}</p>
+						<button
+							type="button"
+							onClick={() => fetchEvents(date)}
+							className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+						>
+							{tEvent("retry")}
+						</button>
+					</div>
+				)}
+
+				{!loading && !error && !hasContent && (
+					<div className="flex h-full flex-col items-center justify-center gap-3 text-center">
+						<ScrollText className="h-10 w-10 text-muted-foreground/30" />
+						<p className="text-sm text-muted-foreground">
+							{tEvent("empty", { date })}
+						</p>
+					</div>
+				)}
+
+				{!loading && !error && hasContent && (
+					<div className="space-y-3">
+						<p className="text-xs text-muted-foreground">
+							{tEvent("eventCount", { count: blocks.length })}
+						</p>
+						{blocks.map((block, idx) => (
+							<EventCard key={`${block.time}-${idx}`} block={block} />
+						))}
+					</div>
+				)}
+			</div>
+		</div>
+	);
+}

@@ -187,6 +187,17 @@ const panelRegistry: Record<PanelFeature, PanelPlugin> = {
 				default: mod.TodoIntentPanel,
 			})),
 	},
+	eventStream: {
+		id: "eventStream",
+		labelKey: "eventStreamLabel",
+		placeholderKey: "eventStreamPlaceholder",
+		icon: FEATURE_ICON_MAP.eventStream,
+		backendModules: ["memory"],
+		loader: () =>
+			import("@/apps/event-stream/EventStreamPanel").then((mod) => ({
+				default: mod.EventStreamPanel,
+			})),
+	},
 	userProfile: {
 		id: "userProfile",
 		labelKey: "userProfileLabel",

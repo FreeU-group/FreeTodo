@@ -76,6 +76,8 @@
 		"previewPlaceholder": "占位：打开文件后显示预览",
 		"userProfileLabel": "用户画像",
 		"userProfilePlaceholder": "展示基于行为分析生成的用户画像",
+		"eventStreamLabel": "事件流",
+		"eventStreamPlaceholder": "展示 L2 记忆事件摘要",
 		"backendUnavailableBadge": "后端不可用",
 		"backendUnavailableTooltip": "后端模块未启用或缺少依赖。",
 		"backendUnavailableTitle": "功能不可用",
@@ -411,6 +413,7 @@
 		"todoIntent": "意图识别",
 		"preview": "预览",
 		"userProfile": "用户画像",
+		"eventStream": "事件流",
 		"unassigned": "未分配"
 	},
 	"panelMenu": {
@@ -1043,6 +1046,16 @@
 		"activity": "活动",
 		"aggregateFailed": "聚合事件失败，请稍后重试",
 		"extractFailed": "提取待办失败，请稍后重试"
+	},
+	"eventStream": {
+		"refresh": "刷新",
+		"prevDay": "前一天",
+		"nextDay": "后一天",
+		"today": "今天",
+		"loadError": "加载事件流失败，请检查后端服务。",
+		"retry": "重试",
+		"empty": "{date} 暂无事件记录",
+		"eventCount": "共 {count} 条事件"
 	},
 	"userProfile": {
 		"refresh": "更新画像",

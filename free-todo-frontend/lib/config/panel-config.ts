@@ -21,6 +21,7 @@ import {
 	Mic,
 	Network,
 	Radio,
+	ScrollText,
 	Settings,
 	UserCircle,
 } from "lucide-react";
@@ -43,7 +44,8 @@ export type PanelFeature =
 	| "perceptionStream"
 	| "todoIntent"
 	| "preview"
-	| "userProfile";
+	| "userProfile"
+	| "eventStream";
 
 /**
  * 开发中的面板功能列表
@@ -59,6 +61,7 @@ export const DEV_IN_PROGRESS_FEATURES: PanelFeature[] = [
 	"perceptionStream",
 	"todoIntent",
 	"userProfile",
+	"eventStream",
 ];
 
 /**
@@ -82,6 +85,7 @@ export const ALL_PANEL_FEATURES: PanelFeature[] = [
 	"todoIntent",
 	"preview",
 	"userProfile",
+	"eventStream",
 ];
 
 /**
@@ -105,4 +109,5 @@ export const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	todoIntent: BrainCircuit,
 	preview: Eye,
 	userProfile: UserCircle,
+	eventStream: ScrollText,
 };

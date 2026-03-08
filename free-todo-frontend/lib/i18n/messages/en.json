@@ -76,6 +76,8 @@
 		"previewPlaceholder": "Placeholder: open a file to preview",
 		"userProfileLabel": "User Profile",
 		"userProfilePlaceholder": "Display the behavior-based user profile",
+		"eventStreamLabel": "Event Stream",
+		"eventStreamPlaceholder": "Display L2 memory event summaries",
 		"backendUnavailableBadge": "Backend unavailable",
 		"backendUnavailableTooltip": "Backend module is disabled or missing dependencies.",
 		"backendUnavailableTitle": "Feature unavailable",
@@ -411,6 +413,7 @@
 		"todoIntent": "Todo Intent",
 		"preview": "Preview",
 		"userProfile": "User Profile",
+		"eventStream": "Event Stream",
 		"unassigned": "Unassigned"
 	},
 	"panelMenu": {
@@ -1043,6 +1046,16 @@
 		"activity": "Activity",
 		"aggregateFailed": "Failed to aggregate events, please try again later",
 		"extractFailed": "Failed to extract todos, please try again later"
+	},
+	"eventStream": {
+		"refresh": "Refresh",
+		"prevDay": "Previous day",
+		"nextDay": "Next day",
+		"today": "Today",
+		"loadError": "Failed to load event stream. Please check the backend service.",
+		"retry": "Retry",
+		"empty": "No events for {date}",
+		"eventCount": "{count} events"
 	},
 	"userProfile": {
 		"refresh": "Refresh",
