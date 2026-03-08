@@ -11,6 +11,7 @@ class ActionItemWithMetadata {
   final bool exported;
   final DateTime? exportDate;
   final String? exportPlatform;
+  final String? status;
   final int sortOrder;
   final int indentLevel;
 
@@ -27,6 +28,7 @@ class ActionItemWithMetadata {
     this.exported = false,
     this.exportDate,
     this.exportPlatform,
+    this.status,
     this.sortOrder = 0,
     this.indentLevel = 0,
   });
@@ -56,6 +58,7 @@ class ActionItemWithMetadata {
       exported: json['exported'] ?? false,
       exportDate: _parseDate(json['export_date']),
       exportPlatform: json['export_platform']?.toString(),
+      status: json['status']?.toString(),
       sortOrder: _toInt(json['sort_order']),
       indentLevel: _toInt(json['indent_level']),
     );
@@ -75,6 +78,7 @@ class ActionItemWithMetadata {
       'exported': exported,
       'export_date': exportDate?.toUtc().toIso8601String(),
       'export_platform': exportPlatform,
+      'status': status,
       'sort_order': sortOrder,
       'indent_level': indentLevel,
     };
@@ -93,6 +97,7 @@ class ActionItemWithMetadata {
     bool? exported,
     DateTime? exportDate,
     String? exportPlatform,
+    String? status,
     int? sortOrder,
     int? indentLevel,
   }) {
@@ -109,6 +114,7 @@ class ActionItemWithMetadata {
       exported: exported ?? this.exported,
       exportDate: exportDate ?? this.exportDate,
       exportPlatform: exportPlatform ?? this.exportPlatform,
+      status: status ?? this.status,
       sortOrder: sortOrder ?? this.sortOrder,
       indentLevel: indentLevel ?? this.indentLevel,
     );

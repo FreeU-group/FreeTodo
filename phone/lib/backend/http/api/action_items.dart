@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:freeu/backend/http/shared.dart';
 import 'package:freeu/backend/schema/schema.dart';
@@ -97,8 +97,9 @@ Future<ActionItemWithMetadata?> updateActionItem(
   String actionItemId, {
   String? description,
   bool? completed,
+  String? status,
   DateTime? dueAt,
-  bool clearDueAt = false, // Flag to explicitly clear due date
+  bool clearDueAt = false,
   bool? exported,
   DateTime? exportDate,
   String? exportPlatform,
@@ -110,7 +111,9 @@ Future<ActionItemWithMetadata?> updateActionItem(
   if (description != null) {
     requestBody['description'] = description;
   }
-  if (completed != null) {
+  if (status != null) {
+    requestBody['status'] = status;
+  } else if (completed != null) {
     requestBody['completed'] = completed;
   }
   // Handle dueAt - send ISO string if set, or null to clear deadline

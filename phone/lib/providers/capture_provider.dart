@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -76,8 +76,8 @@ class CaptureProvider extends ChangeNotifier
   Timer? _keepAliveTimer;
   DateTime? _keepAliveLastExecutedAt;
   int _keepAliveIntervalSeconds = 5;
-  static const int _keepAliveMinInterval = 5;
-  static const int _keepAliveMaxInterval = 120;
+  static const int _keepAliveMinInterval = 3;
+  static const int _keepAliveMaxInterval = 15;
 
   // Method channel for system audio permissions
   static late MethodChannel _screenCaptureChannel;
@@ -242,7 +242,7 @@ class CaptureProvider extends ChangeNotifier
 
   void _startBackgroundWatchdog() {
     _backgroundWatchdog?.cancel();
-    _backgroundWatchdog = Timer.periodic(const Duration(seconds: 10), (t) {
+    _backgroundWatchdog = Timer.periodic(const Duration(seconds: 3), (t) {
       if (_socket?.state != SocketServiceState.connected) {
         Logger.debug('[BackgroundWatchdog] WebSocket dead, triggering reconnect');
         _startKeepAliveServices();
@@ -743,10 +743,10 @@ class CaptureProvider extends ChangeNotifier
         _commandBytes.add(snapshot.sublist(3));
       }
 
-      // Local storage syncs
+      // Local storage syncs — always enabled for Omi/OpenGlass regardless
+      // of codec so that audio is never lost when WebSocket disconnects.
       var checkWalSupported =
           (_recordingDevice?.type == DeviceType.omi || _recordingDevice?.type == DeviceType.openglass) &&
-              codec.isOpusSupported() &&
               (_socket?.state != SocketServiceState.connected || SharedPreferencesUtil().unlimitedLocalStorageEnabled);
       if (checkWalSupported != _isWalSupported) {
         setIsWalSupported(checkWalSupported);
@@ -761,11 +761,8 @@ class CaptureProvider extends ChangeNotifier
             (_recordingDevice?.type == DeviceType.omi || _recordingDevice?.type == DeviceType.openglass) ? 3 : 0;
         final trimmedValue = paddingLeft > 0 ? value.sublist(paddingLeft) : value;
         _socket?.send(trimmedValue);
-
-        // Track bytes sent to websocket
         _wsSocketBytesSent += trimmedValue.length;
 
-        // Mark as synced
         if (_isWalSupported) {
           _wal.getSyncs().phone.onBytesSync(value);
         }

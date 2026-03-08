@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -71,15 +71,19 @@ class _TasksPageState extends State<TasksPage> with AutomaticKeepAliveClientMixi
           decoration: const BoxDecoration(gradient: MobileTokens.appBackground),
           child: Stack(
             children: [
-              ListView(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                children: [
-                  const MobilePageHeader(
-                    title: '待办',
-                    subtitle: 'AI 提取 + 手动添加，支持优先级与截止时间管理',
-                    padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
-                  ),
+              RefreshIndicator(
+                color: MobileTokens.accent,
+                onRefresh: () => context.read<MobileMockProvider>().refreshTasks(),
+                child: ListView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                  children: [
+                    MobilePageHeader(
+                      title: '待办',
+                      subtitle: _syncText(mock),
+                      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                    ),
                   Row(
                     children: [
                       _scopeChip('today', '今日'),
@@ -149,7 +153,8 @@ class _TasksPageState extends State<TasksPage> with AutomaticKeepAliveClientMixi
                             ],
                           ),
                   ),
-                ],
+                  ],
+                ),
               ),
               Positioned(
                 right: 18,
@@ -802,6 +807,16 @@ class _TasksPageState extends State<TasksPage> with AutomaticKeepAliveClientMixi
         ),
       ),
     );
+  }
+
+  String _syncText(MobileMockProvider mock) {
+    if (mock.syncingTasks) return '同步中...';
+    final ts = mock.lastTasksSyncAt;
+    if (ts == null) return '等待同步';
+    final diff = DateTime.now().difference(ts);
+    if (diff.inSeconds < 10) return '刚同步';
+    if (diff.inMinutes < 1) return '${diff.inSeconds}s 前同步';
+    return '${diff.inMinutes}m 前同步';
   }
 
   InputDecoration _fieldDecoration(String hint) {
