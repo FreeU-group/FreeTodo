@@ -14,12 +14,14 @@ class SourceType(str, Enum):
     OCR_PROACTIVE = "ocr_proactive"
     USER_INPUT = "user_input"
     AI_OUTPUT = "ai_output"
+    GPS_MOBILE = "gps_mobile"
 
 
 class Modality(str, Enum):
     AUDIO = "audio"
     IMAGE = "image"
     TEXT = "text"
+    LOCATION = "location"
 
 
 class PerceptionEvent(BaseModel):

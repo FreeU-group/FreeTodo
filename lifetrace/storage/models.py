@@ -538,6 +538,25 @@ class AgentPlanJournal(TimestampMixin, table=True):
         return f"<AgentPlanJournal(journal_id={self.journal_id}, op_type={self.op_type})>"
 
 
+class LocationRecord(TimestampMixin, table=True):
+    """GPS 位置记录模型"""
+
+    __tablename__: ClassVar[str] = "location_records"
+
+    id: int | None = Field(default=None, primary_key=True)
+    timestamp: datetime = Field(index=True)
+    latitude: float
+    longitude: float
+    altitude: float | None = None
+    accuracy: float | None = None
+    speed: float | None = None
+    heading: float | None = None
+    source: str = Field(default="mobile_gps", max_length=32)
+
+    def __repr__(self):
+        return f"<LocationRecord(id={self.id}, lat={self.latitude}, lon={self.longitude})>"
+
+
 # 为兼容旧代码，保留 Base 引用（指向 SQLModel.metadata）
 # 这样现有的 Base.metadata.create_all() 调用仍然有效
 Base = SQLModel

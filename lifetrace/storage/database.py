@@ -9,6 +9,7 @@ from lifetrace.storage.chat_manager import ChatManager
 from lifetrace.storage.database_base import DatabaseBase
 from lifetrace.storage.event_manager import EventManager
 from lifetrace.storage.journal_manager import JournalManager
+from lifetrace.storage.location_manager import LocationManager
 from lifetrace.storage.ocr_manager import OCRManager
 from lifetrace.storage.screenshot_manager import ScreenshotManager
 from lifetrace.storage.stats_manager import StatsManager
@@ -31,6 +32,7 @@ journal_mgr = JournalManager(db_base)
 activity_mgr = ActivityManager(db_base)
 automation_task_mgr = AutomationTaskManager(db_base)
 agent_plan_mgr = AgentPlanManager(db_base)
+location_mgr = LocationManager(db_base)
 
 # ===== 向后兼容：保留原有的接口 =====
 engine = db_base.engine

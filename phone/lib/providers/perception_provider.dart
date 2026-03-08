@@ -1,6 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:freeu/backend/preferences.dart';
+import 'package:freeu/services/location_reporter.dart';
+import 'package:freeu/utils/logger.dart';
 
 /// 感知权限管理Provider
 class PerceptionProvider extends ChangeNotifier {
@@ -15,10 +18,14 @@ class PerceptionProvider extends ChangeNotifier {
 
   void _loadSettings() {
     final prefs = SharedPreferencesUtil();
-    _perceptionEnabled = true; // 默认开启
+    _perceptionEnabled = true;
     _gpsEnabled = prefs.locationEnabled;
-    _clipboardEnabled = false; // TODO: 从preferences加载
-    _notificationListenerEnabled = false; // TODO: 从preferences加载
+    _clipboardEnabled = false;
+    _notificationListenerEnabled = false;
+
+    if (_gpsEnabled) {
+      LocationReporter.instance.start();
+    }
     notifyListeners();
   }
 
@@ -30,7 +37,11 @@ class PerceptionProvider extends ChangeNotifier {
   Future<void> setPerceptionEnabled(bool value) async {
     if (_perceptionEnabled == value) return;
     _perceptionEnabled = value;
-    // TODO: 通知后端暂停/恢复感知
+    if (!value) {
+      LocationReporter.instance.stop();
+    } else if (_gpsEnabled) {
+      LocationReporter.instance.start();
+    }
     notifyListeners();
   }
 
@@ -38,16 +49,29 @@ class PerceptionProvider extends ChangeNotifier {
     if (_gpsEnabled == value) return;
 
     if (value) {
-      // 请求GPS权限
-      // TODO: 实现GPS权限请求
-      // final permission = await Permission.location.request();
-      // if (permission.isGranted) {
-      //   _gpsEnabled = true;
-      //   SharedPreferencesUtil().locationEnabled = true;
-      // }
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        Logger.debug('[PerceptionProvider] Location service not enabled');
+        return;
+      }
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.deniedForever) {
+        Logger.debug('[PerceptionProvider] Location permission permanently denied');
+        return;
+      }
+      if (perm == LocationPermission.denied) {
+        return;
+      }
+
+      _gpsEnabled = true;
+      SharedPreferencesUtil().locationEnabled = true;
+      await LocationReporter.instance.start();
     } else {
       _gpsEnabled = false;
       SharedPreferencesUtil().locationEnabled = false;
+      LocationReporter.instance.stop();
     }
     notifyListeners();
   }
@@ -57,7 +81,6 @@ class PerceptionProvider extends ChangeNotifier {
 
     if (value) {
       // TODO: 请求剪贴板权限（Android需要特殊权限）
-      // _clipboardEnabled = true;
     } else {
       _clipboardEnabled = false;
     }
@@ -69,10 +92,15 @@ class PerceptionProvider extends ChangeNotifier {
 
     if (value) {
       // TODO: 请求通知监听权限（Android需要NotificationListenerService）
-      // _notificationListenerEnabled = true;
     } else {
       _notificationListenerEnabled = false;
     }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    LocationReporter.instance.stop();
+    super.dispose();
   }
 }
