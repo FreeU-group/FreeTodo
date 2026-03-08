@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import 'package:freeu/backend/preferences.dart';
@@ -90,6 +91,27 @@ class PerceptionProvider extends ChangeNotifier {
 
       if (!status.isGranted) {
         Logger.debug('[PerceptionProvider] Location permission not granted: $status');
+        return;
+      }
+
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        Logger.debug('[PerceptionProvider] Device location service is OFF');
+        if (context != null && context.mounted) {
+          final shouldOpen = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('请开启定位服务'),
+              content: const Text('手机的定位服务（GPS）未开启，请在系统设置中打开。'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('去开启')),
+              ],
+            ),
+          );
+          if (shouldOpen == true) {
+            await Geolocator.openLocationSettings();
+          }
+        }
         return;
       }
 
