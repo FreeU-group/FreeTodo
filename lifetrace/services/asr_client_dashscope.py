@@ -35,7 +35,16 @@ class ASRDashScopeClient:
     def _initialize_client(self):
         """内部方法：初始化或重新初始化客户端"""
         try:
-            self.api_key = settings.audio.asr.api_key
+            # 默认使用 LLM API Key (DashScope)
+            self.api_key = settings.llm.api_key
+
+            # 如果单独配置了 ASR Key 且不是默认值，则使用 ASR Key
+            asr_config_key = settings.audio.asr.api_key
+            invalid_values = ["xxx", "YOUR_API_KEY_HERE", "YOUR_ASR_KEY_HERE", "YOUR_LLM_KEY_HERE"]
+
+            if asr_config_key and asr_config_key not in invalid_values:
+                self.api_key = asr_config_key
+
             self.base_url = settings.audio.asr.base_url
             self.model = settings.audio.asr.model
             self.sample_rate = settings.audio.asr.sample_rate

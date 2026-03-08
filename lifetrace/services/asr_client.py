@@ -49,9 +49,20 @@ class ASRClient:
             self.max_sentence_silence = settings.audio.asr.max_sentence_silence
             self.heartbeat = settings.audio.asr.heartbeat
 
-            invalid_values = ["xxx", "YOUR_API_KEY_HERE", "YOUR_ASR_KEY_HERE"]
+            invalid_values = [
+                "xxx",
+                "YOUR_API_KEY_HERE",
+                "YOUR_ASR_KEY_HERE",
+                "YOUR_LLM_KEY_HERE",  # 与 default_config 中 audio.asr.api_key 占位符一致，未配置时回退到 LLM Key
+            ]
             if not self.api_key or self.api_key in invalid_values:
-                logger.warning("ASR API Key未配置或为默认占位符，ASR功能可能不可用")
+                # 尝试使用 LLM API Key 作为备选（DashScope 同账号下 ASR 与 LLM 可用同一 Key）
+                llm_key = settings.llm.api_key
+                if llm_key and llm_key not in invalid_values and llm_key.startswith("sk-"):
+                    logger.info("ASR API Key 未配置，自动使用 LLM API Key")
+                    self.api_key = llm_key
+                else:
+                    logger.warning("ASR API Key 未配置或为默认占位符，ASR 功能可能不可用")
         except Exception as e:
             logger.error(f"无法从配置文件读取ASR配置: {e}")
             self.api_key = "YOUR_ASR_KEY_HERE"
@@ -249,6 +260,11 @@ class ASRClient:
         except ConnectionClosed:
             logger.info("ASR WebSocket连接已关闭")
         except Exception as e:
+            # 记录详细的连接信息以便排查 401
+            masked_key = f"{self.api_key[:6]}...{self.api_key[-4:]}" if self.api_key else "None"
+            logger.error(
+                f"ASR连接失败 | URL: {self.base_url} | Key: {masked_key} | Headers: {headers}"
+            )
             logger.error(f"ASR转录失败: {e}", exc_info=True)
             if on_error:
                 on_error(e)
