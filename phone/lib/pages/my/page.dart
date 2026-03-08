@@ -225,13 +225,6 @@ class _MyPageState extends State<MyPage> with AutomaticKeepAliveClientMixin {
       builder: (context, perceptionProvider, child) {
         return _simpleCard([
           _switchTile(
-            icon: FontAwesomeIcons.eye,
-            title: '感知总开关',
-            value: perceptionProvider.perceptionEnabled,
-            onChanged: (value) => perceptionProvider.setPerceptionEnabled(value),
-          ),
-          _divider(),
-          _switchTile(
             icon: FontAwesomeIcons.locationDot,
             title: 'GPS 位置',
             subtitle: perceptionProvider.gpsEnabled && perceptionProvider.gpsStatus.isNotEmpty
