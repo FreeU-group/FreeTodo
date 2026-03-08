@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	CalendarDays,
 	ChevronLeft,
 	ChevronRight,
 	Clock,
@@ -9,10 +10,28 @@ import {
 	ScrollText,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
+import { DateOnlyPickerPopover } from "@/components/date-picker/DateOnlyPickerPopover";
 import { cn } from "@/lib/utils";
+
+function renderInlineMarkdown(text: string): ReactNode {
+	const parts = text.split(/(\*\*[^*]+\*\*)/g);
+	if (parts.length === 1) return text;
+	return parts.map((part) => {
+		const bold = part.match(/^\*\*(.+)\*\*$/);
+		if (bold) {
+			return (
+				<strong key={part} className="font-semibold text-foreground">
+					{bold[1]}
+				</strong>
+			);
+		}
+		return part;
+	});
+}
 
 function todayStr(): string {
 	const d = new Date();
@@ -90,11 +109,11 @@ function EventCard({ block }: { block: EventBlock }) {
 						return (
 							<div key={key} className="flex gap-2">
 								<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
-								<span>{trimmed}</span>
+								<span>{renderInlineMarkdown(trimmed)}</span>
 							</div>
 						);
 					}
-					return <p key={key}>{trimmed}</p>;
+					return <p key={key}>{renderInlineMarkdown(trimmed)}</p>;
 					})}
 				</div>
 			)}
@@ -111,6 +130,8 @@ export function EventStreamPanel() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [availableDates, setAvailableDates] = useState<string[]>([]);
+	const [calendarOpen, setCalendarOpen] = useState(false);
+	const dateButtonRef = useRef<HTMLButtonElement>(null);
 
 	const isToday = date === todayStr();
 
@@ -189,13 +210,32 @@ export function EventStreamPanel() {
 				</button>
 
 				<div className="flex items-center gap-2">
-					<input
-						type="date"
-						value={date}
-						max={todayStr()}
-						onChange={(e) => e.target.value && setDate(e.target.value)}
-						className="rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
-					/>
+					<button
+						ref={dateButtonRef}
+						type="button"
+						onClick={() => setCalendarOpen((v) => !v)}
+						className={cn(
+							"flex items-center gap-2 rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium transition-colors",
+							"hover:bg-muted/50 hover:border-primary/30",
+							calendarOpen && "border-primary/50 ring-2 ring-primary/20",
+						)}
+					>
+						<CalendarDays className="h-3.5 w-3.5 text-primary" />
+						<span className="text-foreground">{date}</span>
+					</button>
+					{calendarOpen && (
+						<DateOnlyPickerPopover
+							anchorRef={dateButtonRef}
+							selectedDate={new Date(date)}
+							onSelectDate={(d) => {
+								const y = d.getFullYear();
+								const m = String(d.getMonth() + 1).padStart(2, "0");
+								const day = String(d.getDate()).padStart(2, "0");
+								setDate(`${y}-${m}-${day}`);
+							}}
+							onClose={() => setCalendarOpen(false)}
+						/>
+					)}
 					{!isToday && (
 						<button
 							type="button"
