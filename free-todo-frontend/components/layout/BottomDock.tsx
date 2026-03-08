@@ -51,28 +51,8 @@ interface DockItem {
 	group?: string;
 }
 
-const FEATURE_LABEL_MAP: Partial<Record<PanelFeature, string>> = {
-	calendar: "calendar",
-	activity: "activity",
-	todos: "todos",
-	chat: "chat",
-	todoDetail: "todoDetail",
-	diary: "diary",
-	settings: "settings",
-	costTracking: "costTracking",
-	achievements: "achievements",
-	debugShots: "debugShots",
-	crawler: "crawler",
-	crawlerDetail: "crawlerDetail",
-	audio: "audio",
-	perceptionStream: "perceptionStream",
-	todoIntent: "todoIntent",
-	preview: "preview",
-};
-
-// 功能到翻译键的映射配置，缺失项回退到 todos
 function getFeatureLabelKey(feature: PanelFeature): string {
-	return FEATURE_LABEL_MAP[feature] ?? "todos";
+	return feature;
 }
 
 // Dock Item 组件 - 单独组件以正确使用 hooks

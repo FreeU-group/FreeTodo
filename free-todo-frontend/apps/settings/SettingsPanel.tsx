@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, LayoutGrid, LifeBuoy, Radar, Settings, Sparkles, Wrench, Zap } from "lucide-react";
+import { BellRing, LayoutGrid, LifeBuoy, Radar, Settings, Sparkles, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
@@ -41,7 +41,6 @@ import { useSettingsSearchMatchStats } from "./hooks/useSettingsSearchMatchStats
 const SETTINGS_CATEGORY_IDS: SettingsCategoryId[] = [
 	"ai",
 	"workspace",
-	"automation",
 	"sensing",
 	"proactive",
 	"developer",
@@ -75,12 +74,6 @@ export function SettingsPanel() {
 			label: tSettings("categoryWorkspaceTitle"),
 			description: tSettings("categoryWorkspaceDescription"),
 			icon: LayoutGrid,
-		},
-		{
-			id: "automation",
-			label: tSettings("categoryAutomationTitle"),
-			description: tSettings("categoryAutomationDescription"),
-			icon: Zap,
 		},
 		{
 			id: "sensing",
@@ -155,13 +148,6 @@ export function SettingsPanel() {
 						<NotificationPopupSection loading={loading} />
 					</>
 				);
-			case "automation":
-				return (
-					<>
-						<JournalSettingsSection />
-						<AutomationTasksSection loading={loading} />
-					</>
-				);
 			case "ai":
 				return (
 					<>
@@ -176,7 +162,7 @@ export function SettingsPanel() {
 						<RecorderConfigSection config={config} loading={loading} />
 						<SchedulerSection
 							loading={loading}
-							includeJobIds={PERCEPTION_JOB_IDS}
+							includeJobIds={["recorder_job", "ocr_job"]}
 							titleOverride={tSettings("perceptionSchedulerTitle")}
 							descriptionOverride={tSettings("perceptionSchedulerDescription")}
 							compact
@@ -187,6 +173,8 @@ export function SettingsPanel() {
 				return (
 					<>
 						<AutoTodoDetectionSection config={config} loading={loading} />
+						<JournalSettingsSection />
+						<AutomationTasksSection loading={loading} />
 					</>
 				);
 			case "developer":
