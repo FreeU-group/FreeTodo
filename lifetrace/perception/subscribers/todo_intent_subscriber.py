@@ -137,6 +137,11 @@ class TodoIntentSubscriber:
             with suppress(asyncio.CancelledError):
                 await task
 
+    def set_enabled(self, enabled: bool) -> None:
+        """Toggle the subscriber on/off at runtime without restarting."""
+        self._enabled = bool(enabled)
+        logger.info("TodoIntentSubscriber enabled=%s", self._enabled)
+
     async def on_event(self, event: PerceptionEvent) -> None:
         if not self._enabled:
             return

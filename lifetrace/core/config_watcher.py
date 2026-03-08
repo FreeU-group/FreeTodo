@@ -219,21 +219,23 @@ def _on_ocr_toggle(_old_val: Any, new_val: Any):
 
 @on_config_change("jobs.auto_todo_detection.enabled")
 def _on_auto_todo_detection_toggle(_old_val: Any, new_val: Any):
-    """自动待办检测任务开关变更"""
+    """自动待办检测开关变更 → 控制意图识别工作流"""
+    from lifetrace.perception.manager import try_get_perception_manager  # noqa: PLC0415
+
+    enabled = bool(new_val)
     try:
-        manager = get_job_manager()
-        scheduler = manager.scheduler_manager
-        if not scheduler:
-            logger.warning("调度器未初始化，无法更新自动待办检测任务状态")
+        mgr = try_get_perception_manager()
+        if mgr is None:
+            logger.warning("PerceptionStreamManager 未初始化，无法切换意图识别")
             return
-        if new_val:
-            scheduler.resume_job("auto_todo_detection_job")
-            logger.info("自动待办检测任务已启用")
-        else:
-            scheduler.pause_job("auto_todo_detection_job")
-            logger.info("自动待办检测任务已暂停")
+        subscriber = mgr.get_todo_intent_subscriber()
+        if subscriber is None:
+            logger.warning("TodoIntentSubscriber 未初始化，无法切换意图识别")
+            return
+        subscriber.set_enabled(enabled)
+        logger.info("意图识别工作流已%s", "启用" if enabled else "禁用")
     except Exception as e:
-        logger.error(f"变更自动待办检测任务状态失败: {e}")
+        logger.error(f"切换意图识别工作流失败: {e}")
 
 
 @on_config_change("vector_db.enabled")
