@@ -118,6 +118,9 @@ class TranscriptSegmentSocketService implements IPureSocketListener {
     String url =
         wsBase.replaceFirst('https://', 'wss://').replaceFirst('http://', 'ws://') + 'v4/listen$params';
 
+    Logger.debug('[WS-URL] wsBaseUrl=${Env.wsBaseUrl}  apiBaseUrl=${Env.apiBaseUrl}');
+    Logger.debug('[WS-URL] Final WebSocket URL: $url');
+
     _socket = PureSocket(url);
     _socket.setListener(this);
   }

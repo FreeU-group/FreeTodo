@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/io.dart';
 
 import 'package:freeu/backend/http/shared.dart';
 import 'package:freeu/backend/preferences.dart';
@@ -8,6 +12,7 @@ import 'package:freeu/env/env.dart';
 import 'package:freeu/env/lifetrace_env.dart';
 import 'package:freeu/pages/settings/center_node_test_page.dart';
 import 'package:freeu/providers/capture_provider.dart';
+import 'package:freeu/utils/logger.dart';
 
 class ServerSettingsPage extends StatefulWidget {
   const ServerSettingsPage({super.key});
@@ -23,6 +28,10 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   bool _pinging = false;
   bool? _pingOk;
   String _pingResult = '';
+
+  bool _wsTesting = false;
+  bool? _wsOk;
+  String _wsResult = '';
 
   @override
   void initState() {
@@ -70,6 +79,9 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
     if (tcpUrl.isNotEmpty) {
       Env.overrideWsBaseUrl(tcpUrl);
     }
+
+    Logger.debug('[ServerSettings] Saved TCP=$tcpUrl  HTTP=$httpUrl');
+    Logger.debug('[ServerSettings] Env.wsBaseUrl=${Env.wsBaseUrl}  Env.apiBaseUrl=${Env.apiBaseUrl}');
 
     // Also update legacy key for backward compat
     prefs.lifetraceApiBaseUrl = httpUrl.isNotEmpty ? httpUrl : tcpUrl;
@@ -155,15 +167,80 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
       _pinging = false;
       if (response == null) {
         _pingOk = false;
-        _pingResult = '连接失败：无响应（${elapsed}ms）';
+        _pingResult = 'HTTP 连接失败：无响应（${elapsed}ms）';
       } else {
         final ok = response.statusCode == 200;
         _pingOk = ok;
         _pingResult = ok
-            ? '连接成功：HTTP 200（${elapsed}ms）'
-            : '连接失败：HTTP ${response.statusCode}（${elapsed}ms）';
+            ? 'HTTP 连接成功：200（${elapsed}ms）'
+            : 'HTTP 连接失败：${response.statusCode}（${elapsed}ms）';
       }
     });
+  }
+
+  Future<void> _testWebSocket() async {
+    if (_wsTesting) return;
+    final tcpUrl = _normalize(_tcpController.text);
+    if (tcpUrl.isEmpty) return;
+
+    setState(() {
+      _wsTesting = true;
+      _wsResult = '';
+      _wsOk = null;
+    });
+
+    final wsUrl = tcpUrl
+            .replaceFirst('https://', 'wss://')
+            .replaceFirst('http://', 'ws://') +
+        'v4/listen?language=zh&sample_rate=16000&codec=opus'
+        '&uid=${Uri.encodeComponent(LifeTraceEnv.lifetraceUid)}'
+        '&token=${Uri.encodeComponent(LifeTraceEnv.lifetraceToken)}';
+
+    final sw = Stopwatch()..start();
+    try {
+      final channel = IOWebSocketChannel.connect(
+        wsUrl,
+        pingInterval: const Duration(seconds: 10),
+        connectTimeout: const Duration(seconds: 10),
+      );
+      await channel.ready.timeout(const Duration(seconds: 10));
+      sw.stop();
+      final elapsed = sw.elapsedMilliseconds;
+
+      await channel.sink.close();
+
+      if (!mounted) return;
+      setState(() {
+        _wsTesting = false;
+        _wsOk = true;
+        _wsResult = 'WebSocket 连接成功（${elapsed}ms）\n$wsUrl';
+      });
+    } on TimeoutException {
+      sw.stop();
+      if (!mounted) return;
+      setState(() {
+        _wsTesting = false;
+        _wsOk = false;
+        _wsResult = 'WebSocket 超时（${sw.elapsedMilliseconds}ms）\n'
+            '请确认 TCP 隧道是否正在运行\n$wsUrl';
+      });
+    } on SocketException catch (e) {
+      sw.stop();
+      if (!mounted) return;
+      setState(() {
+        _wsTesting = false;
+        _wsOk = false;
+        _wsResult = 'WebSocket 网络错误：${e.message}（${sw.elapsedMilliseconds}ms）\n$wsUrl';
+      });
+    } catch (e) {
+      sw.stop();
+      if (!mounted) return;
+      setState(() {
+        _wsTesting = false;
+        _wsOk = false;
+        _wsResult = 'WebSocket 失败：$e（${sw.elapsedMilliseconds}ms）\n$wsUrl';
+      });
+    }
   }
 
   @override
@@ -199,7 +276,11 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
             _buildActions(),
             if (_pingResult.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _buildPingResult(),
+              _buildTestResult(_pingOk, _pingResult),
+            ],
+            if (_wsResult.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _buildTestResult(_wsOk, _wsResult),
             ],
             const SizedBox(height: 24),
             _buildHint(),
@@ -280,65 +361,91 @@ class _ServerSettingsPageState extends State<ServerSettingsPage> {
   }
 
   Widget _buildActions() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: _pinging ? null : _pingServer,
-            icon: _pinging
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.speed, size: 16),
-            label: const Text('Ping 测试'),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF3A3A3C)),
-              foregroundColor: Colors.white70,
-              padding: const EdgeInsets.symmetric(vertical: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pinging ? null : _pingServer,
+                icon: _pinging
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.wifi, size: 16),
+                label: const Text('HTTP 测试'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF3A3A3C)),
+                  foregroundColor: Colors.white70,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: OutlinedButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const CenterNodeTestPage()),
-              );
-            },
-            icon: const Icon(Icons.checklist, size: 16),
-            label: const Text('连接测试'),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFF3A3A3C)),
-              foregroundColor: Colors.white70,
-              padding: const EdgeInsets.symmetric(vertical: 12),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _wsTesting ? null : _testWebSocket,
+                icon: _wsTesting
+                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.cable, size: 16),
+                label: const Text('TCP 测试'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF3A3A3C)),
+                  foregroundColor: Colors.white70,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(width: 10),
-        OutlinedButton.icon(
-          onPressed: _resetToDefault,
-          icon: const Icon(Icons.restore, size: 16),
-          label: const Text('默认'),
-          style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: Color(0xFF3A3A3C)),
-            foregroundColor: Colors.white70,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-          ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CenterNodeTestPage()),
+                  );
+                },
+                icon: const Icon(Icons.checklist, size: 16),
+                label: const Text('全面测试'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF3A3A3C)),
+                  foregroundColor: Colors.white70,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _resetToDefault,
+                icon: const Icon(Icons.restore, size: 16),
+                label: const Text('恢复默认'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF3A3A3C)),
+                  foregroundColor: Colors.white70,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildPingResult() {
+  Widget _buildTestResult(bool? ok, String text) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: (_pingOk == true ? const Color(0xFF22C55E) : Colors.redAccent).withOpacity(0.15),
+        color: (ok == true ? const Color(0xFF22C55E) : Colors.redAccent).withOpacity(0.15),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        _pingResult,
+        text,
         style: TextStyle(
-          color: _pingOk == true ? const Color(0xFF79E5A0) : Colors.orangeAccent,
+          color: ok == true ? const Color(0xFF79E5A0) : Colors.orangeAccent,
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
