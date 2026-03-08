@@ -235,7 +235,7 @@ class _MyPageState extends State<MyPage> with AutomaticKeepAliveClientMixin {
             icon: FontAwesomeIcons.locationDot,
             title: 'GPS 位置',
             value: perceptionProvider.gpsEnabled,
-            onChanged: (value) => perceptionProvider.setGpsEnabled(value),
+            onChanged: (value) => perceptionProvider.setGpsEnabled(value, context),
           ),
           _divider(),
           _switchTile(

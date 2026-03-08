@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:freeu/backend/preferences.dart';
 import 'package:freeu/services/location_reporter.dart';
@@ -45,23 +45,41 @@ class PerceptionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setGpsEnabled(bool value) async {
+  /// [context] is needed to show the "open settings" dialog when permission
+  /// is permanently denied. Pass null when called without a UI context.
+  Future<void> setGpsEnabled(bool value, [BuildContext? context]) async {
     if (_gpsEnabled == value) return;
 
     if (value) {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        Logger.debug('[PerceptionProvider] Location service not enabled');
-        return;
+      var status = await Permission.locationWhenInUse.status;
+
+      if (status.isDenied) {
+        status = await Permission.locationWhenInUse.request();
       }
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.deniedForever) {
+
+      if (status.isPermanentlyDenied) {
         Logger.debug('[PerceptionProvider] Location permission permanently denied');
+        if (context != null && context.mounted) {
+          final shouldOpen = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('需要位置权限'),
+              content: const Text('GPS 位置上报需要位置权限，请在系统设置中开启。'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('去设置')),
+              ],
+            ),
+          );
+          if (shouldOpen == true) {
+            await openAppSettings();
+          }
+        }
         return;
       }
-      if (perm == LocationPermission.denied) {
+
+      if (!status.isGranted) {
+        Logger.debug('[PerceptionProvider] Location permission not granted: $status');
         return;
       }
 

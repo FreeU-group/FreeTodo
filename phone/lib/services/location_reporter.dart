@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'package:freeu/backend/http/api/location.dart';
 import 'package:freeu/utils/logger.dart';
@@ -43,15 +44,16 @@ class LocationReporter {
   }
 
   Future<bool> _checkPermission() async {
+    final status = await Permission.locationWhenInUse.status;
+    if (!status.isGranted) {
+      Logger.debug('[LocationReporter] Location permission not granted: $status');
+      return false;
+    }
     if (!await Geolocator.isLocationServiceEnabled()) {
       Logger.debug('[LocationReporter] Location service disabled');
       return false;
     }
-    var perm = await Geolocator.checkPermission();
-    if (perm == LocationPermission.denied) {
-      perm = await Geolocator.requestPermission();
-    }
-    return perm == LocationPermission.always || perm == LocationPermission.whileInUse;
+    return true;
   }
 
   Future<void> _reportOnce() async {
