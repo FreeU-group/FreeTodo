@@ -934,9 +934,11 @@
 		"ocr_proactive": "主动OCR",
 		"user_input": "用户输入",
 		"ai_output": "AI输出",
+		"gps_mobile": "移动GPS",
 		"audio": "音频",
 		"image": "图片",
-		"text": "文本"
+		"text": "文本",
+		"location": "位置"
 	},
 	"todoIntentPanel": {
 		"title": "意图识别",

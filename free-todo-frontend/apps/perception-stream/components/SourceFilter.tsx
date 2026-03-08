@@ -15,9 +15,10 @@ const SOURCES: PerceptionSource[] = [
 	"ocr_proactive",
 	"user_input",
 	"ai_output",
+	"gps_mobile",
 ];
 
-const MODALITIES: PerceptionModality[] = ["audio", "image", "text"];
+const MODALITIES: PerceptionModality[] = ["audio", "image", "text", "location"];
 
 export function SourceFilter() {
 	const t = useTranslations("perceptionStream");

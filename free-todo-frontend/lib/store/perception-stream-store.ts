@@ -6,9 +6,10 @@ export type PerceptionSource =
 	| "ocr_screen"
 	| "ocr_proactive"
 	| "user_input"
-	| "ai_output";
+	| "ai_output"
+	| "gps_mobile";
 
-export type PerceptionModality = "audio" | "image" | "text";
+export type PerceptionModality = "audio" | "image" | "text" | "location";
 
 export interface PerceptionEvent {
 	event_id: string;

@@ -21,6 +21,7 @@ const SOURCES: PerceptionSource[] = [
 	"ocr_proactive",
 	"user_input",
 	"ai_output",
+	"gps_mobile",
 ];
 
 async function fetchStatus(): Promise<PerceptionSourceStatusResponse | null> {
