@@ -169,12 +169,22 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
     )
 
     # Build audio decoder
-    decode_fn, _effective_sr = _build_decoder(codec, sample_rate)
+    try:
+        decode_fn, _effective_sr = _build_decoder(codec, sample_rate)
+    except Exception as e:
+        logger.error(f"[omi-compat] Failed to build audio decoder (codec={codec}): {e}")
+        await websocket.close(code=1011, reason=str(e)[:120])
+        return
 
-    # ASR plumbing 鈥?lazy import to avoid hard dep at module level
-    from lifetrace.services.asr_client import ASRClient
+    # ASR plumbing — lazy import to avoid hard dep at module level
+    try:
+        from lifetrace.services.asr_client import ASRClient
 
-    asr = ASRClient()
+        asr = ASRClient()
+    except Exception as e:
+        logger.error(f"[omi-compat] Failed to create ASR client: {e}")
+        await websocket.close(code=1011, reason=str(e)[:120])
+        return
 
     # Shared state
     seg_idx = 0
