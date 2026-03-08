@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -79,6 +79,19 @@ class _ChatTabPageState extends State<ChatTabPage> with AutomaticKeepAliveClient
             _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
           }
         });
+
+        final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
+        if (keyboardVisible) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients) {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
 
         return Container(
           decoration: const BoxDecoration(gradient: MobileTokens.appBackground),
@@ -230,10 +243,11 @@ class _ChatTabPageState extends State<ChatTabPage> with AutomaticKeepAliveClient
   }
 
   Widget _composer() {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+        padding: EdgeInsets.fromLTRB(12, 6, 12, bottomInset > 0 ? bottomInset + 6 : 10),
         child: Container(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
           decoration: BoxDecoration(
