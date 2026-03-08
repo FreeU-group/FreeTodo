@@ -33,7 +33,15 @@ abstract class Env {
   /// Override the base URL used for WebSocket connections (e.g. TCP tunnel).
   /// When not set, WebSocket URLs are derived from [apiBaseUrl].
   static void overrideWsBaseUrl(String url) {
-    _wsBaseUrlOverride = url;
+    var normalized = url.trim();
+    if (normalized.isEmpty) {
+      _wsBaseUrlOverride = null;
+      return;
+    }
+    if (!normalized.endsWith('/')) {
+      normalized = '$normalized/';
+    }
+    _wsBaseUrlOverride = normalized;
   }
 
   /// The base URL for WebSocket connections.
