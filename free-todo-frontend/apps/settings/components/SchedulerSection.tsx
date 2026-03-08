@@ -23,14 +23,38 @@ import { SettingsSection } from "./SettingsSection";
 // Legacy 任务列表
 const LEGACY_JOB_IDS = ["task_context_mapper_job", "task_summary_job"];
 
+/** Job IDs related to perception/screen capture pipeline. */
+export const PERCEPTION_JOB_IDS = [
+	"recorder_job",
+	"ocr_job",
+	"proactive_ocr_job",
+];
+
 interface SchedulerSectionProps {
 	loading?: boolean;
+	/** Only show jobs whose id is in this list (whitelist mode). */
+	includeJobIds?: string[];
+	/** Hide jobs whose id is in this list (blacklist mode). */
+	excludeJobIds?: string[];
+	/** Override section title. */
+	titleOverride?: string;
+	/** Override section description. */
+	descriptionOverride?: string;
+	/** Hide the global status bar and pause-all / resume-all buttons. */
+	compact?: boolean;
 }
 
 /**
  * 调度器管理设置区块
  */
-export function SchedulerSection({ loading = false }: SchedulerSectionProps) {
+export function SchedulerSection({
+	loading = false,
+	includeJobIds,
+	excludeJobIds,
+	titleOverride,
+	descriptionOverride,
+	compact = false,
+}: SchedulerSectionProps) {
 	const t = useTranslations("scheduler");
 	const queryClient = useQueryClient();
 	const [editingJobId, setEditingJobId] = useState<string | null>(null);
@@ -251,9 +275,16 @@ export function SchedulerSection({ loading = false }: SchedulerSectionProps) {
 	const jobsResponse = unwrapApiData<JobListResponse>(jobsData);
 	const allJobs = jobsResponse?.jobs || [];
 
-	// 分离活跃任务和 legacy 任务
-	const activeJobs = allJobs.filter((job) => !isLegacyJob(job.id));
-	const legacyJobs = allJobs.filter((job) => isLegacyJob(job.id));
+	// 分离活跃任务和 legacy 任务，并应用 include/exclude 过滤
+	const activeJobs = allJobs.filter((job) => {
+		if (isLegacyJob(job.id)) return false;
+		if (includeJobIds && !includeJobIds.includes(job.id)) return false;
+		if (excludeJobIds && excludeJobIds.includes(job.id)) return false;
+		return true;
+	});
+	const legacyJobs = compact
+		? []
+		: allJobs.filter((job) => isLegacyJob(job.id));
 
 	// 渲染单个任务项
 	const renderJobItem = (job: JobInfo, isLegacy = false) => {
@@ -416,57 +447,62 @@ export function SchedulerSection({ loading = false }: SchedulerSectionProps) {
 	};
 
 	return (
-		<SettingsSection title={t("title")} description={t("description")}>
-			{/* 状态概览 */}
-			<div className="mb-4 flex items-center justify-between">
-				<div className="flex items-center gap-4 text-sm text-muted-foreground">
-					<span className="flex items-center gap-1">
-						<span
-							className={`h-2 w-2 rounded-full ${
-								status?.running ? "bg-green-500" : "bg-red-500"
-							}`}
-						/>
-						{status?.running ? t("schedulerRunning") : t("schedulerStopped")}
-					</span>
-					<span>
-						{t("runningCount", {
-							running: status?.runningJobs || 0,
-							paused: status?.pausedJobs || 0,
-						})}
-					</span>
+		<SettingsSection
+			title={titleOverride ?? t("title")}
+			description={descriptionOverride ?? t("description")}
+		>
+			{/* 状态概览 — hidden in compact mode */}
+			{!compact && (
+				<div className="mb-4 flex items-center justify-between">
+					<div className="flex items-center gap-4 text-sm text-muted-foreground">
+						<span className="flex items-center gap-1">
+							<span
+								className={`h-2 w-2 rounded-full ${
+									status?.running ? "bg-green-500" : "bg-red-500"
+								}`}
+							/>
+							{status?.running ? t("schedulerRunning") : t("schedulerStopped")}
+						</span>
+						<span>
+							{t("runningCount", {
+								running: status?.runningJobs || 0,
+								paused: status?.pausedJobs || 0,
+							})}
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<button
+							type="button"
+							onClick={handleRefresh}
+							disabled={isLoading}
+							className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
+							title={t("refresh")}
+						>
+							<RefreshCw
+								className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`}
+							/>
+						</button>
+						<button
+							type="button"
+							onClick={handlePauseAll}
+							disabled={isLoading}
+							className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
+						>
+							<Pause className="h-3 w-3" />
+							{t("pauseAll")}
+						</button>
+						<button
+							type="button"
+							onClick={handleResumeAll}
+							disabled={isLoading}
+							className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
+						>
+							<Play className="h-3 w-3" />
+							{t("resumeAll")}
+						</button>
+					</div>
 				</div>
-				<div className="flex items-center gap-2">
-					<button
-						type="button"
-						onClick={handleRefresh}
-						disabled={isLoading}
-						className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
-						title={t("refresh")}
-					>
-						<RefreshCw
-							className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`}
-						/>
-					</button>
-					<button
-						type="button"
-						onClick={handlePauseAll}
-						disabled={isLoading}
-						className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
-					>
-						<Pause className="h-3 w-3" />
-						{t("pauseAll")}
-					</button>
-					<button
-						type="button"
-						onClick={handleResumeAll}
-						disabled={isLoading}
-						className="inline-flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs font-medium transition-colors hover:bg-accent disabled:opacity-50"
-					>
-						<Play className="h-3 w-3" />
-						{t("resumeAll")}
-					</button>
-				</div>
-			</div>
+			)}
 
 			{/* 活跃任务列表 */}
 			<div className="space-y-2">

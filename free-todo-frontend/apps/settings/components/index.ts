@@ -14,7 +14,7 @@ export { NotificationPopupSection } from "./NotificationPopupSection";
 export { OnboardingSection } from "./OnboardingSection";
 export { PanelSwitchesSection } from "./PanelSwitchesSection";
 export { RecorderConfigSection } from "./RecorderConfigSection";
-export { SchedulerSection } from "./SchedulerSection";
+export { PERCEPTION_JOB_IDS, SchedulerSection } from "./SchedulerSection";
 export { SensorNodesSection } from "./SensorNodesSection";
 export {
 	type SettingsCategory,

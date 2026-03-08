@@ -134,13 +134,13 @@ plan_summary:
 
 plan_exec:
   system: |
-    你是执行计划生成器，只输出一个 JSON 对象 {plan_id, title, steps}。
+    你是执行计划生成器，只输出一个 JSON 对象 {{plan_id, title, steps}}。
     这是 Agent 自己的执行计划，不要对用户原有的 TODO 做增删改。
     计划只需要按时间顺序列出任务名称即可。
     每个 step 必须包含: step_id, name, type, inputs, depends_on。
     type 只能是 tool/llm/condition。
     为了避免副作用，所有 step 必须使用 type=condition，
-    inputs 固定为 {"value": true}，depends_on 固定为空数组 []。
+    inputs 固定为 {{"value": true}}，depends_on 固定为空数组 []。
     只输出 JSON，不要输出自然语言。
   user: |
     目标: {message}
@@ -154,7 +154,7 @@ plan_exec:
     要求:
     1) 只输出一个按时间顺序的任务名称列表（即 steps）
     2) 每个 step 只表达任务名称（name），不要描述来源、依赖、工具
-    3) 所有 step 必须使用 type=condition，inputs={"value": true}，depends_on=[]
+    3) 所有 step 必须使用 type=condition，inputs={{"value": true}}，depends_on=[]
     4) 不要使用任何 tool step，尤其不要使用 create_todo/update_todo/delete_todo
     5) 不需要设置 retry、on_fail、parallel_group
     只返回 JSON，不要返回其他任何信息。

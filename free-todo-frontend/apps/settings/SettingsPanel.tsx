@@ -23,6 +23,7 @@ import {
 	NotificationPopupSection,
 	OnboardingSection,
 	PanelSwitchesSection,
+	PERCEPTION_JOB_IDS,
 	RecorderConfigSection,
 	SchedulerSection,
 	SensorNodesSection,
@@ -114,9 +115,6 @@ export function SettingsPanel() {
 	const isSearchActive = searchQuery.trim().length > 0;
 
 	const loading = configLoading;
-	const activeCategoryMeta = categories.find(
-		(category) => category.id === activeCategory,
-	);
 
 	const { handleCategoryMatchChange, showNoResults } =
 		useSettingsSearchMatchStats({
@@ -175,6 +173,14 @@ export function SettingsPanel() {
 				return (
 					<>
 						<SensorNodesSection config={config} loading={loading} />
+						<RecorderConfigSection config={config} loading={loading} />
+						<SchedulerSection
+							loading={loading}
+							includeJobIds={PERCEPTION_JOB_IDS}
+							titleOverride={tSettings("perceptionSchedulerTitle")}
+							descriptionOverride={tSettings("perceptionSchedulerDescription")}
+							compact
+						/>
 					</>
 				);
 			case "proactive":
@@ -187,8 +193,10 @@ export function SettingsPanel() {
 				return (
 					<>
 						{/* <DifyConfigSection config={config} loading={loading} /> */}
-						<SchedulerSection loading={loading} />
-						<RecorderConfigSection config={config} loading={loading} />
+						<SchedulerSection
+							loading={loading}
+							excludeJobIds={PERCEPTION_JOB_IDS}
+						/>
 						{isAudioPanelEnabled && (
 							<>
 								<AudioConfigSection config={config} loading={loading} />
@@ -282,13 +290,8 @@ export function SettingsPanel() {
 										</button>
 									);
 								})}
-							</div>
-							{activeCategoryMeta?.description && (
-								<p className="mt-2 text-xs text-muted-foreground">
-									{activeCategoryMeta.description}
-								</p>
-							)}
 						</div>
+					</div>
 					)}
 
 					<div className="space-y-6 px-4 py-6">
