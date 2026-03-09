@@ -72,9 +72,10 @@ dependencies = [
     "pyobjc-framework-Quartz>=12.1; sys_platform == 'darwin'",
     # Windows specific dependencies (only install on Windows)
     "pywin32>=306; sys_platform == 'win32'",
+    "winocr>=0.0.15; sys_platform == 'win32'",
+    # Other dependencies
     "openinference-instrumentation-openai>=0.1.41",
     "agno-infra>=1.0.7",
-    "winocr>=0.0.15",
 ]
 
 [dependency-groups]

@@ -19,6 +19,7 @@ interface NotificationResponse {
 
 class NotificationPoller {
 	private timers: Map<string, NodeJS.Timeout> = new Map();
+	private endpointConfigs: Map<string, string> = new Map();
 	private isPageVisible: boolean = true;
 
 	constructor() {
@@ -59,6 +60,7 @@ class NotificationPoller {
 		}, endpoint.interval);
 
 		this.timers.set(endpoint.id, timer);
+		this.endpointConfigs.set(endpoint.id, this.getEndpointConfigKey(endpoint));
 	}
 
 	/**
@@ -70,6 +72,7 @@ class NotificationPoller {
 			clearInterval(timer);
 			this.timers.delete(id);
 		}
+		this.endpointConfigs.delete(id);
 	}
 
 	/**
@@ -233,16 +236,33 @@ class NotificationPoller {
 			clearInterval(timer);
 		}
 		this.timers.clear();
+		this.endpointConfigs.clear();
 	}
 
 	/**
 	 * 更新端点配置
 	 */
 	updateEndpoint(endpoint: PollingEndpoint): void {
+		const nextConfigKey = this.getEndpointConfigKey(endpoint);
+		const currentConfigKey = this.endpointConfigs.get(endpoint.id);
+		const hasActiveTimer = this.timers.has(endpoint.id);
+
+		if (endpoint.enabled && currentConfigKey === nextConfigKey && hasActiveTimer) {
+			return;
+		}
+
 		this.unregisterEndpoint(endpoint.id);
 		if (endpoint.enabled) {
 			this.registerEndpoint(endpoint);
 		}
+	}
+
+	private getEndpointConfigKey(endpoint: PollingEndpoint): string {
+		return JSON.stringify({
+			url: endpoint.url,
+			interval: endpoint.interval,
+			enabled: endpoint.enabled,
+		});
 	}
 }
 

@@ -1,0 +1,109 @@
+services:
+  # Backend Center Server
+  center:
+    container_name: freeu-center
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      LIFETRACE_LLM__API_KEY: ${DASHSCOPE_API_KEY}
+      LIFETRACE_AUDIO__ASR__API_KEY: ${DASHSCOPE_API_KEY}
+      LIFETRACE_AGNO__DEFAULT_WORKSPACE: /workspace
+      LIFETRACE_AGNO__AGENT_OS__BASE_URL: http://agent:8200
+      LIFETRACE_AGNO__AGENT_OS__HOST: agent
+      LIFETRACE_AGNO__AGENT_OS__PORT: 8200
+      LIFETRACE_SERVER__HOST: 0.0.0.0
+      LIFETRACE_SERVER__PORT: 8001
+    ports:
+      - "${CENTER_PORT:-8001}:8001"
+    command: ["python", "-m", "lifetrace.server", "--role", "center", "--port", "8001"]
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8001/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - ./volume/data:/app/lifetrace/data
+      - ./volume/workspace:/workspace
+      - ./volume/config:/app/lifetrace/config
+    networks:
+      - freeu-network
+
+  # Frontend Web Server
+  web:
+    container_name: freeu-web
+    build:
+      context: ../free-todo-frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+        API_REWRITE_URL: http://center:8001
+    restart: always
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3001
+      API_REWRITE_URL: http://center:8001
+    depends_on:
+      center:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+    networks:
+      - freeu-network
+
+  # Agent OS
+  agent:
+    container_name: freeu-agent
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      LIFETRACE_AGNO__AGENT_OS__HOST: 0.0.0.0
+      LIFETRACE_AGNO__AGENT_OS__PORT: 8200
+      LIFETRACE_AGNO__AGENT_OS__BASE_URL: http://agent:8200
+      LIFETRACE_SERVER__HOST: 0.0.0.0
+      LIFETRACE_SERVER__PORT: 8001
+      LIFETRACE_LLM__API_KEY: ${DASHSCOPE_API_KEY}
+      LIFETRACE_AUDIO__ASR__API_KEY: ${DASHSCOPE_API_KEY}
+      LIFETRACE_AGNO__EXTERNAL_TOOLS: ${LIFETRACE_AGNO__EXTERNAL_TOOLS:-[]}
+    command: ["python", "-m", "lifetrace.agent_os"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8200/ >/dev/null || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      center:
+        condition: service_healthy
+    networks:
+      - freeu-network
+
+  # Sensor Daemon
+  sensor:
+    container_name: freeu-sensor
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: always
+    command:
+      [
+        "python", "-m", "lifetrace.sensor",
+        "--center-url", "http://center:8001",
+        "--node-id", "${SENSOR_NODE_ID:-docker-sensor}",
+        "--no-screenshot",
+        "--no-proactive-ocr",
+      ]
+    depends_on:
+      center:
+        condition: service_healthy
+    networks:
+      - freeu-network
+
+networks:
+  freeu-network:
+    driver: bridge

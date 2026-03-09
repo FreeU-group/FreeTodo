@@ -9,12 +9,14 @@ import time
 import uuid
 from typing import TYPE_CHECKING
 
+from lifetrace.util.settings import settings
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     import websocket as ws_module
 
-DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "sk-5af8cd2c1ff648e489644db138fb11f7")
+DASHSCOPE_API_KEY = settings.get("llm.api_key")
 
 
 def _check_websocket_dependency() -> bool:

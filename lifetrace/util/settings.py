@@ -78,7 +78,7 @@ _settings_files = _init_config_files()
 settings = Dynaconf(
     # 配置文件（按顺序加载，后面的覆盖前面的）
     settings_files=_settings_files,
-    # 环境变量前缀：LIFETRACE__LLM__API_KEY -> llm.api_key
+    # 环境变量前缀：LIFETRACE_LLM__API_KEY -> llm.api_key（前缀后单下划线，嵌套用双下划线）
     envvar_prefix="LIFETRACE",
     # 嵌套分隔符：双下划线
     nested_separator="__",
@@ -108,6 +108,11 @@ settings = Dynaconf(
         # 调度器配置
         Validator("scheduler.enabled", default=True, is_type_of=bool),
         Validator("scheduler.database_path", default="scheduler.db"),
+        Validator("scheduler.max_workers", default=10, is_type_of=int),
+        Validator("scheduler.coalesce", default=True, is_type_of=bool),
+        Validator("scheduler.max_instances", default=1, is_type_of=int),
+        Validator("scheduler.misfire_grace_time", default=60, is_type_of=int),
+        Validator("scheduler.timezone", default="Asia/Shanghai"),
         # 向量数据库配置
         Validator("vector_db.enabled", default=True, is_type_of=bool),
         Validator("vector_db.collection_name", default="lifetrace_ocr"),
@@ -121,6 +126,7 @@ settings = Dynaconf(
         Validator("agno.learning.db_path", default="agno/learning.db"),
         Validator("agno.learning.add_history_to_context", default=False, is_type_of=bool),
         Validator("agno.user_id", default="local-user"),
+        Validator("agno.default_workspace", default="/workspace"),
         # AgentOS 配置
         Validator("agno.agent_os.enabled", default=True, is_type_of=bool),
         Validator("agno.agent_os.host", default="127.0.0.1"),

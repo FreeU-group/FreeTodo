@@ -230,6 +230,7 @@ chat:
 # Agno Learning 配置
 agno:
   user_id: local-user # 默认用户 ID（用于个人画像/记忆）
+  default_workspace: "" # 默认工作区路径（Agent 文件操作的根目录，留空则使用用户主目录）
   learning:
     enabled: true # 是否启用 Agno Learning
     mode: always # always | agentic
