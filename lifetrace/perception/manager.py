@@ -14,6 +14,7 @@ from lifetrace.perception.stream import PerceptionStream
 from lifetrace.perception.subscribers.todo_intent_subscriber import TodoIntentSubscriber
 from lifetrace.services.perception_todo_intent.orchestrator import TodoIntentOrchestrator
 from lifetrace.util.logging_config import get_logger
+from lifetrace.util.settings import settings
 from lifetrace.util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
@@ -422,6 +423,7 @@ class PerceptionStreamManager:
         except (TypeError, ValueError):
             max_context_chars = 5000
         max_context_chars = max(1, max_context_chars)
+        auto_todo_enabled = bool(settings.get("jobs.auto_todo_detection.enabled", True))
         orchestrator = TodoIntentOrchestrator(config=self._todo_intent_config)
         subscriber = TodoIntentSubscriber(
             orchestrator=orchestrator,
@@ -431,7 +433,7 @@ class PerceptionStreamManager:
             max_context_chars=max_context_chars,
             processing_workers=processing_workers,
             processing_queue_maxsize=processing_queue_maxsize,
-            enabled=True,
+            enabled=auto_todo_enabled,
         )
 
         deduper = self._resolve_memory_deduper()

@@ -14,10 +14,27 @@ import {
 	Zap,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { cn } from "@/lib/utils";
+
+function renderInlineMarkdown(text: string): ReactNode {
+	const parts = text.split(/(\*\*[^*]+\*\*)/g);
+	if (parts.length === 1) return text;
+	return parts.map((part) => {
+		const bold = part.match(/^\*\*(.+)\*\*$/);
+		if (bold) {
+			return (
+				<strong key={part} className="font-semibold text-foreground">
+					{bold[1]}
+				</strong>
+			);
+		}
+		return part;
+	});
+}
 
 interface ProfileSection {
 	title: string;
@@ -140,7 +157,7 @@ function ProfileSectionCard({ section }: { section: ProfileSection }) {
 								<span className="shrink-0 font-medium text-foreground">
 									{boldMatch[1]}：
 								</span>
-								<span>{boldMatch[2]}</span>
+								<span>{renderInlineMarkdown(boldMatch[2])}</span>
 							</div>
 						);
 					}
@@ -149,13 +166,13 @@ function ProfileSectionCard({ section }: { section: ProfileSection }) {
 						return (
 							<div key={`${section.title}-${idx}`} className="flex gap-2">
 								<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
-								<span>{trimmed}</span>
+								<span>{renderInlineMarkdown(trimmed)}</span>
 							</div>
 						);
 					}
 
 					return (
-						<p key={`${section.title}-${idx}`}>{trimmed}</p>
+						<p key={`${section.title}-${idx}`}>{renderInlineMarkdown(trimmed)}</p>
 					);
 				})}
 			</div>
