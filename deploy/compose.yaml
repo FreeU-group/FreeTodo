@@ -26,7 +26,6 @@ services:
     volumes:
       - ./volume/data:/app/lifetrace/data
       - ./volume/workspace:/workspace
-      - ./volume/config/config.yaml:/app/lifetrace/config/config.yaml
     networks:
       - freeu-network
 
