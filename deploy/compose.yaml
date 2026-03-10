@@ -1,4 +1,28 @@
 services:
+  # Frontend Web Server
+  web:
+    container_name: freeu-web
+    build:
+      context: ../free-todo-frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+        API_REWRITE_URL: http://center:8001
+    restart: always
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3001
+      API_REWRITE_URL: http://center:8001
+    depends_on:
+      center:
+        condition: service_healthy
+      agent:
+        condition: service_healthy
+    networks:
+      - freeu-network
+
   # Backend Center Server
   center:
     container_name: freeu-center
@@ -26,30 +50,6 @@ services:
     volumes:
       - ./volume/data:/app/lifetrace/data
       - ./volume/workspace:/workspace
-    networks:
-      - freeu-network
-
-  # Frontend Web Server
-  web:
-    container_name: freeu-web
-    build:
-      context: ../free-todo-frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
-        API_REWRITE_URL: http://center:8001
-    restart: always
-    ports:
-      - "${WEB_PORT:-3001}:3001"
-    environment:
-      HOSTNAME: 0.0.0.0
-      PORT: 3001
-      API_REWRITE_URL: http://center:8001
-    depends_on:
-      center:
-        condition: service_healthy
-      agent:
-        condition: service_healthy
     networks:
       - freeu-network
 
@@ -82,28 +82,28 @@ services:
     networks:
       - freeu-network
 
-  # Sensor Daemon
-  sensor:
-    container_name: freeu-sensor
-    build:
-      context: ..
-      dockerfile: Dockerfile
-    restart: always
-    ports:
-      - "${SENSOR_PORT:-8002}:8001"
-    command:
-      [
-        "python", "-m", "lifetrace.sensor",
-        "--center-url", "http://center:8001",
-        "--node-id", "${SENSOR_NODE_ID:-docker-sensor}",
-        "--no-screenshot",
-        "--no-proactive-ocr",
-      ]
-    depends_on:
-      center:
-        condition: service_healthy
-    networks:
-      - freeu-network
+  # # Sensor Daemon
+  # sensor:
+  #   container_name: freeu-sensor
+  #   build:
+  #     context: ..
+  #     dockerfile: Dockerfile
+  #   restart: always
+  #   ports:
+  #     - "${SENSOR_PORT:-8002}:8001"
+  #   command:
+  #     [
+  #       "python", "-m", "lifetrace.sensor",
+  #       "--center-url", "http://center:8001",
+  #       "--node-id", "${SENSOR_NODE_ID:-docker-sensor}",
+  #       "--no-screenshot",
+  #       "--no-proactive-ocr",
+  #     ]
+  #   depends_on:
+  #     center:
+  #       condition: service_healthy
+  #   networks:
+  #     - freeu-network
 
 networks:
   freeu-network:
