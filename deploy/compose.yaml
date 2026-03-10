@@ -26,7 +26,7 @@ services:
     volumes:
       - ./volume/data:/app/lifetrace/data
       - ./volume/workspace:/workspace
-      - ./volume/config:/app/lifetrace/config
+      - ./volume/config/config.yaml:/app/lifetrace/config/config.yaml
     networks:
       - freeu-network
 
@@ -90,6 +90,8 @@ services:
       context: ..
       dockerfile: Dockerfile
     restart: always
+    ports:
+      - "${SENSOR_PORT:-8002}:8001"
     command:
       [
         "python", "-m", "lifetrace.sensor",
