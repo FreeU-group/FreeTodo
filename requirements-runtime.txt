@@ -10,7 +10,7 @@ Pillow>=10.0.0
 imagehash>=4.3.0
 opencv-python>=4.8.0
 rapidocr-onnxruntime
-numpy>=1.21.0,<2.0.0
+numpy>=1.21.0,<3.0.0
 websockets>=12.0
 python-socks>=2.0.0
 pyyaml>=6.0
