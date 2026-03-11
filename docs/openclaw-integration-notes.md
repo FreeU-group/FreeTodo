@@ -84,6 +84,9 @@ Date: 2026-03-11
 - Tool defaults: list supports status/limit/offset with default status=active.
 - Create/update: only name required.
 - Update: partial fields allowed (patch-like).
+2026-03-11
+- Response format: pass-through backend JSON for MVP.
+- Error handling: pass-through backend errors for MVP.
 
 ## Conversation Log
 2026-03-11
