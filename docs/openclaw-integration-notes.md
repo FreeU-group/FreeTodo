@@ -93,6 +93,8 @@ Date: 2026-03-11
   - todo_get(id) -> GET /api/todos/{id}
   - todo_create(name, **optional fields) -> POST /api/todos
   - todo_update(id, **partial fields) -> PUT /api/todos/{id}
+2026-03-11
+- OpenClaw plugin implementation lives in `extensions/freetodo/`.
 
 ## Conversation Log
 2026-03-11

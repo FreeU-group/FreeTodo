@@ -38,7 +38,7 @@ def _sanitize_filename(name: str) -> str:
 async def list_todos(
     limit: int = Query(200, ge=1, le=2000, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
-    status: str | None = Query(None, description="状态筛选：active/completed/canceled"),
+    status: str | None = Query("active", description="状态筛选：active/completed/canceled"),
     service: TodoService = Depends(get_todo_service),
 ):
     """获取待办列表"""
