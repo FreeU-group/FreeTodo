@@ -10,7 +10,11 @@ run_bg() {
   shift
   local cmd="$*"
   echo "Starting $name..."
-  "$SHELL" -lc "cd \"$repo_root\"; $cmd" >"$log_dir/$name.log" 2>&1 &
+  if command -v setsid >/dev/null 2>&1; then
+    setsid "$SHELL" -lc "cd \"$repo_root\"; exec $cmd" >"$log_dir/$name.log" 2>&1 &
+  else
+    "$SHELL" -lc "cd \"$repo_root\"; exec $cmd" >"$log_dir/$name.log" 2>&1 &
+  fi
   echo $! >"$log_dir/$name.pid"
 }
 
