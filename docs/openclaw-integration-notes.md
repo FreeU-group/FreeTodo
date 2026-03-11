@@ -71,3 +71,10 @@ Date: 2026-03-11
 2026-03-11
 - Confirmed OpenClaw as primary brain and MVP-only scope.
 - Requested continuous documentation of decisions and progress.
+
+## Security (MVP Recommendation)
+- Auth: single static API key in header (e.g., X-API-Key).
+- Tenancy: single-tenant.
+- Permissions: system-level access (no user-level isolation).
+- Scope: Todo read/write only.
+- Follow-up: add user-level tokens + RBAC after MVP if needed.
