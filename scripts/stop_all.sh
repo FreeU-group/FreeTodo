@@ -26,6 +26,13 @@ stop_pid() {
     return
   fi
   echo "Stopping $name (pid $pid)..."
+  if [ -f "$log_dir/$name.pgid" ]; then
+    local pgid
+    pgid="$(cat "$log_dir/$name.pgid" 2>/dev/null || true)"
+    if [ -n "$pgid" ]; then
+      kill -TERM -- "-$pgid" 2>/dev/null || true
+    fi
+  fi
   kill -TERM -- "-$pid" 2>/dev/null || true
   kill -TERM "$pid" 2>/dev/null || true
   if command -v pkill >/dev/null 2>&1; then
@@ -41,6 +48,14 @@ stop_pid() {
   kill -KILL "$pid" 2>/dev/null || true
 }
 
+cleanup_frontend_lock() {
+  local lock_path="$repo_root/free-todo-frontend/.next/dev/lock"
+  if [ -f "$lock_path" ]; then
+    echo "Removing frontend dev lock: $lock_path"
+    rm -f "$lock_path"
+  fi
+}
+
 for pid_file in "$log_dir"/*.pid; do
   [ -f "$pid_file" ] || continue
   pid="$(cat "$pid_file" 2>/dev/null || true)"
@@ -49,7 +64,10 @@ for pid_file in "$log_dir"/*.pid; do
     stopped_any=true
   fi
   rm -f "$pid_file"
+  rm -f "${pid_file%.pid}.pgid"
 done
+
+cleanup_frontend_lock
 
 if [ "$stopped_any" = false ]; then
   echo "No running processes found."

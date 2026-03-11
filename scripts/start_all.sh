@@ -15,7 +15,26 @@ run_bg() {
   else
     "$SHELL" -lc "cd \"$repo_root\"; exec $cmd" >"$log_dir/$name.log" 2>&1 &
   fi
-  echo $! >"$log_dir/$name.pid"
+  local pid=$!
+  local pgid
+  pgid="$(ps -o pgid= "$pid" 2>/dev/null | tr -d ' ' || true)"
+  echo "$pid" >"$log_dir/$name.pid"
+  echo "${pgid:-$pid}" >"$log_dir/$name.pgid"
+}
+
+cleanup_frontend_lock() {
+  local lock_path="$repo_root/free-todo-frontend/.next/dev/lock"
+  if [ ! -f "$lock_path" ]; then
+    return
+  fi
+  if command -v pgrep >/dev/null 2>&1; then
+    if pgrep -fa "next dev" | grep -q "$repo_root/free-todo-frontend"; then
+      echo "Frontend dev lock present and Next.js appears running; leaving lock in place."
+      return
+    fi
+  fi
+  echo "Removing stale frontend dev lock: $lock_path"
+  rm -f "$lock_path"
 }
 
 run_bg "phoenix" "uv run phoenix serve"
@@ -24,6 +43,7 @@ run_bg "lifetrace.agent_os" "uv run python -m lifetrace.agent_os"
 sleep 2
 run_bg "lifetrace.server" "uv run python -m lifetrace.server"
 sleep 1
+cleanup_frontend_lock
 run_bg "frontend.dev" "pnpm -C free-todo-frontend dev"
 
 echo "All processes started."
