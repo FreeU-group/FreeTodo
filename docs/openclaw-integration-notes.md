@@ -75,6 +75,9 @@ Date: 2026-03-11
 - Integration API: use existing REST endpoints (no adapter layer for MVP).
 - Base URL: configurable; default to local `http://127.0.0.1:8001`.
 - Auth header: `X-API-Key` (allow local disable for convenience).
+2026-03-11
+- OpenClaw MVP flow: WebChat -> Todo list/create/update only.
+- Expand tools later after MVP validation.
 
 ## Conversation Log
 2026-03-11
