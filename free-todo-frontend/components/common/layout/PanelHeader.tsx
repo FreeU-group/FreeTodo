@@ -33,6 +33,7 @@ import {
 import type { DragData } from "@/lib/dnd";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
+import { isWeb } from "@/lib/utils/platform";
 
 /**
  * Panel Icon 样式配置接口
@@ -348,6 +349,7 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 	} = useUiStore();
 	const currentFeature = panelFeatureMap[position];
 	const isPinned = panelPinMap[position];
+	const canOpenInNewWindow = isWeb() && Boolean(currentFeature);
 
 	const switchableFeatures = useMemo(() => {
 		const disabledSet = new Set([
@@ -368,6 +370,44 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 			case "panelC":
 				togglePanelC();
 				break;
+		}
+	};
+
+	const handleOpenInNewWindow = () => {
+		if (!currentFeature || typeof window === "undefined") return;
+
+		const width = 400;
+		const height = 600;
+		const left = Math.max(
+			0,
+			Math.round(window.screenX + (window.outerWidth - width) / 2),
+		);
+		const top = Math.max(
+			0,
+			Math.round(window.screenY + (window.outerHeight - height) / 2),
+		);
+		const url = new URL("/panel-window", window.location.origin);
+		url.searchParams.set("feature", currentFeature);
+
+		const features = [
+			"popup=yes",
+			"width=" + width,
+			"height=" + height,
+			"left=" + left,
+			"top=" + top,
+			"resizable=no",
+			"scrollbars=yes",
+		].join(",");
+
+		const popup = window.open(
+			url.toString(),
+			"panel-" + currentFeature + "-" + Date.now(),
+			features,
+		);
+
+		if (popup) {
+			popup.focus();
+			handleClose();
 		}
 	};
 
@@ -429,7 +469,10 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 					{isPinned ? t("unpinPanel") : t("pinPanel")}
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem disabled>
+				<DropdownMenuItem
+					disabled={!canOpenInNewWindow}
+					onSelect={handleOpenInNewWindow}
+				>
 					<ExternalLink className="mr-2 h-4 w-4 text-muted-foreground" />
 					{t("openInNewWindow")}
 				</DropdownMenuItem>
