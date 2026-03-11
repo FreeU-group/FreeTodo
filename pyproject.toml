@@ -74,7 +74,7 @@ dependencies = [
     "pywin32>=306; sys_platform == 'win32'",
     "openinference-instrumentation-openai>=0.1.41",
     "agno-infra>=1.0.7",
-    "winocr>=0.0.15",
+    "winocr>=0.0.15; sys_platform == 'win32'",
 ]
 
 [dependency-groups]

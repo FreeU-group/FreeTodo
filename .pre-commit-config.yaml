@@ -67,7 +67,7 @@ repos:
 
       - id: tsc-free-todo-frontend
         name: TypeScript type check (free-todo-frontend)
-        entry: bash -c 'cd free-todo-frontend && pnpm run type-check'
+        entry: node scripts/precommit_pnpm_typecheck.js
         language: system
         files: ^free-todo-frontend/.*\.(ts|tsx)$
         pass_filenames: false
