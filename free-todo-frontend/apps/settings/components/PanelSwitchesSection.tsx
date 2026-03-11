@@ -13,6 +13,7 @@ import { useUiStore } from "@/lib/store/ui-store";
 import { toastError, toastSuccess } from "@/lib/toast";
 import {
 	doesSearchMatch,
+	SettingsSearchHighlight,
 	SettingsSection,
 	useSettingsSearchQuery,
 } from "./SettingsSection";
@@ -114,12 +115,12 @@ export function PanelSwitchesSection({
 								{Icon && (
 									<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
 								)}
-								<label
-									htmlFor={`panel-toggle-${feature}`}
-									className="text-sm font-medium text-foreground cursor-pointer"
-								>
-									{panelLabel}
-								</label>
+										<label
+											htmlFor={`panel-toggle-${feature}`}
+											className="text-sm font-medium text-foreground cursor-pointer"
+										>
+											<SettingsSearchHighlight text={panelLabel} />
+										</label>
 							</div>
 							<ToggleSwitch
 								id={`panel-toggle-${feature}`}
@@ -169,7 +170,7 @@ export function PanelSwitchesSection({
 													htmlFor={`panel-toggle-${feature}`}
 													className="text-sm font-medium text-foreground cursor-pointer"
 												>
-													{panelLabel}
+														<SettingsSearchHighlight text={panelLabel} />
 												</label>
 											</div>
 											<ToggleSwitch

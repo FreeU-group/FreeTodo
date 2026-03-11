@@ -6,6 +6,7 @@ import {
 	useContext,
 	useEffect,
 	useId,
+	useMemo,
 } from "react";
 
 const SettingsSearchContext = createContext<string>("");
@@ -61,6 +62,69 @@ export const doesSearchMatch = (
 	return tokens.every((token) => haystack.includes(token));
 };
 
+const escapeRegExp = (value: string) =>
+	value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const buildHighlightParts = (text: string, query: string) => {
+	const normalizedQuery = normalizeSearchValue(query);
+	if (!normalizedQuery) return [{ text, match: false }];
+
+	const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+	if (!tokens.length) return [{ text, match: false }];
+
+	const regex = new RegExp(tokens.map(escapeRegExp).join("|"), "gi");
+	const parts: Array<{ text: string; match: boolean }> = [];
+	let lastIndex = 0;
+
+	for (const match of text.matchAll(regex)) {
+		const matchIndex = match.index !== undefined ? match.index : 0;
+		if (matchIndex > lastIndex) {
+			parts.push({
+				text: text.slice(lastIndex, matchIndex),
+				match: false,
+			});
+		}
+		parts.push({ text: match[0], match: true });
+		lastIndex = matchIndex + match[0].length;
+	}
+
+	if (!parts.length) return [{ text, match: false }];
+
+	if (lastIndex < text.length) {
+		parts.push({ text: text.slice(lastIndex), match: false });
+	}
+
+	return parts;
+};
+
+export function SettingsSearchHighlight({ text }: { text?: string }) {
+	const searchQuery = useSettingsSearchQuery();
+	const safeText = text ? text : "";
+	const parts = useMemo(
+		() => buildHighlightParts(safeText, searchQuery),
+		[safeText, searchQuery],
+	);
+
+	if (!safeText) return null;
+
+	return (
+		<>
+			{parts.map((part, index) =>
+				part.match ? (
+					<mark
+						key={`${part.text}-${index}`}
+						className="rounded bg-primary/20 px-0.5 text-foreground"
+					>
+						{part.text}
+					</mark>
+				) : (
+					<span key={`${part.text}-${index}`}>{part.text}</span>
+				),
+			)}
+		</>
+	);
+}
+
 interface SettingsSectionProps {
 	title: string;
 	description?: string;
@@ -110,10 +174,12 @@ export function SettingsSection({
 		>
 			<div className="mb-4">
 				<h3 className="mb-1 text-base font-semibold text-foreground">
-					{title}
+					<SettingsSearchHighlight text={title} />
 				</h3>
 				{description && (
-					<p className="text-sm text-muted-foreground">{description}</p>
+					<p className="text-sm text-muted-foreground">
+						<SettingsSearchHighlight text={description} />
+					</p>
 				)}
 			</div>
 			{children}
