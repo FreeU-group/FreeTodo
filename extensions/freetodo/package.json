@@ -1,13 +1,10 @@
 {
-  "name": "freetodo-openclaw-plugin",
+  "name": "freetodo",
   "version": "0.1.0",
   "description": "OpenClaw plugin for FreeTodo",
   "type": "module",
   "main": "index.js",
   "files": ["index.js", "openclaw.plugin.json"],
-  "dependencies": {
-    "@sinclair/typebox": "0.34.48"
-  },
   "openclaw": {
     "extensions": ["./index.js"],
     "install": {
