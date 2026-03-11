@@ -78,6 +78,8 @@ Date: 2026-03-11
 2026-03-11
 - OpenClaw MVP flow: WebChat -> Todo list/create/update only.
 - Expand tools later after MVP validation.
+2026-03-11
+- MVP endpoints: GET /api/todos, GET /api/todos/{id}, POST /api/todos, PUT /api/todos/{id}.
 
 ## Conversation Log
 2026-03-11
