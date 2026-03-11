@@ -87,6 +87,12 @@ Date: 2026-03-11
 2026-03-11
 - Response format: pass-through backend JSON for MVP.
 - Error handling: pass-through backend errors for MVP.
+2026-03-11
+- OpenClaw MVP tools (names + params):
+  - todo_list(status=active, limit=200, offset=0) -> GET /api/todos
+  - todo_get(id) -> GET /api/todos/{id}
+  - todo_create(name, **optional fields) -> POST /api/todos
+  - todo_update(id, **partial fields) -> PUT /api/todos/{id}
 
 ## Conversation Log
 2026-03-11
