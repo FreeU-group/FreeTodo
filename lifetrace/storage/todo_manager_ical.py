@@ -446,10 +446,6 @@ class TodoIcalMixin:
                     dtend = end_time
                 if due is _UNSET and deadline is not _UNSET:
                     due = deadline
-                if deadline is not _UNSET and start_time is _UNSET:
-                    start_time = deadline
-                    deadline = None
-
                 if last_modified is _UNSET:
                     last_modified = get_utc_now()
                 if dtstamp is _UNSET:

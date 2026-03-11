@@ -201,9 +201,6 @@ class TodoService:
         if "deadline" not in kwargs and "due" in kwargs:
             kwargs["deadline"] = kwargs["due"]
 
-        if "deadline" in kwargs and "start_time" not in kwargs:
-            kwargs["start_time"] = kwargs["deadline"]
-
         if "duration" in kwargs and kwargs["duration"] is not None:
             if ("due" in kwargs and kwargs["due"] is not None) or (
                 "dtend" in kwargs and kwargs["dtend"] is not None

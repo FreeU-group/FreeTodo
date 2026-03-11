@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, Any
 
+from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
 
 from lifetrace.storage.models import Tag, Todo, TodoAttachmentRelation, TodoTagRelation
@@ -144,6 +145,38 @@ class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
                 return [self._todo_to_dict(session, t) for t in todos]
         except SQLAlchemyError as e:
             logger.error(f"列出 todo 失败: {e}")
+            return []
+
+    def search_todos(
+        self,
+        *,
+        keyword: str,
+        limit: int = 200,
+        offset: int = 0,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        keyword = (keyword or "").strip()
+        if not keyword:
+            return []
+        keyword_lower = keyword.lower()
+        pattern = f"%{keyword_lower}%"
+        try:
+            with self.db_base.get_session() as session:
+                q = session.query(Todo)
+                with contextlib.suppress(Exception):
+                    q = q.filter(col(Todo.deleted_at).is_(None))
+                if status:
+                    q = q.filter(col(Todo.status) == status)
+                q = q.filter(
+                    or_(
+                        func.lower(col(Todo.name)).like(pattern),
+                        func.lower(col(Todo.description)).like(pattern),
+                    )
+                )
+                todos = q.order_by(col(Todo.created_at).desc()).offset(offset).limit(limit).all()
+                return [self._todo_to_dict(session, t) for t in todos]
+        except SQLAlchemyError as e:
+            logger.error(f"搜索 todo 失败: {e}")
             return []
 
     def count_todos(self, *, status: str | None = None) -> int:
