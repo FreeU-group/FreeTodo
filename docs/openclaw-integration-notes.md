@@ -95,6 +95,8 @@ Date: 2026-03-11
   - todo_update(id, **partial fields) -> PUT /api/todos/{id}
 2026-03-11
 - OpenClaw plugin implementation lives in `extensions/freetodo/`.
+2026-03-11
+- Example OpenClaw config at `docs/openclaw.example.json`.
 
 ## Conversation Log
 2026-03-11
