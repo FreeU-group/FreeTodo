@@ -80,6 +80,10 @@ Date: 2026-03-11
 - Expand tools later after MVP validation.
 2026-03-11
 - MVP endpoints: GET /api/todos, GET /api/todos/{id}, POST /api/todos, PUT /api/todos/{id}.
+2026-03-11
+- Tool defaults: list supports status/limit/offset with default status=active.
+- Create/update: only name required.
+- Update: partial fields allowed (patch-like).
 
 ## Conversation Log
 2026-03-11
