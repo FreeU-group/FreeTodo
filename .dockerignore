@@ -107,11 +107,29 @@ MediaCrawlerPro-SignSrv/logs/
 *.mkv
 *.mov
 
-
 /ref_project
 /tests
 
-
-
 deploy/volume/
 .env
+
+phone/
+free-todo-frontend/
+deploy/
+docs/
+hardware/
+scripts/
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+.cache/
+.run-logs/
+.vscode/
+.idea/
+.DS_Store
+.env
+.env.local
+.env.production
+.env.development
+.env.test

@@ -14,13 +14,15 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, Request
 
+from lifetrace.util.settings import settings
+
 if TYPE_CHECKING:
     import websocket as ws_module
 
 app = FastAPI()
 
 # ==================== DashScope API 配置 ====================
-DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "sk-5af8cd2c1ff648e489644db138fb11f7")
+DASHSCOPE_API_KEY = settings.get("llm.api_key")
 
 # 创建保存目录
 os.makedirs("audio_recordings/pcm", exist_ok=True)

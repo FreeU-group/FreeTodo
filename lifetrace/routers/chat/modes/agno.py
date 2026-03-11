@@ -1,7 +1,6 @@
 """Agno 模式处理器（基于 Agno AgentOS）。"""
 
 import json
-from pathlib import Path
 from typing import Any
 
 from agno.agent import RunEvent
@@ -33,7 +32,7 @@ def _resolve_workspace_path(
     if not needs_workspace or workspace_path:
         return workspace_path
 
-    default_workspace = str(Path.home())
+    default_workspace = settings.get("agno.default_workspace")
     logger.info(f"[stream][agno] 未指定 workspace_path，使用默认值: {default_workspace}")
     return default_workspace
 
@@ -142,6 +141,31 @@ def _build_agent_os_dependencies(
     }
 
 
+def _save_and_publish(
+    storage_chunks: list[str],
+    tool_events: list[dict[str, Any]],
+    chat_service: ChatService,
+    session_id: str,
+) -> None:
+    storage_content = "".join(storage_chunks).strip()
+    metadata = json.dumps({"tool_events": tool_events}, ensure_ascii=False) if tool_events else None
+    if not storage_content and not tool_events:
+        return
+
+    chat_service.add_message(
+        session_id=session_id,
+        role="assistant",
+        content=storage_content,
+        metadata=metadata,
+    )
+    logger.info("[stream][agno] 消息已保存到数据库")
+    if storage_content:
+        publish_ai_output_to_perception(
+            storage_content,
+            metadata={"mode": "agno", "session_id": session_id},
+        )
+
+
 def _build_agent_os_token_generator(
     agent_os_client: AgentOSClient,
     message: ChatMessage,
@@ -191,28 +215,9 @@ def _build_agent_os_token_generator(
                     tool_events.append(tool_event)
                     yield _format_tool_event(tool_event)
 
-            storage_content = "".join(storage_chunks).strip()
-            metadata = (
-                json.dumps({"tool_events": tool_events}, ensure_ascii=False)
-                if tool_events
-                else None
-            )
-
-            if storage_content or tool_events:
-                chat_service.add_message(
-                    session_id=session_id,
-                    role="assistant",
-                    content=storage_content,
-                    metadata=metadata,
-                )
-                logger.info("[stream][agno] 消息已保存到数据库")
-                if storage_content:
-                    publish_ai_output_to_perception(
-                        storage_content,
-                        metadata={"mode": "agno", "session_id": session_id},
-                    )
+            _save_and_publish(storage_chunks, tool_events, chat_service, session_id)
         except Exception as e:
-            logger.error(f"[stream][agno] 生成失败: {e}")
+            logger.exception(f"[stream][agno] 生成失败: {e}")
             yield f"Agno Agent 处理失败: {e!s}"
 
     return token_generator()
