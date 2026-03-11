@@ -81,9 +81,9 @@ Date: 2026-03-11
 
 ## Entry Points (Discussion)
 2026-03-11
-- Desired: WebChat + FreeTodo frontend + OpenClaw chat channels (Discord/Telegram/WhatsApp/Feishu).
-- Assessment: feasible but channel setup adds per-channel configuration and ongoing ops.
-- MVP suggestion: start with WebChat + FreeTodo frontend, then add channels in phases.
+- Decision: implement entry points sequentially, not in parallel.
+- Order: OpenClaw WebChat / TUI -> FreeTodo frontend -> Discord.
+- Notes: other channels deferred.
 
 ## Automation Triggers (Discussion)
 2026-03-11
