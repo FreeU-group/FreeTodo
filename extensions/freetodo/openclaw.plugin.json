@@ -1,0 +1,12 @@
+{
+  "id": "freetodo",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": { "type": "string" },
+      "apiKey": { "type": "string" },
+      "apiKeyHeader": { "type": "string" }
+    }
+  }
+}

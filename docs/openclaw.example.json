@@ -1,0 +1,19 @@
+{
+  "plugins": {
+    "enabled": true,
+    "allow": ["freetodo"],
+    "entries": {
+      "freetodo": {
+        "enabled": true,
+        "config": {
+          "baseUrl": "http://127.0.0.1:8001",
+          "apiKey": "",
+          "apiKeyHeader": "X-API-Key"
+        }
+      }
+    }
+  },
+  "tools": {
+    "allow": ["todo_list", "todo_get", "todo_create", "todo_update"]
+  }
+}
