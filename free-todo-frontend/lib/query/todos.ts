@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { broadcastQueryInvalidation } from "@/components/common/ui/QuerySync";
 import {
 	createTodoApiTodosPost,
 	deleteTodoApiTodosTodoIdDelete,
@@ -203,6 +204,7 @@ export function useCreateTodo() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+			broadcastQueryInvalidation(queryKeys.todos.all);
 		},
 	});
 }
@@ -352,6 +354,7 @@ export function useUpdateTodo() {
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+			broadcastQueryInvalidation(queryKeys.todos.all);
 		},
 	});
 }
@@ -418,6 +421,7 @@ export function useDeleteTodo() {
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+			broadcastQueryInvalidation(queryKeys.todos.all);
 		},
 	});
 }
@@ -511,6 +515,7 @@ export function useReorderTodos() {
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({ queryKey: queryKeys.todos.all });
+			broadcastQueryInvalidation(queryKeys.todos.all);
 		},
 	});
 }
