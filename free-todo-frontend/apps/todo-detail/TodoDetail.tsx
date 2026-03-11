@@ -82,7 +82,17 @@ export function TodoDetail() {
 			lastSyncedTodoIdRef.current = todo.id;
 			isUpdatingRef.current = false;
 		}
-	}, [todo, todo?.id, todo?.userNotes]);
+	}, [todo, todo?.id]);
+
+	// 同步来自其他窗口的备注更新，但不覆盖本地输入中内容
+	useEffect(() => {
+		if (!todo || todo.id !== lastSyncedTodoIdRef.current) return;
+		if (isUpdatingRef.current) return;
+		const nextNotes = todo.userNotes || "";
+		if (localUserNotes !== nextNotes) {
+			setLocalUserNotes(nextNotes);
+		}
+	}, [todo?.id, todo?.userNotes, localUserNotes, todo]);
 
 	const childTodos = useMemo(
 		() =>
