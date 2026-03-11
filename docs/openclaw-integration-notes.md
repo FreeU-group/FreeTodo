@@ -66,6 +66,11 @@ Date: 2026-03-11
 - No Agno fallback for MVP.
 - Data scope (MVP): Todo only, read/write.
 - Incremental expansion after MVP.
+2026-03-11
+- Todo API scope: expose full existing Todo capabilities (no field-level restriction).
+- Field set: align with current Todo schema in `lifetrace/storage/models.py`.
+- Operations: list/get/create/update/delete/reorder, attachments upload/download/remove,
+  import/export ICS.
 
 ## Conversation Log
 2026-03-11
