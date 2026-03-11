@@ -388,6 +388,7 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 		);
 		const url = new URL("/panel-window", window.location.origin);
 		url.searchParams.set("feature", currentFeature);
+		url.searchParams.set("position", position);
 
 		const features = [
 			"popup=yes",
