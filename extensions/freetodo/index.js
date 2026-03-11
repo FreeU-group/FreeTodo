@@ -1,5 +1,3 @@
-import { Type } from "@sinclair/typebox";
-
 export default function registerFreeTodoTools(api) {
   const cfg = api.config?.plugins?.entries?.freetodo?.config ?? {};
   const baseUrl =
@@ -10,14 +8,58 @@ export default function registerFreeTodoTools(api) {
 
   const buildHeaders = () => (apiKey ? { [apiKeyHeader]: apiKey } : {});
 
+  const todoListSchema = {
+    type: "object",
+    additionalProperties: true,
+    properties: {
+      status: { type: "string" },
+      limit: { type: "number", minimum: 1, maximum: 2000 },
+      offset: { type: "number", minimum: 0 },
+    },
+  };
+
+  const todoGetSchema = {
+    type: "object",
+    required: ["id"],
+    additionalProperties: true,
+    properties: {
+      id: { type: "number" },
+    },
+  };
+
+  const todoCreateSchema = {
+    type: "object",
+    required: ["name"],
+    additionalProperties: true,
+    properties: {
+      name: { type: "string", minLength: 1 },
+      summary: { type: "string" },
+      description: { type: "string" },
+      due: { type: "string" },
+      priority: { type: "string" },
+      status: { type: "string" },
+    },
+  };
+
+  const todoUpdateSchema = {
+    type: "object",
+    required: ["id"],
+    additionalProperties: true,
+    properties: {
+      id: { type: "number" },
+      name: { type: "string", minLength: 1 },
+      summary: { type: "string" },
+      description: { type: "string" },
+      due: { type: "string" },
+      priority: { type: "string" },
+      status: { type: "string" },
+    },
+  };
+
   api.registerTool({
     name: "todo_list",
     description: "List todos",
-    parameters: Type.Object({
-      status: Type.Optional(Type.String()),
-      limit: Type.Optional(Type.Number({ minimum: 1, maximum: 2000 })),
-      offset: Type.Optional(Type.Number({ minimum: 0 })),
-    }),
+    parameters: todoListSchema,
     async execute(_id, params) {
       const query = new URLSearchParams();
       if (params.status) query.set("status", params.status);
@@ -35,9 +77,7 @@ export default function registerFreeTodoTools(api) {
   api.registerTool({
     name: "todo_get",
     description: "Get a single todo by id",
-    parameters: Type.Object({
-      id: Type.Number(),
-    }),
+    parameters: todoGetSchema,
     async execute(_id, params) {
       const res = await fetch(`${baseUrl}/api/todos/${params.id}`, {
         headers: buildHeaders(),
@@ -50,14 +90,7 @@ export default function registerFreeTodoTools(api) {
   api.registerTool({
     name: "todo_create",
     description: "Create a todo",
-    parameters: Type.Object({
-      name: Type.String({ minLength: 1 }),
-      summary: Type.Optional(Type.String()),
-      description: Type.Optional(Type.String()),
-      due: Type.Optional(Type.String()),
-      priority: Type.Optional(Type.String()),
-      status: Type.Optional(Type.String()),
-    }),
+    parameters: todoCreateSchema,
     async execute(_id, params) {
       const res = await fetch(`${baseUrl}/api/todos`, {
         method: "POST",
@@ -75,15 +108,7 @@ export default function registerFreeTodoTools(api) {
   api.registerTool({
     name: "todo_update",
     description: "Update a todo (partial fields)",
-    parameters: Type.Object({
-      id: Type.Number(),
-      name: Type.Optional(Type.String({ minLength: 1 })),
-      summary: Type.Optional(Type.String()),
-      description: Type.Optional(Type.String()),
-      due: Type.Optional(Type.String()),
-      priority: Type.Optional(Type.String()),
-      status: Type.Optional(Type.String()),
-    }),
+    parameters: todoUpdateSchema,
     async execute(_id, params) {
       const { id, ...payload } = params;
       const res = await fetch(`${baseUrl}/api/todos/${id}`, {

@@ -103,6 +103,8 @@ Date: 2026-03-11
 - Smoke check checklist at `docs/openclaw-smoke.md`.
 2026-03-12
 - Local plugin packaging requires `package.json` + `index.js` under `extensions/freetodo/`.
+2026-03-12
+- Plugin uses plain JSON schema to avoid node dependency installs.
 
 ## Conversation Log
 2026-03-11
