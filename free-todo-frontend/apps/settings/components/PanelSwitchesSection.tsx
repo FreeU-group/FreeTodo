@@ -146,6 +146,7 @@ export function PanelSwitchesSection({
 						<SettingsSection
 							title={tSettings("devPanelsTitle")}
 							description={tSettings("devPanelsDescription")}
+							searchKeywords={devPanelKeywords}
 						>
 							<div className="space-y-3">
 								{devPanels.map((feature) => {
