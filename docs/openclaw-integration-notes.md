@@ -55,3 +55,19 @@ Cons:
 - Read-only todo list + attachment upload.
 - Chat forwarding only (OpenClaw -> FreeTodo /api/chat/stream).
 - Hybrid: todo tools + chat forwarding.
+
+## Principles (Confirmed)
+- Product-first: decisions prioritize user value over technical elegance.
+- MVP-first: ship smallest usable integration, then iterate.
+
+## Decision Log
+Date: 2026-03-11
+- Primary brain: OpenClaw.
+- No Agno fallback for MVP.
+- Data scope (MVP): Todo only, read/write.
+- Incremental expansion after MVP.
+
+## Conversation Log
+2026-03-11
+- Confirmed OpenClaw as primary brain and MVP-only scope.
+- Requested continuous documentation of decisions and progress.
