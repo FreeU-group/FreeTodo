@@ -41,9 +41,13 @@ export function SettingsSearchMatchProvider({
 	);
 }
 
+export function useSettingsSearchQuery() {
+	return useContext(SettingsSearchContext);
+}
+
 const normalizeSearchValue = (value: string) => value.toLowerCase().trim();
 
-const doesSearchMatch = (
+export const doesSearchMatch = (
 	query: string,
 	values: Array<string | undefined>,
 ) => {
