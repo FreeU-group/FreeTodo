@@ -2,8 +2,11 @@
 
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Suspense, useEffect, useMemo } from "react";
-import { PanelHeader } from "@/components/common/layout/PanelHeader";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import {
+	PanelHeader,
+	PanelPositionProvider,
+} from "@/components/common/layout/PanelHeader";
 import {
 	ALL_PANEL_FEATURES,
 	type PanelFeature,
@@ -23,11 +26,26 @@ export default function PanelWindowPage() {
 	const searchParams = useSearchParams();
 	const t = useTranslations("page");
 	const tDock = useTranslations("bottomDock");
+	const [mounted, setMounted] = useState(false);
 	const featureParam = searchParams.get("feature");
+	const positionParam = searchParams.get("position");
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	const feature = useMemo<PanelFeature | null>(
 		() => (isPanelFeature(featureParam) ? featureParam : null),
 		[featureParam],
+	);
+	const position = useMemo<"panelA" | "panelB" | "panelC">(
+		() =>
+			positionParam === "panelA" ||
+			positionParam === "panelB" ||
+			positionParam === "panelC"
+				? positionParam
+				: "panelB",
+		[positionParam],
 	);
 
 	const plugin = feature ? getPanelPlugin(feature) : null;
@@ -49,19 +67,25 @@ export default function PanelWindowPage() {
 		</div>
 	);
 
+	if (!mounted) {
+		return <div className="h-screen w-screen bg-background" />;
+	}
+
 	return (
 		<GlobalDndProvider>
-			<div className="h-screen w-screen bg-background text-foreground">
-				<div className="flex h-full flex-col">
-					{LazyPanel ? (
-						<Suspense fallback={placeholderView}>
-							<LazyPanel />
-						</Suspense>
-					) : (
-						placeholderView
-					)}
+			<PanelPositionProvider position={position}>
+				<div className="h-screen w-screen bg-background text-foreground">
+					<div className="flex h-full flex-col">
+						{LazyPanel ? (
+							<Suspense fallback={placeholderView}>
+								<LazyPanel />
+							</Suspense>
+						) : (
+							placeholderView
+						)}
+					</div>
 				</div>
-			</div>
+			</PanelPositionProvider>
 		</GlobalDndProvider>
 	);
 }

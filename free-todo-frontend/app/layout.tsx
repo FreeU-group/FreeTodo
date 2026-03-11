@@ -7,6 +7,7 @@ import { CapabilitiesSync } from "@/components/common/ui/CapabilitiesSync";
 import { DockTriggerZone } from "@/components/common/ui/DockTriggerZone";
 import { LocaleSync } from "@/components/common/ui/LocaleSync";
 import { ScrollbarController } from "@/components/common/ui/ScrollbarController";
+import { UiStoreSync } from "@/components/common/ui/UiStoreSync";
 import { QueryProvider } from "@/lib/query/provider";
 import "./globals.css";
 import "driver.js/dist/driver.css";
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 				<QueryProvider>
 					<NextIntlClientProvider messages={messages}>
 						<LocaleSync />
+						<UiStoreSync />
 						<CapabilitiesSync />
 						<DockTriggerZone />
 						<ThemeProvider>
