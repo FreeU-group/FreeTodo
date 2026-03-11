@@ -99,6 +99,10 @@ Date: 2026-03-11
 - Example OpenClaw config at `docs/openclaw.example.json`.
 2026-03-12
 - Local install method: OpenClaw CLI (`plugins install -l` + `plugins enable`).
+2026-03-12
+- Smoke check checklist at `docs/openclaw-smoke.md`.
+2026-03-12
+- Local plugin packaging requires `package.json` + `index.js` under `extensions/freetodo/`.
 
 ## Conversation Log
 2026-03-11

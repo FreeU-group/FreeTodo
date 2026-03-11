@@ -1,24 +1,7 @@
 import { Type } from "@sinclair/typebox";
 
-type OpenClawApi = {
-  config?: {
-    plugins?: {
-      entries?: Record<string, { config?: Record<string, unknown> }>;
-    };
-  };
-  registerTool: (tool: {
-    name: string;
-    description: string;
-    parameters: unknown;
-    execute: (
-      id: string,
-      params: Record<string, any>
-    ) => Promise<{ content: { type: string; text: string }[] }>;
-  }) => void;
-};
-
-export default function registerFreeTodoTools(api: OpenClawApi) {
-  const cfg = (api.config?.plugins?.entries?.freetodo?.config ?? {}) as Record<string, any>;
+export default function registerFreeTodoTools(api) {
+  const cfg = api.config?.plugins?.entries?.freetodo?.config ?? {};
   const baseUrl =
     typeof cfg.baseUrl === "string" && cfg.baseUrl ? cfg.baseUrl : "http://127.0.0.1:8001";
   const apiKey = typeof cfg.apiKey === "string" ? cfg.apiKey : "";
