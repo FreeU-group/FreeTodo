@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Suspense, useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
 	PanelHeader,
 	PanelPositionProvider,
@@ -26,8 +26,13 @@ export default function PanelWindowPage() {
 	const searchParams = useSearchParams();
 	const t = useTranslations("page");
 	const tDock = useTranslations("bottomDock");
+	const [mounted, setMounted] = useState(false);
 	const featureParam = searchParams.get("feature");
 	const positionParam = searchParams.get("position");
+
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	const feature = useMemo<PanelFeature | null>(
 		() => (isPanelFeature(featureParam) ? featureParam : null),
@@ -61,6 +66,10 @@ export default function PanelWindowPage() {
 			</div>
 		</div>
 	);
+
+	if (!mounted) {
+		return <div className="h-screen w-screen bg-background" />;
+	}
 
 	return (
 		<GlobalDndProvider>
