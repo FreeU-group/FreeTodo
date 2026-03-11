@@ -84,3 +84,8 @@ Date: 2026-03-11
 - Desired: WebChat + FreeTodo frontend + OpenClaw chat channels (Discord/Telegram/WhatsApp/Feishu).
 - Assessment: feasible but channel setup adds per-channel configuration and ongoing ops.
 - MVP suggestion: start with WebChat + FreeTodo frontend, then add channels in phases.
+
+## Automation Triggers (Discussion)
+2026-03-11
+- Proactive triggers required (FreeTodo -> OpenClaw).
+- MVP trigger not selected yet.
