@@ -254,15 +254,7 @@ class TodoTools:
             Formatted search results or empty message
         """
         try:
-            all_todos = self.todo_repo.list_todos(limit=200, offset=0, status=None)
-            keyword_lower = keyword.lower()
-
-            matches = [
-                todo
-                for todo in all_todos
-                if keyword_lower in todo["name"].lower()
-                or (todo.get("description") and keyword_lower in todo["description"].lower())
-            ]
+            matches = self.todo_repo.search(keyword=keyword, limit=200, offset=0, status=None)
 
             if not matches:
                 return self._msg("search_empty", keyword=keyword)

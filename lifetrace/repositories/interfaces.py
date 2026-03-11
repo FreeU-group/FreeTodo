@@ -123,6 +123,17 @@ class ITodoRepository(ABC):
         pass
 
     @abstractmethod
+    def search(
+        self,
+        keyword: str,
+        limit: int,
+        offset: int,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """按关键字搜索 todo"""
+        pass
+
+    @abstractmethod
     def count(self, status: str | None) -> int:
         """统计todo数量"""
         pass
