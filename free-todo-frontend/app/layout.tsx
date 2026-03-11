@@ -6,6 +6,7 @@ import { BackendReadyGate } from "@/components/common/ui/BackendReadyGate";
 import { CapabilitiesSync } from "@/components/common/ui/CapabilitiesSync";
 import { DockTriggerZone } from "@/components/common/ui/DockTriggerZone";
 import { LocaleSync } from "@/components/common/ui/LocaleSync";
+import { QuerySync } from "@/components/common/ui/QuerySync";
 import { ScrollbarController } from "@/components/common/ui/ScrollbarController";
 import { UiStoreSync } from "@/components/common/ui/UiStoreSync";
 import { QueryProvider } from "@/lib/query/provider";
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 					<NextIntlClientProvider messages={messages}>
 						<LocaleSync />
 						<UiStoreSync />
+						<QuerySync />
 						<CapabilitiesSync />
 						<DockTriggerZone />
 						<ThemeProvider>
