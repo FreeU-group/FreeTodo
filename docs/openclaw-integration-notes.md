@@ -87,5 +87,7 @@ Date: 2026-03-11
 
 ## Automation Triggers (Discussion)
 2026-03-11
-- Proactive triggers required (FreeTodo -> OpenClaw).
-- MVP trigger not selected yet.
+- Default automation triggers are not required at MVP.
+- Preferred model: user-initiated rules configured in OpenClaw
+  (e.g., via pi mono Agent, Cron, or Heartbeat.MD).
+- Implication: keep the capability for scheduled calls, but ship with no default rules.
