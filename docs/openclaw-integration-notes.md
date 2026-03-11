@@ -71,6 +71,10 @@ Date: 2026-03-11
 - Field set: align with current Todo schema in `lifetrace/storage/models.py`.
 - Operations: list/get/create/update/delete/reorder, attachments upload/download/remove,
   import/export ICS.
+2026-03-11
+- Integration API: use existing REST endpoints (no adapter layer for MVP).
+- Base URL: configurable; default to local `http://127.0.0.1:8001`.
+- Auth header: `X-API-Key` (allow local disable for convenience).
 
 ## Conversation Log
 2026-03-11
