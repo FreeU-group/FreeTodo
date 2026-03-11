@@ -28,6 +28,7 @@ import {
 import {
 	ALL_PANEL_FEATURES,
 	FEATURE_ICON_MAP,
+	type PanelFeature,
 	type PanelPosition,
 } from "@/lib/config/panel-config";
 import type { DragData } from "@/lib/dnd";
@@ -331,6 +332,11 @@ export function PanelPositionProvider({
 	);
 }
 
+function isPanelFeature(value: string | null) {
+	if (!value) return false;
+	return (ALL_PANEL_FEATURES as string[]).includes(value);
+}
+
 function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 	const t = useTranslations("panelMenu");
 	const tDock = useTranslations("bottomDock");
@@ -347,9 +353,21 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 		togglePanelB,
 		togglePanelC,
 	} = useUiStore();
-	const currentFeature = panelFeatureMap[position];
+	const isPanelWindow =
+		typeof window !== "undefined" &&
+		window.location.pathname === "/panel-window";
+	const panelWindowFeature =
+		isPanelWindow && typeof window !== "undefined"
+			? new URLSearchParams(window.location.search).get("feature")
+			: null;
+	const currentFeature = isPanelWindow
+		? isPanelFeature(panelWindowFeature)
+			? panelWindowFeature
+			: null
+		: panelFeatureMap[position];
 	const isPinned = panelPinMap[position];
-	const canOpenInNewWindow = isWeb() && Boolean(currentFeature);
+	const canOpenInNewWindow =
+		!isPanelWindow && isWeb() && Boolean(currentFeature);
 
 	const switchableFeatures = useMemo(() => {
 		const disabledSet = new Set([
@@ -360,6 +378,10 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 	}, [disabledFeatures, backendDisabledFeatures]);
 
 	const handleClose = () => {
+		if (isPanelWindow) {
+			window.close();
+			return;
+		}
 		switch (position) {
 			case "panelA":
 				togglePanelA();
@@ -371,6 +393,16 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 				togglePanelC();
 				break;
 		}
+	};
+
+	const handleSwitchPanel = (feature: PanelFeature) => {
+		if (!isPanelWindow) {
+			setPanelFeature(position, feature as PanelFeature);
+			return;
+		}
+		const url = new URL(window.location.href);
+		url.searchParams.set("feature", feature);
+		window.location.assign(url.toString());
 	};
 
 	const handleOpenInNewWindow = () => {
@@ -433,19 +465,19 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 						{t("switchPanel")}
 					</DropdownMenuSubTrigger>
 					<DropdownMenuSubContent alignOffset={-6} sideOffset={10}>
-						{switchableFeatures.map((feature) => {
-							const Icon = FEATURE_ICON_MAP[feature];
-							const isActive = feature === currentFeature;
-							return (
-								<DropdownMenuItem
-									key={feature}
-									disabled={isPinned}
-									onSelect={() => {
-										setPanelFeature(position, feature);
-									}}
-								>
-									<Icon className="mr-2 h-4 w-4 text-muted-foreground" />
-									<span>{tDock(feature)}</span>
+					{switchableFeatures.map((feature) => {
+						const Icon = FEATURE_ICON_MAP[feature];
+						const isActive = feature === currentFeature;
+						return (
+							<DropdownMenuItem
+								key={feature}
+								disabled={isPinned}
+								onSelect={() => {
+									handleSwitchPanel(feature);
+								}}
+							>
+								<Icon className="mr-2 h-4 w-4 text-muted-foreground" />
+								<span>{tDock(feature)}</span>
 									{isActive && (
 										<Check className="ml-auto h-4 w-4 text-primary" />
 									)}
@@ -459,9 +491,10 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 					<X className="mr-2 h-4 w-4 text-muted-foreground" />
 					{t("closePanel")}
 				</DropdownMenuItem>
-				<DropdownMenuItem
-					onSelect={() => setPanelPinned(position, !isPinned)}
-				>
+			<DropdownMenuItem
+				disabled={isPanelWindow}
+				onSelect={() => setPanelPinned(position, !isPinned)}
+			>
 					{isPinned ? (
 						<PinOff className="mr-2 h-4 w-4 text-muted-foreground" />
 					) : (
