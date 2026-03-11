@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,11 +21,62 @@ if TYPE_CHECKING:
     from lifetrace.storage.database_base import DatabaseBase
 
 
+_MISSING_PARENT = object()
+
+
 class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
     """Todo 管理类"""
 
     def __init__(self, db_base: DatabaseBase):
         self.db_base = db_base
+
+    def _get_parent_id(
+        self,
+        session,
+        todo_id: int,
+        proposed_parent_map: dict[int, int | None] | None = None,
+    ) -> int | None | object:
+        if proposed_parent_map and todo_id in proposed_parent_map:
+            return proposed_parent_map[todo_id]
+        row = session.query(col(Todo.parent_todo_id)).filter(col(Todo.id) == todo_id).first()
+        if not row:
+            return _MISSING_PARENT
+        return row[0]
+
+    def _validate_parent_link(
+        self,
+        session,
+        *,
+        todo_id: int,
+        parent_todo_id: int | None,
+        proposed_parent_map: dict[int, int | None] | None = None,
+    ) -> bool:
+        if parent_todo_id is None:
+            return True
+        if parent_todo_id == todo_id:
+            return False
+
+        parent_exists = session.query(col(Todo.id)).filter(col(Todo.id) == parent_todo_id).first()
+        if not parent_exists:
+            return False
+
+        visited: set[int] = set()
+        current_id: int | None = parent_todo_id
+        while current_id is not None:
+            if current_id == todo_id:
+                return False
+            if current_id in visited:
+                return False
+            visited.add(current_id)
+            next_parent = self._get_parent_id(
+                session,
+                current_id,
+                proposed_parent_map=proposed_parent_map,
+            )
+            if next_parent is _MISSING_PARENT:
+                break
+            current_id = cast("int | None", next_parent)
+        return True
 
     # ========== 查询辅助 ==========
     def _get_todo_tags(self, session, todo_id: int) -> list[str]:
@@ -278,6 +329,31 @@ class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
         """
         try:
             with self.db_base.get_session() as session:
+                proposed_parent_map = {
+                    int(item["id"]): item.get("parent_todo_id")
+                    for item in items
+                    if item.get("id") and "parent_todo_id" in item
+                }
+                for todo_id, parent_id in proposed_parent_map.items():
+                    todo_exists = (
+                        session.query(col(Todo.id)).filter(col(Todo.id) == todo_id).first()
+                    )
+                    if not todo_exists:
+                        logger.warning(f"reorder_todos: todo 不存在: {todo_id}")
+                        continue
+                    if not self._validate_parent_link(
+                        session,
+                        todo_id=todo_id,
+                        parent_todo_id=parent_id,
+                        proposed_parent_map=proposed_parent_map,
+                    ):
+                        logger.warning(
+                            "reorder_todos: parent_todo_id 无效: todo_id=%s parent_id=%s",
+                            todo_id,
+                            parent_id,
+                        )
+                        return False
+
                 for item in items:
                     todo_id = item.get("id")
                     if not todo_id:
