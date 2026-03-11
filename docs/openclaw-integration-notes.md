@@ -97,6 +97,8 @@ Date: 2026-03-11
 - OpenClaw plugin implementation lives in `extensions/freetodo/`.
 2026-03-11
 - Example OpenClaw config at `docs/openclaw.example.json`.
+2026-03-12
+- Local install method: OpenClaw CLI (`plugins install -l` + `plugins enable`).
 
 ## Conversation Log
 2026-03-11
