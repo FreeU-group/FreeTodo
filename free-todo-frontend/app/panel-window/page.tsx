@@ -8,6 +8,7 @@ import {
 	ALL_PANEL_FEATURES,
 	type PanelFeature,
 } from "@/lib/config/panel-config";
+import { GlobalDndProvider } from "@/lib/dnd";
 import {
 	getPanelLazyComponent,
 	getPanelPlugin,
@@ -49,16 +50,18 @@ export default function PanelWindowPage() {
 	);
 
 	return (
-		<div className="h-screen w-screen bg-background text-foreground">
-			<div className="flex h-full flex-col">
-				{LazyPanel ? (
-					<Suspense fallback={placeholderView}>
-						<LazyPanel />
-					</Suspense>
-				) : (
-					placeholderView
-				)}
+		<GlobalDndProvider>
+			<div className="h-screen w-screen bg-background text-foreground">
+				<div className="flex h-full flex-col">
+					{LazyPanel ? (
+						<Suspense fallback={placeholderView}>
+							<LazyPanel />
+						</Suspense>
+					) : (
+						placeholderView
+					)}
+				</div>
 			</div>
-		</div>
+		</GlobalDndProvider>
 	);
 }
