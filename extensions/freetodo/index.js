@@ -153,6 +153,26 @@ export default function registerFreeTodoTools(api) {
     },
   };
 
+  const memoryDateSchema = {
+    type: "object",
+    required: ["date"],
+    additionalProperties: true,
+    properties: {
+      date: { type: "string", minLength: 8 },
+    },
+  };
+
+  const memorySearchSchema = {
+    type: "object",
+    required: ["keyword"],
+    additionalProperties: true,
+    properties: {
+      keyword: { type: "string", minLength: 1 },
+      days: { type: "number", minimum: 1, maximum: 365 },
+      max_results: { type: "number", minimum: 1, maximum: 50 },
+    },
+  };
+
   const parseFileName = (contentDisposition) => {
     if (!contentDisposition) return undefined;
     const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(
@@ -387,6 +407,136 @@ export default function registerFreeTodoTools(api) {
         headers: buildHeaders(),
         body: form,
       });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_today",
+    description: "Get today's memory content",
+    parameters: { type: "object", additionalProperties: true, properties: {} },
+    async execute() {
+      const res = await fetch(`${baseUrl}/api/memory/today`, {
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_get_date",
+    description: "Get memory content for a specific date",
+    parameters: memoryDateSchema,
+    async execute(_id, params) {
+      const res = await fetch(`${baseUrl}/api/memory/date/${params.date}`, {
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_search",
+    description: "Search memories by keyword",
+    parameters: memorySearchSchema,
+    async execute(_id, params) {
+      const query = new URLSearchParams();
+      query.set("keyword", params.keyword);
+      if (params.days !== undefined) query.set("days", String(params.days));
+      if (params.max_results !== undefined) {
+        query.set("max_results", String(params.max_results));
+      }
+      const res = await fetch(`${baseUrl}/api/memory/search?${query.toString()}`, {
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_profile_get",
+    description: "Get the current user profile",
+    parameters: { type: "object", additionalProperties: true, properties: {} },
+    async execute() {
+      const res = await fetch(`${baseUrl}/api/memory/profile`, {
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_profile_update",
+    description: "Trigger a user profile update cycle",
+    parameters: { type: "object", additionalProperties: true, properties: {} },
+    async execute() {
+      const res = await fetch(`${baseUrl}/api/memory/profile/update`, {
+        method: "POST",
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_profile_consolidate",
+    description: "Consolidate the user profile to reduce bloat",
+    parameters: { type: "object", additionalProperties: true, properties: {} },
+    async execute() {
+      const res = await fetch(`${baseUrl}/api/memory/profile/consolidate`, {
+        method: "POST",
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_compress_day",
+    description: "Compress memory for a specific date",
+    parameters: memoryDateSchema,
+    async execute(_id, params) {
+      const res = await fetch(`${baseUrl}/api/memory/compress/${params.date}`, {
+        method: "POST",
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_link_day",
+    description: "Run task linking for a specific date",
+    parameters: memoryDateSchema,
+    async execute(_id, params) {
+      const res = await fetch(`${baseUrl}/api/memory/link/${params.date}`, {
+        method: "POST",
+        headers: buildHeaders(),
+      });
+      const text = await res.text();
+      return { content: [{ type: "text", text }] };
+    },
+  });
+
+  api.registerTool({
+    name: "memory_compress_and_link",
+    description: "Compress then link memories for a specific date",
+    parameters: memoryDateSchema,
+    async execute(_id, params) {
+      const res = await fetch(`${baseUrl}/api/memory/compress-and-link/${params.date}`,
+        {
+          method: "POST",
+          headers: buildHeaders(),
+        }
+      );
       const text = await res.text();
       return { content: [{ type: "text", text }] };
     },
