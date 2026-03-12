@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -261,7 +261,7 @@ class MobileDataProvider extends ChangeNotifier {
     final aiIndex = _messages.length - 1;
 
     try {
-      await for (final chunk in sendMessageStreamServer(trimmed)) {
+      await for (final chunk in sendMessageAgnoStreamServer(trimmed)) {
         if (chunk.type == MessageChunkType.data || chunk.type == MessageChunkType.think) {
           aiText += chunk.text;
           _messages[aiIndex] = _messages[aiIndex].copyWith(text: aiText.isEmpty ? '...' : aiText);

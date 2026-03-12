@@ -62,6 +62,11 @@ MODULES: tuple[ModuleDefinition, ...] = (
     ModuleDefinition(id="todo", router_module="lifetrace.routers.todo"),
     ModuleDefinition(id="todo_extraction", router_module="lifetrace.routers.todo_extraction"),
     ModuleDefinition(id="journal", router_module="lifetrace.routers.journal"),
+    ModuleDefinition(
+        id="diary_illustration",
+        router_module="lifetrace.routers.diary_illustration",
+        requires=("journal", "memory"),
+    ),
     ModuleDefinition(id="vision", router_module="lifetrace.routers.vision"),
     ModuleDefinition(id="notification", router_module="lifetrace.routers.notification"),
     ModuleDefinition(id="floating_capture", router_module="lifetrace.routers.floating_capture"),

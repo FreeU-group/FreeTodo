@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:freeu/backend/http/shared.dart';
@@ -208,6 +208,90 @@ Stream<ServerMessageChunk> sendMessageStreamServer(
       body.trim().isEmpty ? '聊天请求失败，请稍后重试。' : body,
       MessageChunkType.error,
     );
+  }
+}
+
+/// Sends a chat message using the Agno mode (same as PC frontend).
+///
+/// Calls `POST /api/chat/stream` with `mode: "agno"`, reads the raw
+/// streaming response, filters out `[TOOL_EVENT:...]` markers, and yields
+/// the text content as [ServerMessageChunk]s.
+Stream<ServerMessageChunk> sendMessageAgnoStreamServer(String text) async* {
+  final url = '${Env.apiBaseUrl}api/chat/stream';
+  const messageId = '1000';
+
+  final bodyMap = <String, dynamic>{
+    'message': text,
+    'mode': 'agno',
+  };
+  if (_lastSessionId != null && _lastSessionId!.isNotEmpty) {
+    bodyMap['conversation_id'] = _lastSessionId;
+  }
+
+  var receivedAnyChunk = false;
+
+  try {
+    final response = await makeRawApiCall(
+      url: url,
+      method: 'POST',
+      body: jsonEncode(bodyMap),
+    );
+
+    _updateSessionIdFromHeaders(response.headers);
+
+    if (response.statusCode != 200) {
+      final reason = await response.stream.bytesToString();
+      yield ServerMessageChunk(
+        messageId,
+        '聊天请求失败（HTTP ${response.statusCode}）${reason.isNotEmpty ? ': $reason' : ''}',
+        MessageChunkType.error,
+      );
+      return;
+    }
+
+    const toolPrefix = '\n[TOOL_EVENT:';
+    const toolSuffix = ']\n';
+    var buffer = '';
+
+    await for (final data in response.stream.transform(utf8.decoder)) {
+      buffer += data;
+
+      while (buffer.isNotEmpty) {
+        final toolIdx = buffer.indexOf(toolPrefix);
+
+        if (toolIdx < 0) {
+          receivedAnyChunk = true;
+          yield ServerMessageChunk(messageId, buffer, MessageChunkType.data);
+          buffer = '';
+          break;
+        }
+
+        if (toolIdx > 0) {
+          receivedAnyChunk = true;
+          yield ServerMessageChunk(messageId, buffer.substring(0, toolIdx), MessageChunkType.data);
+          buffer = buffer.substring(toolIdx);
+        }
+
+        final endIdx = buffer.indexOf(toolSuffix, toolPrefix.length);
+        if (endIdx < 0) break;
+
+        buffer = buffer.substring(endIdx + toolSuffix.length);
+      }
+    }
+
+    final remaining = buffer.trim();
+    if (remaining.isNotEmpty && !remaining.startsWith('[TOOL_EVENT:')) {
+      receivedAnyChunk = true;
+      yield ServerMessageChunk(messageId, remaining, MessageChunkType.data);
+    }
+  } catch (e) {
+    Logger.error('Agno stream error: $e');
+    yield ServerMessageChunk(messageId, '请求失败: $e', MessageChunkType.error);
+    return;
+  }
+
+  if (!receivedAnyChunk) {
+    yield ServerMessageChunk(messageId, '未收到回复，请检查中心节点连接。', MessageChunkType.error);
   }
 }
 

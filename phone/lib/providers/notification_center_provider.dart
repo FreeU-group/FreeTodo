@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -7,24 +7,60 @@ import 'package:freeu/env/env.dart';
 
 class NotificationCenterProvider extends ChangeNotifier {
   List<AppNotification> _notifications = <AppNotification>[];
+  List<DraftTodo> _draftTodos = <DraftTodo>[];
   final Set<String> _laterIds = <String>{};
   bool _loading = false;
   bool _useMockData = false;
   DateTime? _lastLoadedAt;
+  DateTime? _lastDraftPollAt;
   StreamSubscription<String>? _apiBaseUrlSub;
+
+  Timer? _notificationTimer;
+  Timer? _draftTodoTimer;
+
+  static const _notificationInterval = Duration(seconds: 10);
+  static const _draftTodoInterval = Duration(seconds: 5);
 
   NotificationCenterProvider() {
     _apiBaseUrlSub = Env.onApiBaseUrlChanged.listen((_) async {
       await refresh(force: true);
+      await pollDraftTodos(force: true);
     });
   }
 
   List<AppNotification> get notifications => _notifications;
+  List<DraftTodo> get draftTodos => _draftTodos;
   Set<String> get laterIds => _laterIds;
   bool get loading => _loading;
   bool get useMockData => _useMockData;
   DateTime? get lastLoadedAt => _lastLoadedAt;
-  int get pendingCount => _notifications.where((n) => !_laterIds.contains(n.id)).length;
+  int get pendingCount =>
+      _notifications.where((n) => !_laterIds.contains(n.id)).length +
+      _draftTodos.length;
+
+  /// Start background polling timers. Call once from HomePage.initState.
+  void startPolling() {
+    _notificationTimer?.cancel();
+    _draftTodoTimer?.cancel();
+
+    unawaited(refresh(force: true));
+    unawaited(pollDraftTodos(force: true));
+
+    _notificationTimer = Timer.periodic(_notificationInterval, (_) {
+      unawaited(refresh());
+    });
+    _draftTodoTimer = Timer.periodic(_draftTodoInterval, (_) {
+      unawaited(pollDraftTodos());
+    });
+  }
+
+  /// Stop background polling. Call when app goes to background.
+  void stopPolling() {
+    _notificationTimer?.cancel();
+    _notificationTimer = null;
+    _draftTodoTimer?.cancel();
+    _draftTodoTimer = null;
+  }
 
   Future<void> setUseMockData(bool value) async {
     if (_useMockData == value) return;
@@ -36,7 +72,7 @@ class NotificationCenterProvider extends ChangeNotifier {
 
   Future<void> refresh({bool force = false}) async {
     if (_loading) return;
-    if (!force && _lastLoadedAt != null && DateTime.now().difference(_lastLoadedAt!).inSeconds < 20) {
+    if (!force && _lastLoadedAt != null && DateTime.now().difference(_lastLoadedAt!).inSeconds < 8) {
       return;
     }
 
@@ -55,6 +91,38 @@ class NotificationCenterProvider extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  /// Poll for draft todos (AI-detected, pending user confirmation).
+  Future<void> pollDraftTodos({bool force = false}) async {
+    if (!force && _lastDraftPollAt != null && DateTime.now().difference(_lastDraftPollAt!).inSeconds < 4) {
+      return;
+    }
+    try {
+      _draftTodos = await getDraftTodos(limit: 10);
+      _lastDraftPollAt = DateTime.now();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Accept a draft todo (move to active).
+  Future<bool> acceptDraft(int todoId) async {
+    final ok = await acceptDraftTodo(todoId);
+    if (ok) {
+      _draftTodos.removeWhere((t) => t.id == todoId);
+      notifyListeners();
+    }
+    return ok;
+  }
+
+  /// Dismiss/cancel a draft todo.
+  Future<bool> dismissDraft(int todoId) async {
+    final ok = await dismissDraftTodo(todoId);
+    if (ok) {
+      _draftTodos.removeWhere((t) => t.id == todoId);
+      notifyListeners();
+    }
+    return ok;
   }
 
   void markLater(String id) {
@@ -82,7 +150,7 @@ class NotificationCenterProvider extends ChangeNotifier {
       AppNotification(
         id: 'n_1',
         title: '导师追问论文进度',
-        content: '“初稿今天能发我看一下吗？”',
+        content: '"初稿今天能发我看一下吗？"',
         timestamp: now.subtract(const Duration(minutes: 10)),
         source: 'Feishu',
         aiSuggestion: '建议今天 16:30 前发送，先整理摘要与目录。',
@@ -90,7 +158,7 @@ class NotificationCenterProvider extends ChangeNotifier {
       AppNotification(
         id: 'n_2',
         title: '日程冲突提醒',
-        content: '明天下午 “项目评审会” 与 “羽毛球” 时间冲突。',
+        content: '明天下午 "项目评审会" 与 "羽毛球" 时间冲突。',
         timestamp: now.subtract(const Duration(minutes: 34)),
         source: 'Calendar',
         aiSuggestion: '建议保留评审会，自动改约周末打球。',
@@ -116,6 +184,7 @@ class NotificationCenterProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    stopPolling();
     _apiBaseUrlSub?.cancel();
     super.dispose();
   }

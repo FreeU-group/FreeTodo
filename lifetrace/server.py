@@ -72,6 +72,9 @@ async def lifespan(app: FastAPI):
     # 延迟验证 LLM 连接
     background_tasks.append(asyncio.create_task(_verify_llm_connection_async()))
 
+    # 延迟初始化日记插画服务
+    background_tasks.append(asyncio.create_task(_init_diary_illustration_async()))
+
     yield
 
     # 关闭逻辑
@@ -215,6 +218,75 @@ async def _verify_llm_connection_async() -> None:
         logger.debug(f"LLM 验证初始化跳过: {exc}")
         return
     await asyncio.to_thread(verify_llm_connection_on_startup)
+
+
+async def _init_diary_illustration_async() -> None:
+    """延迟初始化日记插画服务并注册定时任务"""
+    try:
+        from lifetrace.llm.llm_client import LLMClient  # noqa: PLC0415
+        from lifetrace.services.diary_illustration_service import (  # noqa: PLC0415
+            init_diary_illustration_service,
+        )
+
+        llm = LLMClient()
+        if not llm.is_available():
+            logger.info("DiaryIllustration: LLM not available, service not initialized")
+            return
+
+        svc = init_diary_illustration_service(llm)
+        logger.info("DiaryIllustration: service initialized")
+
+        # 注册定时任务
+        job_cfg = settings.get("jobs.diary_illustration", {}) or {}
+        if not job_cfg.get("enabled", False):
+            return
+
+        cron_expr: str = str(job_cfg.get("cron", "0 22 * * *"))
+        # cron_expr format: "min hour dom mon dow"
+        parts = cron_expr.strip().split()
+        _cron_field_count = 5
+        if len(parts) == _cron_field_count:
+            minute, hour, day, month, day_of_week = parts
+        else:
+            minute, hour, day, month, day_of_week = "0", "22", "*", "*", "*"
+
+        manager = get_job_manager()
+        sched_mgr = manager.scheduler_manager if manager else None
+        scheduler = sched_mgr.scheduler if sched_mgr else None
+        if scheduler:
+            from apscheduler.triggers.cron import CronTrigger  # noqa: PLC0415
+
+            async def _run_daily_illustration():
+                try:
+                    result = await svc.generate_for_date()
+                    if result["ok"]:
+                        logger.info(
+                            "DiaryIllustration: daily job completed, path=%s", result["path"]
+                        )
+                    else:
+                        logger.warning(
+                            "DiaryIllustration: daily job failed: %s", result.get("error")
+                        )
+                except Exception:
+                    logger.exception("DiaryIllustration: daily job error")
+
+            scheduler.add_job(
+                _run_daily_illustration,
+                trigger=CronTrigger(
+                    minute=minute,
+                    hour=hour,
+                    day=day,
+                    month=month,
+                    day_of_week=day_of_week,
+                ),
+                id="diary_illustration_job",
+                name="日记插画生成",
+                replace_existing=True,
+            )
+            logger.info("DiaryIllustration: scheduled job registered (cron=%s)", cron_expr)
+
+    except Exception:
+        logger.exception("DiaryIllustration: initialization failed")
 
 
 # 注册按配置启用的路由

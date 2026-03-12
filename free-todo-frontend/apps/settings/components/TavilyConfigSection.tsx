@@ -3,6 +3,7 @@
 import { Check, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { PasswordInput } from "@/components/common/ui/PasswordInput";
 import { useSaveConfig } from "@/lib/query";
 import type { AppConfig } from "@/lib/query/config";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -151,15 +152,13 @@ export function TavilyConfigSection({
 						{t("apiKey")}
 					</label>
 					<div className="flex gap-2">
-						<input
+						<PasswordInput
 							id="tavily-api-key"
-							type="password"
-							className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+							className="flex-1"
 							placeholder="Tavily API Key"
 							value={apiKey}
 							onChange={(e) => {
 								setApiKey(e.target.value);
-								// 清除之前的验证消息
 								if (verificationMessage) {
 									setVerificationMessage(null);
 								}

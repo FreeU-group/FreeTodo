@@ -4,6 +4,7 @@ import { BookOpen, CalendarDays } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DiaryEditor } from "@/apps/diary/DiaryEditor";
+import { DiaryIllustration } from "@/apps/diary/DiaryIllustration";
 import type { JournalTab } from "@/apps/diary/DiaryTabs";
 import {
 	formatDateInput,
@@ -65,6 +66,8 @@ export function DiaryPanel() {
 	const [autoLinkMessage, setAutoLinkMessage] = useState<string | null>(null);
 	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 	const datePickerRef = useRef<HTMLButtonElement | null>(null);
+	const [illustrationExists, setIllustrationExists] = useState(false);
+	const [illustrationGenerating, setIllustrationGenerating] = useState(false);
 	const lastSyncKey = useRef<string | null>(null);
 	const {
 		refreshMode,
@@ -190,6 +193,41 @@ export function DiaryPanel() {
 		syncDraftFromJournal,
 	]);
 
+	const selectedDateStr = formatDateInput(selectedDate);
+
+	const checkIllustration = useCallback(async (dateStr: string) => {
+		try {
+			const resp = await fetch(`/api/diary-illustration/status/${dateStr}`);
+			if (resp.ok) {
+				const data = await resp.json();
+				setIllustrationExists(data.exists === true);
+			}
+		} catch {
+			// ignore
+		}
+	}, []);
+
+	useEffect(() => {
+		checkIllustration(selectedDateStr);
+	}, [selectedDateStr, checkIllustration]);
+
+	const handleGenerateIllustration = async () => {
+		try {
+			setIllustrationGenerating(true);
+			const resp = await fetch(
+				`/api/diary-illustration/generate?date=${selectedDateStr}`,
+				{ method: "POST" },
+			);
+			if (resp.ok) {
+				setIllustrationExists(true);
+			}
+		} catch {
+			// ignore
+		} finally {
+			setIllustrationGenerating(false);
+		}
+	};
+
 	const handleDateChange = (value: Date) => {
 		const nextDate = normalizeDateOnly(value);
 		if (formatDateInput(nextDate) === formatDateInput(selectedDate)) return;
@@ -298,23 +336,7 @@ export function DiaryPanel() {
 		}
 
 		if (!saved) return;
-
-		const savedDate = parseJournalDate(saved.date);
-		setDraft({
-			id: saved.id,
-			name: saved.name ?? "",
-			userNotes: saved.userNotes ?? "",
-			contentObjective: saved.contentObjective ?? "",
-			contentAi: saved.contentAi ?? "",
-			mood: saved.mood ?? "",
-			energy: saved.energy ?? null,
-			tags: (saved.tags ?? []).map((tag) => tag.tagName),
-			relatedTodoIds: saved.relatedTodoIds ?? [],
-			relatedActivityIds: saved.relatedActivityIds ?? [],
-			date: savedDate,
-		});
-		setSelectedDate(savedDate);
-		setTagInput((saved.tags ?? []).map((tag) => tag.tagName).join(", "));
+		syncDraftFromJournal(saved);
 		setAutoLinkMessage(t("saveSuccess"));
 
 		const snapshot = {
@@ -323,26 +345,14 @@ export function DiaryPanel() {
 			date: savedDate,
 		};
 
-		if (autoLinkEnabled) {
-			try {
-				await runAutoLink(saved.id, snapshot);
-			} catch (_error) {
-				setAutoLinkMessage(t("autoLinkFailed"));
-			}
-		}
-		if (autoGenerateObjectiveEnabled && !saved.contentObjective) {
-			try {
-				await runObjectiveGeneration(saved.id, snapshot);
-			} catch (_error) {
-				setAutoLinkMessage(t("generateFailed"));
-			}
-		}
-		if (autoGenerateAiEnabled && !saved.contentAi) {
-			try {
-				await runAiGeneration(saved.id, snapshot);
-			} catch (_error) {
-				setAutoLinkMessage(t("generateFailed"));
-			}
+		const autoOps: Array<[boolean, () => Promise<void>]> = [
+			[autoLinkEnabled, () => runAutoLink(saved.id, snapshot)],
+			[autoGenerateObjectiveEnabled && !saved.contentObjective, () => runObjectiveGeneration(saved.id, snapshot)],
+			[autoGenerateAiEnabled && !saved.contentAi, () => runAiGeneration(saved.id, snapshot)],
+		];
+		for (const [enabled, fn] of autoOps) {
+			if (!enabled) continue;
+			try { await fn(); } catch { setAutoLinkMessage(t("autoLinkFailed")); }
 		}
 	};
 	const handleAutoSave = (options?: {
@@ -440,8 +450,8 @@ export function DiaryPanel() {
 				}
 			/>
 
-			<div className="flex min-h-0 flex-1 flex-col">
-				{isDatePickerOpen && (
+		<div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+			{isDatePickerOpen && (
 					<DateOnlyPickerPopover
 						anchorRef={datePickerRef}
 						selectedDate={selectedDate}
@@ -474,6 +484,14 @@ export function DiaryPanel() {
 					isGeneratingAi={isGeneratingAi}
 					isAutoLinking={isAutoLinking}
 					hasJournalId={Boolean(draft.id)}
+				/>
+
+				{/* 插画区域 */}
+				<DiaryIllustration
+					dateStr={selectedDateStr}
+					exists={illustrationExists}
+					generating={illustrationGenerating}
+					onGenerate={handleGenerateIllustration}
 				/>
 			</div>
 		</div>

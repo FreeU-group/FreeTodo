@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -135,6 +135,9 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
     return Consumer<NotificationCenterProvider>(
       builder: (context, center, child) {
         final list = _getFilteredNotifications(center.notifications);
+        final drafts = center.draftTodos;
+        final totalCount = list.length + drafts.length;
+        final hasAnyContent = totalCount > 0;
 
         return Container(
           decoration: const BoxDecoration(gradient: MobileTokens.appBackground),
@@ -154,7 +157,7 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${list.length} 条',
+                        '$totalCount 条',
                         style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 12),
                       ),
                       Text(
@@ -179,48 +182,158 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: center.loading
+                child: center.loading && !hasAnyContent
                     ? const Center(child: CircularProgressIndicator(color: MobileTokens.accent))
-                    : list.isEmpty
+                    : !hasAnyContent
                         ? _buildEmptyState()
                         : RefreshIndicator(
                             color: MobileTokens.accent,
-                            onRefresh: () => center.refresh(force: true),
+                            onRefresh: () async {
+                              await Future.wait([
+                                center.refresh(force: true),
+                                center.pollDraftTodos(force: true),
+                              ]);
+                            },
                             child: ListView.builder(
                               controller: _scrollController,
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                              itemCount: list.length,
-                            itemBuilder: (context, index) {
-                              final n = list[index];
-                              final isLater = center.laterIds.contains(n.id);
-                              return TweenAnimationBuilder<double>(
-                                key: ValueKey('msg_${n.id}'),
-                                duration: Duration(milliseconds: 200 + (index * 40).clamp(0, 240)),
-                                curve: Curves.easeOutCubic,
-                                tween: Tween<double>(begin: 0, end: 1),
-                                builder: (context, value, child) {
-                                  return Opacity(
-                                    opacity: value,
-                                    child: Transform.translate(
-                                      offset: Offset(0, 14 * (1 - value)),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: _buildCard(n, isLater),
-                                ),
-                              );
-                            },
+                              itemCount: drafts.length + list.length,
+                              itemBuilder: (context, index) {
+                                if (index < drafts.length) {
+                                  return _buildDraftTodoCard(drafts[index], index);
+                                }
+                                final nIdx = index - drafts.length;
+                                final n = list[nIdx];
+                                final isLater = center.laterIds.contains(n.id);
+                                return TweenAnimationBuilder<double>(
+                                  key: ValueKey('msg_${n.id}'),
+                                  duration: Duration(milliseconds: 200 + (index * 40).clamp(0, 240)),
+                                  curve: Curves.easeOutCubic,
+                                  tween: Tween<double>(begin: 0, end: 1),
+                                  builder: (context, value, child) {
+                                    return Opacity(
+                                      opacity: value,
+                                      child: Transform.translate(
+                                        offset: Offset(0, 14 * (1 - value)),
+                                        child: child,
+                                      ),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: _buildCard(n, isLater),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
-                        ),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDraftTodoCard(DraftTodo draft, int index) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('draft_${draft.id}'),
+      duration: Duration(milliseconds: 200 + (index * 40).clamp(0, 240)),
+      curve: Curves.easeOutCubic,
+      tween: Tween<double>(begin: 0, end: 1),
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(offset: Offset(0, 14 * (1 - value)), child: child),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          decoration: MobileTokens.cardDecoration(highlight: true),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A3A5C),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: FaIcon(FontAwesomeIcons.listCheck, size: 13, color: MobileTokens.accent),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'AI 识别待办 · 待确认',
+                      style: TextStyle(color: MobileTokens.accent, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  Text(
+                    _relativeTime(draft.createdAt),
+                    style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                draft.name,
+                style: const TextStyle(color: MobileTokens.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              if (draft.description != null && draft.description!.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  draft.description!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 14, height: 1.35),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _actionButton(
+                      label: '确认添加',
+                      primary: true,
+                      onTap: () async {
+                        final ok = await context.read<NotificationCenterProvider>().acceptDraft(draft.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ok ? '已确认为待办' : '操作失败')),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _actionButton(
+                      label: '忽略',
+                      primary: false,
+                      onTap: () async {
+                        final ok = await context.read<NotificationCenterProvider>().dismissDraft(draft.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ok ? '已忽略' : '操作失败')),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

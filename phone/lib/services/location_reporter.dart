@@ -37,10 +37,6 @@ class LocationReporter {
 
   Future<void> start() async {
     if (_running) return;
-
-    final ok = await _checkPermission();
-    if (!ok) return;
-
     _running = true;
     _setStatus('已启动，等待首次定位...');
 
@@ -69,10 +65,12 @@ class LocationReporter {
   }
 
   Future<void> _reportOnce() async {
+    final permOk = await _checkPermission();
+    if (!permOk) return;
+
     try {
       Position? pos;
 
-      // Try last known position first (instant, no timeout risk)
       pos = await Geolocator.getLastKnownPosition();
 
       if (pos == null) {
@@ -104,7 +102,12 @@ class LocationReporter {
       }
     } catch (e) {
       _failCount++;
-      _setStatus('上报失败 #$_failCount: $e');
+      final msg = e.toString();
+      if (msg.contains('TimeoutException') || msg.contains('timeLimit')) {
+        _setStatus('定位超时 #$_failCount: 请确认在开阔地带');
+      } else {
+        _setStatus('上报失败 #$_failCount: $msg');
+      }
     }
   }
 
