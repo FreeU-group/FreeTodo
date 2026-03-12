@@ -14,6 +14,8 @@ RUN apt update && apt install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
+ENV UV_TORCH_BACKEND=cpu
+ENV UV_HTTP_TIMEOUT=300
 RUN uv sync
 
 # production stage

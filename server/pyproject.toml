@@ -13,6 +13,7 @@ dependencies = [
     "alembic>=1.14.0",
     "python-multipart>=0.0.6",
     "icalendar>=6.0.0",
+    "torch>=2.8.0",
     # Audio processing
     "websockets>=16.0",
     "opuslib>=3.0.1",
@@ -48,6 +49,7 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http>=1.39.0",
     "openinference-instrumentation-openai>=0.1.41",
     "pandas>=3.0.1",
+
 ]
 
 [dependency-groups]
@@ -96,3 +98,12 @@ max-public-methods = 20
 [tool.uv]
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 extra-index-url = ["https://pypi.org/simple"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+# 告诉 uv，torch 相关的包去 pytorch-cpu 这个索引找
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
