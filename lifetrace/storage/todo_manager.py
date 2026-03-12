@@ -12,6 +12,7 @@ from lifetrace.storage.models import Tag, Todo, TodoAttachmentRelation, TodoTagR
 from lifetrace.storage.sql_utils import col
 from lifetrace.storage.todo_manager_attachments import TodoAttachmentMixin
 from lifetrace.storage.todo_manager_ical import TodoIcalMixin
+from lifetrace.storage.todo_manager_ical_update import TodoIcalUpdateMixin
 from lifetrace.util.logging_config import get_logger
 from lifetrace.util.time_utils import get_utc_now
 
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 _MISSING_PARENT = object()
 
 
-class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
+class TodoManager(TodoAttachmentMixin, TodoIcalMixin, TodoIcalUpdateMixin):
     """Todo 管理类"""
 
     def __init__(self, db_base: DatabaseBase):

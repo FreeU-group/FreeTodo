@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from lifetrace.llm.agno_tools.base import get_message
 from lifetrace.util.logging_config import get_logger
-from lifetrace.util.time_utils import get_utc_now, to_utc
+from lifetrace.util.time_utils import get_local_now, to_utc
 
 logger = get_logger()
 
@@ -199,7 +199,8 @@ class TimeTools:
             Parsed ISO format datetime or error message
         """
         try:
-            now = get_utc_now()
+            # Relative dates should be based on user's local day, then converted to UTC.
+            now = get_local_now()
             expr = time_expression.lower()
             time_already_set = False
 
@@ -219,6 +220,7 @@ class TimeTools:
                 result = _extract_time_of_day(time_expression, expr, result)
 
             if result:
+                result = to_utc(result)
                 return self._msg("parse_time_success", result=result.isoformat())
 
             return self._msg(

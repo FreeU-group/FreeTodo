@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from lifetrace.util.time_utils import to_utc
+
 _VALID_PRIORITIES = {"high", "medium", "low", "none"}
 _VALID_STATUSES = {"active", "completed", "canceled", "draft"}
 _VALID_ITEM_TYPES = {"VTODO", "VEVENT"}
@@ -22,13 +24,14 @@ def parse_datetime(value: Any) -> datetime | None:
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value
+        return to_utc(value)
     if isinstance(value, str):
         text = value.strip()
         if not text:
             return None
         with contextlib.suppress(ValueError):
-            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            return to_utc(parsed)
     return None
 
 
