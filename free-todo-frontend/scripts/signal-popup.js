@@ -75,7 +75,6 @@ function buildLinksHtml(links) {
 function getPanelHtml(data) {
 	const title = escapeHtml(data.title || "通知");
 	const subtitle = escapeHtml(data.subtitle || "");
-	const badge = escapeHtml(data.badge || "Signal");
 	const linksHtml = buildLinksHtml(data.links);
 
 	return `<!DOCTYPE html>
@@ -136,26 +135,6 @@ function getPanelHtml(data) {
 		display:block;
 	}
 	.info{flex:1;min-width:0}
-	.label{
-		font-size:9px;
-		font-weight:600;
-		color:#a5b4fc;
-		text-transform:uppercase;
-		letter-spacing:.05em;
-		display:flex;
-		align-items:center;
-		gap:4px;
-	}
-	.dot{
-		width:4px;height:4px;
-		border-radius:50%;
-		background:#818cf8;
-		animation:blink 1.4s ease-in-out infinite;
-	}
-	@keyframes blink{
-		0%,100%{opacity:1}
-		50%{opacity:.2}
-	}
 	.title{
 		font-size:13px;
 		font-weight:700;
@@ -251,7 +230,6 @@ function getPanelHtml(data) {
 				<img src="${avatarBase64}" alt="" />
 			</div>
 			<div class="info">
-				<div class="label"><span class="dot"></span>${badge}</div>
 				<div class="title">${title}</div>
 				${subtitle ? `<div class="subtitle">${subtitle}</div>` : ""}
 			</div>
