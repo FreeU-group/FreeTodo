@@ -4,8 +4,9 @@ exclude_dirs:
   - dist
   - build
   - migrations/versions
-  - lifetrace/data
-  - lifetrace/migrations/versions
-  - lifetrace/build
-  - lifetrace/dist
+  - server/.venv
+  - server/data
+  - server/migrations/versions
+  - server/build
+  - server/dist
 skips: []

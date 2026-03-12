@@ -1,0 +1,296 @@
+# LifeTrace 默认配置文件
+
+# ！！！重要提示：
+# 请勿编辑此文件 default_config.yaml，所有配置都应在 config.yaml 中进行设置
+# 如果 config.yaml 不存在，系统会自动从 default_config.yaml 复制并生成
+# 如果 config.yaml 存在，系统会自动验证完整性，如果不完整，系统会自动提示并退出
+# 当此提示出现在 config.yaml 中时，请忽略
+
+# 部署角色配置
+deployment:
+  role: standalone # standalone（单机） | center（中心节点，接受远程感知数据）
+
+# 服务器配置
+server:
+  host: 127.0.0.1
+  port: 8001
+  debug: false
+
+# 后端模块启用配置（轻量插件化）
+backend_modules:
+  enabled:
+    - health
+    - config
+    - system
+    - logs
+    - chat
+    - agent_plan
+    - activity
+    - search
+    - screenshot
+    - event
+    - ocr
+    - vector
+    - rag
+    - scheduler
+    - automation
+    - cost_tracking
+    - time_allocation
+    - todo
+    - todo_extraction
+    - journal
+    - vision
+    - notification
+    - floating_capture
+    - crawler
+    - audio
+    - perception
+    - perception_ingest
+    - sensor_control
+    - plugin
+    - memory
+    - omi_compat
+    - location
+
+# Omi App / 硬件兼容层配置
+omi_compat:
+  token: "lifetrace-omi-compat-2026"
+  uid: "lifetrace-user"
+
+# 远程感知节点 (Sensor) 配置
+sensor:
+  screenshot_enabled: true
+  screenshot_interval: 10.0
+  proactive_ocr_enabled: true
+  proactive_ocr_interval: 1.0
+
+# 感知流（Perception Stream）配置
+perception:
+  enabled: true
+  window_seconds: 300
+  max_pending_events: 1000
+  status_online_window_seconds: 60
+  audio_enabled: true
+  audio_source: mic_pc
+  ocr_enabled: true
+  input_enabled: true
+  todo_intent:
+    enabled: true
+    mode: memory_preview # memory_preview | draft | active | review_queue
+    disable_legacy_auto_extraction: true # 启用后跳过旧自动提取链路（audio/proactive_ocr/todo_recorder）
+    window_seconds: 20
+    max_context_chars: 5000
+    max_todos_per_context: 5
+    internal_queue_maxsize: 200
+    processing_workers: 2
+    processing_queue_maxsize: 200
+    max_recent_records: 200
+    pre_gate_dedupe:
+      enabled: true
+      exact_window_seconds: 90
+      similarity_enabled: false
+      similarity_threshold: 0.92
+      max_cache_size: 5000
+    gate:
+      enabled: true
+      model: "" # 空则回退 llm.model
+      temperature: 0.0
+      max_tokens: 160
+      min_text_length: 8
+      prompt_category: transcription_extraction_gate
+    extractor:
+      model: "" # 空则回退 llm.todo_extraction_model 或 llm.model
+      temperature: 0.2
+      max_tokens: 800
+      prompt_category: perception_todo_intent_extraction
+    integration:
+      post_extract_dedupe_window_seconds: 600
+      create_confidence_threshold: 0.7
+      update_confidence_threshold: 0.75
+
+# 基础目录配置
+base_dir: data
+database_path: lifetrace.db
+screenshots_dir: screenshots/
+attachments_dir: attachments/
+
+# 日志配置
+logging:
+  level: INFO
+  console_level: INFO
+  file_level: INFO
+  quiet_modules: [] # 示例: ["activity_service", "event_service"]
+  log_path: logs/
+
+# 调度器配置
+scheduler:
+  enabled: true # 启用调度器
+  database_path: scheduler.db # 调度器数据库路径
+  max_workers: 10 # 最大工作线程数
+  coalesce: true # 合并错过的任务
+  max_instances: 1 # 同一任务同时只能有一个实例
+  misfire_grace_time: 60 # 错过触发时间的容忍度（秒）
+  timezone: Asia/Shanghai # 时区
+
+# 定时任务
+jobs:
+  audio_recording:
+    id: audio_recording # 任务ID
+    name: 音频录制 # 任务显示名称（中文）
+    enabled: false # 是否启用音频录制（默认关闭，7x24小时录制）
+    interval: 60 # 状态检查间隔（秒），用于监控录音状态
+    params:
+      segment_duration_minutes: 30 # 分段时长（分钟）
+      silence_threshold_seconds: 600 # 静音检测阈值（秒）
+  activity_aggregator:
+    id: activity_aggregator # 任务ID
+    name: 活动聚合 # 任务显示名称（中文）
+    enabled: false # 是否启用活动聚合任务（默认关闭，需用户手动开启）
+    interval: 900 # 检查间隔（秒），默认15分钟
+  clean_data:
+    id: clean_data # 任务ID
+    name: 截图清理 # 任务显示名称（中文）
+    enabled: false # 是否启用截图清理任务（默认关闭，需要时手动开启）
+    interval: 3600 # 检查间隔（秒），默认每小时检查一次
+    params:
+      max_screenshots: 10000 # 最大截图数量限制
+      max_days: 30 # 数据保留天数（按日期清理旧数据）
+      delete_file_only: true # 只删除文件（true），还是同时删除记录（false）
+  deadline_reminder:
+    id: deadline_reminder # 任务ID
+    name: DDL提醒 # 任务显示名称（中文）
+    enabled: false # 是否启用 DDL 提醒任务（默认关闭，需用户手动开启）
+    params:
+      reminder_window_minutes: 5 # 兼容保留字段，不再作为待办默认提醒
+
+# 向量数据库配置
+vector_db:
+  enabled: true # 启用向量数据库
+  collection_name: lifetrace_ocr # 集合名称
+  embedding_model: shibing624/text2vec-base-chinese # 嵌入模型
+  rerank_model: BAAI/bge-reranker-base # 重排序模型
+  persist_directory: vector_db # 持久化目录
+
+# 聊天配置
+chat:
+  enable_history: true # 开启后发送消息时附带历史上下文
+  history_limit: 10 # 历史记录轮数限制（1轮=1个用户消息+1个助手回复）
+
+# Agno Learning 配置
+agno:
+  user_id: local-user # 默认用户 ID（用于个人画像/记忆）
+  default_workspace: "" # 默认工作区路径（Agent 文件操作的根目录，留空则使用用户主目录）
+  learning:
+    enabled: true # 是否启用 Agno Learning
+    mode: always # always | agentic
+    db_path: agno/learning.db # 相对 base_dir 的学习数据库路径
+    add_history_to_context: false # 是否使用 Agno 自带历史注入
+  agent_os:
+    enabled: true # 是否启用 AgentOS 入口
+    host: 127.0.0.1 # AgentOS 监听地址
+    port: 8002 # AgentOS 监听端口
+    debug: false # AgentOS 调试模式（独立于 server.debug）
+    base_url: "" # 可选：直接指定 AgentOS 访问地址（优先级最高）
+    agent_id: lifetrace-agent # AgentOS 中的 Agent ID
+    agent_name: Lifetrace Agent # AgentOS 中的 Agent 名称
+    lang: en # AgentOS 默认语言
+    timeout_sec: 60 # AgentOS 调用超时（秒）
+    selected_tools: [] # 空表示启用全部 Lifetrace 工具（AgentOS 启动时）
+    external_tools: [] # 空表示启用全部外部工具（AgentOS 启动时）
+    external_tools_config: {} # 预留外部工具配置
+
+# LLM配置
+llm:
+  api_key: YOUR_LLM_KEY_HERE # LLM 密钥，需要用户配置
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1 # LLM API基础URL
+  model: qwen-plus # 使用的模型名称
+  vision_model: qwen3-vl-plus # 视觉多模态模型名称（用于图片分析）
+  todo_extraction_model: "" # 待办提取专用模型（留空则使用主模型，推荐 qwen-turbo 等快速模型）
+  temperature: 0.7 # 温度参数
+  max_tokens: 2048 # 最大token数
+  # 模型价格配置（单位：人民币/千token）
+  model_prices:
+    default: # 默认价格，用于未配置的模型（qwen-plus）
+      input_price: 0.0008 # 输入token价格
+      output_price: 0.002 # 输出token价格
+    qwen3-max:
+      input_price: 0.0032
+      output_price: 0.0128
+    qwen-plus:
+      input_price: 0.0008
+      output_price: 0.002
+    qwen-turbo:
+      input_price: 0.0003
+      output_price: 0.0006
+    qwen3-vl-plus: # 视觉模型价格（支持非思考/思考模式，按输入token分层计价）
+      # 兼容旧逻辑的基础单价（默认取第一档）
+      input_price: 0.001 # 输入token价格（元/千token）
+      output_price: 0.01 # 输出token价格（元/千token）
+      tiers:
+        # (0, 32,000]
+        - max_input_tokens: 32000
+          input_price: 0.001
+          output_price: 0.01
+        # (32,000, 128,000]
+        - max_input_tokens: 128000
+          input_price: 0.0015
+          output_price: 0.015
+        # (128,000, 256,000]
+        - max_input_tokens: 256000
+          input_price: 0.003
+          output_price: 0.03
+
+# Tavily 配置（联网搜索）
+tavily:
+  api_key: YOUR_TAVILY_API_KEY_HERE # Tavily API Key，需要用户配置
+  search_depth: basic # 搜索深度：basic 或 advanced
+  max_results: 5 # 最大返回结果数
+  include_domains: [] # 包含的域名列表（可选）
+  exclude_domains: [] # 排除的域名列表（可选）
+
+# 音频识别配置（阿里云Fun-ASR）
+audio:
+  is_24x7: false # 7x24小时录制模式（自动启动录音，默认关闭）
+  extraction_gate:
+    enabled: true # 是否启用"先用 LLM 判断再提取"的 gate
+    model: "" # gate 使用模型；留空则使用 llm.model
+    min_text_length: 5 # gate 最小文本长度（字符）；低于该值直接跳过提取
+    max_chars: 2500 # gate 单次调用输入最大字符数（过长自动分块）
+    max_seconds: 300 # gate/提取分块最大时长（秒），0=不按时长分块
+    max_tokens: 160 # gate 输出最大 token
+    temperature: 0.0 # gate 温度（建议 0）
+  asr:
+    api_key: YOUR_LLM_KEY_HERE # 阿里云百炼API Key
+    base_url: wss://dashscope.aliyuncs.com/api-ws/v1/inference/ # WebSocket地址
+    model: fun-asr-realtime # 使用的模型名称
+    sample_rate: 16000 # 采样率（Hz）
+    format: pcm # 音频格式：pcm, wav, mp3, opus, speex, aac, amr
+    semantic_punctuation_enabled: false # 是否开启语义断句
+    max_sentence_silence: 1300 # VAD静音时长阈值（毫秒）
+    heartbeat: false # 是否开启长连接保持
+  storage:
+    audio_dir: audio/ # 音频文件存储目录
+    temp_audio_dir: temp_audio/ # 临时音频文件目录
+
+# 可观测性配置（Phoenix + OpenInference）
+observability:
+  enabled: true # 是否启用观测功能（默认关闭，需用户手动开启）
+  mode: local # 导出模式：local（本地JSON文件）| phoenix（Phoenix UI）| both（两者都启用）
+  local:
+    traces_dir: traces/ # trace 文件存储目录（相对于 base_dir）
+    max_files: 100 # 最大保留文件数（超出后自动清理旧文件）
+    pretty_print: true # JSON 是否格式化输出（便于人类阅读）
+  phoenix:
+    endpoint: http://localhost:6006 # Phoenix 服务端点（需先启动 phoenix serve）
+    project_name: lifetrace-agent # 项目名称（用于 Phoenix UI 中分组）
+    export_timeout_sec: 2.0 # 导出超时（秒），避免 Phoenix 不可用时阻塞
+    disable_after_failures: 1 # 连续失败达到阈值后自动禁用 Phoenix 导出
+    retry_cooldown_sec: 60 # 触发禁用后多久尝试恢复（秒，0 表示不自动重试）
+  terminal:
+    summary_only: true # Terminal 是否只输出一行摘要（推荐 true，保持日志精简）
+
+# 插件配置（可选功能模块的按需下载与管理）
+plugins:
+  media_crawler:
+    download_url: "" # 自定义下载 URL（留空则使用默认 GitHub Release 地址）
+    auto_setup_venv: true # 安装后是否自动创建虚拟环境并安装依赖

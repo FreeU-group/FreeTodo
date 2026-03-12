@@ -1,0 +1,45 @@
+[project]
+name = "freetodo-client"
+version = "0.1.0"
+description = "FreeTodo Sensor Client — lightweight perception daemon for screen/OCR capture"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "httpx",
+    "numpy>=2.4.2",
+    "mss>=9.0.0",
+    "opencv-python>=4.8.0",
+    "rapidocr-onnxruntime",
+    "psutil>=7.2.0",
+    "Pillow>=10.0.0",
+    "pydantic>=2.0.0",
+    "loguru>=0.7.3",
+    "dynaconf[yaml]>=3.2.0",
+    "pyyaml>=6.0",
+    # macOS
+    "pyobjc-framework-Cocoa>=12.1; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz>=12.1; sys_platform == 'darwin'",
+    # Windows
+    "pywin32>=306; sys_platform == 'win32'",
+    "winocr>=0.0.15; sys_platform == 'win32'",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.14",
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.23",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".git", ".venv", "__pycache__", "build", "dist", "*.egg-info"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "SIM", "UP", "PL", "C90", "A", "ARG", "N", "TC", "FA", "ISC", "FLY", "DTZ", "RUF"]
+ignore = ["E501", "B008", "RUF001", "RUF002", "RUF003"]
+
+[tool.uv]
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+extra-index-url = ["https://pypi.org/simple"]

@@ -3,7 +3,7 @@
   "pythonVersion": "3.12",
   "venvPath": ".",
   "venv": ".venv",
-  "include": ["lifetrace", "scripts"],
+  "include": ["server", "scripts"],
   "exclude": [
     "**/__pycache__",
     ".venv",
@@ -12,11 +12,9 @@
     "build/**",
     "dist",
     "dist/**",
-    "lifetrace/dist",
-    "lifetrace/dist/**",
-    "lifetrace/data",
-    "lifetrace/data/**",
-    "lifetrace/migrations/versions"
+    "server/data",
+    "server/data/**",
+    "server/migrations/versions"
   ],
   "reportMissingTypeStubs": "none"
 }

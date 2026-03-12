@@ -41,6 +41,7 @@ Thumbs.db
 # LifeTrace specific
 lifetrace/data/
 lifetrace/config/config.yaml
+server/config/config.yaml
 
 # Legacy submodules (not used)
 MediaCrawlerPro-Downloader/
@@ -115,3 +116,4 @@ MediaCrawlerPro-SignSrv/logs/
 
 deploy/volume/
 .env
+server/data
