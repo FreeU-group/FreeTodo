@@ -1,9 +1,11 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useRef } from "react";
 import { InputBox } from "@/apps/chat/components/input/InputBox";
 import { LinkedCrawlerContent } from "@/apps/chat/components/input/LinkedCrawlerContent";
 import { LinkedTodos } from "@/apps/chat/components/input/LinkedTodos";
+import { ToolSelector } from "@/apps/chat/components/input/ToolSelector";
 import type { CrawlResultItem } from "@/apps/crawler/types";
 import type { Todo } from "@/lib/types";
 
@@ -49,6 +51,7 @@ export function ChatInputSection({
 	onClearCrawlerSelection,
 }: ChatInputSectionProps) {
 	const tPage = useTranslations("page");
+	const modeMenuRef = useRef<HTMLDivElement | null>(null);
 	const inputPlaceholder = tPage("chatInputPlaceholder");
 
 	return (
@@ -70,6 +73,11 @@ export function ChatInputSection({
 							onToggleTodo={onToggleTodo}
 						/>
 					</>
+				}
+				modeSwitcher={
+					<div className="flex items-center gap-2" ref={modeMenuRef}>
+						<ToolSelector disabled={isStreaming} />
+					</div>
 				}
 				inputValue={inputValue}
 				placeholder={inputPlaceholder}

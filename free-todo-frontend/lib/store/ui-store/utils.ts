@@ -59,12 +59,26 @@ export const DEFAULT_PANEL_STATE = {
 	},
 	autoClosedPanels: [] as PanelPosition[],
 	dockDisplayMode: "fixed" as DockDisplayMode,
-	// 是否显示 Agno 模式的工具选择器（默认关闭）
-	showAgnoToolSelector: false,
-	// Agno 模式下选中的 FreeTodo 工具列表（默认空数组）
-	selectedAgnoTools: [] as string[],
-	// Agno 模式下选中的外部工具列表（默认空数组）
-	selectedExternalTools: [] as string[],
+	// 是否显示 Agno 模式的工具选择器（默认开启）
+	showAgnoToolSelector: true,
+	// Agno 模式下选中的 FreeTodo 工具列表（默认只选中 todo 管理类工具）
+	selectedAgnoTools: [
+		"create_todo",
+		"complete_todo",
+		"update_todo",
+		"list_todos",
+		"search_todos",
+		"delete_todo",
+	] as string[],
+	// Agno 模式下选中的外部工具列表（默认全部选中）
+	selectedExternalTools: [
+		"websearch",
+		"hackernews",
+		"file",
+		"local_fs",
+		"shell",
+		"sleep",
+	] as string[],
 	customLayouts: [],
 	// 通知弹窗设置
 	notificationPopupEnabled: true,

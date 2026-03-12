@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import type { KeyboardEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSendMessage } from "@/apps/chat/hooks/useSendMessage";
 import { useSessionCache } from "@/apps/chat/hooks/useSessionCache";
 import { useSessionManager } from "@/apps/chat/hooks/useSessionManager";
@@ -56,6 +56,18 @@ export const useChatController = ({
 	const selectedExternalTools = useUiStore(
 		(state) => state.selectedExternalTools,
 	);
+
+	// 调试：打印选中的工具
+	useEffect(() => {
+		console.log(
+			"[useChatController] Current selectedAgnoTools:",
+			selectedAgnoTools,
+		);
+		console.log(
+			"[useChatController] Current selectedExternalTools:",
+			selectedExternalTools,
+		);
+	}, [selectedAgnoTools, selectedExternalTools]);
 
 	// ==================== TanStack Query ====================
 

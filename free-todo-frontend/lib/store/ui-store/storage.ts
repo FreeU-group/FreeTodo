@@ -12,6 +12,7 @@ type PersistedState = Partial<UiStoreState> & {
 
 const VALID_POSITIONS: PanelPosition[] = ["panelA", "panelB", "panelC"];
 const VALID_DOCK_MODES: DockDisplayMode[] = ["fixed", "auto-hide"];
+const VALID_EXTERNAL_TOOL_IDS = new Set(DEFAULT_PANEL_STATE.selectedExternalTools);
 
 export const createUiStoreStorage = () =>
 	createJSONStorage<UiStoreState>(() => {
@@ -126,17 +127,34 @@ export const createUiStoreStorage = () =>
 							DEFAULT_PANEL_STATE.showAgnoToolSelector;
 					}
 
-					// 统一禁用 Agno 工具选择，强制使用默认空列表
-					state.selectedAgnoTools = DEFAULT_PANEL_STATE.selectedAgnoTools;
-					state.selectedExternalTools =
-						DEFAULT_PANEL_STATE.selectedExternalTools;
+					// 校验 selectedAgnoTools（默认空数组）
+					if (!Array.isArray(state.selectedAgnoTools)) {
+						state.selectedAgnoTools = DEFAULT_PANEL_STATE.selectedAgnoTools;
+					} else {
+						// 确保数组中的元素都是字符串
+						state.selectedAgnoTools = state.selectedAgnoTools.filter(
+							(tool: unknown): tool is string => typeof tool === "string",
+						);
+					}
+
+					// 校验 selectedExternalTools（默认空数组）
+					if (!Array.isArray(state.selectedExternalTools)) {
+						state.selectedExternalTools =
+							DEFAULT_PANEL_STATE.selectedExternalTools;
+					} else {
+						// 确保数组中的元素都是字符串
+						state.selectedExternalTools = state.selectedExternalTools.filter(
+							(tool: unknown): tool is string =>
+								typeof tool === "string" && VALID_EXTERNAL_TOOL_IDS.has(tool),
+						);
+					}
 
 					// 校验通知弹窗设置
-					if (typeof state.notificationPopupEnabled !== "boolean") {
-						state.notificationPopupEnabled =
-							DEFAULT_PANEL_STATE.notificationPopupEnabled;
-					}
-					// 校验 customLayouts（默认空数组）
+				if (typeof state.notificationPopupEnabled !== "boolean") {
+					state.notificationPopupEnabled =
+						DEFAULT_PANEL_STATE.notificationPopupEnabled;
+				}
+				// 校验 customLayouts（默认空数组）
 					if (Array.isArray(state.customLayouts)) {
 						const seenNames = new Set<string>();
 						state.customLayouts = state.customLayouts
