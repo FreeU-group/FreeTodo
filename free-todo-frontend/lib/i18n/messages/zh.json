@@ -1058,7 +1058,7 @@
 		"refresh": "刷新",
 		"prevDay": "前一天",
 		"nextDay": "后一天",
-		"today": "今天",
+		"today": "回到今天",
 		"loadError": "加载事件流失败，请检查后端服务。",
 		"retry": "重试",
 		"empty": "{date} 暂无事件记录",
