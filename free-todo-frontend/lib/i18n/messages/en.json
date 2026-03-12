@@ -279,6 +279,7 @@
 				"userPwdPlaceholder": "Enter password",
 				"save": "Save",
 				"saving": "Saving...",
+				"loadFailed": "Failed to load config",
 				"saveSuccess": "KDL proxy config saved",
 				"saveFailed": "Failed to save, please retry"
 			}

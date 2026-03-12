@@ -33,15 +33,17 @@ export function KdlConfigSection({ loading = false }: KdlConfigSectionProps) {
 		setIsLoading(true);
 		try {
 			const response = await fetch(PROXY_CONFIG_API);
-			if (response.ok) {
-				const data = await response.json();
-				setKdlSecertId(data.kdl_secert_id || "");
-				setKdlSignature(data.kdl_signature || "");
-				setKdlUserName(data.kdl_user_name || "");
-				setKdlUserPwd(data.kdl_user_pwd || "");
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
 			}
+			const data = await response.json();
+			setKdlSecertId(data.kdl_secert_id || "");
+			setKdlSignature(data.kdl_signature || "");
+			setKdlUserName(data.kdl_user_name || "");
+			setKdlUserPwd(data.kdl_user_pwd || "");
 		} catch (error) {
 			console.error("[KdlConfig] 加载配置失败:", error);
+			setMessage({ type: "error", text: t("loadFailed") });
 		} finally {
 			setIsLoading(false);
 		}

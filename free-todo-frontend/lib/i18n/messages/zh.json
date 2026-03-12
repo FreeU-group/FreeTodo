@@ -266,6 +266,7 @@
 				"userPwdPlaceholder": "输入密码",
 				"save": "保存",
 				"saving": "保存中...",
+				"loadFailed": "加载配置失败",
 				"saveSuccess": "快代理配置已保存",
 				"saveFailed": "保存失败，请重试"
 			},

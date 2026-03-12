@@ -22,10 +22,13 @@ const BUILD_TYPE = process.env.NODE_ENV === "production" ? "build" : "dev";
 // Client-side streaming (NEXT_PUBLIC_*) vs server-side rewrite (API_REWRITE_URL)
 // NEXT_PUBLIC_API_URL is baked into client JS and used by getStreamApiBaseUrl().
 // API_REWRITE_URL is server-only and used for Next.js rewrites (can be localhost).
-const CLIENT_API_URL =
-	process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
-const REWRITE_API_URL =
-	process.env.API_REWRITE_URL || CLIENT_API_URL;
+// Dev backend defaults to 8001; build backend defaults to 8100.
+const DEFAULT_BACKEND_URL =
+	process.env.NODE_ENV === "production"
+		? "http://127.0.0.1:8100"
+		: "http://127.0.0.1:8001";
+const CLIENT_API_URL = process.env.NEXT_PUBLIC_API_URL || DEFAULT_BACKEND_URL;
+const REWRITE_API_URL = process.env.API_REWRITE_URL || CLIENT_API_URL;
 const apiUrl = new URL(CLIENT_API_URL);
 
 const nextConfig: NextConfig = {

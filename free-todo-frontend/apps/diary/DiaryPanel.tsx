@@ -339,6 +339,7 @@ export function DiaryPanel() {
 		syncDraftFromJournal(saved);
 		setAutoLinkMessage(t("saveSuccess"));
 
+		const savedDate = parseJournalDate(saved.date);
 		const snapshot = {
 			title: saved.name ?? "",
 			content: saved.userNotes ?? "",
