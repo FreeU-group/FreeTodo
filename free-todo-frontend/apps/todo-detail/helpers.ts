@@ -1,11 +1,11 @@
-import dayjs from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-dayjs.extend(utc);
-dayjs.extend(timezone);
+import {
+	formatTodoDateOnly,
+	formatTodoDateTime,
+	formatTodoTimeOnly,
+	parseTodoDateTime,
+} from "@/lib/utils/todoTime";
 
 export const statusOptions: TodoStatus[] = [
 	"active",
@@ -70,27 +70,11 @@ export const getPriorityBorderColor = (priority: TodoPriority) => {
 	}
 };
 
-const resolveTimeZone = (timeZone?: string) =>
-	timeZone || dayjs.tz.guess();
+export const formatDateTime = (value?: string, timeZone?: string): string =>
+	formatTodoDateTime(value, timeZone, "YYYY-MM-DD HH:mm");
 
-const toZoned = (value?: string, timeZone?: string) => {
-	if (!value) return null;
-	const parsed = dayjs(value);
-	if (!parsed.isValid()) return null;
-	return parsed.tz(resolveTimeZone(timeZone));
-};
-
-export const formatDateTime = (value?: string, timeZone?: string): string => {
-	const zoned = toZoned(value, timeZone);
-	if (!zoned) return "";
-	return zoned.format("YYYY-MM-DD HH:mm");
-};
-
-export const formatDateOnly = (value?: string, timeZone?: string): string => {
-	const zoned = toZoned(value, timeZone);
-	if (!zoned) return "";
-	return zoned.format("YYYY-MM-DD");
-};
+export const formatDateOnly = (value?: string, timeZone?: string): string =>
+	formatTodoDateOnly(value, timeZone);
 
 export const formatScheduleSummary = ({
 	startTime,
@@ -104,9 +88,9 @@ export const formatScheduleSummary = ({
 	isAllDay?: boolean;
 }): string => {
 	const baseStart = startTime ?? endTime;
-	const startZoned = toZoned(baseStart, timeZone);
+	const startZoned = parseTodoDateTime(baseStart, timeZone);
 	if (!startZoned) return "";
-	const endZoned = endTime ? toZoned(endTime, timeZone) : null;
+	const endZoned = endTime ? parseTodoDateTime(endTime, timeZone) : null;
 
 	const startDate = startZoned.format("YYYY-MM-DD");
 	const endDate = endZoned?.format("YYYY-MM-DD");
@@ -118,10 +102,10 @@ export const formatScheduleSummary = ({
 		return startDate;
 	}
 
-	const startTimeLabel = startZoned.format("HH:mm");
+	const startTimeLabel = formatTodoTimeOnly(baseStart, timeZone);
 	if (!endZoned) return `${startDate} ${startTimeLabel}`;
 
-	const endTimeLabel = endZoned.format("HH:mm");
+	const endTimeLabel = formatTodoTimeOnly(endTime, timeZone);
 	if (endDate && endDate !== startDate) {
 		return `${startDate} ${startTimeLabel} - ${endDate} ${endTimeLabel}`;
 	}
