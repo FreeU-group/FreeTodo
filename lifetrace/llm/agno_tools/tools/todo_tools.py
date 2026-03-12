@@ -5,11 +5,18 @@ CRUD operations for todo items.
 
 from __future__ import annotations
 
-import contextlib
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from lifetrace.llm.agno_tools.base import get_message
+from lifetrace.llm.agno_tools.tools.todo_tool_helpers import (
+    CreateTodoPayload,
+    build_create_kwargs,
+)
+from lifetrace.llm.agno_tools.tools.todo_tool_update_helpers import (
+    UpdateTodoPayload,
+    build_update_kwargs,
+)
 from lifetrace.util.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -30,62 +37,137 @@ class TodoTools:
     def create_todo(  # noqa: PLR0913
         self,
         name: str,
+        summary: str | None = None,
         description: str | None = None,
-        start_time: str | None = None,
-        end_time: str | None = None,
+        user_notes: str | None = None,
+        parent_todo_id: int | str | None = None,
+        item_type: str | None = None,
+        location: str | None = None,
+        categories: str | None = None,
+        classification: str | None = None,
+        deadline: str | datetime | None = None,
+        start_time: str | datetime | None = None,
+        end_time: str | datetime | None = None,
+        dtstart: str | datetime | None = None,
+        dtend: str | datetime | None = None,
+        due: str | datetime | None = None,
+        duration: str | None = None,
         time_zone: str | None = None,
-        deadline: str | None = None,
+        tzid: str | None = None,
+        is_all_day: bool | str | int | None = None,
+        dtstamp: str | datetime | None = None,
+        created: str | datetime | None = None,
+        last_modified: str | datetime | None = None,
+        sequence: int | str | None = None,
+        rdate: str | None = None,
+        exdate: str | None = None,
+        recurrence_id: str | datetime | None = None,
+        related_to_uid: str | None = None,
+        related_to_reltype: str | None = None,
+        ical_status: str | None = None,
+        reminder_offsets: list[int] | str | None = None,
+        status: str | None = None,
         priority: str | None = None,
-        tags: str | None = None,
+        completed_at: str | datetime | None = None,
+        percent_complete: int | str | None = None,
+        rrule: str | None = None,
+        order: int | str | None = None,
+        tags: list[str] | str | None = None,
+        related_activities: list[int] | str | None = None,
+        uid: str | None = None,
     ) -> str:
         """Create a new todo item
 
         Args:
             name: Todo name/title (required)
+            summary: iCalendar SUMMARY (optional)
             description: Detailed description (optional)
-            start_time: Start time in ISO format like '2024-01-20T14:00:00' (optional)
-            end_time: End time in ISO format like '2024-01-20T16:00:00' (optional)
-            time_zone: IANA time zone like 'Asia/Shanghai' (optional)
-            deadline: Legacy alias of start_time in ISO format (optional)
-            priority: Priority level - 'high', 'medium', 'low', or 'none' (optional, default: 'none')
-            tags: Comma-separated tags like 'work,urgent' (optional)
+            user_notes: User notes (optional)
+            parent_todo_id: Parent todo ID (optional)
+            item_type: VTODO/VEVENT (optional)
+            location: iCalendar LOCATION (optional)
+            categories: iCalendar CATEGORIES (optional)
+            classification: iCalendar CLASS (optional)
+            deadline: Legacy alias of start_time/due in ISO format (optional)
+            start_time: Start time in ISO format (optional)
+            end_time: End time in ISO format (optional)
+            dtstart: iCalendar DTSTART (optional)
+            dtend: iCalendar DTEND (optional)
+            due: iCalendar DUE (optional)
+            duration: iCalendar DURATION (optional)
+            time_zone: IANA time zone (optional)
+            tzid: iCalendar TZID (optional)
+            is_all_day: All-day flag (optional)
+            dtstamp: iCalendar DTSTAMP (optional)
+            created: iCalendar CREATED (optional)
+            last_modified: iCalendar LAST-MODIFIED (optional)
+            sequence: iCalendar SEQUENCE (optional)
+            rdate: iCalendar RDATE (optional)
+            exdate: iCalendar EXDATE (optional)
+            recurrence_id: iCalendar RECURRENCE-ID (optional)
+            related_to_uid: iCalendar RELATED-TO UID (optional)
+            related_to_reltype: iCalendar RELATED-TO RELTYPE (optional)
+            ical_status: iCalendar STATUS (optional)
+            reminder_offsets: Reminder offsets in minutes (optional)
+            status: active/completed/canceled/draft (optional)
+            priority: high/medium/low/none (optional)
+            completed_at: Completed time (optional)
+            percent_complete: Completion percentage (0-100) (optional)
+            rrule: iCalendar RRULE (optional)
+            order: Display order (optional)
+            tags: Tag list or comma-separated string (optional)
+            related_activities: Related activity IDs (optional)
+            uid: iCalendar UID (optional)
 
         Returns:
             Success or failure message
         """
         try:
-            parsed_start_time = None
-            if start_time:
-                with contextlib.suppress(ValueError):
-                    parsed_start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-            elif deadline:
-                with contextlib.suppress(ValueError):
-                    parsed_start_time = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
-
-            parsed_end_time = None
-            if end_time:
-                with contextlib.suppress(ValueError):
-                    parsed_end_time = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-
-            # Parse tags
-            tag_list = None
-            if tags:
-                tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-
-            # Normalize priority (handle None and invalid values)
-            valid_priorities = ("high", "medium", "low", "none")
-            normalized_priority = priority if priority in valid_priorities else "none"
-
-            # Create todo
-            todo_id = self.todo_repo.create(
-                name=name,
-                description=description,
-                start_time=parsed_start_time,
-                end_time=parsed_end_time,
-                time_zone=time_zone,
-                priority=normalized_priority,
-                tags=tag_list,
+            todo_kwargs = build_create_kwargs(
+                CreateTodoPayload(
+                    name=name,
+                    summary=summary,
+                    description=description,
+                    user_notes=user_notes,
+                    parent_todo_id=parent_todo_id,
+                    item_type=item_type,
+                    location=location,
+                    categories=categories,
+                    classification=classification,
+                    deadline=deadline,
+                    start_time=start_time,
+                    end_time=end_time,
+                    dtstart=dtstart,
+                    dtend=dtend,
+                    due=due,
+                    duration=duration,
+                    time_zone=time_zone,
+                    tzid=tzid,
+                    is_all_day=is_all_day,
+                    dtstamp=dtstamp,
+                    created=created,
+                    last_modified=last_modified,
+                    sequence=sequence,
+                    rdate=rdate,
+                    exdate=exdate,
+                    recurrence_id=recurrence_id,
+                    related_to_uid=related_to_uid,
+                    related_to_reltype=related_to_reltype,
+                    ical_status=ical_status,
+                    reminder_offsets=reminder_offsets,
+                    status=status,
+                    priority=priority,
+                    completed_at=completed_at,
+                    percent_complete=percent_complete,
+                    rrule=rrule,
+                    order=order,
+                    tags=tags,
+                    related_activities=related_activities,
+                    uid=uid,
+                )
             )
+
+            todo_id = self.todo_repo.create(**todo_kwargs)
 
             if todo_id:
                 return self._msg("create_success", id=todo_id, name=name)
@@ -120,28 +202,90 @@ class TodoTools:
             logger.error(f"Failed to complete todo: {e}")
             return self._msg("complete_failed", error=str(e))
 
-    def update_todo(  # noqa: PLR0913, C901
+    def update_todo(  # noqa: PLR0913
         self,
         todo_id: int,
         name: str | None = None,
+        summary: str | None = None,
         description: str | None = None,
-        start_time: str | None = None,
-        end_time: str | None = None,
+        user_notes: str | None = None,
+        parent_todo_id: int | str | None = None,
+        item_type: str | None = None,
+        location: str | None = None,
+        categories: str | None = None,
+        classification: str | None = None,
+        deadline: str | datetime | None = None,
+        start_time: str | datetime | None = None,
+        end_time: str | datetime | None = None,
+        dtstart: str | datetime | None = None,
+        dtend: str | datetime | None = None,
+        due: str | datetime | None = None,
+        duration: str | None = None,
         time_zone: str | None = None,
-        deadline: str | None = None,
+        tzid: str | None = None,
+        is_all_day: bool | str | int | None = None,
+        dtstamp: str | datetime | None = None,
+        created: str | datetime | None = None,
+        last_modified: str | datetime | None = None,
+        sequence: int | str | None = None,
+        rdate: str | None = None,
+        exdate: str | None = None,
+        recurrence_id: str | datetime | None = None,
+        related_to_uid: str | None = None,
+        related_to_reltype: str | None = None,
+        ical_status: str | None = None,
+        reminder_offsets: list[int] | str | None = None,
+        status: str | None = None,
         priority: str | None = None,
+        completed_at: str | datetime | None = None,
+        percent_complete: int | str | None = None,
+        rrule: str | None = None,
+        order: int | str | None = None,
+        tags: list[str] | str | None = None,
+        related_activities: list[int] | str | None = None,
     ) -> str:
         """Update an existing todo
 
         Args:
             todo_id: The ID of the todo to update
             name: New name (optional)
+            summary: iCalendar SUMMARY (optional)
             description: New description (optional)
+            user_notes: User notes (optional)
+            parent_todo_id: Parent todo ID (optional, explicit null clears)
+            item_type: VTODO/VEVENT (optional)
+            location: iCalendar LOCATION (optional)
+            categories: iCalendar CATEGORIES (optional)
+            classification: iCalendar CLASS (optional)
+            deadline: Legacy alias of start_time/due (optional)
             start_time: New start time in ISO format (optional)
             end_time: New end time in ISO format (optional)
-            time_zone: IANA time zone like 'Asia/Shanghai' (optional)
-            deadline: Legacy alias of start_time (optional)
-            priority: New priority - 'high', 'medium', 'low', or 'none' (optional)
+            dtstart: iCalendar DTSTART (optional)
+            dtend: iCalendar DTEND (optional)
+            due: iCalendar DUE (optional)
+            duration: iCalendar DURATION (optional)
+            time_zone: IANA time zone (optional)
+            tzid: iCalendar TZID (optional)
+            is_all_day: All-day flag (optional)
+            dtstamp: iCalendar DTSTAMP (optional)
+            created: iCalendar CREATED (optional)
+            last_modified: iCalendar LAST-MODIFIED (optional)
+            sequence: iCalendar SEQUENCE (optional)
+            rdate: iCalendar RDATE (optional)
+            exdate: iCalendar EXDATE (optional)
+            recurrence_id: iCalendar RECURRENCE-ID (optional)
+            related_to_uid: iCalendar RELATED-TO UID (optional)
+            related_to_reltype: iCalendar RELATED-TO RELTYPE (optional)
+            ical_status: iCalendar STATUS (optional)
+            reminder_offsets: Reminder offsets in minutes (optional)
+            status: active/completed/canceled/draft (optional)
+            priority: high/medium/low/none (optional)
+            completed_at: Completed time (optional)
+            percent_complete: Completion percentage (0-100) (optional)
+            rrule: iCalendar RRULE (optional)
+            order: Display order (optional)
+            tags: Tag list or comma-separated string (optional)
+            related_activities: Related activity IDs (optional)
 
         Returns:
             Success or failure message
@@ -151,30 +295,48 @@ class TodoTools:
             if not todo:
                 return self._msg("update_not_found", id=todo_id)
 
-            update_kwargs: dict[str, Any] = {}
-            if name is not None:
-                update_kwargs["name"] = name
-            if description is not None:
-                update_kwargs["description"] = description
-            if start_time is not None:
-                with contextlib.suppress(ValueError):
-                    update_kwargs["start_time"] = datetime.fromisoformat(
-                        start_time.replace("Z", "+00:00")
-                    )
-            elif deadline is not None:
-                with contextlib.suppress(ValueError):
-                    update_kwargs["start_time"] = datetime.fromisoformat(
-                        deadline.replace("Z", "+00:00")
-                    )
-            if end_time is not None:
-                with contextlib.suppress(ValueError):
-                    update_kwargs["end_time"] = datetime.fromisoformat(
-                        end_time.replace("Z", "+00:00")
-                    )
-            if time_zone is not None:
-                update_kwargs["time_zone"] = time_zone
-            if priority is not None and priority in ("high", "medium", "low", "none"):
-                update_kwargs["priority"] = priority
+            update_kwargs = build_update_kwargs(
+                UpdateTodoPayload(
+                    name=name,
+                    summary=summary,
+                    description=description,
+                    user_notes=user_notes,
+                    parent_todo_id=parent_todo_id,
+                    item_type=item_type,
+                    location=location,
+                    categories=categories,
+                    classification=classification,
+                    deadline=deadline,
+                    start_time=start_time,
+                    end_time=end_time,
+                    dtstart=dtstart,
+                    dtend=dtend,
+                    due=due,
+                    duration=duration,
+                    time_zone=time_zone,
+                    tzid=tzid,
+                    is_all_day=is_all_day,
+                    dtstamp=dtstamp,
+                    created=created,
+                    last_modified=last_modified,
+                    sequence=sequence,
+                    rdate=rdate,
+                    exdate=exdate,
+                    recurrence_id=recurrence_id,
+                    related_to_uid=related_to_uid,
+                    related_to_reltype=related_to_reltype,
+                    ical_status=ical_status,
+                    reminder_offsets=reminder_offsets,
+                    status=status,
+                    priority=priority,
+                    completed_at=completed_at,
+                    percent_complete=percent_complete,
+                    rrule=rrule,
+                    order=order,
+                    tags=tags,
+                    related_activities=related_activities,
+                )
+            )
 
             if not update_kwargs:
                 return self._msg("update_success", id=todo_id)
