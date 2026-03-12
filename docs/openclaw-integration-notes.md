@@ -93,6 +93,17 @@ Date: 2026-03-11
   - todo_get(id) -> GET /api/todos/{id}
   - todo_create(name, **optional fields) -> POST /api/todos
   - todo_update(id, **partial fields) -> PUT /api/todos/{id}
+2026-03-12
+- OpenClaw Memory tools (names + params):
+  - memory_today() -> GET /api/memory/today
+  - memory_get_date(date) -> GET /api/memory/date/{date}
+  - memory_search(keyword, days=7, max_results=10) -> GET /api/memory/search
+  - memory_profile_get() -> GET /api/memory/profile
+  - memory_profile_update() -> POST /api/memory/profile/update
+  - memory_profile_consolidate() -> POST /api/memory/profile/consolidate
+  - memory_compress_day(date) -> POST /api/memory/compress/{date}
+  - memory_link_day(date) -> POST /api/memory/link/{date}
+  - memory_compress_and_link(date) -> POST /api/memory/compress-and-link/{date}
 2026-03-11
 - OpenClaw plugin implementation lives in `extensions/freetodo/`.
 2026-03-11
@@ -105,6 +116,8 @@ Date: 2026-03-11
 - Local plugin packaging requires `package.json` + `index.js` under `extensions/freetodo/`.
 2026-03-12
 - Plugin uses plain JSON schema to avoid node dependency installs.
+2026-03-12
+- OpenClaw tools expanded with Memory endpoints (profile, search, compress/link).
 2026-03-12
 - Next capability candidates documented (prioritized packs).
 2026-03-12
