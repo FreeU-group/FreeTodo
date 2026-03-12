@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from lifetrace.storage.models import Todo
-from lifetrace.storage.todo_manager_ical import TodoIcalMixin
+from storage.models import Todo
+from storage.todo_manager_ical import TodoIcalMixin
 
 
 class StubTodoManager(TodoIcalMixin):

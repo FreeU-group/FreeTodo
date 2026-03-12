@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 
 from icalendar import Calendar
 
-from lifetrace.schemas.todo import TodoItemType
-from lifetrace.services.icalendar_service import ICalendarService
+from schemas.todo import TodoItemType
+from services.icalendar_service import ICalendarService
 
 
 def test_export_vtodo_fallbacks_due_to_dtstart() -> None:

@@ -26,12 +26,16 @@ class LocationManager:
             session.add(record)
             session.commit()
             session.refresh(record)
+            session.expunge(record)
             return record
 
     def get_latest(self) -> LocationRecord | None:
         with self.db_base.get_session() as session:
             stmt = select(LocationRecord).order_by(col(LocationRecord.timestamp).desc()).limit(1)
-            return session.exec(stmt).first()
+            record = session.exec(stmt).first()
+            if record:
+                session.expunge(record)
+            return record
 
     def get_history(
         self,
@@ -47,7 +51,10 @@ class LocationManager:
             if end:
                 stmt = stmt.where(col(LocationRecord.timestamp) <= end)
             stmt = stmt.order_by(col(LocationRecord.timestamp).desc()).offset(offset).limit(limit)
-            return list(session.exec(stmt).all())
+            records = list(session.exec(stmt).all())
+            for r in records:
+                session.expunge(r)
+            return records
 
     def count(self, start: datetime | None = None, end: datetime | None = None) -> int:
         with self.db_base.get_session() as session:

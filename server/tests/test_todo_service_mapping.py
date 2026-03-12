@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 import pytest
 from fastapi import HTTPException
 
-from lifetrace.schemas.todo import TodoCreate, TodoUpdate
-from lifetrace.services.todo_service import TodoService
+from schemas.todo import TodoCreate, TodoUpdate
+from services.todo_service import TodoService
 
 
 class FakeTodoRepository:
