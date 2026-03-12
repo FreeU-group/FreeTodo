@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { PasswordInput } from "@/components/common/ui/PasswordInput";
 import { useSaveConfig } from "@/lib/query";
 import type { AppConfig } from "@/lib/query/config";
 import { toastError, toastSuccess } from "@/lib/toast";
@@ -106,10 +107,8 @@ export function DifyConfigSection({
 					>
 						{t("apiKey")}
 					</label>
-					<input
+					<PasswordInput
 						id="dify-api-key"
-						type="password"
-						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 						placeholder="Dify API Key"
 						value={apiKey}
 						onChange={(e) => setApiKey(e.target.value)}

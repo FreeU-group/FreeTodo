@@ -94,25 +94,27 @@ class PerceptionProvider extends ChangeNotifier {
         return;
       }
 
+      // Prompt user if system GPS is off, but still enable the reporter.
+      // The reporter retries each interval and will succeed once GPS is on.
       if (!await Geolocator.isLocationServiceEnabled()) {
         Logger.debug('[PerceptionProvider] Device location service is OFF');
         if (context != null && context.mounted) {
-          final shouldOpen = await showDialog<bool>(
+          unawaited(showDialog<bool>(
             context: context,
             builder: (ctx) => AlertDialog(
               title: const Text('请开启定位服务'),
-              content: const Text('手机的定位服务（GPS）未开启，请在系统设置中打开。'),
+              content: const Text('手机的定位服务（GPS）未开启，请在系统设置中打开。\n'
+                  '开启后 GPS 位置将自动开始上报。'),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-                TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('去开启')),
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('稍后开启')),
+                TextButton(onPressed: () {
+                  Navigator.pop(ctx, true);
+                  Geolocator.openLocationSettings();
+                }, child: const Text('去开启')),
               ],
             ),
-          );
-          if (shouldOpen == true) {
-            await Geolocator.openLocationSettings();
-          }
+          ));
         }
-        return;
       }
 
       _gpsEnabled = true;

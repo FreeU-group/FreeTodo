@@ -196,6 +196,11 @@ jobs:
     enabled: false # 是否启用 DDL 提醒任务（默认关闭，需用户手动开启）
     params:
       reminder_window_minutes: 5 # 兼容保留字段，不再作为待办默认提醒
+  diary_illustration:
+    id: diary_illustration # 任务ID
+    name: 日记插画生成 # 任务显示名称（中文）
+    enabled: false # 是否启用每日插画生成（默认关闭，需用户手动开启）
+    cron: "0 22 * * *" # 每天 22:00 触发（cron 表达式）
   proactive_ocr:
     id: proactive_ocr # 任务ID
     name: 主动OCR # 任务显示名称（中文）
@@ -342,6 +347,11 @@ observability:
     retry_cooldown_sec: 60 # 触发禁用后多久尝试恢复（秒，0 表示不自动重试）
   terminal:
     summary_only: true # Terminal 是否只输出一行摘要（推荐 true，保持日志精简）
+
+# Gemini 图像生成配置（日记插画，使用 gemini-3.1-flash-image-preview）
+banna2:
+  api_key: YOUR_GOOGLE_GEMINI_API_KEY_HERE # Google Gemini API Key（从 aistudio.google.com 获取）
+  ref_image_path: "" # 个人形象参考图路径（绝对路径，为空则纯文字生成）
 
 # 插件配置（可选功能模块的按需下载与管理）
 plugins:

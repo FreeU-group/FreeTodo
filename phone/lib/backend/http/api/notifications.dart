@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:freeu/backend/http/shared.dart';
 import 'package:freeu/env/env.dart';
@@ -109,6 +109,78 @@ Future<bool> deleteNotification(String notificationId) async {
     return json['success'] as bool? ?? false;
   } catch (e) {
     Logger.debug('Error deleting notification: $e');
+    return false;
+  }
+}
+
+/// Draft todo item returned by GET /api/todos?status=draft
+class DraftTodo {
+  final int id;
+  final String name;
+  final String? description;
+  final DateTime createdAt;
+
+  DraftTodo({required this.id, required this.name, this.description, required this.createdAt});
+
+  factory DraftTodo.fromJson(Map<String, dynamic> json) {
+    return DraftTodo(
+      id: json['id'] as int,
+      name: (json['name'] ?? '') as String,
+      description: json['description'] as String?,
+      createdAt: DateTime.parse(json['created_at'] as String),
+    );
+  }
+}
+
+/// 获取 draft 状态的待办（AI 自动识别、待用户确认）
+Future<List<DraftTodo>> getDraftTodos({int limit = 5}) async {
+  try {
+    final response = await makeApiCall(
+      url: '${Env.apiBaseUrl}api/todos?status=draft&limit=$limit&offset=0',
+      headers: {},
+      method: 'GET',
+      body: '',
+    );
+    if (response == null || response.statusCode != 200) return [];
+    final body = response.body;
+    if (body.trim().startsWith('<!DOCTYPE') || body.trim().startsWith('<html>')) return [];
+    final Map<String, dynamic> json = jsonDecode(body);
+    final List<dynamic> todos = json['todos'] ?? [];
+    return todos.map((j) => DraftTodo.fromJson(j as Map<String, dynamic>)).toList();
+  } catch (e) {
+    Logger.debug('Error getting draft todos: $e');
+    return [];
+  }
+}
+
+/// 接受 draft todo（将状态改为 active）
+Future<bool> acceptDraftTodo(int todoId) async {
+  try {
+    final response = await makeApiCall(
+      url: '${Env.apiBaseUrl}api/todos/$todoId',
+      headers: {},
+      method: 'PATCH',
+      body: jsonEncode({'status': 'active'}),
+    );
+    return response != null && response.statusCode == 200;
+  } catch (e) {
+    Logger.debug('Error accepting draft todo: $e');
+    return false;
+  }
+}
+
+/// 忽略/取消 draft todo
+Future<bool> dismissDraftTodo(int todoId) async {
+  try {
+    final response = await makeApiCall(
+      url: '${Env.apiBaseUrl}api/todos/$todoId',
+      headers: {},
+      method: 'PATCH',
+      body: jsonEncode({'status': 'canceled'}),
+    );
+    return response != null && response.statusCode == 200;
+  } catch (e) {
+    Logger.debug('Error dismissing draft todo: $e');
     return false;
   }
 }

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
@@ -180,6 +180,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
       // Stop keepalive when app goes to background
       if (mounted) {
         Provider.of<MessageProvider>(context, listen: false).stopVmKeepalive();
+        context.read<NotificationCenterProvider>().stopPolling();
       }
     } else if (state == AppLifecycleState.resumed) {
       event = 'App is resumed';
@@ -196,6 +197,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
         Provider.of<MessageProvider>(context, listen: false).startVmKeepalive();
       }
       if (mounted) {
+        context.read<NotificationCenterProvider>().startPolling();
         final selected = Provider.of<HomeProvider>(context, listen: false).selectedIndex;
         unawaited(_refreshTabData(selected, force: true));
       }
@@ -284,6 +286,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
       final selected = context.read<HomeProvider>().selectedIndex;
       unawaited(_refreshTabData(selected));
     });
+
+    // Start continuous polling for notifications & draft todos (like PC frontend)
+    context.read<NotificationCenterProvider>().startPolling();
     WidgetsBinding.instance.addObserver(this);
 
     // Pre-warm agent VM and WebSocket so session is ready by the time the user opens chat
@@ -468,7 +473,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver, Ticker
       if (!mounted) return;
       switch (index) {
         case 0:
-          await context.read<NotificationCenterProvider>().refresh(force: true);
+          // Notifications/draft todos are now self-polled by the provider.
           break;
         case 1:
           await context.read<MobileDataProvider>().refreshTasks();

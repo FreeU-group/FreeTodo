@@ -24,20 +24,22 @@ Future<bool> reportLocation({
   if (timestamp != null) body['timestamp'] = timestamp.toUtc().toIso8601String();
   body['source'] = 'mobile_gps';
 
+  final url = '${Env.apiBaseUrl}api/location/report';
+  Logger.debug('[LocationReporter] POST $url');
   var response = await makeApiCall(
-    url: '${Env.apiBaseUrl}api/location/report',
+    url: url,
     headers: {},
     method: 'POST',
     body: jsonEncode(body),
   );
   if (response == null) {
-    Logger.debug('[LocationReporter] report failed: no response');
+    Logger.debug('[LocationReporter] report failed: no response (URL: $url)');
     return false;
   }
   if (response.statusCode == 200) {
     Logger.debug('[LocationReporter] GPS fix reported successfully');
     return true;
   }
-  Logger.debug('[LocationReporter] report failed: ${response.statusCode} ${response.body}');
+  Logger.debug('[LocationReporter] report failed: HTTP ${response.statusCode} ${response.body} (URL: $url)');
   return false;
 }

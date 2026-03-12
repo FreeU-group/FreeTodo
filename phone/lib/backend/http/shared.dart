@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -79,6 +79,7 @@ Future<http.StreamedResponse> makeRawApiCall({
   required String url,
   required String method,
   Map<String, String> headers = const {},
+  String? body,
 }) async {
   final builtHeaders = await buildHeaders(
     requireAuthCheck: _isRequiredAuthCheck(url),
@@ -86,6 +87,10 @@ Future<http.StreamedResponse> makeRawApiCall({
   );
   var request = http.Request(method, Uri.parse(url));
   request.headers.addAll(builtHeaders);
+  if (body != null && body.isNotEmpty) {
+    request.headers['Content-Type'] = 'application/json';
+    request.body = body;
+  }
   return HttpPoolManager.instance.sendStreaming(request);
 }
 
