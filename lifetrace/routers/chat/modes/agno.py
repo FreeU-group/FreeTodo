@@ -241,10 +241,15 @@ def create_agno_streaming_response(
     user_id = _resolve_user_id(message.user_id, session_id)
     user_input_for_storage = message.get_user_input_for_storage()
 
+    user_metadata: dict[str, Any] = {}
+    if message.attachments:
+        user_metadata["attachments"] = message.attachments
+
     chat_service.add_message(
         session_id=session_id,
         role="user",
         content=user_input_for_storage,
+        metadata=json.dumps(user_metadata, ensure_ascii=False) if user_metadata else None,
     )
 
     dependencies = _build_agent_os_dependencies(message, workspace_path)

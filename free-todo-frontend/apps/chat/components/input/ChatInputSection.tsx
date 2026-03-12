@@ -14,6 +14,7 @@ type ChatInputSectionProps = {
 	inputValue: string;
 	isStreaming: boolean;
 	error: string | null;
+	attachments?: import("@/apps/chat/types").ChatAttachment[];
 	effectiveTodos: Todo[];
 	hasSelection: boolean;
 	showTodosExpanded: boolean;
@@ -21,7 +22,10 @@ type ChatInputSectionProps = {
 	onInputChange: (value: string) => void;
 	onSend: () => void;
 	onStop?: () => void;
+	onUploadClick?: () => void;
+	onRemoveAttachment?: (id: string) => void;
 	onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+	onPaste?: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
 	onCompositionStart: () => void;
 	onCompositionEnd: () => void;
 	onToggleExpand: () => void;
@@ -35,6 +39,7 @@ export function ChatInputSection({
 	inputValue,
 	isStreaming,
 	error,
+	attachments,
 	effectiveTodos,
 	hasSelection,
 	showTodosExpanded,
@@ -42,7 +47,10 @@ export function ChatInputSection({
 	onInputChange,
 	onSend,
 	onStop,
+	onUploadClick,
+	onRemoveAttachment,
 	onKeyDown,
+	onPaste,
 	onCompositionStart,
 	onCompositionEnd,
 	onToggleExpand,
@@ -79,6 +87,7 @@ export function ChatInputSection({
 						<ToolSelector disabled={isStreaming} />
 					</div>
 				}
+				attachments={attachments}
 				inputValue={inputValue}
 				placeholder={inputPlaceholder}
 				isStreaming={isStreaming}
@@ -86,7 +95,10 @@ export function ChatInputSection({
 				onChange={onInputChange}
 				onSend={onSend}
 				onStop={onStop}
+				onUploadClick={onUploadClick}
+				onRemoveAttachment={onRemoveAttachment}
 				onKeyDown={onKeyDown}
+				onPaste={onPaste}
 				onCompositionStart={onCompositionStart}
 				onCompositionEnd={onCompositionEnd}
 			/>

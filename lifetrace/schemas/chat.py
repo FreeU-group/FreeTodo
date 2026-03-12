@@ -26,6 +26,9 @@ class ChatMessage(BaseModel):
     workspace_path: str | None = None  # 工作区目录路径（用于 Cowork 模式）
     enable_file_delete: bool = False  # 是否允许删除文件（默认不允许）
 
+    # 上传附件（图片/文本）
+    attachments: list[dict[str, Any]] | None = None
+
     def get_user_input_for_storage(self) -> str:
         """获取用于保存到历史记录的用户输入内容。
 

@@ -5,7 +5,7 @@ import { flushSync } from "react-dom";
 import type { SessionCacheReturn } from "@/apps/chat/hooks/useSessionCache";
 import type { StreamControllerReturn } from "@/apps/chat/hooks/useStreamController";
 import type { ToolCallTrackerReturn } from "@/apps/chat/hooks/useToolCallTracker";
-import type { ChatMessage, ToolCallAnchor } from "@/apps/chat/types";
+import type { ChatAttachment, ChatMessage, ToolCallAnchor } from "@/apps/chat/types";
 import { createId } from "@/apps/chat/utils/id";
 import {
 	buildPayloadMessage,
@@ -83,7 +83,12 @@ export interface UseSendMessageParams {
  */
 export interface SendMessageReturn {
 	/** 发送消息 */
-	sendMessage: (text: string, clearInput?: boolean) => Promise<void>;
+	sendMessage: (
+		text: string,
+		clearInput?: boolean,
+		attachments?: ChatAttachment[],
+		workspacePath?: string,
+	) => Promise<void>;
 }
 
 /**
@@ -138,9 +143,18 @@ export const useSendMessage = ({
 	 * @param clearInput - 是否清空输入框
 	 */
 	const sendMessage = useCallback(
-		async (text: string, clearInput = false) => {
+		async (
+			text: string,
+			clearInput = false,
+			attachments: ChatAttachment[] = [],
+			workspacePath?: string,
+		) => {
 			const trimmedText = text.trim();
-			if (!trimmedText) return;
+			const hasAttachments = attachments.length > 0;
+			const effectiveExternalTools = hasAttachments
+				? Array.from(new Set([...selectedExternalTools, "file"]))
+				: selectedExternalTools;
+			if (!trimmedText && !hasAttachments) return;
 
 			// 创建请求
 			const { requestId, abortController } = streamController.createRequest();
@@ -170,6 +184,7 @@ export const useSendMessage = ({
 					userLabel,
 					todoContext,
 					crawlerResult,
+					attachments,
 				});
 
 			// 创建消息
@@ -177,6 +192,7 @@ export const useSendMessage = ({
 				id: createId(),
 				role: "user",
 				content: trimmedText,
+				attachments: attachments.length > 0 ? attachments : undefined,
 			};
 			const assistantMessageId = createId();
 			const initialMessages: ChatMessage[] = [
@@ -293,10 +309,12 @@ export const useSendMessage = ({
 						context: contextForBackend,
 						systemPrompt: systemPromptForBackend,
 						conversationId: currentConversationId || undefined,
+						workspacePath,
 						useRag: false,
 						mode: modeForBackend,
 						selectedTools: selectedAgnoTools,
-						externalTools: selectedExternalTools,
+						externalTools: effectiveExternalTools,
+						attachments: hasAttachments ? attachments : undefined,
 					},
 					// onChunk 回调
 					(chunk) => {
@@ -404,22 +422,6 @@ export const useSendMessage = ({
 									.openFromPath(normalizePath(rawPath), "chat");
 							}
 						}
-
-						if (
-							event.type === "tool_call_end" &&
-							event.tool_name &&
-							previewFileTools.has(event.tool_name)
-						) {
-							const rawPath = extractPathFromToolEvent(
-								event.tool_args,
-								event.result_preview,
-							);
-							if (rawPath) {
-								void usePreviewStore
-									.getState()
-									.openFromPath(normalizePath(rawPath), "chat");
-							}
-						}
 					},
 				);
 
@@ -480,23 +482,23 @@ export const useSendMessage = ({
 		effectiveTodos,
 		hasSelection,
 		locale,
-			previewFileTools,
+		previewFileTools,
 		queryClient,
 		scheduleTodosRefresh,
 		selectedAgnoTools,
 		selectedExternalTools,
 		sessionCache,
 		setConversationId,
-			setError,
-			setInputValue,
-			setIsStreaming,
-			setMessages,
-			streamController,
-			t,
-			tCommon,
-			todos,
-			toolCallTracker,
-		],
+		setError,
+		setInputValue,
+		setIsStreaming,
+		setMessages,
+		streamController,
+		t,
+		tCommon,
+		todos,
+		toolCallTracker,
+	],
 	);
 
 	return { sendMessage };

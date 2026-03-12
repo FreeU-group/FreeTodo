@@ -25,6 +25,16 @@ export interface SendChatParams {
 	context?: string; // 待办上下文（可选）
 	systemPrompt?: string; // 系统提示词（可选）
 	conversationId?: string;
+	workspacePath?: string;
+	attachments?: {
+		id: string;
+		name: string;
+		path: string;
+		url?: string;
+		size: number;
+		mimeType?: string;
+		kind: string;
+	}[];
 	useRag?: boolean;
 	mode?: string;
 	selectedTools?: string[];
@@ -170,6 +180,8 @@ export async function sendChatMessageStream(
 			context: params.context,
 			system_prompt: params.systemPrompt,
 			conversation_id: params.conversationId,
+			workspace_path: params.workspacePath,
+			attachments: params.attachments,
 			use_rag: params.useRag,
 			mode: params.mode,
 			selected_tools: params.selectedTools,

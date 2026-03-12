@@ -215,26 +215,39 @@ export function ChatPanel() {
 						/>
 					)}
 
-				<ChatInputSection
-					locale={locale}
-					inputValue={chatController.inputValue}
-					isStreaming={chatController.isStreaming}
-					error={chatController.error}
-					effectiveTodos={chatController.effectiveTodos}
-					hasSelection={chatController.hasSelection}
-					showTodosExpanded={showTodosExpanded}
-					crawlerResult={chatController.selectedCrawlerResult}
-					onInputChange={chatController.setInputValue}
-					onSend={chatController.handleSend}
-					onStop={chatController.handleStop}
-					onKeyDown={chatController.handleKeyDown}
-					onCompositionStart={() => chatController.setIsComposing(true)}
-					onCompositionEnd={() => chatController.setIsComposing(false)}
-					onToggleExpand={() => setShowTodosExpanded((prev) => !prev)}
-					onClearSelection={clearTodoSelection}
-					onToggleTodo={toggleTodoSelection}
-					onClearCrawlerSelection={() => setSelectedCrawlerResult(null)}
-				/>
+				<div
+					role="button"
+					tabIndex={-1}
+					onDragOver={(event) => {
+						event.preventDefault();
+					}}
+					onDrop={chatController.handleDrop}
+				>
+					<ChatInputSection
+						locale={locale}
+						inputValue={chatController.inputValue}
+						isStreaming={chatController.isStreaming}
+						error={chatController.error}
+						attachments={chatController.attachments}
+						effectiveTodos={chatController.effectiveTodos}
+						hasSelection={chatController.hasSelection}
+						showTodosExpanded={showTodosExpanded}
+						crawlerResult={chatController.selectedCrawlerResult}
+						onInputChange={chatController.setInputValue}
+						onSend={chatController.handleSend}
+						onStop={chatController.handleStop}
+						onUploadClick={chatController.handleUploadClick}
+						onRemoveAttachment={chatController.handleRemoveAttachment}
+						onKeyDown={chatController.handleKeyDown}
+						onPaste={chatController.handlePaste}
+						onCompositionStart={() => chatController.setIsComposing(true)}
+						onCompositionEnd={() => chatController.setIsComposing(false)}
+						onToggleExpand={() => setShowTodosExpanded((prev) => !prev)}
+						onClearSelection={clearTodoSelection}
+						onToggleTodo={toggleTodoSelection}
+						onClearCrawlerSelection={() => setSelectedCrawlerResult(null)}
+					/>
+				</div>
 			</div>
 		</div>
 		</div>

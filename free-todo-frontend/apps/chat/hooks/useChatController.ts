@@ -1,24 +1,51 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import type { KeyboardEvent } from "react";
+import type { ClipboardEvent, DragEvent, KeyboardEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSendMessage } from "@/apps/chat/hooks/useSendMessage";
 import { useSessionCache } from "@/apps/chat/hooks/useSessionCache";
 import { useSessionManager } from "@/apps/chat/hooks/useSessionManager";
 import { useStreamController } from "@/apps/chat/hooks/useStreamController";
 import { useToolCallTracker } from "@/apps/chat/hooks/useToolCallTracker";
-import type { ChatMessage } from "@/apps/chat/types";
+import type { ChatAttachment, ChatMessage } from "@/apps/chat/types";
 import { useCrawlerStore } from "@/apps/crawler/store";
+import { MAX_ATTACHMENT_SIZE_BYTES } from "@/lib/attachments";
+import { uploadChatFiles } from "@/lib/chat-uploads";
 import { useChatHistory, useChatSessions, useTodos } from "@/lib/query";
 import { useBreakdownStore } from "@/lib/store/breakdown-store";
 import { useChatStore } from "@/lib/store/chat-store";
 import { useUiStore } from "@/lib/store/ui-store";
+import { toastError, toastSuccess } from "@/lib/toast";
 import type { Todo } from "@/lib/types";
 
 type UseChatControllerParams = {
 	locale: string;
 	selectedTodoIds: number[];
 };
+
+const ALLOWED_TEXT_EXTENSIONS = new Set([
+	"txt",
+	"md",
+	"markdown",
+	"json",
+	"csv",
+	"tsv",
+	"yaml",
+	"yml",
+	"log",
+	"xml",
+]);
+
+const ALLOWED_TEXT_MIME_TYPES = new Set([
+	"application/json",
+	"application/xml",
+	"application/x-yaml",
+	"application/yaml",
+	"application/markdown",
+	"application/x-markdown",
+	"text/csv",
+	"text/markdown",
+]);
 
 export const useChatController = ({
 	locale,
@@ -93,6 +120,8 @@ export const useChatController = ({
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [isComposing, setIsComposing] = useState(false);
+	const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+	const [uploadWorkspacePath, setUploadWorkspacePath] = useState<string | null>(null);
 
 	const historyError = sessionsError ? t("loadHistoryFailed") : null;
 
@@ -157,9 +186,87 @@ export const useChatController = ({
 		setIsStreaming(false);
 	}, [streamController]);
 
+	const handleRemoveAttachment = useCallback((id: string) => {
+		setAttachments((prev) => {
+			const next = prev.filter((item) => item.id !== id);
+			if (next.length === 0) {
+				setUploadWorkspacePath(null);
+			}
+			return next;
+		});
+	}, []);
+
+	const handleUploadFiles = useCallback(
+		async (files: File[]) => {
+			if (files.length === 0) return;
+
+			const accepted: File[] = [];
+			for (const file of files) {
+				if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+					toastError(t("uploadSizeLimit"));
+					continue;
+				}
+				const ext = file.name.split(".").pop()?.toLowerCase() || "";
+				const isImage = file.type.startsWith("image/");
+				const isText =
+					file.type.startsWith("text/") ||
+					ALLOWED_TEXT_MIME_TYPES.has(file.type) ||
+					ALLOWED_TEXT_EXTENSIONS.has(ext);
+				if (!isImage && !isText) {
+					toastError(t("uploadInvalidType"));
+					continue;
+				}
+				accepted.push(file);
+			}
+
+			if (accepted.length === 0) return;
+
+			try {
+				const response = await uploadChatFiles(accepted);
+				const nextAttachments: ChatAttachment[] = response.files.map((file) => ({
+					id: file.id,
+					name: file.fileName,
+					path: file.filePath,
+					url: `/api/preview/file?path=${encodeURIComponent(file.filePath)}`,
+					size: file.size,
+					mimeType: file.mimeType,
+					kind: file.isImage ? "image" : "text",
+				}));
+
+				setAttachments((prev) => [...prev, ...nextAttachments]);
+				setUploadWorkspacePath(response.workspacePath);
+				toastSuccess(t("uploadSuccess"));
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				toastError(`${t("uploadFailed")}: ${message}`);
+			}
+		},
+		[t],
+	);
+
+	const handleUploadClick = useCallback(() => {
+		const input = document.createElement("input");
+		input.type = "file";
+		input.accept =
+			"image/*,.txt,.md,.markdown,.json,.csv,.tsv,.yaml,.yml,.log,.xml";
+		input.multiple = true;
+		input.onchange = () => {
+			const selected = input.files ? Array.from(input.files) : [];
+			void handleUploadFiles(selected);
+		};
+		input.click();
+	}, [handleUploadFiles]);
+
 	const handleSend = useCallback(async () => {
-		await sendMessage(inputValue, true);
-	}, [sendMessage, inputValue]);
+		await sendMessage(
+			inputValue,
+			true,
+			attachments,
+			uploadWorkspacePath || undefined,
+		);
+		setAttachments([]);
+		setUploadWorkspacePath(null);
+	}, [sendMessage, inputValue, attachments, uploadWorkspacePath]);
 
 	const handleKeyDown = useCallback(
 		(event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -176,6 +283,40 @@ export const useChatController = ({
 		[handleSend, isComposing],
 	);
 
+	const handlePaste = useCallback(
+		(event: ClipboardEvent<HTMLTextAreaElement>) => {
+			const items = event.clipboardData?.items
+				? Array.from(event.clipboardData.items)
+				: [];
+			const files: File[] = [];
+			for (const item of items) {
+				if (item.kind === "file") {
+					const file = item.getAsFile();
+					if (file) files.push(file);
+				}
+			}
+
+			if (files.length > 0) {
+				event.preventDefault();
+				void handleUploadFiles(files);
+			}
+		},
+		[handleUploadFiles],
+	);
+
+	const handleDrop = useCallback(
+		(event: DragEvent<HTMLDivElement>) => {
+			const files = event.dataTransfer?.files
+				? Array.from(event.dataTransfer.files)
+				: [];
+			if (files.length === 0) return;
+			event.preventDefault();
+			event.stopPropagation();
+			void handleUploadFiles(files);
+		},
+		[handleUploadFiles],
+	);
+
 	// ==================== 返回接口（保持向后兼容） ====================
 
 	return {
@@ -183,6 +324,8 @@ export const useChatController = ({
 		setMessages,
 		inputValue,
 		setInputValue,
+		attachments,
+		uploadWorkspacePath,
 		conversationId,
 		setConversationId,
 		isStreaming,
@@ -204,6 +347,10 @@ export const useChatController = ({
 		handleNewChat,
 		handleLoadSession,
 		handleKeyDown,
+		handlePaste,
+		handleUploadClick,
+		handleRemoveAttachment,
+		handleDrop,
 		effectiveTodos,
 		hasSelection,
 		todos,

@@ -43,10 +43,23 @@ export type ChatMessage = {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
+	attachments?: ChatAttachment[];
 	/** 工具调用步骤（仅 assistant 消息可能有） */
 	toolCallSteps?: ToolCallStep[];
 	/** 工具调用在消息内容中的锚点（仅 assistant 消息可能有） */
 	toolCallAnchors?: ToolCallAnchor[];
+};
+
+export type ChatAttachmentKind = "image" | "text";
+
+export type ChatAttachment = {
+	id: string;
+	name: string;
+	path: string;
+	url: string;
+	size: number;
+	mimeType?: string;
+	kind: ChatAttachmentKind;
 };
 
 export type ChatMode = "agno";

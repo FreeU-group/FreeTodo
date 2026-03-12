@@ -2,6 +2,8 @@ import { AtSign, Send, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type React from "react";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import type { ChatAttachment } from "@/apps/chat/types";
+import { formatBytes } from "@/lib/preview/utils";
 import { cn } from "@/lib/utils";
 
 type InputBoxProps = {
@@ -9,16 +11,20 @@ type InputBoxProps = {
 	placeholder: string;
 	isStreaming: boolean;
 	locale: string;
+	attachments?: ChatAttachment[];
 	onChange: (value: string) => void;
 	onSend: () => void;
 	onStop?: () => void;
+	onRemoveAttachment?: (id: string) => void;
 	onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+	onPaste?: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
 	onCompositionStart: () => void;
 	onCompositionEnd: () => void;
 	modeSwitcher?: React.ReactNode;
 	/** Mode Switcher 菜单是否打开 */
 	modeMenuOpen?: boolean;
 	onAtClick?: () => void;
+	onUploadClick?: () => void;
 	linkedTodos?: React.ReactNode;
 	/** 最大高度，默认为 "40vh"（视口高度的40%） */
 	maxHeight?: string;
@@ -35,20 +41,25 @@ export function InputBox({
 	inputValue,
 	placeholder,
 	isStreaming,
+	attachments,
 	onChange,
 	onSend,
 	onStop,
+	onRemoveAttachment,
 	onKeyDown,
 	onCompositionStart,
 	onCompositionEnd,
 	modeSwitcher,
 	modeMenuOpen = false,
 	onAtClick,
+	onUploadClick,
 	linkedTodos,
+	onPaste,
 	maxHeight = "40vh",
 }: InputBoxProps) {
 	const t = useTranslations("chat");
-	const isSendDisabled = !inputValue.trim() || isStreaming;
+	const hasAttachments = Boolean(attachments && attachments.length > 0);
+	const isSendDisabled = (!inputValue.trim() && !hasAttachments) || isStreaming;
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const prevInputValueRef = useRef<string>(inputValue);
 
@@ -102,9 +113,35 @@ export function InputBox({
 		[onChange, adjustHeight],
 	);
 
-	// 右侧按钮组（@ 按钮和发送/停止按钮）
+	// 右侧按钮组（上传、@ 按钮和发送/停止按钮）
 	const actionButtons = (
 		<div className="flex items-center gap-1">
+			<button
+				type="button"
+				onClick={onUploadClick}
+				className={cn(
+					"flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground",
+					"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				)}
+				aria-label={t("upload")}
+			>
+				<svg
+					role="img"
+					aria-label={t("upload")}
+					viewBox="0 0 24 24"
+					className="h-4 w-4"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.8"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				>
+					<title>{t("upload")}</title>
+					<path d="M12 16V4" />
+					<path d="m7 9 5-5 5 5" />
+					<path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3" />
+				</svg>
+			</button>
 			<button
 				type="button"
 				onClick={onAtClick}
@@ -160,8 +197,35 @@ export function InputBox({
 					"bg-background/60 px-3 py-2 mb-4",
 				)}
 			>
-				{/* 关联待办区域 */}
-				{linkedTodos}
+		{/* 关联待办区域 */}
+		{linkedTodos}
+
+		{/* 已上传附件 */}
+		{attachments && attachments.length > 0 && (
+			<div className="mb-2 flex flex-wrap gap-2">
+				{attachments.map((attachment) => (
+					<span
+						key={attachment.id}
+						className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs"
+					>
+						<span className="max-w-[220px] truncate">
+							{attachment.name}
+						</span>
+						<span className="text-muted-foreground">
+							{formatBytes(attachment.size)}
+						</span>
+						<button
+							type="button"
+							className="text-muted-foreground hover:text-foreground"
+							onClick={() => onRemoveAttachment?.(attachment.id)}
+							aria-label={t("removeAttachment")}
+						>
+							×
+						</button>
+					</span>
+				))}
+			</div>
+		)}
 
 				{/* 单行布局：输入框和按钮在同一行 */}
 				<div className="flex items-center gap-2">
@@ -175,6 +239,7 @@ export function InputBox({
 						ref={textareaRef}
 						value={inputValue}
 						onChange={handleChange}
+						onPaste={onPaste}
 						onCompositionStart={onCompositionStart}
 						onCompositionEnd={onCompositionEnd}
 						onKeyDown={onKeyDown}
@@ -205,14 +270,42 @@ export function InputBox({
 			{/* 关联待办区域 */}
 			{linkedTodos}
 
-			<textarea
-				ref={textareaRef}
-				value={inputValue}
-				onChange={handleChange}
-				onCompositionStart={onCompositionStart}
-				onCompositionEnd={onCompositionEnd}
-				onKeyDown={onKeyDown}
-				placeholder={placeholder}
+			{/* 已上传附件 */}
+			{attachments && attachments.length > 0 && (
+				<div className="mb-2 flex flex-wrap gap-2">
+					{attachments.map((attachment) => (
+						<span
+							key={attachment.id}
+							className="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-xs"
+						>
+							<span className="max-w-[220px] truncate">
+								{attachment.name}
+							</span>
+							<span className="text-muted-foreground">
+								{formatBytes(attachment.size)}
+							</span>
+							<button
+								type="button"
+								className="text-muted-foreground hover:text-foreground"
+								onClick={() => onRemoveAttachment?.(attachment.id)}
+								aria-label={t("removeAttachment")}
+							>
+								×
+							</button>
+						</span>
+					))}
+				</div>
+			)}
+
+		<textarea
+			ref={textareaRef}
+			value={inputValue}
+			onChange={handleChange}
+			onPaste={onPaste}
+			onCompositionStart={onCompositionStart}
+			onCompositionEnd={onCompositionEnd}
+			onKeyDown={onKeyDown}
+			placeholder={placeholder}
 				rows={MULTI_LINE_ROWS}
 				style={{ maxHeight, minHeight: `${MIN_TEXTAREA_HEIGHT}px` }}
 				className={cn(

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { SessionCacheReturn } from "@/apps/chat/hooks/useSessionCache";
 import type { StreamControllerReturn } from "@/apps/chat/hooks/useStreamController";
-import type { ChatMessage, ToolCallStep } from "@/apps/chat/types";
+import type { ChatAttachment, ChatMessage, ToolCallStep } from "@/apps/chat/types";
 import { createId } from "@/apps/chat/utils/id";
 import type { ChatHistoryItem } from "@/lib/api";
 import { useChatStore } from "@/lib/store/chat-store";
@@ -99,6 +99,19 @@ const parseToolEvents = (extraData?: string): ToolCallStep[] | undefined => {
 		return steps.length > 0 ? steps : undefined;
 	} catch (error) {
 		console.warn("Failed to parse tool events from history:", error);
+		return undefined;
+	}
+};
+
+const parseAttachments = (extraData?: string): ChatAttachment[] | undefined => {
+	if (!extraData) return undefined;
+	try {
+		const parsed = JSON.parse(extraData) as { attachments?: ChatAttachment[] };
+		const attachments = parsed.attachments;
+		if (!Array.isArray(attachments) || attachments.length === 0) return undefined;
+		return attachments;
+	} catch (error) {
+		console.warn("Failed to parse attachments from history:", error);
 		return undefined;
 	}
 };
@@ -252,6 +265,7 @@ export const useSessionManager = ({
 			role: item.role,
 			content: item.content,
 			toolCallSteps: parseToolEvents(item.extraData),
+			attachments: parseAttachments(item.extraData),
 		}));
 		setMessages(mapped);
 		isLoadingSessionRef.current = false;

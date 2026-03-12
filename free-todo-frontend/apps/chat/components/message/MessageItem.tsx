@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ExtractionState } from "@/apps/chat/hooks/useMessageExtraction";
 import type { ChatMessage } from "@/apps/chat/types";
 import { cn } from "@/lib/utils";
+import { MessageAttachments } from "./MessageAttachments";
 import { MessageContent } from "./MessageContent";
 import { MessageTodoExtractionPanel } from "./MessageTodoExtractionPanel";
 import {
@@ -55,6 +56,10 @@ export function MessageItem({
 	// 使用 contentWithoutToolCalls 来判断，排除工具调用标记
 	const isAssistantMessageWithContent =
 		message.role === "assistant" && trimmedContent;
+	const shouldShowAttachments =
+		message.role === "user" &&
+		message.attachments &&
+		message.attachments.length > 0;
 
 	// 处理消息菜单按钮点击
 	const handleMessageMenuClick = (event: React.MouseEvent) => {
@@ -110,13 +115,16 @@ export function MessageItem({
 								<MoreVertical className="h-3.5 w-3.5" />
 							</button>
 						)}
-						<MessageContent
-							message={message}
-							contentOverride={contentOverride}
-						/>
-					</div>
+					<MessageContent
+						message={message}
+						contentOverride={contentOverride}
+					/>
+					{shouldShowAttachments && (
+						<MessageAttachments attachments={message.attachments} />
+					)}
 				</div>
 			</div>
+		</div>
 			{/* 提取待办面板 - 显示在消息下方 */}
 			{showExtractionPanel && extractionState && (
 				<div

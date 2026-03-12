@@ -15,4 +15,5 @@ from . import core as _core  # noqa: F401
 from . import message_todo_extraction as _message_todo_extraction  # noqa: F401
 from . import misc as _misc  # noqa: F401
 from . import plan as _plan  # noqa: F401
+from . import uploads as _uploads  # noqa: F401
 from .base import router as router

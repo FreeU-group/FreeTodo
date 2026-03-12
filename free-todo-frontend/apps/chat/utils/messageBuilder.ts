@@ -1,3 +1,4 @@
+import type { ChatAttachment } from "@/apps/chat/types";
 import type { CrawlResultItem } from "@/apps/crawler/types";
 
 /**
@@ -8,6 +9,7 @@ export interface BuildPayloadMessageParams {
 	userLabel: string;
 	todoContext: string;
 	crawlerResult?: CrawlResultItem | null;
+	attachments?: ChatAttachment[];
 }
 
 /**
@@ -76,12 +78,20 @@ export function buildCrawlerContext(result: CrawlResultItem): string {
 export const buildPayloadMessage = (
 	params: BuildPayloadMessageParams,
 ): PayloadMessageResult => {
-	const { trimmedText, userLabel, todoContext, crawlerResult } = params;
+	const { trimmedText, userLabel, todoContext, crawlerResult, attachments } =
+		params;
 
 	// 构建爬虫内容上下文
 	const crawlerContext = crawlerResult ? buildCrawlerContext(crawlerResult) : "";
 
-	const allContext = [todoContext, crawlerContext].filter(Boolean).join("\n\n");
+	const attachmentContext =
+		attachments && attachments.length > 0
+			? buildAttachmentContext(attachments)
+			: "";
+
+	const allContext = [todoContext, crawlerContext, attachmentContext]
+		.filter(Boolean)
+		.join("\n\n");
 
 	return {
 		payloadMessage: `${allContext}
@@ -90,6 +100,18 @@ ${userLabel}: ${trimmedText}`,
 		contextForBackend: allContext,
 	};
 };
+
+function buildAttachmentContext(attachments: ChatAttachment[]): string {
+	const lines: string[] = [];
+	lines.push(`[关联文件 (${attachments.length})]`);
+	attachments.forEach((attachment, index) => {
+		lines.push(
+			`${index + 1}. ${attachment.name} (${attachment.kind}) - ${attachment.path}`,
+		);
+	});
+	lines.push("说明：上述路径可用于读取文件内容。");
+	return lines.join("\n");
+}
 
 /**
  * 将前端聊天模式映射为后端模式
