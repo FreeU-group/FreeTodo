@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -131,19 +132,15 @@ class MemoryManager:
         """Stop the memory module, unsubscribing from perception stream."""
         if self._compress_task and not self._compress_task.done():
             self._compress_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._compress_task
-            except asyncio.CancelledError:
-                pass
             self._compress_task = None
             logger.info("L2+L3 periodic compress task stopped")
 
         if self._profile_task and not self._profile_task.done():
             self._profile_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._profile_task
-            except asyncio.CancelledError:
-                pass
             self._profile_task = None
             logger.info("ProfileBuilder periodic task stopped")
 

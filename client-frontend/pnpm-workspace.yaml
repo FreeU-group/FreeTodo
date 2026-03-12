@@ -1,7 +1,0 @@
-packages:
-  - "."
-onlyBuiltDependencies:
-  - electron
-  - electron-winstaller
-  - esbuild
-  - sharp

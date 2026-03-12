@@ -6,7 +6,7 @@ import shutil
 import subprocess  # nosec B404
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from util.logging_config import get_logger
 from util.time_utils import get_utc_now

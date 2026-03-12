@@ -44,30 +44,36 @@
 
 ## System Architecture
 
-FreeTodo adopts a **frontend-backend separation** architecture:
+FreeTodo adopts a **distributed multi-module** architecture with three core components:
 
-- **Backend**: FastAPI (Python) - Provides RESTful API (located in `lifetrace/` directory)
-- **Frontend**: Next.js (React + TypeScript) - Modern web interface (located in `free-todo-frontend/` directory)
+- **Server** (`server/`): FastAPI (Python) - Center node deployed on cloud or local server, handling LLM processing, data storage, and business APIs
+- **Client** (`client/`): Python perception daemon - Lightweight sensing agent running on local devices for screen capture, OCR recognition, and data forwarding
+- **Frontend** (`frontend/`): Next.js (React + TypeScript) - Modern web interface with Electron desktop app support
+
+Supporting modules:
+
+- **Phone** (`phone/`): Flutter mobile application
+- **Hardware** (`hardware/`): Hardware device integration (omi, omiGlass, etc.)
+- **Deploy** (`deploy/`): Docker Compose deployment configuration
 - **Data Layer**: SQLite + ChromaDB (for AI features)
 
 ## Quick Start
 
 ### Environment Requirements
 
-**Backend**:
+**Server & Client** (Python):
 
 - Python 3.12
 - Supported OS: Windows, macOS, Linux
-- Optional: CUDA support (for GPU acceleration)
 
-**Frontend**:
+**Frontend** (Node.js):
 
 - Node.js 20+
 - pnpm package manager
 
 ### Install Dependencies
 
-This project uses [uv](https://github.com/astral-sh/uv) for fast and reliable dependency management.
+This project uses [uv](https://github.com/astral-sh/uv) for Python dependency management. Each module has its own independent environment.
 
 **Install uv:**
 
@@ -86,32 +92,26 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 >
 > Alternatively, you can simply open a new terminal window and `uv` will be available automatically.
 
-**Install dependencies and sync environment:**
+**Install dependencies for each module:**
 
 ```bash
-# Sync dependencies from pyproject.toml and uv.lock
-uv sync
+# Server dependencies
+cd server && uv sync && cd ..
 
-# Activate the virtual environment
-# macOS/Linux
-source .venv/bin/activate
+# Client dependencies
+cd client && uv sync && cd ..
 
-# Windows
-.venv\Scripts\activate
-
-# Install frontend dependencies
-pnpm -C free-todo-frontend install
+# Frontend dependencies
+cd frontend && pnpm install
 ```
 
 ### Start All Services (One-Click)
 
-For development, you can start **backend + AgentOS + frontend** with a single script:
+For development, you can start **Server + AgentOS + Frontend** with a single script:
 
 **macOS/Linux**
 
 ```bash
-# The bash startup script is temporarily unstable.
-# It's recommended to follow the step-by-step startup below.
 chmod +x scripts/start_all.sh
 ./scripts/start_all.sh
 ```
@@ -124,23 +124,46 @@ chmod +x scripts/start_all.sh
 
 This opens three terminal windows to run each service.
 
-### Start the Backend Service
+### Start Services Separately
 
-**Start the server:**
-
-```bash
-python -m lifetrace.server
-python -m lifetrace.agent_os
-```
-
-### Start the Frontend Service
+**1. Start the Server** (center node):
 
 ```bash
-# Run from the repo root:
-pnpm -C free-todo-frontend dev
+cd server
+python server.py
+python agent_os.py
 ```
 
-The actual frontend URL and backend connection status will be displayed in the console. Once both services are running, open your browser and navigate to the displayed frontend URL (typically `http://localhost:3001`) to enjoy FreeTodo! 🎉
+**2. Start the Client** (perception daemon, optional):
+
+```bash
+cd client
+python sensor.py --center-url http://localhost:8001 --node-id MY-PC
+```
+
+**3. Start the Frontend**:
+
+```bash
+cd frontend
+pnpm dev
+```
+
+The actual frontend URL and backend connection status will be displayed in the console. Once both services are running, open your browser and navigate to the displayed frontend URL (typically `http://localhost:3001`) to enjoy FreeTodo!
+
+### Docker Deployment
+
+You can also deploy the server using Docker:
+
+```bash
+# Build server image
+make build-server
+
+# Start services with Docker Compose
+make start
+
+# View logs
+make logs
+```
 
 ## 📋 TODO & Roadmap
 
@@ -244,37 +267,33 @@ For details, see: [.github/PRE_COMMIT_GUIDE.md](.github/PRE_COMMIT_GUIDE.md)
 ### Project Structure
 
 ```
-├── .github/                    # GitHub repository assets
-│   ├── assets/                 # Static assets (images for README)
-│   ├── BACKEND_GUIDELINES.md   # Backend development guidelines
-│   ├── FRONTEND_GUIDELINES.md  # Frontend development guidelines
-│   ├── CONTRIBUTING.md         # Contributing guidelines
-│   └── ...                     # Other GitHub repository files
-├── .githooks/                  # Repo-local git hooks (pre-commit, post-checkout)
-├── lifetrace/                  # Backend modules (FastAPI)
-│   ├── server.py               # Web API service entry point
+├── server/                     # Server — Center node (FastAPI backend)
+│   ├── server.py               # FastAPI application entry point
+│   ├── agent_os.py             # AgentOS entry point (Agno Agent service)
+│   ├── pyproject.toml          # Server Python dependencies
+│   ├── Dockerfile              # Docker build file
 │   ├── config/                 # Configuration files
-│   │   ├── config.yaml         # Main configuration (auto-generated)
-│   │   ├── default_config.yaml # Default configuration template
-│   │   ├── prompt.yaml         # AI prompt templates
-│   │   └── rapidocr_config.yaml# OCR configuration
-│   ├── routers/                # API route handlers
-│   │   ├── chat.py             # Chat interface endpoints
-│   │   ├── todo.py             # Todo endpoints
-│   │   ├── task.py             # Task management endpoints
-│   │   └── ...                 # Other endpoints
-│   ├── schemas/                # Pydantic data models
+│   ├── core/                   # Core framework (module registry, DI, etc.)
+│   ├── routers/                # API route handlers (~30 modules)
+│   ├── schemas/                # Pydantic request/response models
 │   ├── services/               # Business logic service layer
-│   ├── repositories/           # Data access layer
+│   ├── repositories/           # Data access layer (Repository pattern)
 │   ├── storage/                # Data storage layer
 │   ├── llm/                    # LLM and AI services
+│   ├── memory/                 # Memory management (Agno Learning)
+│   ├── perception/             # Perception data processing
 │   ├── jobs/                   # Background jobs
-│   ├── util/                   # Utility functions
-│   └── data/                   # Runtime data (generated)
-│       ├── lifetrace.db        # SQLite database
-│       ├── vector_db/          # Vector database storage
-│       └── logs/               # Application logs
-├── free-todo-frontend/         # Frontend application (Next.js) ⭐
+│   ├── migrations/             # Database migrations (Alembic)
+│   ├── observability/          # Observability & tracing
+│   └── util/                   # Utility functions
+├── client/                     # Client — Perception daemon (lightweight sensing agent)
+│   ├── sensor.py               # Main entry point for screen/OCR capture
+│   ├── pyproject.toml          # Client Python dependencies
+│   ├── config/                 # Client configuration
+│   ├── perception/             # Perception models & logic
+│   ├── proactive_ocr/          # Proactive OCR engine (macOS/Windows)
+│   └── util/                   # Utility functions
+├── frontend/                   # Frontend — Web & Desktop UI (Next.js + Electron)
 │   ├── app/                    # Next.js app directory
 │   ├── apps/                   # Feature modules
 │   │   ├── todo-list/          # Todo list module
@@ -285,11 +304,17 @@ For details, see: [.github/PRE_COMMIT_GUIDE.md](.github/PRE_COMMIT_GUIDE.md)
 │   │   └── ...                 # Other modules
 │   ├── components/             # React components
 │   ├── lib/                    # Utilities and services
-│   ├── electron/               # Electron desktop app
-│   ├── package.json            # Frontend dependencies
-│   └── README.md               # Frontend documentation
-├── pyproject.toml              # Python project configuration
-├── uv.lock                     # uv lock file
+│   ├── electron/               # Electron desktop app wrapper
+│   └── package.json            # Frontend dependencies
+├── phone/                      # Mobile application (Flutter)
+├── hardware/                   # Hardware device integration (omi, omiGlass)
+├── deploy/                     # Docker Compose deployment
+│   └── compose.yaml            # Container orchestration config
+├── docs/                       # Architecture & design documents
+├── scripts/                    # Utility scripts (startup, hooks, build)
+├── .github/                    # GitHub assets, guidelines, CI
+├── .githooks/                  # Repo-local git hooks
+├── makefile                    # Docker build & deploy shortcuts
 ├── LICENSE                     # FreeU Community License
 ├── README.md                   # This file (English)
 └── README_CN.md                # Chinese README

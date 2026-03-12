@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from .models import AppType, FrameEvent, RoutedFrame, WindowMeta
+from proactive_ocr.models import AppType, FrameEvent, RoutedFrame, WindowMeta
 
 WECHAT_PROCESS_NAMES = [
     "weixin.exe", "wechat.exe", "wechatappex.exe", "wechatbrowser.exe",

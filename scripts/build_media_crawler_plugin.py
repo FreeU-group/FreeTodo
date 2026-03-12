@@ -283,7 +283,9 @@ def build_plugin(version: str, output_dir: Path, project_root: Path) -> Path:
         # 简化方案：manifest 存为单独文件，zip 里也内嵌一份。
 
         # 创建 zip
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        with zipfile.ZipFile(
+            zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6
+        ) as zf:
             for file_path in sorted(staging_dir.rglob("*")):
                 if file_path.is_file():
                     arcname = file_path.relative_to(staging_dir)

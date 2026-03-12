@@ -16,7 +16,9 @@ def _get_git_path() -> str:
     return git_path
 
 
-def run_git(root: Path, args: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
+def run_git(
+    root: Path, args: list[str], check: bool = True
+) -> subprocess.CompletedProcess[str]:
     git_path = _get_git_path()
     return subprocess.run(  # nosec B603
         [git_path, "-C", str(root), *args],
@@ -71,9 +73,13 @@ def configure_hooks(worktree_path: Path) -> None:
     if not hooks_dir.is_dir():
         print(f"Missing hooks directory: {hooks_dir}", file=sys.stderr)
         return
-    result = run_git(worktree_path, ["config", "core.hooksPath", ".githooks"], check=False)
+    result = run_git(
+        worktree_path, ["config", "core.hooksPath", ".githooks"], check=False
+    )
     if result.returncode != 0:
-        print("Warning: failed to configure core.hooksPath for worktree.", file=sys.stderr)
+        print(
+            "Warning: failed to configure core.hooksPath for worktree.", file=sys.stderr
+        )
 
 
 def get_repo_root() -> Path:
@@ -85,7 +91,9 @@ def get_repo_root() -> Path:
         check=False,
     )
     if result.returncode != 0:
-        print(result.stderr.strip() or "Failed to locate git repo root.", file=sys.stderr)
+        print(
+            result.stderr.strip() or "Failed to locate git repo root.", file=sys.stderr
+        )
         sys.exit(result.returncode or 1)
     return Path(result.stdout.strip())
 
@@ -96,7 +104,9 @@ def slugify(value: str) -> str:
 
 
 def branch_exists(root: Path, branch: str) -> bool:
-    result = run_git(root, ["show-ref", "--verify", f"refs/heads/{branch}"], check=False)
+    result = run_git(
+        root, ["show-ref", "--verify", f"refs/heads/{branch}"], check=False
+    )
     return result.returncode == 0
 
 
@@ -127,7 +137,9 @@ def normalize_type(value: str) -> str:
     return value.lower()
 
 
-def unique_branch_and_path(root: Path, base_branch: str, base_path: Path) -> tuple[str, Path]:
+def unique_branch_and_path(
+    root: Path, base_branch: str, base_path: Path
+) -> tuple[str, Path]:
     suffix = 1
     while True:
         if suffix == 1:
@@ -145,7 +157,9 @@ def unique_branch_and_path(root: Path, base_branch: str, base_path: Path) -> tup
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create a git worktree for a task.")
-    parser.add_argument("task", help="Task name (used to build a worktree path and branch).")
+    parser.add_argument(
+        "task", help="Task name (used to build a worktree path and branch)."
+    )
     parser.add_argument(
         "--type",
         default="chore",

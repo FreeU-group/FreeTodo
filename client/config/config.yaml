@@ -1,0 +1,19 @@
+# FreeTodo Client 默认配置
+
+# 日志配置
+logging:
+  level: INFO
+  console_level: INFO
+  file_level: INFO
+  quiet_modules: []
+  log_path: logs/
+
+# Proactive OCR 配置
+jobs:
+  proactive_ocr:
+    ocr_backend: auto
+    winrt_lang: zh-Hans-CN
+    resize_max_side: 0
+    det_limit_side_len: 960
+    rec_batch_num: 8
+    use_cls: false

@@ -28,7 +28,15 @@ def run() -> int:
 
     try:
         subprocess.run(  # nosec B603
-            [cargo_path, "clippy", "--all-targets", "--all-features", "--", "-D", "warnings"],
+            [
+                cargo_path,
+                "clippy",
+                "--all-targets",
+                "--all-features",
+                "--",
+                "-D",
+                "warnings",
+            ],
             cwd=tauri_dir,
             env=env,
             check=True,

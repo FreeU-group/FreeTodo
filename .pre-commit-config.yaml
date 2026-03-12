@@ -7,9 +7,9 @@ repos:
       - id: check-toml
       - id: check-json
       - id: end-of-file-fixer
-        exclude: ^client-frontend/lib/generated/
+        exclude: ^frontend/lib/generated/
       - id: trailing-whitespace
-        exclude: ^client-frontend/lib/generated/
+        exclude: ^frontend/lib/generated/
         args: [--markdown-linebreak-ext=md]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.10
@@ -36,7 +36,7 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.13"]
-        files: ^(client-frontend/)
+        files: ^(frontend/)
   # TypeScript type checking for free-todo-frontend
   - repo: local
     hooks:
@@ -65,20 +65,20 @@ repos:
         pass_filenames: false
         require_serial: true
 
-      - id: tsc-client-frontend
-        name: TypeScript type check (client-frontend)
-        entry: bash -c 'cd client-frontend && pnpm run type-check'
+      - id: tsc-frontend
+        name: TypeScript type check (frontend)
+        entry: bash -c 'cd frontend && pnpm run type-check'
         language: system
-        files: ^client-frontend/.*\.(ts|tsx)$
+        files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
 
       # 前端 TS/TSX/JS/JSX 有效代码行数检查（不含空行和注释，上限 500 行）
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX/JS/JSX code lines (max 500)
-        entry: node client-frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude lib/generated
+        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude lib/generated
         language: system
-        files: ^(client-frontend|scripts)/.*\.(ts|tsx|js|jsx)$
+        files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
 
       # 后端 Python 有效代码行数检查（不含空行和注释，上限 500 行）
@@ -95,7 +95,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-tauri-rust-code-lines
         name: Check Tauri Rust code lines (max 500)
-        entry: node client-frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/target
+        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/target
         language: system
         files: ^free-todo-frontend/src-tauri/.*\.rs$
         pass_filenames: true
@@ -105,7 +105,7 @@ repos:
         name: Rust format (rustfmt)
         entry: python scripts/precommit_rustfmt.py
         language: python
-        files: ^client-frontend/src-tauri/.*\.rs$
+        files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: false
 
       # Rust linter (clippy)
@@ -113,5 +113,5 @@ repos:
         name: Rust linter (clippy)
         entry: python scripts/precommit_clippy.py
         language: python
-        files: ^client-frontend/src-tauri/.*\.rs$
+        files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: false

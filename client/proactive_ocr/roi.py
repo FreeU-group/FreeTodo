@@ -4,9 +4,9 @@ from functools import lru_cache
 
 import numpy as np
 
-from .models import AppType, BBox
-from .priors import get_prior
-from .priors.base import ROIResult
+from proactive_ocr.models import AppType, BBox
+from proactive_ocr.priors import get_prior
+from proactive_ocr.priors.base import ROIResult
 
 
 class ROIExtractor:

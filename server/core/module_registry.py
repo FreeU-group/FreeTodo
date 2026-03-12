@@ -39,7 +39,6 @@ MODULES: tuple[ModuleDefinition, ...] = (
     ModuleDefinition(id="search", router_module="routers.search"),
     ModuleDefinition(id="screenshot", router_module="routers.screenshot"),
     ModuleDefinition(id="event", router_module="routers.event"),
-    ModuleDefinition(id="ocr", router_module="routers.ocr"),
     ModuleDefinition(
         id="vector",
         router_module="routers.vector",

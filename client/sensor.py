@@ -372,7 +372,7 @@ class SensorDaemon:
         if window is None:
             return None
 
-        skip = self._should_skip_window(window.app_name or "", window.title or "")
+        skip = self._should_skip_window(window.process_name or "", window.title or "")
         if skip:
             logger.debug(f"Proactive OCR skipped: {skip}")
             return None

@@ -1,7 +1,7 @@
 [project]
-name = "freetodo-client"
+name = "lifetrace-client"
 version = "0.1.0"
-description = "FreeTodo Sensor Client — lightweight perception daemon for screen/OCR capture"
+description = "Lifetrace Client — lightweight perception daemon for screen/OCR capture"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [

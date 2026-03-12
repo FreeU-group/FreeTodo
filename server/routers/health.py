@@ -46,17 +46,14 @@ async def root():
 @router.get("/health")
 async def health_check():
     """健康检查"""
-    from core.dependencies import get_ocr_processor  # noqa: PLC0415
     from storage import db_base  # noqa: PLC0415
 
-    ocr_processor = get_ocr_processor()
     return {
         "app": "lifetrace",  # 固定的应用标识，用于前端识别后端服务
         "status": "healthy",
         "git_commit": get_git_commit(),
         "timestamp": get_utc_now(),
         "database": "connected" if db_base.engine else "disconnected",
-        "ocr": "available" if ocr_processor.is_available() else "unavailable",
     }
 
 

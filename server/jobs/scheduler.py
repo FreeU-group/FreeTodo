@@ -15,6 +15,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
+from sqlalchemy import text
 
 from util.logging_config import get_logger
 from util.path_utils import get_scheduler_database_path
@@ -107,8 +108,6 @@ class SchedulerManager:
             return
 
         try:
-            from sqlalchemy import text
-
             with jobstore.engine.connect() as conn:
                 result = conn.execute(text("DELETE FROM apscheduler_jobs"))
                 if result.rowcount > 0:

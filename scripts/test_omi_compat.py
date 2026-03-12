@@ -47,7 +47,9 @@ async def _check_users_me(client: httpx.AsyncClient) -> None:
         fail(f"status={r.status_code}", r.text[:200])
 
 
-async def _check_json_flag(client: httpx.AsyncClient, path: str, key: str, label: str) -> None:
+async def _check_json_flag(
+    client: httpx.AsyncClient, path: str, key: str, label: str
+) -> None:
     r = await client.get(path)
     if _status_ok(r):
         ok(f"{label}={r.json().get(key)}")
@@ -63,7 +65,9 @@ async def _check_json_len(client: httpx.AsyncClient, path: str, label: str) -> N
         fail(f"status={r.status_code}", r.text[:200])
 
 
-async def _check_status(client: httpx.AsyncClient, method: str, path: str, expect: int) -> None:
+async def _check_status(
+    client: httpx.AsyncClient, method: str, path: str, expect: int
+) -> None:
     request = client.post if method == "POST" else client.get
     r = await request(path)
     if r.status_code == expect:
@@ -91,7 +95,9 @@ async def _check_websocket() -> None:
 
 
 async def _check_bad_token(client: httpx.AsyncClient) -> None:
-    r = await client.get("/v1/users/me", headers={"Authorization": "Bearer wrong-token"})
+    r = await client.get(
+        "/v1/users/me", headers={"Authorization": "Bearer wrong-token"}
+    )
     if r.status_code == HTTP_UNAUTHORIZED:
         ok("correctly rejected")
     else:
@@ -104,7 +110,9 @@ async def main() -> None:
         print("[1] GET /v1/users/me")
         await _check_users_me(c)
         print("[2] GET /v1/users/onboarding-status")
-        await _check_json_flag(c, "/v1/users/onboarding-status", "completed", "completed")
+        await _check_json_flag(
+            c, "/v1/users/onboarding-status", "completed", "completed"
+        )
         print("[3] GET /v3/speech-profile")
         await _check_json_flag(c, "/v3/speech-profile", "has_profile", "has_profile")
         print("[4] GET /v1/conversations")

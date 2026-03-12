@@ -14,16 +14,12 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from services.plugin_manager import media_crawler_plugin as _plugin
 from util.logging_config import get_logger
 
 logger = get_logger()
 
 router = APIRouter(prefix="/api/crawler", tags=["crawler"])
-
-# ---------------------------------------------------------------------------
-# 插件管理器（动态路径解析）
-# ---------------------------------------------------------------------------
-from services.plugin_manager import media_crawler_plugin as _plugin
 
 _PLUGIN_NOT_INSTALLED_MSG = (
     "MediaCrawler 插件未安装。请在「插件管理」中安装 MediaCrawler 插件后再使用爬虫功能。"

@@ -15,12 +15,14 @@
 ## 核心功能
 
 ### 🤖 AI 智能助手
+
 - **智能任务拆分**：AI 自动将复杂任务分解为可管理的子任务，通过引导式问卷流程完成
 - **智能任务提取**：从 AI 对话响应中提取可执行的待办事项
 - **上下文感知建议**：AI 根据当前待办上下文提供任务建议
 - **个人画像记忆**：Agno learning 构建用户画像与跨会话记忆
 
 ### ✅ 全面的任务管理
+
 - **层级任务结构**：支持父子任务关系，无限层级嵌套
 - **优先级与状态**：四级优先级（紧急/高/中/低）和多种状态
 - **标签与分类**：使用自定义标签组织待办，便于筛选
@@ -28,46 +30,55 @@
 - **丰富备注**：为每个待办添加详细备注和描述
 
 ### 📅 多视图日历
+
 - **日/周/月视图**：灵活的日历视图，可视化您的日程安排
 - **拖拽排期**：轻松拖拽待办到日历时间槽进行排期
 - **快速创建待办**：直接从日历时间槽创建待办
 
 ### 🎨 现代化用户界面
+
 - **多面板布局**：可自定义的面板排列（待办 + 聊天 + 详情）
 - **深色/浅色主题**：精美主题，多种配色方案
 - **国际化支持**：完整支持中英文
 - **响应式设计**：适配各种屏幕尺寸
 
 ### 💻 桌面应用
+
 - **Electron 应用**：Windows 和 macOS 原生桌面体验
 - **系统集成**：原生通知和系统托盘支持
 
 ## 系统架构
 
-FreeTodo 采用**前后端分离**架构：
+FreeTodo 采用**分布式多模块**架构，包含三大核心组件：
 
-- **后端**: FastAPI (Python) - 提供 RESTful API（位于 `lifetrace/` 目录）
-- **前端**: Next.js (React + TypeScript) - 现代化 Web 界面（位于 `free-todo-frontend/` 目录）
-- **数据层**: SQLite + ChromaDB（用于 AI 功能）
+- **Server**（`server/`）：FastAPI (Python) — 中心节点，部署在云端或本地服务器，负责 LLM 处理、数据存储和业务 API
+- **Client**（`client/`）：Python 感知守护进程 — 轻量级感知代理，运行在本地设备上，负责屏幕截图、OCR 识别和数据转发
+- **Frontend**（`frontend/`）：Next.js (React + TypeScript) — 现代化 Web 界面，支持 Electron 桌面应用
+
+辅助模块：
+
+- **Phone**（`phone/`）：Flutter 移动端应用
+- **Hardware**（`hardware/`）：硬件设备集成（omi、omiGlass 等）
+- **Deploy**（`deploy/`）：Docker Compose 部署配置
+- **数据层**：SQLite + ChromaDB（用于 AI 功能）
 
 ## 快速开始
 
 ### 环境要求
 
-**后端**:
+**Server & Client**（Python）:
 
 - Python 3.12
 - 支持的操作系统：Windows、macOS、Linux
-- 可选：CUDA 支持（用于 GPU 加速）
 
-**前端**:
+**Frontend**（Node.js）:
 
 - Node.js 20+
 - pnpm 包管理器
--
+
 ### 安装依赖
 
-本项目使用 [uv](https://github.com/astral-sh/uv) 进行快速可靠的依赖管理。
+本项目使用 [uv](https://github.com/astral-sh/uv) 进行 Python 依赖管理。每个模块拥有独立的运行环境。
 
 **安装 uv:**
 
@@ -86,38 +97,29 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 >
 > 或者，您也可以直接打开一个新的终端窗口，`uv` 将自动可用。
 
-**安装依赖并同步环境:**
-
-以下命令均在项目根目录下运行：
+**分别安装各模块依赖：**
 
 ```bash
-# 从 pyproject.toml 和 uv.lock 同步依赖
-uv sync
+# Server 依赖
+cd server && uv sync && cd ..
 
-# 激活虚拟环境
-# macOS/Linux
-source .venv/bin/activate
+# Client 依赖
+cd client && uv sync && cd ..
 
-# Windows
-.venv\Scripts\activate
-
-# 安装前端依赖
-pnpm -C free-todo-frontend install
+# Frontend 依赖
+cd frontend && pnpm install
 ```
 
 ### 一键启动全部服务
 
-开发时可通过脚本一次性启动 **后端 + AgentOS + 前端**：
+开发时可通过脚本一次性启动 **Server + AgentOS + Frontend**：
 
 **macOS/Linux**
 
 ```bash
-# bash 脚本启动暂不稳定，建议参考后文进行分步启动
 chmod +x scripts/start_all.sh
 ./scripts/start_all.sh
 ```
-
-<!-- 该脚本会在后台启动所有服务，并将日志写入 `.run-logs/`。 -->
 
 **Windows（PowerShell）**
 
@@ -127,41 +129,46 @@ chmod +x scripts/start_all.sh
 
 该脚本会打开三个终端窗口分别运行各服务。
 
-### 启动后端服务
+### 分步启动服务
 
-<!-- > **注意**：首次运行时，如果 `config.yaml` 不存在，系统会自动从 `default_config.yaml` 创建。您可以通过编辑 `lifetrace/config/config.yaml` 来自定义设置。 -->
-
-**启动服务器：**
+**1. 启动 Server**（中心节点）：
 
 ```bash
-python -m lifetrace.server
-python -m lifetrace.agent_os
+cd server
+python server.py
+python agent_os.py
 ```
 
-<!-- > **自定义提示词**：如果您想修改不同功能的 AI 提示词，可以编辑 `lifetrace/config/prompt.yaml` 文件。
-
-后端服务会自动从 `8001` 端口（构建版为 `8100`）开始查找可用端口。如果默认端口被占用，会自动使用下一个可用端口，并在控制台显示实际使用的端口。
-
-- **默认后端端口**: `http://localhost:8001`
-- **API 文档**: 实际 API 文档地址会在控制台显示（通常为 `http://localhost:8001/docs`） -->
-
-### 启动前端服务
-
-<!-- 前端是使用 FreeTodo 的必需组件。启动前端开发服务器： -->
+**2. 启动 Client**（感知守护进程，可选）：
 
 ```bash
-# 在根目录下运行：
-pnpm -C free-todo-frontend dev
+cd client
+python sensor.py --center-url http://localhost:8001 --node-id MY-PC
 ```
-<!--
-前端开发服务器会：
-- 自动从 `3001` 端口（开发版默认端口）开始查找可用端口
-- 通过检查 `/health` 端点自动检测运行中的 FreeTodo 后端端口
-- 自动设置 API 代理指向检测到的后端端口 -->
 
-实际的前端地址和后端连接状态会在控制台显示。服务启动后，在浏览器中访问控制台显示的前端地址（通常为 `http://localhost:3001`）开始使用 FreeTodo！🎉
+**3. 启动 Frontend**：
 
-<!-- > **注意**：如果端口被占用，前端和后端都会自动查找下一个可用端口。控制台会显示实际使用的端口。 -->
+```bash
+cd frontend
+pnpm dev
+```
+
+实际的前端地址和后端连接状态会在控制台显示。服务启动后，在浏览器中访问控制台显示的前端地址（通常为 `http://localhost:3001`）开始使用 FreeTodo！
+
+### Docker 部署
+
+也可以通过 Docker 部署 Server：
+
+```bash
+# 构建 Server 镜像
+make build-server
+
+# 使用 Docker Compose 启动服务
+make start
+
+# 查看日志
+make logs
+```
 
 ## 📋 待办事项与路线图
 
@@ -265,37 +272,33 @@ powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
 ### 项目结构
 
 ```
-├── .github/                    # GitHub 仓库资源
-│   ├── assets/                 # 静态资源（README 图片）
-│   ├── BACKEND_GUIDELINES.md   # 后端开发规范
-│   ├── FRONTEND_GUIDELINES.md  # 前端开发规范
-│   ├── CONTRIBUTING.md         # 贡献指南
-│   └── ...                     # 其他 GitHub 仓库文件
-├── .githooks/                  # 仓库内 Git hooks（pre-commit、post-checkout）
-├── lifetrace/                  # 后端模块 (FastAPI)
-│   ├── server.py               # Web API 服务入口
+├── server/                     # Server — 中心节点（FastAPI 后端）
+│   ├── server.py               # FastAPI 应用入口
+│   ├── agent_os.py             # AgentOS 入口（Agno Agent 服务）
+│   ├── pyproject.toml          # Server Python 依赖
+│   ├── Dockerfile              # Docker 构建文件
 │   ├── config/                 # 配置文件
-│   │   ├── config.yaml         # 主配置文件（自动生成）
-│   │   ├── default_config.yaml # 默认配置模板
-│   │   ├── prompt.yaml         # AI 提示词模板
-│   │   └── rapidocr_config.yaml# OCR 配置
-│   ├── routers/                # API 路由处理器
-│   │   ├── chat.py             # 聊天接口端点
-│   │   ├── todo.py             # 待办事项端点
-│   │   ├── task.py             # 任务管理端点
-│   │   └── ...                 # 其他端点
-│   ├── schemas/                # Pydantic 数据模型
+│   ├── core/                   # 核心框架（模块注册、依赖注入等）
+│   ├── routers/                # API 路由处理器（约 30 个模块）
+│   ├── schemas/                # Pydantic 请求/响应模型
 │   ├── services/               # 业务逻辑服务层
-│   ├── repositories/           # 数据访问层
+│   ├── repositories/           # 数据访问层（Repository 模式）
 │   ├── storage/                # 数据存储层
 │   ├── llm/                    # LLM 和 AI 服务
+│   ├── memory/                 # 记忆管理（Agno Learning）
+│   ├── perception/             # 感知数据处理
 │   ├── jobs/                   # 后台任务
-│   ├── util/                   # 工具函数
-│   └── data/                   # 运行时数据（自动生成）
-│       ├── lifetrace.db        # SQLite 数据库
-│       ├── vector_db/          # 向量数据库存储
-│       └── logs/               # 应用日志
-├── free-todo-frontend/         # 前端应用 (Next.js) ⭐
+│   ├── migrations/             # 数据库迁移（Alembic）
+│   ├── observability/          # 可观测性与链路追踪
+│   └── util/                   # 工具函数
+├── client/                     # Client — 感知守护进程（轻量级感知代理）
+│   ├── sensor.py               # 主入口，屏幕截图 / OCR 采集
+│   ├── pyproject.toml          # Client Python 依赖
+│   ├── config/                 # 客户端配置
+│   ├── perception/             # 感知模型与逻辑
+│   ├── proactive_ocr/          # 主动 OCR 引擎（macOS/Windows）
+│   └── util/                   # 工具函数
+├── frontend/                   # Frontend — Web 与桌面 UI（Next.js + Electron）
 │   ├── app/                    # Next.js 应用目录
 │   ├── apps/                   # 功能模块
 │   │   ├── todo-list/          # 待办列表模块
@@ -306,11 +309,17 @@ powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
 │   │   └── ...                 # 其他模块
 │   ├── components/             # React 组件
 │   ├── lib/                    # 工具和服务
-│   ├── electron/               # Electron 桌面应用
-│   ├── package.json            # 前端依赖
-│   └── README.md               # 前端文档
-├── pyproject.toml              # Python 项目配置
-├── uv.lock                     # uv 锁定文件
+│   ├── electron/               # Electron 桌面应用封装
+│   └── package.json            # 前端依赖
+├── phone/                      # 移动端应用（Flutter）
+├── hardware/                   # 硬件设备集成（omi、omiGlass）
+├── deploy/                     # Docker Compose 部署
+│   └── compose.yaml            # 容器编排配置
+├── docs/                       # 架构与设计文档
+├── scripts/                    # 工具脚本（启动、hooks、构建）
+├── .github/                    # GitHub 资源、规范、CI
+├── .githooks/                  # 仓库内 Git hooks
+├── makefile                    # Docker 构建与部署快捷命令
 ├── LICENSE                     # FreeU Community License 许可证
 ├── README.md                   # 英文 README
 └── README_CN.md                # 中文 README（本文件）
