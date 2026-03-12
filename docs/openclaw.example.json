@@ -14,6 +14,20 @@
     }
   },
   "tools": {
-    "allow": ["todo_list", "todo_get", "todo_create", "todo_update"]
+    "allow": [
+      "todo_list",
+      "todo_get",
+      "todo_create",
+      "todo_update",
+      "memory_today",
+      "memory_get_date",
+      "memory_search",
+      "memory_profile_get",
+      "memory_profile_update",
+      "memory_profile_consolidate",
+      "memory_compress_day",
+      "memory_link_day",
+      "memory_compress_and_link"
+    ]
   }
 }
