@@ -328,7 +328,11 @@
 				"vision_assistant": "Auto Todo Detection",
 				"workspace_assistant": "Workspace Assistant",
 				"plan_assistant": "Plan Assistant",
+				"memory_compression": "Memory Compression",
+				"memory_profile": "Memory Profile",
+				"memory_dedup": "Memory Deduplication",
 				"memory_task_link": "Memory Task Link",
+				"perception": "Perception Intent",
 				"unknown": "Unknown Feature"
 			}
 		}
