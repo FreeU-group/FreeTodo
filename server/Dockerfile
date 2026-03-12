@@ -16,7 +16,7 @@ RUN apt update && apt install -y --no-install-recommends \
 COPY pyproject.toml uv.lock ./
 ENV UV_TORCH_BACKEND=cpu
 ENV UV_HTTP_TIMEOUT=300
-RUN uv sync
+RUN uv sync -i https://pypi.mirrors.ustc.edu.cn/simple
 
 # production stage
 FROM base AS production

@@ -117,3 +117,4 @@ MediaCrawlerPro-SignSrv/logs/
 deploy/volume/
 .env
 server/data
+deploy-*
