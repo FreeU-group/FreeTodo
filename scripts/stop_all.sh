@@ -12,10 +12,27 @@ fi
 stopped_any=false
 is_ours() {
   local pid="$1"
-  if [ ! -r "/proc/$pid/cmdline" ]; then
+  if [ ! -d "/proc/$pid" ]; then
     return 1
   fi
-  tr '\0' ' ' <"/proc/$pid/cmdline" | grep -q "$repo_root"
+
+  local cwd
+  cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)
+  if [ -n "$cwd" ] && [[ "$cwd" == "$repo_root"* ]]; then
+    return 0
+  fi
+
+  local exe
+  exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
+  if [ -n "$exe" ] && [[ "$exe" == "$repo_root"* ]]; then
+    return 0
+  fi
+
+  if [ -r "/proc/$pid/cmdline" ]; then
+    tr '\0' ' ' <"/proc/$pid/cmdline" | grep -q "$repo_root" && return 0
+  fi
+
+  return 1
 }
 
 stop_pid() {
