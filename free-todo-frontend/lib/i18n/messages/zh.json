@@ -328,6 +328,7 @@
 				"vision_assistant": "自动待办检测",
 				"workspace_assistant": "工作区助手",
 				"plan_assistant": "计划助手",
+				"memory_task_link": "记忆任务关联",
 				"unknown": "未知功能"
 			}
 		}

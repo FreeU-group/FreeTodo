@@ -328,6 +328,7 @@
 				"vision_assistant": "Auto Todo Detection",
 				"workspace_assistant": "Workspace Assistant",
 				"plan_assistant": "Plan Assistant",
+				"memory_task_link": "Memory Task Link",
 				"unknown": "Unknown Feature"
 			}
 		}
