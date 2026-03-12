@@ -6,6 +6,9 @@ RUN pip install --no-cache-dir uv==0.6.16 -i https://pypi.mirrors.ustc.edu.cn/si
 
 FROM base AS packages
 
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources || \
+    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+
 RUN apt update && apt install -y --no-install-recommends \
     gcc g++ libpq-dev libopus-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -15,6 +18,9 @@ RUN uv sync
 
 # production stage
 FROM base AS production
+
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources || \
+    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
 
 RUN apt update && apt install -y --no-install-recommends \
     libopus0 \
