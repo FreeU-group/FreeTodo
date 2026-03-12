@@ -105,6 +105,10 @@ Date: 2026-03-11
 - Local plugin packaging requires `package.json` + `index.js` under `extensions/freetodo/`.
 2026-03-12
 - Plugin uses plain JSON schema to avoid node dependency installs.
+2026-03-12
+- Next capability candidates documented (prioritized packs).
+2026-03-12
+- Cross-agent strategy: one core API + adapters (MCP/OpenAPI).
 
 ## Conversation Log
 2026-03-11
@@ -130,3 +134,54 @@ Date: 2026-03-11
 - Preferred model: user-initiated rules configured in OpenClaw
   (e.g., via pi mono Agent, Cron, or Heartbeat.MD).
 - Implication: keep the capability for scheduled calls, but ship with no default rules.
+
+## Next Capability Candidates (Post-Todo MVP)
+Prioritize “capture → understand → action” flows; ship in small packs.
+
+### Pack A — Capture & Intake (Highest ROI)
+- Text quick-capture (create todo/note from plain text).
+- Image capture + OCR → todo/note creation.
+- Audio capture + ASR → todo/note creation.
+- Message-to-todo extraction (from chat logs).
+
+### Pack B — Todo Power Features
+- Delete, reorder, status transitions, due/priority updates.
+- Attachments: upload/download/remove (files, images).
+- Bulk update (multi-select status/priority).
+- Import/export (CSV/ICS if already supported).
+
+### Pack C — Notes / Journal / Memory
+- Create/update/list journal entries.
+- Search notes/journals by time or keyword.
+- Summarize a date range into a daily/weekly digest.
+
+### Pack D — Schedule & Events
+- Create/list/update events (calendar integration).
+- Reminder/notification triggers (manual only in MVP).
+
+### Pack E — Search & RAG
+- Global search across todos/notes/events.
+- Context retrieval for agent responses.
+
+### Pack F — Automation (Later)
+- User-defined rules (Cron/Heartbeat) that call tools.
+- Webhook-style triggers from FreeTodo → OpenClaw (optional).
+
+## Cross-Agent Strategy (One Logic, Many Agents)
+Goal: one core API + thin adapters per agent framework.
+
+### Recommended Architecture
+1) **Core**: keep FreeTodo REST API as the single source of truth.
+2) **Schema**: maintain an OpenAPI/JSON schema spec for tools.
+3) **Adapters**:
+   - OpenClaw: plugin (current).
+   - Claude/Codex/OpenCode: expose **MCP server** or generate tool bindings from OpenAPI.
+
+### Why This Works
+- Core logic lives in FreeTodo only once.
+- Adapters are thin; swapping agents doesn’t rewrite business logic.
+- Tool schema stays consistent across ecosystems.
+
+### Minimal Next Step
+- Add a small **MCP server** wrapper that maps MCP tool calls → REST endpoints.
+- Keep OpenClaw plugin as-is; all other agents use MCP client.
