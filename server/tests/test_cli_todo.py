@@ -430,6 +430,43 @@ class _StubVectorClient:
         return self.behavior("reset_vector_database")
 
 
+class _StubNotificationClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_notifications(self):
+        return self.behavior("list_notifications")
+
+    def delete_notification(self, notification_id: str):
+        return self.behavior("delete_notification", notification_id=notification_id)
+
+
+class _StubLocationClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def report_location(self, payload):
+        return self.behavior("report_location", payload=payload)
+
+    def get_latest_location(self):
+        return self.behavior("get_latest_location")
+
+    def get_location_history(self, *, start: str | None, end: str | None, limit: int, offset: int):
+        return self.behavior(
+            "get_location_history",
+            start=start,
+            end=end,
+            limit=limit,
+            offset=offset,
+        )
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -648,6 +685,22 @@ def test_vector_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Vector resource commands" in result.stdout
     assert "freetodo vector sync --limit 100 --dry-run --json" in result.stdout
+
+
+def test_notification_help_defaults_to_english():
+    result = runner.invoke(app, ["notification", "--help"])
+
+    assert result.exit_code == 0
+    assert "Notification resource commands" in result.stdout
+    assert "freetodo notification delete --id notif-123 --dry-run --json" in result.stdout
+
+
+def test_location_help_defaults_to_english():
+    result = runner.invoke(app, ["location", "--help"])
+
+    assert result.exit_code == 0
+    assert "Location resource commands" in result.stdout
+    assert "freetodo location report --input location.json --dry-run --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -1158,3 +1211,79 @@ def test_vector_stats_calls_client(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["data"]["document_count"] == 25
     assert payload["meta"]["request_id"] == "req-vector-stats"
+
+
+def test_notification_list_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "list_notifications"
+        return [{"id": "notif-1", "title": "Reminder"}], "req-notification-list"
+
+    monkeypatch.setattr(
+        "cli.commands.notification.create_notification_client",
+        lambda: _StubNotificationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["notification", "list"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["id"] == "notif-1"
+
+
+def test_notification_delete_dry_run():
+    result = runner.invoke(app, ["notification", "delete", "--id", "notif-2", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["id"] == "notif-2"
+
+
+def test_location_report_dry_run(tmp_path):
+    input_file = tmp_path / "location.json"
+    input_file.write_text(
+        json.dumps({"latitude": 31.2304, "longitude": 121.4737, "accuracy": 15.0}),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["location", "report", "--input", str(input_file), "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["latitude"] == 31.2304
+
+
+def test_location_latest_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_latest_location"
+        return {"ok": True, "location": {"id": 7}}, "req-location-latest"
+
+    monkeypatch.setattr(
+        "cli.commands.location.create_location_client",
+        lambda: _StubLocationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["location", "latest"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["location"]["id"] == 7
+
+
+def test_location_history_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_location_history"
+        assert kwargs["limit"] == 20
+        return {"ok": True, "total": 1, "locations": [{"id": 1}]}, "req-location-history"
+
+    monkeypatch.setattr(
+        "cli.commands.location.create_location_client",
+        lambda: _StubLocationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["location", "history", "--limit", "20"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["total"] == 1

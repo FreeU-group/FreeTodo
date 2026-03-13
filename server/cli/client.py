@@ -546,3 +546,33 @@ class VectorApiClient(ApiClient):
 
     def reset_vector_database(self) -> tuple[Any, str | None]:
         return self._request("POST", "/api/vector-reset")
+
+
+class NotificationApiClient(ApiClient):
+    """Notification-focused API client."""
+
+    def list_notifications(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/notifications")
+
+    def delete_notification(self, notification_id: str) -> tuple[Any, str | None]:
+        return self._request("DELETE", f"/api/notifications/{notification_id}")
+
+
+class LocationApiClient(ApiClient):
+    """Location-focused API client."""
+
+    def report_location(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/location/report", json=payload)
+
+    def get_latest_location(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/location/latest")
+
+    def get_location_history(
+        self, *, start: str | None, end: str | None, limit: int, offset: int
+    ) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {"limit": limit, "offset": offset}
+        if start is not None:
+            params["start"] = start
+        if end is not None:
+            params["end"] = end
+        return self._request("GET", "/api/location/history", params=params)

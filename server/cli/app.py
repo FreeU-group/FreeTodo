@@ -12,8 +12,10 @@ from cli.commands.audio import audio_app
 from cli.commands.automation import automation_app
 from cli.commands.event import event_app
 from cli.commands.journal import journal_app
+from cli.commands.location import location_app
 from cli.commands.logs import logs_app
 from cli.commands.memory import memory_app
+from cli.commands.notification import notification_app
 from cli.commands.scheduler import scheduler_app
 from cli.commands.screenshot import screenshot_app
 from cli.commands.search import search_app
@@ -330,6 +332,42 @@ VECTOR_HELP_TEXT = {
     ),
 }
 
+NOTIFICATION_HELP_TEXT = {
+    "en": (
+        "Notification resource commands.\n\n"
+        "Use these commands to inspect backend notifications and clear handled items.\n\n"
+        "Examples:\n"
+        "  freetodo notification list --json\n"
+        "  freetodo notification delete --id notif-123 --dry-run --json\n"
+    ),
+    "zh": (
+        "Notification 资源命令。\n\n"
+        "可以用这些命令查看后端通知，并清理已处理的通知项。\n\n"
+        "示例：\n"
+        "  freetodo notification list --json\n"
+        "  freetodo notification delete --id notif-123 --dry-run --json\n"
+    ),
+}
+
+LOCATION_HELP_TEXT = {
+    "en": (
+        "Location resource commands.\n\n"
+        "Use these commands to report GPS fixes and inspect stored location history.\n\n"
+        "Examples:\n"
+        "  freetodo location latest --json\n"
+        "  freetodo location history --limit 20 --json\n"
+        "  freetodo location report --input location.json --dry-run --json\n"
+    ),
+    "zh": (
+        "Location 资源命令。\n\n"
+        "可以用这些命令上报 GPS 定位，并查看已存储的位置历史。\n\n"
+        "示例：\n"
+        "  freetodo location latest --json\n"
+        "  freetodo location history --limit 20 --json\n"
+        "  freetodo location report --input location.json --dry-run --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -347,6 +385,8 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "system": SYSTEM_HELP_TEXT,
         "search": SEARCH_HELP_TEXT,
         "vector": VECTOR_HELP_TEXT,
+        "notification": NOTIFICATION_HELP_TEXT,
+        "location": LOCATION_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -378,7 +418,7 @@ def render_help(
         help=(
             "Help topic to render, currently: root, todo, journal, activity, event, "
             "automation, memory, screenshot, audio, scheduler, logs, system, "
-            "search, or vector."
+            "search, vector, notification, or location."
         ),
     ),
     lang: HelpLanguage = typer.Option(
@@ -444,6 +484,8 @@ app.add_typer(activity_app, name="activity")
 app.add_typer(event_app, name="event")
 app.add_typer(automation_app, name="automation")
 app.add_typer(memory_app, name="memory")
+app.add_typer(notification_app, name="notification")
+app.add_typer(location_app, name="location")
 app.add_typer(screenshot_app, name="screenshot")
 app.add_typer(audio_app, name="audio")
 app.add_typer(scheduler_app, name="scheduler")
