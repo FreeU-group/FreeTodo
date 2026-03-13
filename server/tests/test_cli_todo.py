@@ -110,3 +110,21 @@ def test_todo_get_returns_structured_error(monkeypatch):
     payload = json.loads(result.stderr)
     assert payload["error"]["code"] == "HTTP_404"
     assert payload["error"]["message"] == "todo 不存在"
+
+
+def test_root_help_contains_bilingual_guidance():
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "Agent-first CLI" in result.stdout
+    assert "FREETODO_BASE_URL" in result.stdout
+    assert "面向 Agent 的命令行入口" in result.stdout
+
+
+def test_todo_help_contains_examples_and_chinese_hints():
+    result = runner.invoke(app, ["todo", "--help"])
+
+    assert result.exit_code == 0
+    assert "Use JSON-first commands" in result.stdout
+    assert "python -m cli.main todo create --input todo.json --json" in result.stdout
+    assert "Todo 资源命令" in result.stdout

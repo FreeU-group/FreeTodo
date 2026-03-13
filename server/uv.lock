@@ -915,7 +915,7 @@ wheels = [
 [[package]]
 name = "lifetrace-server"
 version = "0.1.2"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "agno" },
     { name = "alembic" },
