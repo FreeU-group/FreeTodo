@@ -8,9 +8,9 @@
 - `message_todo_extraction`：从消息中提取待办
 """
 
-from . import context as _context  # noqa: F401
-
 # 导入子模块以注册对应路由（仅用于副作用）
+from . import attachments as _attachments  # noqa: F401
+from . import context as _context  # noqa: F401
 from . import core as _core  # noqa: F401
 from . import message_todo_extraction as _message_todo_extraction  # noqa: F401
 from . import misc as _misc  # noqa: F401

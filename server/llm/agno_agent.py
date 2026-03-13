@@ -9,8 +9,10 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from contextvars import ContextVar
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from agno.agent import Agent, Message, RunEvent
@@ -60,6 +62,37 @@ TOOL_EVENT_SUFFIX = "]\n"
 
 # 工具结果预览最大长度
 RESULT_PREVIEW_MAX_LENGTH = 500
+MAX_INLINE_TEXT_ATTACHMENT_BYTES = 200_000
+
+TEXT_ATTACHMENT_EXTENSIONS = {
+    ".txt",
+    ".md",
+    ".markdown",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".csv",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".py",
+    ".java",
+    ".go",
+    ".rs",
+    ".rb",
+    ".php",
+    ".sh",
+    ".bat",
+    ".ps1",
+    ".sql",
+    ".html",
+    ".css",
+    ".xml",
+    ".toml",
+    ".ini",
+    ".log",
+}
 
 # Learning 事件类型
 MEMORY_EVENT_TYPE = "memory_saved"
@@ -361,14 +394,105 @@ class AgnoAgentService:
 
         return event
 
+    def _read_text_attachment(self, file_path: str, mime_type: str | None) -> str | None:
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            return None
+
+        if (
+            mime_type
+            and not mime_type.startswith("text/")
+            and path.suffix.lower() not in TEXT_ATTACHMENT_EXTENSIONS
+        ):
+            return None
+
+        try:
+            data = path.read_bytes()
+        except Exception:
+            return None
+
+        if len(data) > MAX_INLINE_TEXT_ATTACHMENT_BYTES:
+            return None
+
+        try:
+            return data.decode("utf-8", errors="replace")
+        except Exception:
+            return None
+
+    def _read_image_data_url(self, file_path: str, mime_type: str | None) -> str | None:
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            return None
+        try:
+            data = path.read_bytes()
+        except Exception:
+            return None
+
+        mime = mime_type or "image/png"
+        encoded = base64.b64encode(data).decode("ascii")
+        return f"data:{mime};base64,{encoded}"
+
+    def _build_user_message_content(
+        self,
+        message: str,
+        attachments: list[dict[str, Any]] | None,
+    ) -> str | list[dict[str, Any]]:
+        if not attachments:
+            return message
+
+        parts: list[dict[str, Any]] = []
+        if message:
+            parts.append({"type": "text", "text": message})
+
+        for attachment in attachments:
+            name = str(attachment.get("file_name") or "attachment")
+            mime_type = attachment.get("mime_type")
+            file_path = attachment.get("file_path")
+            kind = attachment.get("kind") or "file"
+
+            if kind == "image" and file_path:
+                data_url = self._read_image_data_url(str(file_path), mime_type)
+                if data_url:
+                    parts.append({"type": "image_url", "image_url": {"url": data_url}})
+                    continue
+                parts.append({"type": "text", "text": f"[Image attachment: {name}]"})
+                continue
+
+            snippet = self._read_text_attachment(str(file_path), mime_type) if file_path else None
+            if snippet:
+                parts.append(
+                    {
+                        "type": "text",
+                        "text": f"[Attachment: {name}]\n{snippet}",
+                    }
+                )
+            else:
+                details = f"{mime_type or 'application/octet-stream'}"
+                size = attachment.get("file_size")
+                if size:
+                    details = f"{details}, {size} bytes"
+                parts.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            f"[Attachment: {name} ({details})] File stored on disk for reference."
+                        ),
+                    }
+                )
+
+        return parts if parts else message
+
     def _build_input_data(
         self,
         message: str,
         conversation_history: list[dict[str, str]] | None,
+        attachments: list[dict[str, Any]] | None,
     ):
         """构建 Agent 输入数据"""
+        user_content = self._build_user_message_content(message, attachments)
+
         if not conversation_history:
-            return message
+            return user_content
 
         messages = []
         for msg in conversation_history:
@@ -376,7 +500,7 @@ class AgnoAgentService:
             content = msg.get("content", "")
             if role in ("user", "assistant"):
                 messages.append(Message(role=role, content=content))
-        messages.append(Message(role="user", content=message))
+        messages.append(Message(role="user", content=user_content))
         return messages
 
     def _format_tool_event(self, event_data: dict) -> str:
@@ -469,6 +593,7 @@ class AgnoAgentService:
         include_tool_events: bool = True,
         session_id: str | None = None,
         user_id: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> Generator[str]:
         """
         流式生成 Agent 回复
@@ -490,7 +615,7 @@ class AgnoAgentService:
         learning_snapshot = self._capture_learning_snapshot(user_id)
 
         try:
-            input_data = self._build_input_data(message, conversation_history)
+            input_data = self._build_input_data(message, conversation_history, attachments)
             # 直接将 session_id 传递给 agent.run()
             # Agno Instrumentor 会从参数中读取 session_id 并设置为 span 属性
             run_kwargs = {
