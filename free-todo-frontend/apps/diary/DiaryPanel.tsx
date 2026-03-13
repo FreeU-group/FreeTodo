@@ -62,7 +62,7 @@ export function DiaryPanel() {
 	);
 	const [tagInput, setTagInput] = useState("");
 	const [activeTab, setActiveTab] = useState<JournalTab>("original");
-	const [autoLinkMessage, setAutoLinkMessage] = useState<string | null>(null);
+	const [, setAutoLinkMessage] = useState<string | null>(null);
 	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 	const datePickerRef = useRef<HTMLButtonElement | null>(null);
 	const [illustrationExists, setIllustrationExists] = useState(false);
