@@ -35,6 +35,36 @@ class _StubTodoClient:
     def reorder_todos(self, payload):
         return self.behavior("reorder_todos", payload=payload)
 
+    def upload_attachments(self, todo_id: int, file_paths: list[str]):
+        return self.behavior("upload_attachments", todo_id=todo_id, file_paths=file_paths)
+
+    def delete_attachment(self, todo_id: int, attachment_id: int):
+        return self.behavior("delete_attachment", todo_id=todo_id, attachment_id=attachment_id)
+
+    def download_attachment(self, attachment_id: int, output_path: str):
+        return self.behavior(
+            "download_attachment", attachment_id=attachment_id, output_path=output_path
+        )
+
+    def export_ics(self, *, output_path: str, limit: int, offset: int, status: str | None):
+        return self.behavior(
+            "export_ics", output_path=output_path, limit=limit, offset=offset, status=status
+        )
+
+    def import_ics(self, file_path: str):
+        return self.behavior("import_ics", file_path=file_path)
+
+
+class _StubApiClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def health_check(self):
+        return self.behavior("health_check")
+
 
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
@@ -80,6 +110,20 @@ def test_todo_create_validates_payload_and_passes_json(monkeypatch, tmp_path):
     payload = json.loads(result.stdout)
     assert payload["data"]["id"] == 8
     assert payload["meta"]["request_id"] == "req-create"
+
+
+def test_todo_create_dry_run_does_not_call_backend(tmp_path):
+    input_file = tmp_path / "todo.json"
+    input_file.write_text(
+        json.dumps({"name": "Dry Run Todo", "status": "active"}), encoding="utf-8"
+    )
+
+    result = runner.invoke(app, ["todo", "create", "--input", str(input_file), "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["name"] == "Dry Run Todo"
 
 
 def test_todo_update_requires_non_empty_patch(tmp_path):
@@ -144,3 +188,100 @@ def test_localized_help_can_render_bilingual_root():
     assert result.exit_code == 0
     assert "Agent-first CLI" in result.stdout
     assert "面向 Agent 的 Lifetrace/FreeTodo 后端命令行入口" in result.stdout
+
+
+def test_todo_schema_outputs_example():
+    result = runner.invoke(app, ["todo", "schema", "--kind", "update"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["kind"] == "update"
+    assert payload["data"]["example"]["status"] == "completed"
+
+
+def test_doctor_outputs_health(monkeypatch):
+    def behavior(name):
+        assert name == "health_check"
+        return {"status": "healthy", "app": "lifetrace"}, "req-health"
+
+    monkeypatch.setattr("cli.app.ApiClient", lambda _config: _StubApiClient(behavior))
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["backend_health"]["status"] == "healthy"
+    assert payload["meta"]["request_id"] == "req-health"
+
+
+def test_todo_batch_update_runs_multiple_updates(monkeypatch, tmp_path):
+    input_file = tmp_path / "batch.json"
+    input_file.write_text(
+        json.dumps(
+            {
+                "items": [
+                    {"id": 1, "patch": {"status": "completed"}},
+                    {"id": 2, "patch": {"priority": "high"}},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    calls: list[tuple[int, dict]] = []
+
+    def behavior(name, **kwargs):
+        assert name == "update_todo"
+        calls.append((kwargs["todo_id"], kwargs["payload"]))
+        return {"id": kwargs["todo_id"], **kwargs["payload"]}, f"req-{kwargs['todo_id']}"
+
+    monkeypatch.setattr("cli.commands.todo.create_todo_client", lambda: _StubTodoClient(behavior))
+
+    result = runner.invoke(app, ["todo", "batch-update", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    assert calls == [(1, {"status": "completed"}), (2, {"priority": "high"})]
+    payload = json.loads(result.stdout)
+    assert payload["data"]["count"] == 2
+
+
+def test_attach_dry_run_outputs_files(tmp_path):
+    attachment = tmp_path / "note.txt"
+    attachment.write_text("hello", encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["todo", "attach", "--id", "3", "--file", str(attachment), "--dry-run"]
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert str(attachment) in payload["data"]["payload"]["files"]
+
+
+def test_import_ics_dry_run_outputs_file(tmp_path):
+    ics_file = tmp_path / "todo.ics"
+    ics_file.write_text("BEGIN:VCALENDAR", encoding="utf-8")
+
+    result = runner.invoke(app, ["todo", "import-ics", "--input", str(ics_file), "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["payload"]["file"] == str(ics_file)
+
+
+def test_export_ics_calls_client(monkeypatch, tmp_path):
+    output_file = tmp_path / "todos.ics"
+
+    def behavior(name, **kwargs):
+        assert name == "export_ics"
+        assert kwargs["output_path"] == str(output_file)
+        return {"saved_to": str(output_file), "bytes": 12}, "req-export"
+
+    monkeypatch.setattr("cli.commands.todo.create_todo_client", lambda: _StubTodoClient(behavior))
+
+    result = runner.invoke(app, ["todo", "export-ics", "--output", str(output_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["saved_to"] == str(output_file)

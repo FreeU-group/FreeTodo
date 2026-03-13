@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -83,6 +84,10 @@ class ApiClient:
             return None, request_id
         return response.json(), request_id
 
+    def health_check(self) -> tuple[Any, str | None]:
+        """Check backend health."""
+        return self._request("GET", "/health")
+
 
 class TodoApiClient(ApiClient):
     """Todo-focused API client."""
@@ -107,3 +112,88 @@ class TodoApiClient(ApiClient):
 
     def reorder_todos(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
         return self._request("POST", "/api/todos/reorder", json=payload)
+
+    def upload_attachments(self, todo_id: int, file_paths: list[str]) -> tuple[Any, str | None]:
+        files = []
+        try:
+            for file_path in file_paths:
+                file_name = Path(file_path).name
+                files.append(
+                    ("files", (file_name, Path(file_path).read_bytes(), "application/octet-stream"))
+                )
+            return self._request("POST", f"/api/todos/{todo_id}/attachments", files=files)
+        except OSError as exc:
+            raise CliError(
+                code="FILE_READ_ERROR",
+                message=f"Failed to read attachment file: {exc}",
+                exit_code=2,
+            ) from exc
+
+    def delete_attachment(self, todo_id: int, attachment_id: int) -> tuple[Any, str | None]:
+        return self._request("DELETE", f"/api/todos/{todo_id}/attachments/{attachment_id}")
+
+    def download_attachment(self, attachment_id: int, output_path: str) -> tuple[Any, str | None]:
+        try:
+            response = self._client.get(f"/api/todos/attachments/{attachment_id}/file")
+        except httpx.ConnectError as exc:
+            raise CliError(
+                code="BACKEND_UNAVAILABLE",
+                message=f"Cannot connect to backend: {exc}",
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise CliError(
+                code="HTTP_ERROR",
+                message=str(exc),
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        if response.is_error:
+            raise _extract_error(response)
+        output = Path(output_path)
+        output.write_bytes(response.content)
+        request_id = response.headers.get("X-Request-Id") or response.headers.get("X-Request-ID")
+        return {"saved_to": str(output.resolve()), "bytes": len(response.content)}, request_id
+
+    def export_ics(
+        self,
+        *,
+        output_path: str,
+        limit: int,
+        offset: int,
+        status: str | None,
+    ) -> tuple[Any, str | None]:
+        params = {"limit": limit, "offset": offset}
+        if status:
+            params["status"] = status
+        try:
+            response = self._client.get("/api/todos/export/ics", params=params)
+        except httpx.ConnectError as exc:
+            raise CliError(
+                code="BACKEND_UNAVAILABLE",
+                message=f"Cannot connect to backend: {exc}",
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise CliError(
+                code="HTTP_ERROR",
+                message=str(exc),
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        if response.is_error:
+            raise _extract_error(response)
+        output = Path(output_path)
+        output.write_bytes(response.content)
+        request_id = response.headers.get("X-Request-Id") or response.headers.get("X-Request-ID")
+        return {"saved_to": str(output.resolve()), "bytes": len(response.content)}, request_id
+
+    def import_ics(self, file_path: str) -> tuple[Any, str | None]:
+        try:
+            path = Path(file_path)
+            files = {"file": (path.name, path.read_bytes(), "text/calendar")}
+        except OSError as exc:
+            raise CliError(
+                code="FILE_READ_ERROR",
+                message=f"Failed to read ICS file: {exc}",
+                exit_code=2,
+            ) from exc
+        return self._request("POST", "/api/todos/import/ics", files=files)
