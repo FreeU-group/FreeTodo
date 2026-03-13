@@ -11,6 +11,7 @@ from core.config_watcher import reload_with_callbacks
 from jobs.scheduler import get_scheduler_manager
 from llm.llm_client import LLMClient
 from services.asr_client import ASRClient
+from services.diary_illustration_service import sync_diary_illustration_job
 from util.base_paths import get_config_dir, get_user_config_dir
 from util.logging_config import get_logger
 from util.settings import reload_settings, settings
@@ -99,6 +100,18 @@ _COMPOUND_JOB_NAMES: dict[str, str] = {
 
 # 最小 jobs 配置部分数量
 _MIN_JOBS_PARTS = 3
+
+DIARY_ILLUSTRATION_RUNTIME_KEYS = {
+    "jobs.diary_illustration.enabled",
+    "jobs.diary_illustration.cron",
+    "jobs_diary_illustration_enabled",
+    "jobs_diary_illustration_cron",
+    "banna2.api_key",
+    "banna2.ref_image_path",
+    "banna2_api_key",
+    "banna2_ref_image_path",
+    *LLM_RELATED_BACKEND_KEYS,
+}
 
 
 def _convert_jobs_key(parts: list[str]) -> str:
@@ -570,6 +583,16 @@ class ConfigService:
         else:
             logger.info("ASR 配置未发生实际变更，跳过重新加载")
 
+    def sync_diary_illustration_job_if_needed(self, new_settings: dict[str, Any]) -> None:
+        """在运行中同步日记插画任务，支持 cron 热更新。"""
+        if not any(key in DIARY_ILLUSTRATION_RUNTIME_KEYS for key in new_settings):
+            return
+
+        try:
+            sync_diary_illustration_job()
+        except Exception as e:
+            logger.error(f"同步日记插画任务失败: {e}", exc_info=True)
+
     def save_config(
         self,
         new_settings: dict[str, Any],
@@ -625,6 +648,9 @@ class ConfigService:
 
         # 7. 如果需要，重新初始化 ASR 客户端
         self.reinitialize_asr_if_needed(new_settings, old_asr_config)
+
+        # 8. 热同步日记插画任务注册与 cron
+        self.sync_diary_illustration_job_if_needed(new_settings)
 
         return {"success": True, "message": "配置保存成功"}
 

@@ -5,24 +5,29 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import httpx
+from apscheduler.triggers.cron import CronTrigger
 
+from jobs.job_manager import get_job_manager
+from llm.llm_client import LLMClient
 from memory.reader import MemoryReader
 from util.base_paths import get_user_data_dir
 from util.logging_config import get_logger
 from util.settings import settings
 from util.time_utils import local_today_str
 
-if TYPE_CHECKING:
-    from llm.llm_client import LLMClient
-
 logger = get_logger()
 
 ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
 GEMINI_MODEL = "gemini-2.5-flash-image-preview"
+DIARY_ILLUSTRATION_JOB_ID = "diary_illustration_job"
+DIARY_ILLUSTRATION_JOB_NAME = "日记插画生成"
+DEFAULT_DIARY_ILLUSTRATION_CRON = "0 22 * * *"
+CRON_FIELD_COUNT = 5
 
 PROMPT_SYSTEM = (
     "You are a comic storyboard artist. Split the user's day into 2 to 5 key scenes, "
@@ -230,3 +235,101 @@ def init_diary_illustration_service(llm_client: LLMClient) -> DiaryIllustrationS
     service = DiaryIllustrationService(llm_client)
     _SERVICE_HOLDER["service"] = service
     return service
+
+
+def clear_diary_illustration_service() -> None:
+    _SERVICE_HOLDER["service"] = None
+
+
+def ensure_diary_illustration_service() -> DiaryIllustrationService | None:
+    llm = LLMClient()
+    if not llm.is_available():
+        clear_diary_illustration_service()
+        logger.info("DiaryIllustration: LLM not available, service not initialized")
+        return None
+
+    service = get_diary_illustration_service()
+    if service is None:
+        service = init_diary_illustration_service(llm)
+        logger.info("DiaryIllustration: service initialized")
+    return service
+
+
+def _parse_diary_cron_expr(cron_expr: str | None) -> tuple[str, str, str, str, str]:
+    parts = str(cron_expr or DEFAULT_DIARY_ILLUSTRATION_CRON).strip().split()
+    if len(parts) != CRON_FIELD_COUNT:
+        parts = DEFAULT_DIARY_ILLUSTRATION_CRON.split()
+    minute, hour, day, month, day_of_week = parts
+    return minute, hour, day, month, day_of_week
+
+
+def _get_diary_scheduler(wait_for_scheduler: bool = False):
+    manager = get_job_manager()
+    retry_times = 20 if wait_for_scheduler else 1
+
+    for _ in range(retry_times):
+        scheduler_manager = getattr(manager, "scheduler_manager", None)
+        scheduler = getattr(scheduler_manager, "scheduler", None)
+        if scheduler is not None:
+            return scheduler_manager, scheduler
+        if wait_for_scheduler:
+            time.sleep(0.25)
+
+    return None, None
+
+
+def sync_diary_illustration_job(wait_for_scheduler: bool = False) -> bool:
+    scheduler_manager, scheduler = _get_diary_scheduler(wait_for_scheduler=wait_for_scheduler)
+    if scheduler_manager is None or scheduler is None:
+        logger.warning("DiaryIllustration: scheduler not ready, skipped cron registration")
+        return False
+
+    job_cfg = settings.get("jobs.diary_illustration", {}) or {}
+    enabled = bool(job_cfg.get("enabled", False))
+
+    if not enabled:
+        if scheduler_manager.get_job(DIARY_ILLUSTRATION_JOB_ID):
+            scheduler_manager.remove_job(DIARY_ILLUSTRATION_JOB_ID)
+            logger.info("DiaryIllustration: scheduled job removed because feature is disabled")
+        return True
+
+    service = ensure_diary_illustration_service()
+    if service is None:
+        if scheduler_manager.get_job(DIARY_ILLUSTRATION_JOB_ID):
+            scheduler_manager.remove_job(DIARY_ILLUSTRATION_JOB_ID)
+        return False
+
+    minute, hour, day, month, day_of_week = _parse_diary_cron_expr(job_cfg.get("cron"))
+    cron_expr = f"{minute} {hour} {day} {month} {day_of_week}"
+
+    async def _run_daily_illustration() -> None:
+        try:
+            result = await service.generate_for_date()
+            if result["ok"]:
+                logger.info(
+                    "DiaryIllustration: daily job completed, generated=%s",
+                    result["count"],
+                )
+            else:
+                logger.warning(
+                    "DiaryIllustration: daily job failed: %s",
+                    result.get("error"),
+                )
+        except Exception:
+            logger.exception("DiaryIllustration: daily job error")
+
+    scheduler.add_job(
+        _run_daily_illustration,
+        trigger=CronTrigger(
+            minute=minute,
+            hour=hour,
+            day=day,
+            month=month,
+            day_of_week=day_of_week,
+        ),
+        id=DIARY_ILLUSTRATION_JOB_ID,
+        name=DIARY_ILLUSTRATION_JOB_NAME,
+        replace_existing=True,
+    )
+    logger.info("DiaryIllustration: scheduled job registered (cron=%s)", cron_expr)
+    return True
