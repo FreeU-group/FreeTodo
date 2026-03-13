@@ -22,12 +22,11 @@ todo_app = typer.Typer(
         "Use JSON-first commands for reliable agent automation.\n"
         "Read commands return backend data; write commands modify backend todos through HTTP APIs.\n\n"
         "Examples:\n"
-        "  python -m cli.main todo list --status active --json\n"
-        "  python -m cli.main todo get --id 42 --json\n"
-        "  python -m cli.main todo create --input todo.json --json\n"
-        "  python -m cli.main todo update --id 42 --patch patch.json --json\n"
-        "  python -m cli.main todo delete --id 42 --json\n\n"
-        "Todo 资源命令。建议 Agent 始终使用 --json，并通过文件或 stdin 传入 JSON。"
+        "  freetodo todo list --status active --json\n"
+        "  freetodo todo get --id 42 --json\n"
+        "  freetodo todo create --input todo.json --json\n"
+        "  freetodo todo update --id 42 --patch patch.json --json\n"
+        "  freetodo todo delete --id 42 --json"
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -143,27 +142,22 @@ def _handle_cli_error(*, resource: str, action: str, error: CliError, json_outpu
 def list_todos(
     limit: Annotated[
         int,
-        typer.Option(
-            "--limit", min=1, max=2000, help="Maximum number of todos to return. 返回数量上限。"
-        ),
+        typer.Option("--limit", min=1, max=2000, help="Maximum number of todos to return."),
     ] = 200,
     offset: Annotated[
         int,
-        typer.Option("--offset", min=0, help="Zero-based offset for pagination. 分页偏移量。"),
+        typer.Option("--offset", min=0, help="Zero-based offset for pagination."),
     ] = 0,
     status: Annotated[
         str | None,
-        typer.Option(
-            "--status",
-            help="Optional status filter, e.g. active/completed/canceled. 可选状态筛选。",
-        ),
+        typer.Option("--status", help="Optional status filter, e.g. active/completed/canceled."),
     ] = None,
     json_output: Annotated[
         bool,
-        typer.Option("--json/--no-json", help="Emit structured JSON output. 输出结构化 JSON。"),
+        typer.Option("--json/--no-json", help="Emit structured JSON output."),
     ] = True,
 ) -> None:
-    """List todos. 列出待办。"""
+    """List todos."""
     client = create_todo_client()
     try:
         data, request_id = client.list_todos(limit=limit, offset=offset, status=status)
@@ -184,14 +178,14 @@ def list_todos(
 def get_todo(
     todo_id: Annotated[
         int,
-        typer.Option("--id", help="Todo ID to fetch. 要读取的待办 ID。"),
+        typer.Option("--id", help="Todo ID to fetch."),
     ],
     json_output: Annotated[
         bool,
-        typer.Option("--json/--no-json", help="Emit structured JSON output. 输出结构化 JSON。"),
+        typer.Option("--json/--no-json", help="Emit structured JSON output."),
     ] = True,
 ) -> None:
-    """Get a single todo. 获取单个待办。"""
+    """Get a single todo."""
     client = create_todo_client()
     try:
         data, request_id = client.get_todo(todo_id)
@@ -212,19 +206,19 @@ def create_todo(
             "--input",
             exists=True,
             dir_okay=False,
-            help="Path to a JSON file matching TodoCreate schema. TodoCreate JSON 文件路径。",
+            help="Path to a JSON file matching TodoCreate schema.",
         ),
     ] = None,
     use_stdin: Annotated[
         bool,
-        typer.Option("--stdin", help="Read JSON payload from stdin. 从标准输入读取 JSON。"),
+        typer.Option("--stdin", help="Read JSON payload from stdin."),
     ] = False,
     json_output: Annotated[
         bool,
-        typer.Option("--json/--no-json", help="Emit structured JSON output. 输出结构化 JSON。"),
+        typer.Option("--json/--no-json", help="Emit structured JSON output."),
     ] = True,
 ) -> None:
-    """Create a todo from JSON input. 用 JSON 创建待办。"""
+    """Create a todo from JSON input."""
     try:
         payload = _model_payload(
             TodoCreate, _read_json_payload(input_path=input_path, use_stdin=use_stdin)
@@ -249,7 +243,7 @@ def create_todo(
 def update_todo(
     todo_id: Annotated[
         int,
-        typer.Option("--id", help="Todo ID to update. 要更新的待办 ID。"),
+        typer.Option("--id", help="Todo ID to update."),
     ],
     input_path: Annotated[
         str | None,
@@ -257,19 +251,19 @@ def update_todo(
             "--patch",
             exists=True,
             dir_okay=False,
-            help="Path to a partial JSON payload matching TodoUpdate schema. TodoUpdate 局部更新 JSON 文件路径。",
+            help="Path to a partial JSON payload matching TodoUpdate schema.",
         ),
     ] = None,
     use_stdin: Annotated[
         bool,
-        typer.Option("--stdin", help="Read patch JSON from stdin. 从标准输入读取补丁 JSON。"),
+        typer.Option("--stdin", help="Read patch JSON from stdin."),
     ] = False,
     json_output: Annotated[
         bool,
-        typer.Option("--json/--no-json", help="Emit structured JSON output. 输出结构化 JSON。"),
+        typer.Option("--json/--no-json", help="Emit structured JSON output."),
     ] = True,
 ) -> None:
-    """Update a todo with a partial JSON payload. 使用局部 JSON 更新待办。"""
+    """Update a todo with a partial JSON payload."""
     try:
         payload = _model_payload(
             TodoUpdate, _read_json_payload(input_path=input_path, use_stdin=use_stdin)
@@ -300,14 +294,14 @@ def update_todo(
 def delete_todo(
     todo_id: Annotated[
         int,
-        typer.Option("--id", help="Todo ID to delete. 要删除的待办 ID。"),
+        typer.Option("--id", help="Todo ID to delete."),
     ],
     json_output: Annotated[
         bool,
-        typer.Option("--json/--no-json", help="Emit structured JSON output. 输出结构化 JSON。"),
+        typer.Option("--json/--no-json", help="Emit structured JSON output."),
     ] = True,
 ) -> None:
-    """Delete a todo. 删除待办。"""
+    """Delete a todo."""
     client = create_todo_client()
     try:
         _, request_id = client.delete_todo(todo_id)
@@ -332,19 +326,19 @@ def reorder_todos(
             "--input",
             exists=True,
             dir_okay=False,
-            help="Path to a JSON file matching TodoReorderRequest schema. TodoReorderRequest JSON 文件路径。",
+            help="Path to a JSON file matching TodoReorderRequest schema.",
         ),
     ] = None,
     use_stdin: Annotated[
         bool,
-        typer.Option("--stdin", help="Read reorder JSON from stdin. 从标准输入读取重排 JSON。"),
+        typer.Option("--stdin", help="Read reorder JSON from stdin."),
     ] = False,
     json_output: Annotated[
         bool,
-        typer.Option("--json/--no-json", help="Emit structured JSON output. 输出结构化 JSON。"),
+        typer.Option("--json/--no-json", help="Emit structured JSON output."),
     ] = True,
 ) -> None:
-    """Reorder todos using a JSON payload. 用 JSON 批量重排待办。"""
+    """Reorder todos using a JSON payload."""
     try:
         payload = _model_payload(
             TodoReorderRequest,

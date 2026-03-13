@@ -2,28 +2,107 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 import typer
 
 from cli.commands.todo import todo_app
 
-app = typer.Typer(
-    help=(
+
+class HelpLanguage(StrEnum):
+    EN = "en"
+    ZH = "zh"
+    BILINGUAL = "bilingual"
+
+
+ROOT_HELP_TEXT = {
+    "en": (
         "Agent-first CLI for Lifetrace/FreeTodo backend operations.\n\n"
-        "English first, with key Chinese hints for human operators.\n"
         "Use this CLI to read and modify backend resources through the HTTP API.\n\n"
         "Quick start:\n"
         "  1. Start server: uv run --directory server python server.py\n"
-        "  2. List todos:   uv run --directory server python -m cli.main todo list --json\n"
-        "  3. Create todo:  uv run --directory server python -m cli.main todo create --input todo.json --json\n\n"
+        "  2. List todos:   uv run --directory server freetodo todo list --json\n"
+        "  3. Create todo:  uv run --directory server freetodo todo create --input todo.json --json\n\n"
         "Environment variables:\n"
-        "  FREETODO_BASE_URL   Backend base URL. Default: http://127.0.0.1:8001\n"
-        "  FREETODO_API_TOKEN  Bearer token for authenticated deployments\n"
+        "  FREETODO_BASE_URL     Backend base URL. Default: http://127.0.0.1:8001\n"
+        "  FREETODO_API_TOKEN    Bearer token for authenticated deployments\n"
         "  FREETODO_TIMEOUT_SEC  HTTP timeout in seconds. Default: 30\n\n"
-        "Agent usage recommendation:\n"
-        "  Prefer --json and file/stdin input for stable automation.\n\n"
-        "面向 Agent 的命令行入口。默认优先英文，并为人工使用者补充中文提示。"
+        "Agent recommendation:\n"
+        "  Prefer --json and file/stdin input for stable automation."
     ),
+    "zh": (
+        "面向 Agent 的 Lifetrace/FreeTodo 后端命令行入口。\n\n"
+        "这个 CLI 通过 HTTP API 读取和修改后端资源。\n\n"
+        "快速开始：\n"
+        "  1. 启动后端：uv run --directory server python server.py\n"
+        "  2. 查看待办：uv run --directory server freetodo todo list --json\n"
+        "  3. 创建待办：uv run --directory server freetodo todo create --input todo.json --json\n\n"
+        "环境变量：\n"
+        "  FREETODO_BASE_URL     后端基础地址，默认 http://127.0.0.1:8001\n"
+        "  FREETODO_API_TOKEN    鉴权 token\n"
+        "  FREETODO_TIMEOUT_SEC  HTTP 超时秒数，默认 30\n\n"
+        "Agent 建议：\n"
+        "  为了稳定自动化，请优先使用 --json，并通过文件或 stdin 传入输入。"
+    ),
+}
+
+TODO_HELP_TEXT = {
+    "en": (
+        "Todo resource commands.\n\n"
+        "Use JSON-first commands for reliable agent automation.\n"
+        "Read commands return backend data; write commands modify backend todos through HTTP APIs.\n\n"
+        "Examples:\n"
+        "  freetodo todo list --status active --json\n"
+        "  freetodo todo get --id 42 --json\n"
+        "  freetodo todo create --input todo.json --json\n"
+        "  freetodo todo update --id 42 --patch patch.json --json\n"
+        "  freetodo todo delete --id 42 --json\n"
+    ),
+    "zh": (
+        "Todo 资源命令。\n\n"
+        "建议以 JSON 为中心来调用这些命令，便于 Agent 稳定自动化。\n"
+        "读取命令返回后端数据；写入命令通过 HTTP API 修改后端待办。\n\n"
+        "示例：\n"
+        "  freetodo todo list --status active --json\n"
+        "  freetodo todo get --id 42 --json\n"
+        "  freetodo todo create --input todo.json --json\n"
+        "  freetodo todo update --id 42 --patch patch.json --json\n"
+        "  freetodo todo delete --id 42 --json\n"
+    ),
+}
+
+
+def _merge_help(topic: str, language: HelpLanguage) -> str:
+    help_map = {"root": ROOT_HELP_TEXT, "todo": TODO_HELP_TEXT}
+    if topic not in help_map:
+        raise typer.BadParameter(f"Unsupported help topic: {topic}")
+    if language == HelpLanguage.BILINGUAL:
+        return f"{help_map[topic]['en']}\n\n---\n\n{help_map[topic]['zh']}"
+    return help_map[topic][language.value]
+
+
+app = typer.Typer(
+    help=ROOT_HELP_TEXT["en"],
     no_args_is_help=True,
     add_completion=False,
 )
+
+
+@app.command("help")
+def render_help(
+    topic: str = typer.Argument(
+        "root",
+        help="Help topic to render, currently: root or todo.",
+    ),
+    lang: HelpLanguage = typer.Option(
+        HelpLanguage.EN,
+        "--lang",
+        help="Language for rendered help: en, zh, or bilingual.",
+        case_sensitive=False,
+    ),
+) -> None:
+    """Render localized help text for a command group."""
+    typer.echo(_merge_help(topic, lang))
+
+
 app.add_typer(todo_app, name="todo")
