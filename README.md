@@ -96,13 +96,13 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ```bash
 # Server dependencies
-cd server && uv sync && cd ..
+uv sync --directory server
 
 # Client dependencies
-cd client && uv sync && cd ..
+uv sync --directory client
 
 # Frontend dependencies
-cd frontend && pnpm install
+pnpm --dir frontend install
 ```
 
 ### Start All Services (One-Click)
@@ -129,23 +129,20 @@ This opens three terminal windows to run each service.
 **1. Start the Server** (center node):
 
 ```bash
-cd server
-python server.py
-python agent_os.py
+uv run --directory server python server.py
+uv run --directory server python agent_os.py
 ```
 
 **2. Start the Client** (perception daemon, optional):
 
 ```bash
-cd client
-python sensor.py --center-url http://localhost:8001 --node-id MY-PC
+uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC
 ```
 
 **3. Start the Frontend**:
 
 ```bash
-cd frontend
-pnpm dev
+pnpm --dir frontend dev
 ```
 
 The actual frontend URL and backend connection status will be displayed in the console. Once both services are running, open your browser and navigate to the displayed frontend URL (typically `http://localhost:3001`) to enjoy FreeTodo!

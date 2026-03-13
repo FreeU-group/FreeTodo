@@ -101,13 +101,13 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ```bash
 # Server 依赖
-cd server && uv sync && cd ..
+uv sync --directory server
 
 # Client 依赖
-cd client && uv sync && cd ..
+uv sync --directory client
 
 # Frontend 依赖
-cd frontend && pnpm install
+pnpm --dir frontend install
 ```
 
 ### 一键启动全部服务
@@ -122,6 +122,7 @@ chmod +x scripts/start_all.sh
 ```
 
 **Windows（PowerShell）**
+这里目前还没有调试好。
 
 ```powershell
 .\scripts\start_all.ps1
@@ -134,23 +135,20 @@ chmod +x scripts/start_all.sh
 **1. 启动 Server**（中心节点）：
 
 ```bash
-cd server
-python server.py
-python agent_os.py
+uv run --directory server python server.py
+uv run --directory server python agent_os.py
 ```
 
 **2. 启动 Client**（感知守护进程，可选）：
 
 ```bash
-cd client
-python sensor.py --center-url http://localhost:8001 --node-id MY-PC
+uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC
 ```
 
 **3. 启动 Frontend**：
 
 ```bash
-cd frontend
-pnpm dev
+pnpm --dir frontend dev
 ```
 
 实际的前端地址和后端连接状态会在控制台显示。服务启动后，在浏览器中访问控制台显示的前端地址（通常为 `http://localhost:3001`）开始使用 FreeTodo！
