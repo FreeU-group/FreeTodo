@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
-import json
-import sys
-from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from pydantic import ValidationError
 
 from cli.client import TodoApiClient
+from cli.commands.common import (
+    emit_dry_run,
+    emit_success,
+    handle_cli_error,
+    model_payload,
+    read_existing_file,
+    read_json_payload,
+)
 from cli.config import load_config
 from cli.errors import CliError
-from cli.output import build_envelope, emit_json
 from schemas.todo import TodoCreate, TodoReorderRequest, TodoUpdate
 
 todo_app = typer.Typer(
@@ -64,144 +67,6 @@ def create_todo_client() -> TodoApiClient:
     return TodoApiClient(load_config())
 
 
-def _read_json_payload(
-    *,
-    input_path: str | None,
-    use_stdin: bool,
-) -> dict[str, Any]:
-    if input_path and use_stdin:
-        raise CliError(
-            code="INVALID_INPUT_MODE",
-            message="Use either --input or --stdin, not both",
-            exit_code=2,
-        )
-    if input_path:
-        try:
-            return json.loads(Path(input_path).read_text(encoding="utf-8"))
-        except OSError as exc:
-            raise CliError(
-                code="INPUT_READ_FAILED",
-                message=f"Failed to read input file: {exc}",
-                exit_code=2,
-            ) from exc
-        except json.JSONDecodeError as exc:
-            raise CliError(
-                code="INVALID_JSON",
-                message=f"Input file does not contain valid JSON: {exc}",
-                exit_code=2,
-            ) from exc
-    if use_stdin:
-        raw = sys.stdin.read()
-        if not raw.strip():
-            raise CliError(
-                code="EMPTY_STDIN",
-                message="Expected JSON payload on stdin",
-                exit_code=2,
-            )
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise CliError(
-                code="INVALID_JSON",
-                message=f"stdin does not contain valid JSON: {exc}",
-                exit_code=2,
-            ) from exc
-    raise CliError(
-        code="MISSING_INPUT",
-        message="Provide JSON via --input or --stdin",
-        exit_code=2,
-    )
-
-
-def _model_payload(
-    model_cls: type[TodoCreate] | type[TodoUpdate] | type[TodoReorderRequest],
-    payload: dict[str, Any],
-) -> dict[str, Any]:
-    try:
-        model = model_cls.model_validate(payload)
-    except ValidationError as exc:
-        raise CliError(
-            code="VALIDATION_ERROR",
-            message="Payload validation failed",
-            exit_code=2,
-            details={"errors": exc.errors()},
-        ) from exc
-    return model.model_dump(mode="json", exclude_unset=True)
-
-
-def _emit_success(
-    *,
-    resource: str,
-    action: str,
-    data: Any,
-    request_id: str | None,
-    json_output: bool,
-    dry_run: bool = False,
-) -> None:
-    payload = build_envelope(
-        ok=True,
-        resource=resource,
-        action=action,
-        data=data,
-        request_id=request_id,
-        dry_run=dry_run,
-    )
-    if json_output:
-        emit_json(payload)
-        return
-    typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
-
-
-def _handle_cli_error(*, resource: str, action: str, error: CliError, json_output: bool) -> None:
-    payload = build_envelope(
-        ok=False,
-        resource=resource,
-        action=action,
-        data=None,
-        error={
-            "code": error.code,
-            "message": error.message,
-            "details": error.details or {},
-        },
-    )
-    if json_output:
-        emit_json(payload, stream="stderr")
-    else:
-        typer.echo(json.dumps(payload, ensure_ascii=False, indent=2), err=True)
-    raise typer.Exit(code=error.exit_code)
-
-
-def _emit_dry_run(
-    *,
-    action: str,
-    payload: Any,
-    json_output: bool,
-    extra: dict[str, Any] | None = None,
-) -> None:
-    dry_run_data = {"payload": payload}
-    if extra:
-        dry_run_data.update(extra)
-    _emit_success(
-        resource="todo",
-        action=action,
-        data=dry_run_data,
-        request_id="dry-run",
-        json_output=json_output,
-        dry_run=True,
-    )
-
-
-def _read_existing_file(path: str) -> Path:
-    file_path = Path(path)
-    if not file_path.exists() or not file_path.is_file():
-        raise CliError(
-            code="FILE_NOT_FOUND",
-            message=f"File does not exist: {path}",
-            exit_code=2,
-        )
-    return file_path
-
-
 @todo_app.command("schema")
 def todo_schema(
     kind: Annotated[
@@ -238,7 +103,7 @@ def todo_schema(
     if include_example:
         data["example"] = SCHEMA_EXAMPLES[normalized_kind]
 
-    _emit_success(
+    emit_success(
         resource="todo",
         action="schema",
         data=data,
@@ -270,7 +135,7 @@ def batch_update_todos(
 ) -> None:
     """Update multiple todos sequentially from a JSON payload."""
     try:
-        payload = _read_json_payload(input_path=input_path, use_stdin=use_stdin)
+        payload = read_json_payload(input_path=input_path, use_stdin=use_stdin)
         items = payload.get("items")
         if not isinstance(items, list) or not items:
             raise CliError(
@@ -295,7 +160,7 @@ def batch_update_todos(
                     message="Each batch item must contain integer 'id' and object 'patch'",
                     exit_code=2,
                 )
-            normalized_patch = _model_payload(TodoUpdate, patch)
+            normalized_patch = model_payload(TodoUpdate, patch)
             if not normalized_patch:
                 raise CliError(
                     code="EMPTY_PATCH",
@@ -305,7 +170,8 @@ def batch_update_todos(
             normalized_items.append({"id": todo_id, "patch": normalized_patch})
 
         if dry_run:
-            _emit_dry_run(
+            emit_dry_run(
+                resource="todo",
                 action="batch-update",
                 payload={"items": normalized_items},
                 json_output=json_output,
@@ -321,7 +187,7 @@ def batch_update_todos(
                 results.append({"id": item["id"], "result": data})
                 if request_id:
                     request_ids.append(request_id)
-            _emit_success(
+            emit_success(
                 resource="todo",
                 action="batch-update",
                 data={"items": results, "count": len(results)},
@@ -331,9 +197,7 @@ def batch_update_todos(
         finally:
             client.close()
     except CliError as exc:
-        _handle_cli_error(
-            resource="todo", action="batch-update", error=exc, json_output=json_output
-        )
+        handle_cli_error(resource="todo", action="batch-update", error=exc, json_output=json_output)
 
 
 @todo_app.command("list")
@@ -359,7 +223,7 @@ def list_todos(
     client = create_todo_client()
     try:
         data, request_id = client.list_todos(limit=limit, offset=offset, status=status)
-        _emit_success(
+        emit_success(
             resource="todo",
             action="list",
             data=data,
@@ -367,7 +231,7 @@ def list_todos(
             json_output=json_output,
         )
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="list", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="list", error=exc, json_output=json_output)
     finally:
         client.close()
 
@@ -387,11 +251,11 @@ def get_todo(
     client = create_todo_client()
     try:
         data, request_id = client.get_todo(todo_id)
-        _emit_success(
+        emit_success(
             resource="todo", action="get", data=data, request_id=request_id, json_output=json_output
         )
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="get", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="get", error=exc, json_output=json_output)
     finally:
         client.close()
 
@@ -422,16 +286,16 @@ def create_todo(
 ) -> None:
     """Create a todo from JSON input."""
     try:
-        payload = _model_payload(
-            TodoCreate, _read_json_payload(input_path=input_path, use_stdin=use_stdin)
+        payload = model_payload(
+            TodoCreate, read_json_payload(input_path=input_path, use_stdin=use_stdin)
         )
         if dry_run:
-            _emit_dry_run(action="create", payload=payload, json_output=json_output)
+            emit_dry_run(resource="todo", action="create", payload=payload, json_output=json_output)
             return
         client = create_todo_client()
         try:
             data, request_id = client.create_todo(payload)
-            _emit_success(
+            emit_success(
                 resource="todo",
                 action="create",
                 data=data,
@@ -441,7 +305,7 @@ def create_todo(
         finally:
             client.close()
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="create", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="create", error=exc, json_output=json_output)
 
 
 @todo_app.command("update")
@@ -474,8 +338,8 @@ def update_todo(
 ) -> None:
     """Update a todo with a partial JSON payload."""
     try:
-        payload = _model_payload(
-            TodoUpdate, _read_json_payload(input_path=input_path, use_stdin=use_stdin)
+        payload = model_payload(
+            TodoUpdate, read_json_payload(input_path=input_path, use_stdin=use_stdin)
         )
         if not payload:
             raise CliError(
@@ -484,7 +348,8 @@ def update_todo(
                 exit_code=2,
             )
         if dry_run:
-            _emit_dry_run(
+            emit_dry_run(
+                resource="todo",
                 action="update",
                 payload=payload,
                 json_output=json_output,
@@ -494,7 +359,7 @@ def update_todo(
         client = create_todo_client()
         try:
             data, request_id = client.update_todo(todo_id, payload)
-            _emit_success(
+            emit_success(
                 resource="todo",
                 action="update",
                 data=data,
@@ -504,7 +369,7 @@ def update_todo(
         finally:
             client.close()
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="update", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="update", error=exc, json_output=json_output)
 
 
 @todo_app.command("delete")
@@ -524,7 +389,8 @@ def delete_todo(
 ) -> None:
     """Delete a todo."""
     if dry_run:
-        _emit_dry_run(
+        emit_dry_run(
+            resource="todo",
             action="delete",
             payload={"id": todo_id},
             json_output=json_output,
@@ -533,7 +399,7 @@ def delete_todo(
     client = create_todo_client()
     try:
         _, request_id = client.delete_todo(todo_id)
-        _emit_success(
+        emit_success(
             resource="todo",
             action="delete",
             data={"deleted": True, "id": todo_id},
@@ -541,7 +407,7 @@ def delete_todo(
             json_output=json_output,
         )
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="delete", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="delete", error=exc, json_output=json_output)
     finally:
         client.close()
 
@@ -572,17 +438,19 @@ def reorder_todos(
 ) -> None:
     """Reorder todos using a JSON payload."""
     try:
-        payload = _model_payload(
+        payload = model_payload(
             TodoReorderRequest,
-            _read_json_payload(input_path=input_path, use_stdin=use_stdin),
+            read_json_payload(input_path=input_path, use_stdin=use_stdin),
         )
         if dry_run:
-            _emit_dry_run(action="reorder", payload=payload, json_output=json_output)
+            emit_dry_run(
+                resource="todo", action="reorder", payload=payload, json_output=json_output
+            )
             return
         client = create_todo_client()
         try:
             data, request_id = client.reorder_todos(payload)
-            _emit_success(
+            emit_success(
                 resource="todo",
                 action="reorder",
                 data=data,
@@ -592,7 +460,7 @@ def reorder_todos(
         finally:
             client.close()
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="reorder", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="reorder", error=exc, json_output=json_output)
 
 
 @todo_app.command("attach")
@@ -615,9 +483,10 @@ def upload_attachments(
     try:
         if not files:
             raise CliError(code="MISSING_FILES", message="Provide at least one --file", exit_code=2)
-        resolved_files = [str(_read_existing_file(path)) for path in files]
+        resolved_files = [str(read_existing_file(path)) for path in files]
         if dry_run:
-            _emit_dry_run(
+            emit_dry_run(
+                resource="todo",
                 action="attach",
                 payload={"todo_id": todo_id, "files": resolved_files},
                 json_output=json_output,
@@ -626,7 +495,7 @@ def upload_attachments(
         client = create_todo_client()
         try:
             data, request_id = client.upload_attachments(todo_id, resolved_files)
-            _emit_success(
+            emit_success(
                 resource="todo",
                 action="attach",
                 data=data,
@@ -636,7 +505,7 @@ def upload_attachments(
         finally:
             client.close()
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="attach", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="attach", error=exc, json_output=json_output)
 
 
 @todo_app.command("detach")
@@ -654,7 +523,8 @@ def detach_attachment(
     """Detach an attachment from a todo."""
     try:
         if dry_run:
-            _emit_dry_run(
+            emit_dry_run(
+                resource="todo",
                 action="detach",
                 payload={"todo_id": todo_id, "attachment_id": attachment_id},
                 json_output=json_output,
@@ -663,7 +533,7 @@ def detach_attachment(
         client = create_todo_client()
         try:
             _, request_id = client.delete_attachment(todo_id, attachment_id)
-            _emit_success(
+            emit_success(
                 resource="todo",
                 action="detach",
                 data={"detached": True, "todo_id": todo_id, "attachment_id": attachment_id},
@@ -673,7 +543,7 @@ def detach_attachment(
         finally:
             client.close()
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="detach", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="detach", error=exc, json_output=json_output)
 
 
 @todo_app.command("download-attachment")
@@ -692,7 +562,7 @@ def download_attachment(
     client = create_todo_client()
     try:
         data, request_id = client.download_attachment(attachment_id, output_path)
-        _emit_success(
+        emit_success(
             resource="todo",
             action="download-attachment",
             data=data,
@@ -700,7 +570,7 @@ def download_attachment(
             json_output=json_output,
         )
     except CliError as exc:
-        _handle_cli_error(
+        handle_cli_error(
             resource="todo", action="download-attachment", error=exc, json_output=json_output
         )
     finally:
@@ -734,7 +604,7 @@ def export_ics(
             offset=offset,
             status=status,
         )
-        _emit_success(
+        emit_success(
             resource="todo",
             action="export-ics",
             data=data,
@@ -742,7 +612,7 @@ def export_ics(
             json_output=json_output,
         )
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="export-ics", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="export-ics", error=exc, json_output=json_output)
     finally:
         client.close()
 
@@ -762,14 +632,19 @@ def import_ics(
 ) -> None:
     """Import todos from an ICS file."""
     try:
-        file_path = str(_read_existing_file(input_path))
+        file_path = str(read_existing_file(input_path))
         if dry_run:
-            _emit_dry_run(action="import-ics", payload={"file": file_path}, json_output=json_output)
+            emit_dry_run(
+                resource="todo",
+                action="import-ics",
+                payload={"file": file_path},
+                json_output=json_output,
+            )
             return
         client = create_todo_client()
         try:
             data, request_id = client.import_ics(file_path)
-            _emit_success(
+            emit_success(
                 resource="todo",
                 action="import-ics",
                 data=data,
@@ -779,4 +654,4 @@ def import_ics(
         finally:
             client.close()
     except CliError as exc:
-        _handle_cli_error(resource="todo", action="import-ics", error=exc, json_output=json_output)
+        handle_cli_error(resource="todo", action="import-ics", error=exc, json_output=json_output)
