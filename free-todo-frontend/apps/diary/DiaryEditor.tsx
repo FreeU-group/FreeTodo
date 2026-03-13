@@ -31,7 +31,7 @@ interface DiaryEditorProps {
 export function DiaryEditor({
 	draft,
 	activeTab,
-	selectedDateStr,
+	selectedDateStr: _selectedDateStr,
 	onTabChange,
 	onTitleChange,
 	onTitleBlur,
