@@ -496,6 +496,40 @@ class _StubPreviewClient:
         return self.behavior("get_preview", path=path, mode=mode, max_bytes=max_bytes)
 
 
+class _StubCostTrackingClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_cost_stats(self, *, days: int):
+        return self.behavior("get_cost_stats", days=days)
+
+    def get_cost_config(self):
+        return self.behavior("get_cost_config")
+
+
+class _StubPluginsClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_plugins(self):
+        return self.behavior("list_plugins")
+
+    def get_media_crawler_status(self):
+        return self.behavior("get_media_crawler_status")
+
+    def install_media_crawler(self, *, version: str | None, download_url: str | None):
+        return self.behavior("install_media_crawler", version=version, download_url=download_url)
+
+    def uninstall_media_crawler(self):
+        return self.behavior("uninstall_media_crawler")
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -746,6 +780,22 @@ def test_preview_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Preview resource commands" in result.stdout
     assert "freetodo preview file --path /abs/path/file.txt --mode text --json" in result.stdout
+
+
+def test_cost_tracking_help_defaults_to_english():
+    result = runner.invoke(app, ["cost-tracking", "--help"])
+
+    assert result.exit_code == 0
+    assert "Cost tracking resource commands" in result.stdout
+    assert "freetodo cost-tracking stats --days 30 --json" in result.stdout
+
+
+def test_plugins_help_defaults_to_english():
+    result = runner.invoke(app, ["plugins", "--help"])
+
+    assert result.exit_code == 0
+    assert "Plugins resource commands" in result.stdout
+    assert "freetodo plugins media-crawler status --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -1375,3 +1425,92 @@ def test_preview_file_calls_client(monkeypatch):
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["data"]["content"] == "ok"
+
+
+def test_cost_tracking_stats_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_cost_stats"
+        assert kwargs["days"] == 14
+        return {"success": True, "data": {"total_cost": 1.2}}, "req-cost-stats"
+
+    monkeypatch.setattr(
+        "cli.commands.cost_tracking.create_cost_tracking_client",
+        lambda: _StubCostTrackingClient(behavior),
+    )
+
+    result = runner.invoke(app, ["cost-tracking", "stats", "--days", "14"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["data"]["total_cost"] == 1.2
+
+
+def test_cost_tracking_config_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_cost_config"
+        return {"success": True, "data": {"model": "gpt-4o"}}, "req-cost-config"
+
+    monkeypatch.setattr(
+        "cli.commands.cost_tracking.create_cost_tracking_client",
+        lambda: _StubCostTrackingClient(behavior),
+    )
+
+    result = runner.invoke(app, ["cost-tracking", "config"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["data"]["model"] == "gpt-4o"
+
+
+def test_plugins_list_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "list_plugins"
+        return {"success": True, "plugins": []}, "req-plugins-list"
+
+    monkeypatch.setattr(
+        "cli.commands.plugins.create_plugins_client",
+        lambda: _StubPluginsClient(behavior),
+    )
+
+    result = runner.invoke(app, ["plugins", "list"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["success"] is True
+
+
+def test_plugins_media_crawler_status_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_media_crawler_status"
+        return {"success": True, "installed": False}, "req-plugin-status"
+
+    monkeypatch.setattr(
+        "cli.commands.plugins.create_plugins_client",
+        lambda: _StubPluginsClient(behavior),
+    )
+
+    result = runner.invoke(app, ["plugins", "media-crawler", "status"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["installed"] is False
+
+
+def test_plugins_media_crawler_install_dry_run():
+    result = runner.invoke(
+        app,
+        ["plugins", "media-crawler", "install", "--version", "1.2.3", "--dry-run"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["version"] == "1.2.3"
+
+
+def test_plugins_media_crawler_uninstall_dry_run():
+    result = runner.invoke(app, ["plugins", "media-crawler", "uninstall", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
