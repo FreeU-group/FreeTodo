@@ -126,7 +126,7 @@ settings = Dynaconf(
         Validator("agno.learning.db_path", default="agno/learning.db"),
         Validator("agno.learning.add_history_to_context", default=False, is_type_of=bool),
         Validator("agno.user_id", default="local-user"),
-        Validator("agno.default_workspace", default="/workspace"),
+        Validator("agno.default_workspace", default="."),
         # AgentOS 配置
         Validator("agno.agent_os.enabled", default=True, is_type_of=bool),
         Validator("agno.agent_os.host", default="0.0.0.0"),
