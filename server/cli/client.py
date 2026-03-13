@@ -576,3 +576,29 @@ class LocationApiClient(ApiClient):
         if end is not None:
             params["end"] = end
         return self._request("GET", "/api/location/history", params=params)
+
+
+class TimeAllocationApiClient(ApiClient):
+    """Time allocation API client."""
+
+    def get_time_allocation(
+        self, *, start_date: str | None, end_date: str | None, days: int | None
+    ) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {}
+        if start_date is not None:
+            params["start_date"] = start_date
+        if end_date is not None:
+            params["end_date"] = end_date
+        if days is not None:
+            params["days"] = days
+        return self._request("GET", "/api/time-allocation", params=params)
+
+
+class PreviewApiClient(ApiClient):
+    """Preview API client."""
+
+    def get_preview(self, *, path: str, mode: str, max_bytes: int | None) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {"path": path, "mode": mode}
+        if max_bytes is not None:
+            params["max_bytes"] = max_bytes
+        return self._request("GET", "/api/preview/file", params=params)
