@@ -177,6 +177,46 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	}) => ipcRenderer.invoke("panel-window:open", payload),
 
 	/**
+	 * 通过主进程广播 query 失效消息
+	 */
+	broadcastQueryInvalidation: (payload: {
+		version: 1;
+		action: "invalidate";
+		queryKey?: ReadonlyArray<unknown>;
+		senderId?: string;
+	}) => {
+		ipcRenderer.send("query-sync:broadcast", payload);
+	},
+
+	/**
+	 * 监听主进程转发的 query 失效消息
+	 */
+	onQueryInvalidation: (
+		callback: (payload: {
+			version: 1;
+			action: "invalidate";
+			queryKey?: ReadonlyArray<unknown>;
+			senderId?: string;
+		}) => void,
+	) => {
+		const listener = (
+			_event: Electron.IpcRendererEvent,
+			payload: {
+				version: 1;
+				action: "invalidate";
+				queryKey?: ReadonlyArray<unknown>;
+				senderId?: string;
+			},
+		) => {
+			callback(payload);
+		};
+		ipcRenderer.on("query-sync:invalidate", listener);
+		return () => {
+			ipcRenderer.removeListener("query-sync:invalidate", listener);
+		};
+	},
+
+	/**
 	 * 截图并提取待办事项
 	 */
 	captureAndExtractTodos: async (

@@ -19,6 +19,23 @@ import type { WindowManager } from "./window-manager";
 const MAX_PREVIEW_TEXT_BYTES = 2 * 1024 * 1024;
 const MAX_PREVIEW_BINARY_BYTES = 50 * 1024 * 1024;
 
+type QuerySyncPayload = {
+	version: 1;
+	action: "invalidate";
+	queryKey?: ReadonlyArray<unknown>;
+	senderId?: string;
+};
+
+function broadcastQueryInvalidationToWindows(
+	payload: QuerySyncPayload,
+	sourceWebContentsId?: number,
+): void {
+	for (const win of BrowserWindow.getAllWindows()) {
+		if (win.webContents.id === sourceWebContentsId) continue;
+		win.webContents.send("query-sync:invalidate", payload);
+	}
+}
+
 /**
  * 设置所有 IPC 处理器
  * @param windowManager 窗口管理器实例
@@ -127,6 +144,16 @@ export function setupIpcHandlers(
 				logger.error(`[panel-window] ${message}`);
 				return { ok: false, error: message };
 			}
+		},
+	);
+
+	ipcMain.on(
+		"query-sync:broadcast",
+		(event, payload: QuerySyncPayload) => {
+			if (!payload || payload.version !== 1 || payload.action !== "invalidate") {
+				return;
+			}
+			broadcastQueryInvalidationToWindows(payload, event.sender.id);
 		},
 	);
 

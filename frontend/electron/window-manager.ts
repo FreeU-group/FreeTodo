@@ -109,7 +109,9 @@ export class WindowManager {
 			transparent: false,
 			alwaysOnTop: false,
 			hasShadow: true,
-			resizable: false,
+			resizable: true,
+			maximizable: false,
+			fullscreenable: false,
 			movable: true,
 			skipTaskbar: false,
 			webPreferences: {

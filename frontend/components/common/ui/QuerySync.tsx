@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { getElectronAPI } from "@/lib/utils/electron-api";
 
 const CHANNEL_NAME = "ft-query-sync";
 const STORAGE_KEY = "ft-query-sync";
@@ -73,6 +74,13 @@ export function QuerySync() {
 			handleInvalidate(data);
 		};
 
+		const cleanupElectron = getElectronAPI().electronAPI?.onQueryInvalidation?.(
+			(data) => {
+				if (!isValidMessage(data)) return;
+				handleInvalidate(data);
+			},
+		);
+
 		channel?.addEventListener("message", handleMessage);
 		window.addEventListener("storage", handleStorage);
 		window.addEventListener("message", handlePostMessage);
@@ -81,6 +89,7 @@ export function QuerySync() {
 			channel?.close();
 			window.removeEventListener("storage", handleStorage);
 			window.removeEventListener("message", handlePostMessage);
+			cleanupElectron?.();
 		};
 	}, [queryClient]);
 
@@ -119,4 +128,6 @@ export function broadcastQueryInvalidation(
 			window.location.origin,
 		);
 	}
+
+	getElectronAPI().electronAPI?.broadcastQueryInvalidation?.(payload);
 }
