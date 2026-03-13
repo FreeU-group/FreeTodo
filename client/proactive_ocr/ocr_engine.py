@@ -3,6 +3,7 @@
 import platform
 import re
 import time
+from dataclasses import dataclass
 from typing import Protocol
 
 import numpy as np
@@ -15,6 +16,17 @@ from .ocr_engine_winrt import WINOCR_AVAILABLE, WinRtOcrEngine
 logger = get_logger()
 
 ELAPSE_COMPONENTS = 3
+
+
+@dataclass(slots=True)
+class OcrEngineConfig:
+    det_limit_side_len: int = 640
+    det_limit_type: str = "max"
+    rec_batch_num: int = 8
+    use_gpu: bool = False
+    resize_max_side: int = 0
+    use_cls: bool = False
+
 
 try:
     from rapidocr_onnxruntime import RapidOCR
@@ -36,34 +48,27 @@ except ImportError:
 
 
 class OcrEngine:
-    def __init__(
-        self,
-        det_limit_side_len: int = 640,
-        det_limit_type: str = "max",
-        rec_batch_num: int = 8,
-        use_gpu: bool = False,
-        resize_max_side: int = 0,
-        use_cls: bool = False,
-    ):
+    def __init__(self, config: OcrEngineConfig | None = None):
         if not RAPIDOCR_AVAILABLE:
             raise ImportError("rapidocr-onnxruntime not available")
         if RapidOCR is None:
             raise ImportError("RapidOCR backend is not available")
+        resolved_config = config or OcrEngineConfig()
 
         init_params = {
-            "det_limit_side_len": det_limit_side_len,
-            "det_limit_type": det_limit_type,
-            "rec_batch_num": rec_batch_num,
+            "det_limit_side_len": resolved_config.det_limit_side_len,
+            "det_limit_type": resolved_config.det_limit_type,
+            "rec_batch_num": resolved_config.rec_batch_num,
         }
-        if use_gpu:
+        if resolved_config.use_gpu:
             init_params["use_cuda"] = True
 
         self.engine = RapidOCR(**init_params)
-        self.det_limit_side_len = det_limit_side_len
-        self.det_limit_type = det_limit_type
-        self.rec_batch_num = rec_batch_num
-        self.resize_max_side = resize_max_side
-        self.use_cls = use_cls
+        self.det_limit_side_len = resolved_config.det_limit_side_len
+        self.det_limit_type = resolved_config.det_limit_type
+        self.rec_batch_num = resolved_config.rec_batch_num
+        self.resize_max_side = resolved_config.resize_max_side
+        self.use_cls = resolved_config.use_cls
 
     def _resize_image(self, image: np.ndarray, max_side: int) -> tuple:
         if not CV2_AVAILABLE or cv2 is None:
@@ -97,16 +102,22 @@ class OcrEngine:
                 x_coords = [float(p[0]) for p in bbox_points]
                 y_coords = [float(p[1]) for p in bbox_points]
                 bbox = BBox(
-                    x=int(min(x_coords) / scale), y=int(min(y_coords) / scale),
+                    x=int(min(x_coords) / scale),
+                    y=int(min(y_coords) / scale),
                     width=int((max(x_coords) - min(x_coords)) / scale),
                     height=int((max(y_coords) - min(y_coords)) / scale),
                 )
                 lines.append(OcrLine(text=text, score=float(score), bbox_px=bbox))
 
         return OcrRawResult(
-            lines=lines, engine="rapidocr-onnxruntime", latency_ms=latency_ms,
-            det_time_ms=det_time_ms, rec_time_ms=rec_time_ms, cls_time_ms=cls_time_ms,
-            model_version="1.4.4", device="cpu",
+            lines=lines,
+            engine="rapidocr-onnxruntime",
+            latency_ms=latency_ms,
+            det_time_ms=det_time_ms,
+            rec_time_ms=rec_time_ms,
+            cls_time_ms=cls_time_ms,
+            model_version="1.4.4",
+            device="cpu",
         )
 
     @staticmethod
@@ -149,11 +160,7 @@ _engine_state: dict[str, OcrBackend | None] = {"instance": None}
 
 def get_ocr_engine(
     backend: str = "auto",
-    det_limit_side_len: int = 640,
-    det_limit_type: str = "max",
-    rec_batch_num: int = 8,
-    resize_max_side: int = 0,
-    use_cls: bool = False,
+    config: OcrEngineConfig | None = None,
     winrt_lang: str = "zh-Hans-CN",
 ) -> OcrBackend:
     instance = _engine_state["instance"]
@@ -163,13 +170,11 @@ def get_ocr_engine(
     chosen_backend = _resolve_backend(backend)
 
     if chosen_backend == "winrt":
+        resize_max_side = config.resize_max_side if config is not None else 0
         instance = WinRtOcrEngine(lang=winrt_lang, resize_max_side=resize_max_side)
         logger.info("OCR backend: WinRT (Windows.Media.Ocr)")
     else:
-        instance = OcrEngine(
-            det_limit_side_len=det_limit_side_len, det_limit_type=det_limit_type,
-            rec_batch_num=rec_batch_num, resize_max_side=resize_max_side, use_cls=use_cls,
-        )
+        instance = OcrEngine(config=config)
         logger.info("OCR backend: RapidOCR (ONNX Runtime)")
 
     _engine_state["instance"] = instance

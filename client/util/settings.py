@@ -1,4 +1,4 @@
-"""Dynaconf 配置模块 — 精简版，仅包含 Sensor 客户端所需的配置项。"""
+"""Dynaconf 配置模块 - 精简版, 仅包含 Sensor 客户端所需的配置项。"""
 
 import shutil
 from pathlib import Path

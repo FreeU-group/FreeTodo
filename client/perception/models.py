@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime  # noqa: TC003
-from enum import Enum
+from enum import StrEnum
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
-class SourceType(str, Enum):
+class SourceType(StrEnum):
     MIC_PC = "mic_pc"
     MIC_HARDWARE = "mic_hardware"
     OCR_SCREEN = "ocr_screen"
@@ -17,7 +17,7 @@ class SourceType(str, Enum):
     GPS_MOBILE = "gps_mobile"
 
 
-class Modality(str, Enum):
+class Modality(StrEnum):
     AUDIO = "audio"
     IMAGE = "image"
     TEXT = "text"

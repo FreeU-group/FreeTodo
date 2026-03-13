@@ -120,9 +120,18 @@ class WindowCapture:
                                 pass
                         is_minimized = bool(win32gui_local.IsIconic(hwnd))
                         window_meta = WindowMeta(
-                            hwnd=hwnd, title=title, process_name=process_name, pid=pid,
-                            rect=BBox(x=rect[0], y=rect[1], width=rect[2] - rect[0], height=rect[3] - rect[1]),
-                            is_visible=True, is_minimized=is_minimized,
+                            hwnd=hwnd,
+                            title=title,
+                            process_name=process_name,
+                            pid=pid,
+                            rect=BBox(
+                                x=rect[0],
+                                y=rect[1],
+                                width=rect[2] - rect[0],
+                                height=rect[3] - rect[1],
+                            ),
+                            is_visible=True,
+                            is_minimized=is_minimized,
                         )
                         results.append(window_meta)
                     except Exception as e:
@@ -163,9 +172,13 @@ class WindowCapture:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             return WindowMeta(
-                hwnd=hwnd, title=title, process_name=process_name, pid=pid,
+                hwnd=hwnd,
+                title=title,
+                process_name=process_name,
+                pid=pid,
                 rect=BBox(x=rect[0], y=rect[1], width=rect[2] - rect[0], height=rect[3] - rect[1]),
-                is_visible=True, is_minimized=bool(win32gui_local.IsIconic(hwnd)),
+                is_visible=True,
+                is_minimized=bool(win32gui_local.IsIconic(hwnd)),
             )
         except Exception as e:
             logger.error(f"Failed to get Windows foreground window: {e}")
@@ -187,12 +200,18 @@ class WindowCapture:
                             pid = proc.info["pid"]
                             break
             return WindowMeta(
-                hwnd=pid, title=window_title or "", process_name=app_name, pid=pid,
+                hwnd=pid,
+                title=window_title or "",
+                process_name=app_name,
+                pid=pid,
                 rect=BBox(
-                    x=int(bounds.get("X", 0)), y=int(bounds.get("Y", 0)),
-                    width=int(bounds.get("Width", 800)), height=int(bounds.get("Height", 600)),
+                    x=int(bounds.get("X", 0)),
+                    y=int(bounds.get("Y", 0)),
+                    width=int(bounds.get("Width", 800)),
+                    height=int(bounds.get("Height", 600)),
                 ),
-                is_visible=True, is_minimized=False,
+                is_visible=True,
+                is_minimized=False,
             )
         except ImportError as e:
             logger.warning(f"macOS dependencies not available: {e}")
@@ -212,7 +231,10 @@ class WindowCapture:
                     raise FileNotFoundError("xdotool not found")
                 result = subprocess.run(  # nosec B603
                     [xdotool_path, "getactivewindow", "getwindowgeometry"],
-                    capture_output=True, text=True, timeout=2, check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    check=False,
                 )
                 if result.returncode == 0:
                     geometry = {}
@@ -229,7 +251,10 @@ class WindowCapture:
                             geometry["height"] = height
                     wid_result = subprocess.run(  # nosec B603
                         [xdotool_path, "getactivewindow"],
-                        capture_output=True, text=True, timeout=2, check=False,
+                        capture_output=True,
+                        text=True,
+                        timeout=2,
+                        check=False,
                     )
                     window_id = int(wid_result.stdout.strip()) if wid_result.returncode == 0 else 0
                     pid = 0
@@ -240,19 +265,29 @@ class WindowCapture:
                                     pid = proc.info["pid"]
                                     break
                     return WindowMeta(
-                        hwnd=window_id, title=window_title or "", process_name=app_name, pid=pid,
+                        hwnd=window_id,
+                        title=window_title or "",
+                        process_name=app_name,
+                        pid=pid,
                         rect=BBox(
-                            x=geometry.get("x", 0), y=geometry.get("y", 0),
-                            width=geometry.get("width", 800), height=geometry.get("height", 600),
+                            x=geometry.get("x", 0),
+                            y=geometry.get("y", 0),
+                            width=geometry.get("width", 800),
+                            height=geometry.get("height", 600),
                         ),
-                        is_visible=True, is_minimized=False,
+                        is_visible=True,
+                        is_minimized=False,
                     )
             except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError):
                 logger.debug("xdotool not available, using default window bounds")
                 return WindowMeta(
-                    hwnd=0, title=window_title or "", process_name=app_name, pid=0,
+                    hwnd=0,
+                    title=window_title or "",
+                    process_name=app_name,
+                    pid=0,
                     rect=BBox(x=0, y=0, width=800, height=600),
-                    is_visible=True, is_minimized=False,
+                    is_visible=True,
+                    is_minimized=False,
                 )
         except Exception as e:
             logger.error(f"Failed to get Linux foreground window: {e}")
@@ -267,8 +302,10 @@ class WindowCapture:
     def _capture_with_printwindow(self, window: WindowMeta) -> ImageFrame | None:
         if (
             not WIN32_AVAILABLE
-            or win32gui is None or win32ui is None
-            or win32con is None or windll is None
+            or win32gui is None
+            or win32ui is None
+            or win32con is None
+            or windll is None
         ):
             return self._capture_with_mss(window)
         try:
@@ -304,8 +341,11 @@ class WindowCapture:
             win32gui_local.ReleaseDC(hwnd, hwnd_dc)
 
             return ImageFrame(
-                data=img_array, width=width, height=height,
-                timestamp_ms=int(time.time() * 1000), capture_id=str(uuid.uuid4())[:8],
+                data=img_array,
+                width=width,
+                height=height,
+                timestamp_ms=int(time.time() * 1000),
+                capture_id=str(uuid.uuid4())[:8],
             )
         except Exception as e:
             logger.warning(f"PrintWindow capture failed: {e}, falling back to MSS")
@@ -320,8 +360,10 @@ class WindowCapture:
             if sct is None:
                 return None
             monitor = {
-                "left": window.rect.x, "top": window.rect.y,
-                "width": window.rect.width, "height": window.rect.height,
+                "left": window.rect.x,
+                "top": window.rect.y,
+                "width": window.rect.width,
+                "height": window.rect.height,
             }
             screenshot = sct.grab(monitor)
             img_array = np.array(screenshot)
@@ -329,8 +371,11 @@ class WindowCapture:
                 img_array = img_array[:, :, :3]
             img_array = img_array[:, :, ::-1]
             return ImageFrame(
-                data=img_array, width=window.rect.width, height=window.rect.height,
-                timestamp_ms=int(time.time() * 1000), capture_id=str(uuid.uuid4())[:8],
+                data=img_array,
+                width=window.rect.width,
+                height=window.rect.height,
+                timestamp_ms=int(time.time() * 1000),
+                capture_id=str(uuid.uuid4())[:8],
             )
         except Exception as e:
             logger.error(f"MSS capture failed: {e}")

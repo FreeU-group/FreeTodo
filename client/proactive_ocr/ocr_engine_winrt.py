@@ -17,6 +17,14 @@ IMAGE_CHANNEL_RGBA = 4
 IMAGE_CHANNEL_RGB = 3
 
 try:
+    import cv2
+
+    CV2_AVAILABLE = True
+except ImportError:
+    cv2 = None
+    CV2_AVAILABLE = False
+
+try:
     import winocr
 
     WINOCR_AVAILABLE = True
@@ -52,9 +60,7 @@ class WinRtOcrEngine:
         logger.info(f"WinRT OCR engine initialized (lang={self.lang})")
 
     def _resize_image(self, image: np.ndarray, max_side: int) -> tuple:
-        try:
-            import cv2
-        except ImportError:
+        if not CV2_AVAILABLE or cv2 is None:
             return image, 1.0
         h, w = image.shape[:2]
         max_dim = max(h, w)
@@ -92,7 +98,9 @@ class WinRtOcrEngine:
             result = self._recognize_sync(rgba_image.tobytes(), w, h)
         except Exception as e:
             logger.error(f"WinRT OCR failed: {e}")
-            return OcrRawResult(lines=[], engine="winrt", latency_ms=(time.time() - start_time) * 1000)
+            return OcrRawResult(
+                lines=[], engine="winrt", latency_ms=(time.time() - start_time) * 1000
+            )
 
         latency_ms = (time.time() - start_time) * 1000
         lines = []
@@ -114,15 +122,19 @@ class WinRtOcrEngine:
                     if conf is not None:
                         word_confidences.append(float(conf))
                 avg_confidence = (
-                    sum(word_confidences) / len(word_confidences)
-                    if word_confidences else 0.95
+                    sum(word_confidences) / len(word_confidences) if word_confidences else 0.95
                 )
                 lines.append(OcrLine(text=text, score=avg_confidence, bbox_px=bbox))
 
         return OcrRawResult(
-            lines=lines, engine="winrt", latency_ms=latency_ms,
-            det_time_ms=0, rec_time_ms=latency_ms, cls_time_ms=0,
-            model_version="windows-media-ocr", device="cpu",
+            lines=lines,
+            engine="winrt",
+            latency_ms=latency_ms,
+            det_time_ms=0,
+            rec_time_ms=latency_ms,
+            cls_time_ms=0,
+            model_version="windows-media-ocr",
+            device="cpu",
         )
 
     def _recognize_sync(self, image_bytes: bytes, width: int, height: int) -> dict[str, Any]:

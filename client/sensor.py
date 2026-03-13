@@ -25,6 +25,7 @@ import httpx
 import numpy as np
 
 from perception.models import Modality, PerceptionEvent, SourceType
+from proactive_ocr.ocr_engine import OcrEngineConfig
 from util.logging_config import get_logger
 from util.time_utils import get_utc_now
 
@@ -64,6 +65,7 @@ def _is_self_window(app_name: str, window_title: str) -> bool:
         if any(p.search(title_lower) for p in _SELF_WINDOW_PATTERNS_REGEX):
             return True
     return False
+
 
 # ---------------------------------------------------------------------------
 # Lazy singletons for heavy components (created on first use)
@@ -127,10 +129,12 @@ def _get_ocr_engine():
 
         _ocr_engine = get_ocr_engine(
             backend=settings.get("jobs.proactive_ocr.ocr_backend", "auto"),
-            det_limit_side_len=settings.get("jobs.proactive_ocr.det_limit_side_len", 960),
-            resize_max_side=settings.get("jobs.proactive_ocr.resize_max_side", 0),
-            rec_batch_num=settings.get("jobs.proactive_ocr.rec_batch_num", 8),
-            use_cls=settings.get("jobs.proactive_ocr.use_cls", False),
+            config=OcrEngineConfig(
+                det_limit_side_len=settings.get("jobs.proactive_ocr.det_limit_side_len", 960),
+                resize_max_side=settings.get("jobs.proactive_ocr.resize_max_side", 0),
+                rec_batch_num=settings.get("jobs.proactive_ocr.rec_batch_num", 8),
+                use_cls=settings.get("jobs.proactive_ocr.use_cls", False),
+            ),
             winrt_lang=settings.get("jobs.proactive_ocr.winrt_lang", "zh-Hans-CN"),
         )
     return _ocr_engine
@@ -159,7 +163,7 @@ def _text_hash(text: str) -> str:
 
 
 class SensorDaemon:
-    """轻量感知守护进程，采集本地屏幕/OCR 数据并转发到 Center。"""
+    """轻量感知守护进程, 采集本地屏幕/OCR 数据并转发到 Center。"""
 
     def __init__(self, center_url: str, node_id: str, *, debug_images: bool = False):
         self.center_url = center_url.rstrip("/")
@@ -364,7 +368,7 @@ class SensorDaemon:
     # Proactive OCR cycle
     # ------------------------------------------------------------------
 
-    async def _capture_target_window(self):
+    async def _get_target_window(self):
         capture = _get_window_capture()
         router = _get_app_router()
 
@@ -382,6 +386,14 @@ class SensorDaemon:
         app_type, _reason = router.identify_app(window)
         if app_type == AppType.UNKNOWN or window.is_minimized:
             return None
+        return window, app_type
+
+    async def _capture_target_window(self):
+        capture = _get_window_capture()
+        target_window = await self._get_target_window()
+        if target_window is None:
+            return None
+        window, app_type = target_window
 
         frame = await asyncio.to_thread(capture.capture_window, window)
         if frame is None:
@@ -554,31 +566,40 @@ class SensorDaemon:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FreeTodo Sensor daemon")
     parser.add_argument(
-        "--center-url", required=True,
+        "--center-url",
+        required=True,
         help="Center node URL, e.g. https://xxx.cpolar.cn",
     )
     parser.add_argument(
-        "--node-id", default=platform.node(),
+        "--node-id",
+        default=platform.node(),
         help="Node ID (defaults to hostname)",
     )
     parser.add_argument(
-        "--screenshot-interval", type=float, default=10.0,
+        "--screenshot-interval",
+        type=float,
+        default=10.0,
         help="Screenshot OCR interval in seconds (default 10)",
     )
     parser.add_argument(
-        "--proactive-ocr-interval", type=float, default=1.0,
+        "--proactive-ocr-interval",
+        type=float,
+        default=1.0,
         help="Proactive OCR interval in seconds (default 1)",
     )
     parser.add_argument(
-        "--no-screenshot", action="store_true",
+        "--no-screenshot",
+        action="store_true",
         help="Disable screenshot OCR",
     )
     parser.add_argument(
-        "--no-proactive-ocr", action="store_true",
+        "--no-proactive-ocr",
+        action="store_true",
         help="Disable proactive OCR",
     )
     parser.add_argument(
-        "--debug-images", action="store_true",
+        "--debug-images",
+        action="store_true",
         help="Save debug images to sensor_debug/ folder",
     )
     return parser.parse_args()

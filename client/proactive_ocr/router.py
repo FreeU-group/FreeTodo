@@ -5,15 +5,25 @@ from functools import lru_cache
 from proactive_ocr.models import AppType, FrameEvent, RoutedFrame, WindowMeta
 
 WECHAT_PROCESS_NAMES = [
-    "weixin.exe", "wechat.exe", "wechatappex.exe", "wechatbrowser.exe",
-    "wechat", "微信", "electronic-wechat",
+    "weixin.exe",
+    "wechat.exe",
+    "wechatappex.exe",
+    "wechatbrowser.exe",
+    "wechat",
+    "微信",
+    "electronic-wechat",
 ]
 
 WECHAT_TITLE_KEYWORDS = ["微信", "wechat"]
 
 FEISHU_PROCESS_NAMES = [
-    "feishu.exe", "lark.exe", "bytedance feishu",
-    "feishu", "lark", "飞书", "electron",
+    "feishu.exe",
+    "lark.exe",
+    "bytedance feishu",
+    "feishu",
+    "lark",
+    "飞书",
+    "electron",
 ]
 
 FEISHU_TITLE_KEYWORDS = ["飞书", "feishu", "lark"]

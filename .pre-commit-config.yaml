@@ -14,21 +14,24 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.10
     hooks:
-      # Run the linter.
       - id: ruff
-        # It is recommended to specify the latest version of Python
-        # supported by your project here, or alternatively use
-        # pre-commit's default_language_version, see
-        # https://pre-commit.com/#top_level-default_language_version
         language_version: python3.12
         files: ^(server|scripts)/
         exclude: ^server/migrations/versions/
         types_or: [ python, pyi ]
         args: [ --fix ]
-      # Run the formatter.
       - id: ruff-format
         language_version: python3.12
         files: ^(server|scripts)/
+        types_or: [ python, pyi ]
+      - id: ruff
+        language_version: python3.12
+        files: ^client/
+        types_or: [ python, pyi ]
+        args: [ --fix ]
+      - id: ruff-format
+        language_version: python3.12
+        files: ^client/
         types_or: [ python, pyi ]
   - repo: local
     hooks:
@@ -82,13 +85,13 @@ repos:
         files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
 
-      # 后端 Python 有效代码行数检查（不含空行和注释，上限 500 行）
+      # Python 有效代码行数检查（不含空行和注释，上限 500 行）
       # pre-commit 会传入暂存的文件，只检查这些文件
-      - id: check-backend-code-lines
-        name: Check backend Python code lines (max 500)
-        entry: uv run --directory server --no-sync python ../server/scripts/check_code_lines.py --include server,scripts --exclude server/__pycache__,server/dist,server/migrations/versions
+      - id: check-python-code-lines
+        name: Check Python code lines (max 500)
+        entry: uv run --directory server --no-sync python ../server/scripts/check_code_lines.py --include server,client,scripts --exclude server/__pycache__,server/dist,server/migrations/versions,client/__pycache__,client/dist,client/build
         language: system
-        files: ^(server|scripts)/.*\.py$
+        files: ^(server|client|scripts)/.*\.py$
         pass_filenames: true
         require_serial: true
 

@@ -108,6 +108,10 @@ class FeishuPrior(AppPrior):
         split_x = min(split_x, int(w * 0.6))
         chat_region = image[:, split_x:, :]
         return ROIResult(
-            image=chat_region, x=split_x, y=0,
-            width=w - split_x, height=h, theme=theme_name,
+            image=chat_region,
+            x=split_x,
+            y=0,
+            width=w - split_x,
+            height=h,
+            theme=theme_name,
         )

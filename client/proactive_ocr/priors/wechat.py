@@ -25,13 +25,19 @@ class WeChatPrior(AppPrior):
         if theme:
             sample_heights = [h - 80, h - 120, h - 160]
             split_x = self._find_bg_left_edge(
-                image, bg_color=theme.chat_bg_color,
-                tolerance=theme.color_tolerance, sample_heights=sample_heights,
+                image,
+                bg_color=theme.chat_bg_color,
+                tolerance=theme.color_tolerance,
+                sample_heights=sample_heights,
             )
         if split_x is None or split_x > int(w * 0.7):
             split_x = int(w * 0.35)
         chat_region = image[:, split_x:, :]
         return ROIResult(
-            image=chat_region, x=split_x, y=0,
-            width=w - split_x, height=h, theme=theme_name,
+            image=chat_region,
+            x=split_x,
+            y=0,
+            width=w - split_x,
+            height=h,
+            theme=theme_name,
         )
