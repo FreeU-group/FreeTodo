@@ -65,6 +65,9 @@ export function DiaryPanel() {
 	const [autoLinkMessage, setAutoLinkMessage] = useState<string | null>(null);
 	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 	const datePickerRef = useRef<HTMLButtonElement | null>(null);
+	const [illustrationUrls, setIllustrationUrls] = useState<string[]>([]);
+	const [illustrationLoading, setIllustrationLoading] = useState(false);
+	const [illustrationGenerating, setIllustrationGenerating] = useState(false);
 	const lastSyncKey = useRef<string | null>(null);
 	const {
 		refreshMode,
@@ -129,12 +132,10 @@ export function DiaryPanel() {
 		updateJournal,
 		autoLinkJournal,
 		generateObjective,
-		generateAiView,
 		isCreating,
 		isUpdating,
 		isAutoLinking,
 		isGeneratingObjective,
-		isGeneratingAi,
 	} = useJournalMutations();
 	const syncDraftFromJournal = useCallback(
 		(journal: JournalView) => {
@@ -189,6 +190,34 @@ export function DiaryPanel() {
 		selectedDate,
 		syncDraftFromJournal,
 	]);
+
+	const selectedDateStr = formatDateInput(selectedDate);
+
+	const checkIllustration = useCallback(async (dateStr: string) => {
+		try {
+			const response = await fetch(`/api/diary-illustration/images/${dateStr}`);
+			if (!response.ok) {
+				setIllustrationUrls([]);
+				return;
+			}
+			const data = await response.json();
+			setIllustrationUrls(Array.isArray(data.urls) ? data.urls : []);
+		} catch {
+			setIllustrationUrls([]);
+		}
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		setIllustrationUrls([]);
+		setIllustrationLoading(true);
+		void checkIllustration(selectedDateStr).finally(() => {
+			if (!cancelled) setIllustrationLoading(false);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [checkIllustration, selectedDateStr]);
 
 	const handleDateChange = (value: Date) => {
 		const nextDate = normalizeDateOnly(value);
@@ -258,22 +287,6 @@ export function DiaryPanel() {
 		setDraft((prev) => ({ ...prev, contentObjective: result.content }));
 		setActiveTab("objective");
 	};
-	const runAiGeneration = async (
-		journalId: number,
-		snapshot?: { title: string; content: string; date: Date },
-	) => {
-		const payload: JournalGenerateRequest = {
-			journal_id: journalId,
-			title: snapshot?.title ?? draft.name,
-			content_original: snapshot?.content ?? draft.userNotes,
-			date: formatDateInput(snapshot?.date ?? draft.date),
-			day_bucket_start: bucket.bucketStart.toISOString(),
-			language: locale,
-		};
-		const result = await generateAiView(payload);
-		setDraft((prev) => ({ ...prev, contentAi: result.content }));
-		setActiveTab("ai");
-	};
 	const handleSave = async (options?: {
 		tagsOverride?: string[];
 		draftOverride?: Partial<JournalDraft>;
@@ -337,11 +350,11 @@ export function DiaryPanel() {
 				setAutoLinkMessage(t("generateFailed"));
 			}
 		}
-		if (autoGenerateAiEnabled && !saved.contentAi) {
+		if (autoGenerateAiEnabled) {
 			try {
-				await runAiGeneration(saved.id, snapshot);
+				await generateIllustrationForDate(savedDate);
 			} catch (_error) {
-				setAutoLinkMessage(t("generateFailed"));
+				setAutoLinkMessage(t("illustrationGenerateFailed"));
 			}
 		}
 	};
@@ -388,13 +401,30 @@ export function DiaryPanel() {
 			setAutoLinkMessage(t("generateFailed"));
 		}
 	};
-	const handleGenerateAiClick = async () => {
-		if (!draft.id) return;
+	const generateIllustrationForDate = async (date = selectedDate) => {
+		const dateStr = formatDateInput(date);
+		setActiveTab("ai");
+		setIllustrationGenerating(true);
 		try {
-			await runAiGeneration(draft.id);
+			const response = await fetch(
+				`/api/diary-illustration/generate?date=${dateStr}`,
+				{ method: "POST" },
+			);
+			if (!response.ok) {
+				const error = await response.json().catch(() => ({}));
+				throw new Error(error.detail ?? `HTTP ${response.status}`);
+			}
+			await checkIllustration(dateStr);
+			setAutoLinkMessage(t("illustrationGenerateSuccess"));
 		} catch (_error) {
-			setAutoLinkMessage(t("generateFailed"));
+			setAutoLinkMessage(t("illustrationGenerateFailed"));
+			throw _error;
+		} finally {
+			setIllustrationGenerating(false);
 		}
+	};
+	const handleGenerateAiClick = async () => {
+		await generateIllustrationForDate(selectedDate);
 	};
 	const handleAutoLinkClick = async () => {
 		if (!draft.id || isAutoLinking) return;
@@ -452,6 +482,7 @@ export function DiaryPanel() {
 				<DiaryEditor
 					draft={draft}
 					activeTab={activeTab}
+					selectedDateStr={selectedDateStr}
 					onTabChange={setActiveTab}
 					onTitleChange={(value) =>
 						setDraft((prev) => ({ ...prev, name: value }))
@@ -471,9 +502,12 @@ export function DiaryPanel() {
 					onCopyToOriginal={handleCopyToOriginal}
 					autoLinkMessage={autoLinkMessage}
 					isGeneratingObjective={isGeneratingObjective}
-					isGeneratingAi={isGeneratingAi}
+					isGeneratingAi={illustrationGenerating}
 					isAutoLinking={isAutoLinking}
 					hasJournalId={Boolean(draft.id)}
+					illustrationUrls={illustrationUrls}
+					illustrationLoading={illustrationLoading}
+					illustrationGenerating={illustrationGenerating}
 				/>
 			</div>
 		</div>

@@ -14,8 +14,10 @@ import {
 	AutoTodoDetectionSection,
 	CookiesConfigSection,
 	CrawlerConfigSection,
+	DiaryIllustrationConfigSection,
 	// DifyConfigSection,
 	DockDisplayModeSection,
+	GeminiConfigSection,
 	JournalSettingsSection,
 	KdlConfigSection,
 	LlmConfigSection,
@@ -153,6 +155,7 @@ export function SettingsPanel() {
 					<>
 						<LlmConfigSection config={config} loading={loading} />
 						<TavilyConfigSection config={config} loading={loading} />
+						<GeminiConfigSection config={config} loading={loading} />
 					</>
 				);
 			case "sensing":
@@ -174,6 +177,10 @@ export function SettingsPanel() {
 					<>
 						<AutoTodoDetectionSection config={config} loading={loading} />
 						<JournalSettingsSection />
+						<DiaryIllustrationConfigSection
+							config={config}
+							loading={loading}
+						/>
 						<AutomationTasksSection loading={loading} />
 					</>
 				);

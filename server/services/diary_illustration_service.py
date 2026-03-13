@@ -1,0 +1,232 @@
+"""Diary illustration generation service."""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import json
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import httpx
+
+from memory.reader import MemoryReader
+from util.base_paths import get_user_data_dir
+from util.logging_config import get_logger
+from util.settings import settings
+from util.time_utils import local_today_str
+
+if TYPE_CHECKING:
+    from llm.llm_client import LLMClient
+
+logger = get_logger()
+
+ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
+GEMINI_MODEL = "gemini-2.5-flash-image-preview"
+
+PROMPT_SYSTEM = (
+    "You are a comic storyboard artist. Split the user's day into 2 to 5 key scenes, "
+    "then write one standalone English image prompt for each scene.\n"
+    "Requirements:\n"
+    "- Each scene should represent a distinct important moment in chronological order.\n"
+    "- Each prompt should be 90 to 140 words and describe a single comic panel.\n"
+    "- Keep the same protagonist appearance across all panels.\n"
+    "- Include action, expression, environment, lighting, composition, and dialogue bubble text.\n"
+    "- End every prompt with: manga panel, warm anime style, detailed background, "
+    "speech bubbles with text, soft lighting, consistent character.\n"
+    "Return strict JSON only:\n"
+    '[{"scene":"title","prompt":"english prompt"}, ...]'
+)
+
+PROMPT_USER_TEMPLATE = """Daily event summary:
+{events}
+
+Split it into multiple comic scenes and return JSON only."""
+
+
+class DiaryIllustrationService:
+    """Generate and serve diary illustration panels."""
+
+    def __init__(self, llm_client: LLMClient):
+        self._llm = llm_client
+        self._memory_reader = MemoryReader(get_user_data_dir() / "memory")
+        self._illustrations_dir = get_user_data_dir() / ILLUSTRATIONS_DIR_NAME
+        self._illustrations_dir.mkdir(parents=True, exist_ok=True)
+
+    async def generate_for_date(self, date_str: str | None = None) -> dict[str, Any]:
+        date_str = date_str or local_today_str()
+        self._clean_date_images(date_str)
+
+        events_content = self._memory_reader.read_by_date(date_str)
+        if not events_content or not events_content.strip():
+            return {
+                "ok": False,
+                "date": date_str,
+                "count": 0,
+                "paths": [],
+                "error": f"No events for {date_str}",
+            }
+
+        try:
+            scenes = await self._build_scene_prompts(events_content)
+        except Exception as exc:
+            logger.exception("DiaryIllustration: scene prompt generation failed")
+            return {
+                "ok": False,
+                "date": date_str,
+                "count": 0,
+                "paths": [],
+                "error": str(exc),
+            }
+
+        if not scenes:
+            return {
+                "ok": False,
+                "date": date_str,
+                "count": 0,
+                "paths": [],
+                "error": "LLM returned no scenes",
+            }
+
+        saved_paths: list[str] = []
+        for idx, scene in enumerate(scenes):
+            prompt = str(scene.get("prompt", "")).strip()
+            if not prompt:
+                continue
+            try:
+                image_bytes = await self._call_gemini(prompt)
+                out_path = self._illustrations_dir / f"{date_str}_{idx + 1}.png"
+                out_path.write_bytes(image_bytes)
+                saved_paths.append(str(out_path))
+                logger.info(
+                    "DiaryIllustration: saved panel %d/%d to %s",
+                    idx + 1,
+                    len(scenes),
+                    out_path,
+                )
+            except Exception:
+                logger.exception("DiaryIllustration: panel %d generation failed", idx + 1)
+
+        return {
+            "ok": len(saved_paths) > 0,
+            "date": date_str,
+            "count": len(saved_paths),
+            "paths": saved_paths,
+            "error": None if saved_paths else "No images were generated",
+        }
+
+    def get_illustration_paths(self, date_str: str | None = None) -> list[Path]:
+        date_str = date_str or local_today_str()
+        return sorted(self._illustrations_dir.glob(f"{date_str}_*.png"))
+
+    def get_illustration_path(self, date_str: str | None = None) -> Path | None:
+        paths = self.get_illustration_paths(date_str)
+        return paths[0] if paths else None
+
+    def _clean_date_images(self, date_str: str) -> None:
+        for path in self._illustrations_dir.glob(f"{date_str}_*.png"):
+            path.unlink(missing_ok=True)
+
+    async def _build_scene_prompts(self, events_content: str) -> list[dict[str, Any]]:
+        messages = [
+            {"role": "system", "content": PROMPT_SYSTEM},
+            {
+                "role": "user",
+                "content": PROMPT_USER_TEMPLATE.format(events=events_content[:4000]),
+            },
+        ]
+        response = await asyncio.to_thread(
+            self._llm.chat,
+            messages,
+            0.7,
+            None,
+            1200,
+            log_usage=True,
+            log_meta={
+                "endpoint": "diary_illustration_prompt",
+                "feature_type": "diary_illustration",
+            },
+        )
+        text = response.strip()
+        if not text:
+            raise ValueError("LLM returned empty response")
+
+        start = text.find("[")
+        end = text.rfind("]")
+        if start == -1 or end == -1:
+            raise ValueError(f"LLM response is not a JSON array: {text[:200]}")
+
+        scenes = json.loads(text[start : end + 1])
+        if not isinstance(scenes, list):
+            raise ValueError("LLM returned non-list JSON")
+        return scenes[:6]
+
+    async def _call_gemini(self, prompt: str) -> bytes:
+        cfg = _get_banna2_config()
+        api_key = str(cfg.get("api_key", "")).strip()
+        ref_image_path = str(cfg.get("ref_image_path", "")).strip()
+
+        if not api_key:
+            raise ValueError("banna2.api_key is not configured")
+
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{GEMINI_MODEL}:generateContent?key={api_key}"
+        )
+
+        parts: list[dict[str, Any]] = []
+        ref_path = Path(ref_image_path) if ref_image_path else None
+        if ref_path and ref_path.exists():
+            suffix = ref_path.suffix.lower()
+            mime_type = (
+                "image/jpeg" if suffix in {".jpg", ".jpeg"} else f"image/{suffix.lstrip('.')}"
+            )
+            img_b64 = base64.b64encode(ref_path.read_bytes()).decode()
+            parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
+            parts.append(
+                {"text": (f"Use the person in the reference image as the main character. {prompt}")}
+            )
+        else:
+            parts.append({"text": prompt})
+
+        payload = {
+            "contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
+        }
+        return await asyncio.to_thread(self._gemini_request, url, payload)
+
+    @staticmethod
+    def _gemini_request(url: str, payload: dict[str, Any]) -> bytes:
+        with httpx.Client(timeout=180) as client:
+            response = client.post(url, json=payload, headers={"Content-Type": "application/json"})
+            response.raise_for_status()
+            data = response.json()
+
+        candidates = data.get("candidates", [])
+        if not candidates:
+            raise ValueError(f"Gemini returned no candidates: {json.dumps(data)[:300]}")
+
+        for part in candidates[0].get("content", {}).get("parts", []):
+            inline = part.get("inlineData") or part.get("inline_data")
+            if inline and inline.get("data"):
+                return base64.b64decode(inline["data"])
+
+        raise ValueError(f"Gemini response contained no image data: {json.dumps(data)[:300]}")
+
+
+def _get_banna2_config() -> dict[str, Any]:
+    raw = settings.get("banna2", {}) or {}
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+_SERVICE_HOLDER: dict[str, DiaryIllustrationService | None] = {"service": None}
+
+
+def get_diary_illustration_service() -> DiaryIllustrationService | None:
+    return _SERVICE_HOLDER["service"]
+
+
+def init_diary_illustration_service(llm_client: LLMClient) -> DiaryIllustrationService:
+    service = DiaryIllustrationService(llm_client)
+    _SERVICE_HOLDER["service"] = service
+    return service

@@ -152,6 +152,8 @@ settings = Dynaconf(
         Validator("tavily.max_results", default=5, is_type_of=int),
         Validator("tavily.include_domains", default=[]),
         Validator("tavily.exclude_domains", default=[]),
+        Validator("banna2.api_key", default="YOUR_GOOGLE_GEMINI_API_KEY_HERE"),
+        Validator("banna2.ref_image_path", default=""),
         # 音频配置
         Validator("audio.is_24x7", default=False, is_type_of=bool),
         Validator("audio.asr.api_key", default="YOUR_LLM_KEY_HERE"),
@@ -166,6 +168,9 @@ settings = Dynaconf(
         Validator("audio.asr.heartbeat", default=False, is_type_of=bool),
         Validator("audio.storage.audio_dir", default="audio/"),
         Validator("audio.storage.temp_audio_dir", default="temp_audio/"),
+        Validator("jobs.diary_illustration.id", default="diary_illustration"),
+        Validator("jobs.diary_illustration.enabled", default=False, is_type_of=bool),
+        Validator("jobs.diary_illustration.cron", default="0 22 * * *"),
         # 后端模块启用配置
         Validator("backend_modules.enabled", default=[], is_type_of=list),
         Validator("backend_modules.disabled", default=[], is_type_of=list),

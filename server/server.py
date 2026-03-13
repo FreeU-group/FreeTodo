@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 
 import uvicorn
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,6 +29,7 @@ setup_logging(logging_config)
 logger = get_logger()
 
 PRIORITY_MODULES = ("health", "config", "system", "todo", "perception")
+CRON_FIELD_COUNT = 5
 
 
 @asynccontextmanager
@@ -66,6 +68,9 @@ async def lifespan(app: FastAPI):
 
     # 延迟验证 LLM 连接
     background_tasks.append(asyncio.create_task(_verify_llm_connection_async()))
+
+    # 延迟初始化日记插画服务
+    background_tasks.append(asyncio.create_task(_init_diary_illustration_async()))
 
     yield
 
@@ -170,6 +175,77 @@ async def _verify_llm_connection_async() -> None:
         logger.debug(f"LLM 验证初始化跳过: {exc}")
         return
     await asyncio.to_thread(verify_llm_connection_on_startup)
+
+
+async def _init_diary_illustration_async() -> None:
+    """Initialize diary illustration service and its scheduled job."""
+    try:
+        from llm.llm_client import LLMClient  # noqa: PLC0415
+        from services.diary_illustration_service import (  # noqa: PLC0415
+            init_diary_illustration_service,
+        )
+
+        llm = LLMClient()
+        if not llm.is_available():
+            logger.info("DiaryIllustration: LLM not available, service not initialized")
+            return
+
+        service = init_diary_illustration_service(llm)
+        logger.info("DiaryIllustration: service initialized")
+
+        job_cfg = settings.get("jobs.diary_illustration", {}) or {}
+        if not job_cfg.get("enabled", False):
+            return
+
+        cron_expr = str(job_cfg.get("cron", "0 22 * * *")).strip()
+        parts = cron_expr.split()
+        if len(parts) != CRON_FIELD_COUNT:
+            parts = ["0", "22", "*", "*", "*"]
+        minute, hour, day, month, day_of_week = parts
+
+        manager = get_job_manager()
+        for _ in range(20):
+            scheduler_manager = getattr(manager, "scheduler_manager", None)
+            scheduler = getattr(scheduler_manager, "scheduler", None)
+            if scheduler is not None:
+                break
+            await asyncio.sleep(0.25)
+        else:
+            logger.warning("DiaryIllustration: scheduler not ready, skipped cron registration")
+            return
+
+        async def _run_daily_illustration() -> None:
+            try:
+                result = await service.generate_for_date()
+                if result["ok"]:
+                    logger.info(
+                        "DiaryIllustration: daily job completed, generated=%s",
+                        result["count"],
+                    )
+                else:
+                    logger.warning(
+                        "DiaryIllustration: daily job failed: %s",
+                        result.get("error"),
+                    )
+            except Exception:
+                logger.exception("DiaryIllustration: daily job error")
+
+        scheduler.add_job(
+            _run_daily_illustration,
+            trigger=CronTrigger(
+                minute=minute,
+                hour=hour,
+                day=day,
+                month=month,
+                day_of_week=day_of_week,
+            ),
+            id="diary_illustration_job",
+            name="日记插画生成",
+            replace_existing=True,
+        )
+        logger.info("DiaryIllustration: scheduled job registered (cron=%s)", cron_expr)
+    except Exception:
+        logger.exception("DiaryIllustration: initialization failed")
 
 
 # 注册按配置启用的路由
