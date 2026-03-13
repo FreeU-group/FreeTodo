@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 from llm.agno_tools.base import get_message
 from util.logging_config import get_logger
-from util.time_utils import get_utc_now, to_utc
+from util.time_utils import USER_TIMEZONE, get_local_now, to_utc
 
 logger = get_logger()
 
@@ -75,7 +75,7 @@ def _parse_date_formats(time_expression: str) -> tuple[datetime | None, bool]:
     """Try common date formats."""
     for fmt, has_time in DATE_FORMATS:
         try:
-            result = datetime.strptime(time_expression, fmt).astimezone()
+            result = datetime.strptime(time_expression, fmt).replace(tzinfo=USER_TIMEZONE)
             return to_utc(result), has_time
         except ValueError:
             continue
@@ -162,7 +162,11 @@ def _apply_chinese_time(time_expression: str, result: datetime) -> datetime:
 def _apply_english_time(expr: str, result: datetime) -> datetime:
     """Apply English time patterns like 3pm, 3:30pm."""
     en_time_match = re.search(r"(\d{1,2}):?(\d{2})?\s*(am|pm)?", expr, re.IGNORECASE)
-    if en_time_match:
+    if en_time_match and (
+        en_time_match.group(3)
+        or ":" in expr
+        or bool(re.search(r"\b\d{1,2}\s*o'?clock\b", expr, re.IGNORECASE))
+    ):
         hour = int(en_time_match.group(1))
         minute = int(en_time_match.group(2)) if en_time_match.group(2) else 0
         ampm = en_time_match.group(3)
@@ -199,7 +203,7 @@ class TimeTools:
             Parsed ISO format datetime or error message
         """
         try:
-            now = get_utc_now()
+            now = get_local_now()
             expr = time_expression.lower()
             time_already_set = False
 
@@ -219,7 +223,7 @@ class TimeTools:
                 result = _extract_time_of_day(time_expression, expr, result)
 
             if result:
-                return self._msg("parse_time_success", result=result.isoformat())
+                return self._msg("parse_time_success", result=to_utc(result).isoformat())
 
             return self._msg(
                 "parse_time_failed",

@@ -15,7 +15,7 @@ from storage.notification_storage import (
     clear_notification_by_todo_id,
 )
 from util.logging_config import get_logger
-from util.time_utils import get_utc_now
+from util.time_utils import ensure_utc, get_utc_now
 
 logger = get_logger()
 
@@ -34,6 +34,29 @@ def _to_ical_status(status: str | None) -> str | None:
 
 def _normalize_item_type(item_type: str | None) -> str:
     return (item_type or "VTODO").upper()
+
+
+_TODO_DATETIME_FIELDS = {
+    "deadline",
+    "start_time",
+    "end_time",
+    "dtstart",
+    "dtend",
+    "due",
+    "dtstamp",
+    "created",
+    "last_modified",
+    "recurrence_id",
+    "completed_at",
+}
+
+
+def _normalize_datetime_fields(values: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(values)
+    for field in _TODO_DATETIME_FIELDS:
+        if field in normalized and normalized[field] is not None:
+            normalized[field] = ensure_utc(normalized[field])
+    return normalized
 
 
 class TodoService:
@@ -86,46 +109,51 @@ class TodoService:
         ical_status = data.ical_status or _to_ical_status(
             data.status.value if data.status else None
         )
+        create_kwargs = _normalize_datetime_fields(
+            {
+                "uid": data.uid,
+                "name": data.name,
+                "summary": summary,
+                "description": data.description,
+                "user_notes": data.user_notes,
+                "parent_todo_id": data.parent_todo_id,
+                "item_type": item_type,
+                "location": data.location,
+                "categories": data.categories,
+                "classification": data.classification,
+                "deadline": deadline,
+                "start_time": start_time,
+                "end_time": end_time,
+                "dtstart": dtstart,
+                "dtend": dtend,
+                "due": due,
+                "duration": duration,
+                "time_zone": data.time_zone,
+                "tzid": tzid,
+                "is_all_day": data.is_all_day,
+                "dtstamp": dtstamp,
+                "created": created,
+                "last_modified": last_modified,
+                "sequence": data.sequence,
+                "rdate": data.rdate,
+                "exdate": data.exdate,
+                "recurrence_id": data.recurrence_id,
+                "related_to_uid": data.related_to_uid,
+                "related_to_reltype": data.related_to_reltype,
+                "ical_status": ical_status,
+                "reminder_offsets": data.reminder_offsets,
+                "status": data.status.value if data.status else "active",
+                "priority": data.priority.value if data.priority else "none",
+                "completed_at": data.completed_at,
+                "percent_complete": data.percent_complete,
+                "rrule": data.rrule,
+                "order": data.order,
+                "tags": data.tags,
+                "related_activities": data.related_activities,
+            }
+        )
         todo_id = self.repository.create(
-            uid=data.uid,
-            name=data.name,
-            summary=summary,
-            description=data.description,
-            user_notes=data.user_notes,
-            parent_todo_id=data.parent_todo_id,
-            item_type=item_type,
-            location=data.location,
-            categories=data.categories,
-            classification=data.classification,
-            deadline=deadline,
-            start_time=start_time,
-            end_time=end_time,
-            dtstart=dtstart,
-            dtend=dtend,
-            due=due,
-            duration=duration,
-            time_zone=data.time_zone,
-            tzid=tzid,
-            is_all_day=data.is_all_day,
-            dtstamp=dtstamp,
-            created=created,
-            last_modified=last_modified,
-            sequence=data.sequence,
-            rdate=data.rdate,
-            exdate=data.exdate,
-            recurrence_id=data.recurrence_id,
-            related_to_uid=data.related_to_uid,
-            related_to_reltype=data.related_to_reltype,
-            ical_status=ical_status,
-            reminder_offsets=data.reminder_offsets,
-            status=data.status.value if data.status else "active",
-            priority=data.priority.value if data.priority else "none",
-            completed_at=data.completed_at,
-            percent_complete=data.percent_complete,
-            rrule=data.rrule,
-            order=data.order,
-            tags=data.tags,
-            related_activities=data.related_activities,
+            **create_kwargs,
         )
         if not todo_id:
             raise HTTPException(status_code=500, detail="创建 todo 失败")
@@ -226,7 +254,9 @@ class TodoService:
         if "dtstamp" not in kwargs:
             kwargs["dtstamp"] = kwargs["last_modified"]
 
-        if not self.repository.update(todo_id, **kwargs):
+        normalized_kwargs = _normalize_datetime_fields(kwargs)
+
+        if not self.repository.update(todo_id, **normalized_kwargs):
             raise HTTPException(status_code=500, detail="更新 todo 失败")
 
         schedule_fields = {
