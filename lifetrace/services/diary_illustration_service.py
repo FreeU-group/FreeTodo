@@ -30,20 +30,24 @@ ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
 
 PROMPT_SYSTEM = (
     "你是一位漫画分镜师。请根据用户今天的事件摘要，创作一段图像生成提示词（英文）。\n"
-    "风格：温暖的日系漫画风格，单幅插画，人物是主角，场景感强。\n"
+    "风格：日系漫画分镜页（manga page layout），包含多个分格，纵向排列。\n\n"
     "要求：\n"
-    "- 输出纯英文 prompt，150 词以内\n"
-    "- 突出今天最有代表性的一个场景\n"
-    "- 包含人物动作、表情、环境、光线描述\n"
-    "- 结尾加上风格词：warm anime illustration, soft lighting, detailed background\n"
+    "- 输出纯英文 prompt，250 词以内\n"
+    "- 根据事件数量分成 3-6 个漫画分格（comic panels），按时间顺序排列\n"
+    "- 描述整体布局：a vertical manga page with N panels arranged in rows\n"
+    "- 每个 panel 描述一个场景：人物动作、表情、环境、简短的画外音或对话气泡内容\n"
+    "- 同一个主角贯穿所有分格，保持外貌一致性\n"
+    "- 包含时间线感（如：morning panel → afternoon panel → evening panel）\n"
+    "- 结尾加上风格词：manga page layout, multiple comic panels, warm anime style, "
+    "soft lighting, consistent character design, speech bubbles, panel borders\n"
     "- 只输出 prompt，不要解释"
 )
 
 PROMPT_USER_TEMPLATE = """\
-今天的事件摘要：
+今天的事件摘要（请为每个重要事件分配一个漫画分格）：
 {events}
 
-请生成图像 prompt。
+请生成一个多分格漫画页的图像 prompt，每个分格对应一个事件场景。
 """
 
 
@@ -135,7 +139,7 @@ class DiaryIllustrationService:
             messages,
             0.7,
             None,
-            300,
+            500,
             log_usage=True,
             log_meta={
                 "endpoint": "diary_illustration_prompt",
