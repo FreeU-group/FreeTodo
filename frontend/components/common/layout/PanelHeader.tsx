@@ -34,7 +34,7 @@ import {
 import type { DragData } from "@/lib/dnd";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
-import { isWeb } from "@/lib/utils/platform";
+import { isElectron, isWeb } from "@/lib/utils/platform";
 
 /**
  * Panel Icon 样式配置接口
@@ -367,7 +367,7 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 		: panelFeatureMap[position];
 	const isPinned = panelPinMap[position];
 	const canOpenInNewWindow =
-		!isPanelWindow && isWeb() && Boolean(currentFeature);
+		!isPanelWindow && (isWeb() || isElectron()) && Boolean(currentFeature);
 
 	const switchableFeatures = useMemo(() => {
 		const disabledSet = new Set([
@@ -405,8 +405,21 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 		window.location.assign(url.toString());
 	};
 
-	const handleOpenInNewWindow = () => {
+	const handleOpenInNewWindow = async () => {
 		if (!currentFeature || typeof window === "undefined") return;
+
+		if (isElectron() && window.electronAPI?.openPanelWindow) {
+			const result = await window.electronAPI.openPanelWindow({
+				feature: currentFeature,
+				position,
+			});
+			if (result?.ok) {
+				handleClose();
+			}
+			return;
+		}
+
+		if (!isWeb()) return;
 
 		const width = 400;
 		const height = 600;

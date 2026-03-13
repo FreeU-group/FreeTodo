@@ -18,6 +18,8 @@ import { logger } from "./logger";
 export class WindowManager {
 	/** 主窗口实例 */
 	private mainWindow: BrowserWindow | null = null;
+	/** Panel 窗口列表 */
+	private panelWindows = new Set<BrowserWindow>();
 	/** 保存窗口的原始位置和尺寸（用于从全屏模式恢复） */
 	private originalBounds: {
 		x: number;
@@ -78,6 +80,59 @@ export class WindowManager {
 	 */
 	getOriginalBounds(): typeof this.originalBounds {
 		return this.originalBounds;
+	}
+
+	/**
+	 * 创建 Panel 窗口
+	 */
+	createPanelWindow(params: {
+		serverUrl: string;
+		feature: string;
+		position?: string;
+		width?: number;
+		height?: number;
+	}): BrowserWindow {
+		const { serverUrl, feature, position, width = 400, height = 600 } = params;
+		const preloadPath = this.getPreloadPath();
+		const url = new URL("/panel-window", serverUrl);
+		url.searchParams.set("feature", feature);
+		if (position) {
+			url.searchParams.set("position", position);
+		}
+
+		const panelWindow = new BrowserWindow({
+			width,
+			height,
+			minWidth: 320,
+			minHeight: 420,
+			frame: true,
+			transparent: false,
+			alwaysOnTop: false,
+			hasShadow: true,
+			resizable: false,
+			movable: true,
+			skipTaskbar: false,
+			webPreferences: {
+				nodeIntegration: false,
+				contextIsolation: true,
+				preload: preloadPath,
+			},
+			show: false,
+			backgroundColor: WINDOW_CONFIG.backgroundColor,
+		});
+
+		panelWindow.once("ready-to-show", () => {
+			panelWindow.show();
+		});
+
+		panelWindow.on("closed", () => {
+			this.panelWindows.delete(panelWindow);
+		});
+
+		void panelWindow.loadURL(url.toString());
+
+		this.panelWindows.add(panelWindow);
+		return panelWindow;
 	}
 
 	/**

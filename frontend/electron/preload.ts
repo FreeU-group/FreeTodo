@@ -167,6 +167,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.invoke("preview:reveal", path),
 
 	/**
+	 * 打开 Panel 独立窗口
+	 */
+	openPanelWindow: (payload: {
+		feature: string;
+		position?: string;
+		width?: number;
+		height?: number;
+	}) => ipcRenderer.invoke("panel-window:open", payload),
+
+	/**
 	 * 截图并提取待办事项
 	 */
 	captureAndExtractTodos: async (

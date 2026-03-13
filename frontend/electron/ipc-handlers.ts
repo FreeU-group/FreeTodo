@@ -9,6 +9,7 @@ import { app, BrowserWindow, dialog, ipcMain, screen, shell } from "electron";
 import { setupTodoCaptureIpcHandlers } from "./ipc-handlers-todo-capture";
 import type { IslandWindowManager } from "./island-window-manager";
 import { logger } from "./logger";
+import { getServerUrl } from "./next-server";
 import {
 	type NotificationData,
 	showSystemNotification,
@@ -100,6 +101,34 @@ export function setupIpcHandlers(
 			logger.info(`Window background color set to: ${color}`);
 		}
 	});
+
+	// 打开 Panel 独立窗口
+	ipcMain.handle(
+		"panel-window:open",
+		async (
+			_event,
+			payload: { feature?: string; position?: string; width?: number; height?: number },
+		) => {
+			if (!payload?.feature) {
+				return { ok: false, error: "Missing feature" };
+			}
+			try {
+				windowManager.createPanelWindow({
+					serverUrl: getServerUrl(),
+					feature: payload.feature,
+					position: payload.position,
+					width: payload.width,
+					height: payload.height,
+				});
+				return { ok: true };
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Failed to open panel window";
+				logger.error(`[panel-window] ${message}`);
+				return { ok: false, error: message };
+			}
+		},
+	);
 
 	// ========== 文件预览相关 IPC 处理器 ==========
 
