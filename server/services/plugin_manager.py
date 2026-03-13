@@ -7,13 +7,15 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
+import os
 import platform
 import shutil
+import stat
 import sys
 import zipfile
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
@@ -21,6 +23,9 @@ from util.base_paths import get_app_root, get_user_data_dir
 from util.logging_config import get_logger
 
 logger = get_logger()
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # 插件基础目录
@@ -47,6 +52,7 @@ _DEFAULT_DOWNLOAD_URL = (
 
 # manifest 文件名
 _MANIFEST_FILE = "manifest.json"
+HTTP_OK = 200
 
 
 class MediaCrawlerPlugin:
@@ -348,16 +354,16 @@ class MediaCrawlerPlugin:
             logger.info("插件未安装，无需卸载")
             return True
 
-        import asyncio
-
         install_path = self.install_dir
         max_retries = 3
+        success = False
 
         for attempt in range(1, max_retries + 1):
             try:
                 shutil.rmtree(install_path)
                 logger.info(f"插件已卸载: {self.PLUGIN_ID}")
-                return True
+                success = True
+                break
             except PermissionError as e:
                 if attempt < max_retries:
                     wait = attempt * 2  # 2s, 4s
@@ -375,7 +381,8 @@ class MediaCrawlerPlugin:
                         # 检查目录是否还存在
                         if not install_path.exists():
                             logger.info(f"插件已卸载: {self.PLUGIN_ID}")
-                            return True
+                            success = True
+                            break
                         # 目录仍存在但可能只剩少量锁定文件
                         remaining = list(install_path.rglob("*"))
                         logger.warning(
@@ -383,21 +390,20 @@ class MediaCrawlerPlugin:
                             f"仍有 {len(remaining)} 个锁定文件无法删除，"
                             "请关闭应用后手动删除残留文件"
                         )
-                        return True  # 视为"基本成功"
+                        success = True  # 视为"基本成功"
+                        break
                     except Exception as inner_e:
                         logger.error(f"强制卸载失败: {inner_e}")
-                        return False
+                        break
             except Exception as e:
                 logger.error(f"卸载插件失败: {e}")
-                return False
+                break
 
-        return False  # 不应到达此处
+        return success
 
     @staticmethod
     def _force_rmtree(path: Path) -> None:
         """强制删除目录树，遇到权限错误时修改权限后重试。"""
-        import os
-        import stat
 
         def _on_error(func, file_path, exc_info):  # noqa: ARG001
             """shutil.rmtree 的 onerror 回调。"""
@@ -442,7 +448,7 @@ class AsyncInstallProgress:
                 ) as client,
                 client.stream("GET", self._url) as resp,
             ):
-                if resp.status_code != 200:
+                if resp.status_code != HTTP_OK:
                     yield self._progress(
                         "error",
                         0,
@@ -458,10 +464,7 @@ class AsyncInstallProgress:
                     async for chunk in resp.aiter_bytes(chunk_size=65536):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        if total_size > 0:
-                            pct = min(int(downloaded / total_size * 100), 100)
-                        else:
-                            pct = -1  # 未知大小
+                        pct = min(int(downloaded / total_size * 100), 100) if total_size > 0 else -1
                         yield self._progress(
                             "downloading",
                             pct,
@@ -504,10 +507,8 @@ class AsyncInstallProgress:
         finally:
             # 清理临时文件
             if tmp_zip and tmp_zip.exists():
-                try:
+                with contextlib.suppress(OSError):
                     tmp_zip.unlink()
-                except OSError:
-                    pass
 
     @staticmethod
     def _progress(

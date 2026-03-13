@@ -432,7 +432,7 @@ class AudioService:
                         if (
                             isinstance(parsed, list)
                             and parsed
-                            and isinstance(parsed[0], (int, float))
+                            and isinstance(parsed[0], int | float)
                         ):
                             segment_timestamps = [float(item) for item in parsed]
                     except Exception:

@@ -20,10 +20,11 @@ pub mod nextjs;
 pub mod shortcut;
 pub mod tray;
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use log::info;
 use serde::Serialize;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 /// Window mode configuration
@@ -153,16 +154,22 @@ struct PreviewReadResponse {
     error: Option<String>,
 }
 
+fn preview_file_name(path: &Path) -> Option<String> {
+    path.file_name()
+        .map(|name| name.to_string_lossy().to_string())
+}
+
 #[tauri::command]
 fn preview_read_file(path: String, mode: String, max_bytes: Option<u64>) -> PreviewReadResponse {
     let resolved = PathBuf::from(path.clone());
+    let name = preview_file_name(&resolved);
     let metadata = match fs::metadata(&resolved) {
         Ok(meta) => meta,
         Err(err) => {
             return PreviewReadResponse {
                 ok: false,
                 path: Some(path),
-                name: resolved.file_name().map(|name| name.to_string_lossy().to_string()),
+                name,
                 size: None,
                 modified_at: None,
                 text: None,
@@ -176,7 +183,7 @@ fn preview_read_file(path: String, mode: String, max_bytes: Option<u64>) -> Prev
         return PreviewReadResponse {
             ok: false,
             path: Some(path),
-            name: resolved.file_name().map(|name| name.to_string_lossy().to_string()),
+            name,
             size: None,
             modified_at: None,
             text: None,
@@ -202,7 +209,7 @@ fn preview_read_file(path: String, mode: String, max_bytes: Option<u64>) -> Prev
         return PreviewReadResponse {
             ok: false,
             path: Some(path),
-            name: resolved.file_name().map(|name| name.to_string_lossy().to_string()),
+            name,
             size: Some(size),
             modified_at,
             text: None,
@@ -216,7 +223,7 @@ fn preview_read_file(path: String, mode: String, max_bytes: Option<u64>) -> Prev
             Ok(text) => PreviewReadResponse {
                 ok: true,
                 path: Some(path),
-                name: resolved.file_name().map(|name| name.to_string_lossy().to_string()),
+                name,
                 size: Some(size),
                 modified_at,
                 text: Some(text),
@@ -226,7 +233,7 @@ fn preview_read_file(path: String, mode: String, max_bytes: Option<u64>) -> Prev
             Err(err) => PreviewReadResponse {
                 ok: false,
                 path: Some(path),
-                name: resolved.file_name().map(|name| name.to_string_lossy().to_string()),
+                name,
                 size: Some(size),
                 modified_at,
                 text: None,
@@ -239,17 +246,17 @@ fn preview_read_file(path: String, mode: String, max_bytes: Option<u64>) -> Prev
             Ok(bytes) => PreviewReadResponse {
                 ok: true,
                 path: Some(path),
-                name: resolved.file_name().map(|name| name.to_string_lossy().to_string()),
+                name,
                 size: Some(size),
                 modified_at,
                 text: None,
-                base64: Some(base64::encode(bytes)),
+                base64: Some(STANDARD.encode(bytes)),
                 error: None,
             },
             Err(err) => PreviewReadResponse {
                 ok: false,
                 path: Some(path),
-                name: resolved.file_name().map(|name| name.to_string_lossy().to_string()),
+                name,
                 size: Some(size),
                 modified_at,
                 text: None,

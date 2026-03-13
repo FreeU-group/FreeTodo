@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import importlib
 import json
 
 from fastapi import APIRouter, HTTPException
@@ -106,17 +108,8 @@ async def uninstall_media_crawler():
 
 async def _stop_all_crawler_processes() -> None:
     """停止所有爬虫相关进程（爬虫循环 + 爬虫进程 + 签名服务）。"""
-    import asyncio
-
     try:
-        import routers.crawler as _crawler_mod
-        from routers.crawler import (
-            _crawler_status,
-            _loop_crawler_task,
-            _stop_loop_flag,
-            stop_crawler_process,
-            stop_sign_service,
-        )
+        _crawler_mod = importlib.import_module("routers.crawler")
 
         # 1. 设置停止标志，停止循环爬取
         _crawler_mod._stop_loop_flag = True
@@ -124,7 +117,7 @@ async def _stop_all_crawler_processes() -> None:
         logger.info("[卸载] 正在停止爬虫和签名服务进程...")
 
         # 2. 停止当前爬虫进程
-        stop_crawler_process()
+        _crawler_mod.stop_crawler_process()
 
         # 3. 等待循环任务结束
         task = _crawler_mod._loop_crawler_task
@@ -135,7 +128,7 @@ async def _stop_all_crawler_processes() -> None:
                 task.cancel()
 
         # 4. 停止签名服务
-        stop_sign_service()
+        _crawler_mod.stop_sign_service()
 
         _crawler_mod._crawler_status = "idle"
         logger.info("[卸载] 所有爬虫进程已停止")

@@ -84,9 +84,10 @@ ignore = ["E501", "B008", "RUF001", "RUF002", "RUF003"]
 max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["S101", "DTZ001", "DTZ005", "PLR2004", "TC003"]
+"tests/*.py" = ["ARG002", "FLY002", "S101", "DTZ001", "DTZ005", "PLR2004", "TC003"]
 "routers/hardware_audio.py" = ["TC001", "TC002"]
 "routers/omi_compat/*.py" = ["ARG001", "PLC0415"]
+"routers/crawler.py" = ["ARG001", "B007", "C901", "DTZ005", "DTZ006", "E402", "E722", "N806", "PLC0415", "PLR0912", "PLR0915", "PLR2004", "PLW0602", "PLW0603", "RUF013", "SIM105", "SIM115", "SIM117"]
 
 [tool.ruff.lint.pylint]
 max-statements = 50

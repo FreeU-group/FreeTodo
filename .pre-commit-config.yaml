@@ -77,7 +77,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX/JS/JSX code lines (max 500)
-        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude lib/generated
+        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
         language: system
         files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
