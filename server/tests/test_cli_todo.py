@@ -467,6 +467,35 @@ class _StubLocationClient:
         )
 
 
+class _StubTimeAllocationClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_time_allocation(
+        self, *, start_date: str | None, end_date: str | None, days: int | None
+    ):
+        return self.behavior(
+            "get_time_allocation",
+            start_date=start_date,
+            end_date=end_date,
+            days=days,
+        )
+
+
+class _StubPreviewClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_preview(self, *, path: str, mode: str, max_bytes: int | None):
+        return self.behavior("get_preview", path=path, mode=mode, max_bytes=max_bytes)
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -701,6 +730,22 @@ def test_location_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Location resource commands" in result.stdout
     assert "freetodo location report --input location.json --dry-run --json" in result.stdout
+
+
+def test_time_allocation_help_defaults_to_english():
+    result = runner.invoke(app, ["time-allocation", "--help"])
+
+    assert result.exit_code == 0
+    assert "Time allocation resource commands" in result.stdout
+    assert "freetodo time-allocation get --days 7 --json" in result.stdout
+
+
+def test_preview_help_defaults_to_english():
+    result = runner.invoke(app, ["preview", "--help"])
+
+    assert result.exit_code == 0
+    assert "Preview resource commands" in result.stdout
+    assert "freetodo preview file --path /abs/path/file.txt --mode text --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -1287,3 +1332,46 @@ def test_location_history_calls_client(monkeypatch):
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["data"]["total"] == 1
+
+
+def test_time_allocation_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_time_allocation"
+        assert kwargs["days"] == 7
+        return {
+            "total_time": 120,
+            "daily_distribution": [],
+            "app_details": [],
+        }, "req-time-allocation"
+
+    monkeypatch.setattr(
+        "cli.commands.time_allocation.create_time_allocation_client",
+        lambda: _StubTimeAllocationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["time-allocation", "get", "--days", "7"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["total_time"] == 120
+
+
+def test_preview_file_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_preview"
+        assert kwargs["mode"] == "text"
+        return {"content": "ok"}, "req-preview"
+
+    monkeypatch.setattr(
+        "cli.commands.preview.create_preview_client",
+        lambda: _StubPreviewClient(behavior),
+    )
+
+    result = runner.invoke(
+        app,
+        ["preview", "file", "--path", "/tmp/demo.txt", "--mode", "text"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["content"] == "ok"

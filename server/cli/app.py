@@ -16,10 +16,12 @@ from cli.commands.location import location_app
 from cli.commands.logs import logs_app
 from cli.commands.memory import memory_app
 from cli.commands.notification import notification_app
+from cli.commands.preview import preview_app
 from cli.commands.scheduler import scheduler_app
 from cli.commands.screenshot import screenshot_app
 from cli.commands.search import search_app
 from cli.commands.system import system_app
+from cli.commands.time_allocation import time_allocation_app
 from cli.commands.todo import todo_app
 from cli.commands.vector import vector_app
 from cli.config import load_config
@@ -368,6 +370,40 @@ LOCATION_HELP_TEXT = {
     ),
 }
 
+TIME_ALLOCATION_HELP_TEXT = {
+    "en": (
+        "Time allocation resource commands.\n\n"
+        "Use these commands to fetch aggregated app usage statistics.\n\n"
+        "Examples:\n"
+        "  freetodo time-allocation get --days 7 --json\n"
+        "  freetodo time-allocation get --start-date 2026-03-01 --end-date 2026-03-07 --json\n"
+    ),
+    "zh": (
+        "Time allocation 资源命令。\n\n"
+        "可以用这些命令查看聚合后的应用使用统计。\n\n"
+        "示例：\n"
+        "  freetodo time-allocation get --days 7 --json\n"
+        "  freetodo time-allocation get --start-date 2026-03-01 --end-date 2026-03-07 --json\n"
+    ),
+}
+
+PREVIEW_HELP_TEXT = {
+    "en": (
+        "Preview resource commands.\n\n"
+        "Use these commands to preview local files via the backend preview endpoint.\n\n"
+        "Examples:\n"
+        "  freetodo preview file --path /abs/path/file.txt --mode text --json\n"
+        "  freetodo preview file --path /abs/path/file.bin --mode binary --json\n"
+    ),
+    "zh": (
+        "Preview 资源命令。\n\n"
+        "可以用这些命令通过后端预览接口查看本地文件内容。\n\n"
+        "示例：\n"
+        "  freetodo preview file --path /abs/path/file.txt --mode text --json\n"
+        "  freetodo preview file --path /abs/path/file.bin --mode binary --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -387,6 +423,8 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "vector": VECTOR_HELP_TEXT,
         "notification": NOTIFICATION_HELP_TEXT,
         "location": LOCATION_HELP_TEXT,
+        "time-allocation": TIME_ALLOCATION_HELP_TEXT,
+        "preview": PREVIEW_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -418,7 +456,7 @@ def render_help(
         help=(
             "Help topic to render, currently: root, todo, journal, activity, event, "
             "automation, memory, screenshot, audio, scheduler, logs, system, "
-            "search, vector, notification, or location."
+            "search, vector, notification, location, time-allocation, or preview."
         ),
     ),
     lang: HelpLanguage = typer.Option(
@@ -486,6 +524,8 @@ app.add_typer(automation_app, name="automation")
 app.add_typer(memory_app, name="memory")
 app.add_typer(notification_app, name="notification")
 app.add_typer(location_app, name="location")
+app.add_typer(time_allocation_app, name="time-allocation")
+app.add_typer(preview_app, name="preview")
 app.add_typer(screenshot_app, name="screenshot")
 app.add_typer(audio_app, name="audio")
 app.add_typer(scheduler_app, name="scheduler")
