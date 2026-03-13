@@ -197,3 +197,115 @@ class TodoApiClient(ApiClient):
                 exit_code=2,
             ) from exc
         return self._request("POST", "/api/todos/import/ics", files=files)
+
+
+class JournalApiClient(ApiClient):
+    """Journal-focused API client."""
+
+    def list_journals(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        start_date: str | None,
+        end_date: str | None,
+    ) -> tuple[Any, str | None]:
+        params = {"limit": limit, "offset": offset}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        return self._request("GET", "/api/journals", params=params)
+
+    def get_journal(self, journal_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/journals/{journal_id}")
+
+    def create_journal(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/journals", json=payload)
+
+    def update_journal(self, journal_id: int, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("PUT", f"/api/journals/{journal_id}", json=payload)
+
+    def delete_journal(self, journal_id: int) -> tuple[Any, str | None]:
+        return self._request("DELETE", f"/api/journals/{journal_id}")
+
+    def auto_link_journal(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/journals/auto-link", json=payload)
+
+    def generate_objective_journal(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/journals/generate-objective", json=payload)
+
+    def generate_ai_journal(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/journals/generate-ai", json=payload)
+
+
+class ActivityApiClient(ApiClient):
+    """Activity-focused API client."""
+
+    def list_activities(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        start_date: str | None,
+        end_date: str | None,
+    ) -> tuple[Any, str | None]:
+        params = {"limit": limit, "offset": offset}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        return self._request("GET", "/api/activities", params=params)
+
+    def get_activity_events(self, activity_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/activities/{activity_id}/events")
+
+    def create_activity_manual(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/activities/manual", json=payload)
+
+
+class EventApiClient(ApiClient):
+    """Event-focused API client."""
+
+    def list_events(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        start_date: str | None,
+        end_date: str | None,
+        app_name: str | None,
+    ) -> tuple[Any, str | None]:
+        params = {"limit": limit, "offset": offset}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        if app_name:
+            params["app_name"] = app_name
+        return self._request("GET", "/api/events", params=params)
+
+    def count_events(
+        self,
+        *,
+        start_date: str | None,
+        end_date: str | None,
+        app_name: str | None,
+    ) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        if app_name:
+            params["app_name"] = app_name
+        return self._request("GET", "/api/events/count", params=params)
+
+    def get_event(self, event_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/events/{event_id}")
+
+    def get_event_context(self, event_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/events/{event_id}/context")
+
+    def generate_event_summary(self, event_id: int) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/events/{event_id}/generate-summary")
