@@ -407,6 +407,8 @@
 		"illustrationAlt": "Today's illustration",
 		"noIllustration": "Click \"Generate AI View\" to also generate today's illustration",
 		"illustrationGenerating": "Generating illustration...",
+		"loadingIllustrations": "Loading illustrations...",
+		"regenerateAi": "Regenerate",
 		"generateIllustration": "Generate today's illustration",
 		"regenerate": "Regenerate"
 	},

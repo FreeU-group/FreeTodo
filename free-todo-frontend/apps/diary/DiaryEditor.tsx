@@ -24,6 +24,7 @@ interface DiaryEditorProps {
 	isAutoLinking: boolean;
 	hasJournalId: boolean;
 	illustrationUrls: string[];
+	illustrationLoading: boolean;
 	illustrationGenerating: boolean;
 }
 
@@ -42,10 +43,12 @@ export function DiaryEditor({
 	isAutoLinking,
 	hasJournalId,
 	illustrationUrls,
+	illustrationLoading,
 	illustrationGenerating,
 }: DiaryEditorProps) {
 	const t = useTranslations("journalPanel");
 	const isGenerating = isGeneratingAi || illustrationGenerating;
+	const hasExistingIllustrations = illustrationUrls.length > 0;
 
 	// 加时间戳避免图片缓存
 	const [imgKey, setImgKey] = useState(0);
@@ -72,7 +75,7 @@ export function DiaryEditor({
 						) : (
 							<Sparkles className="h-3.5 w-3.5" />
 						)}
-						{isGenerating ? t("generatingAi") : t("generateAi")}
+						{isGenerating ? t("generatingAi") : hasExistingIllustrations ? t("regenerateAi") : t("generateAi")}
 					</Button>
 					<Button
 						variant="ghost"
@@ -107,7 +110,12 @@ export function DiaryEditor({
 
 				{activeTab === "ai" && (
 					<div className="flex flex-col gap-3">
-						{illustrationUrls.length > 0 ? (
+						{illustrationLoading && illustrationUrls.length === 0 ? (
+							<div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-4 py-12 text-center">
+								<Loader2 className="h-8 w-8 animate-spin text-primary" />
+								<p className="text-sm text-muted-foreground">{t("loadingIllustrations")}</p>
+							</div>
+						) : illustrationUrls.length > 0 ? (
 							illustrationUrls.map((url) => (
 								<div
 									key={url}

@@ -407,6 +407,8 @@
 		"illustrationAlt": "今日插画",
 		"noIllustration": "点击「生成AI视角」即可同时生成今日插画",
 		"illustrationGenerating": "插画生成中...",
+		"loadingIllustrations": "加载插画中...",
+		"regenerateAi": "重新生成",
 		"generateIllustration": "生成今日插画",
 		"regenerate": "重新生成"
 	},

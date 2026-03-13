@@ -65,6 +65,7 @@ export function DiaryPanel() {
 	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 	const datePickerRef = useRef<HTMLButtonElement | null>(null);
 	const [illustrationUrls, setIllustrationUrls] = useState<string[]>([]);
+	const [illustrationLoading, setIllustrationLoading] = useState(false);
 	const [illustrationGenerating, setIllustrationGenerating] = useState(false);
 	const lastSyncKey = useRef<string | null>(null);
 	const {
@@ -194,14 +195,25 @@ export function DiaryPanel() {
 			if (resp.ok) {
 				const data = await resp.json();
 				setIllustrationUrls(data.urls ?? []);
+			} else {
+				setIllustrationUrls([]);
 			}
 		} catch {
-			// ignore
+			setIllustrationUrls([]);
 		}
 	}, []);
 
+	// 切换日期时先清空并加载该日期的已有插画
 	useEffect(() => {
-		checkIllustration(selectedDateStr);
+		setIllustrationUrls([]);
+		setIllustrationLoading(true);
+		let cancelled = false;
+		checkIllustration(selectedDateStr).then(() => {
+			if (!cancelled) setIllustrationLoading(false);
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, [selectedDateStr, checkIllustration]);
 
 	const handleDateChange = (value: Date) => {
@@ -412,6 +424,7 @@ export function DiaryPanel() {
 				isAutoLinking={isAutoLinking}
 				hasJournalId={Boolean(draft.id)}
 				illustrationUrls={illustrationUrls}
+				illustrationLoading={illustrationLoading}
 				illustrationGenerating={illustrationGenerating}
 			/>
 			</div>
