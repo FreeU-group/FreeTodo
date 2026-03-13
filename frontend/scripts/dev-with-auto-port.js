@@ -263,7 +263,7 @@ async function findRunningBackendPort() {
 async function waitForBackendPort() {
 	const startTime = Date.now();
 	let lastLogTime = 0;
-	const hint = "Start backend first - python -m lifetrace.server";
+	const hint = "Start backend first - uv run --directory server python server.py";
 	const suffix = FRONTEND_GIT_COMMIT ? ` (git commit: ${FRONTEND_GIT_COMMIT})` : "";
 
 	for (;;) {

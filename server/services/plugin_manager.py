@@ -71,7 +71,7 @@ class MediaCrawlerPlugin:
             ├── requirements.txt
             └── ...
 
-    开发模式下，也支持从项目根目录（与 lifetrace/ 同级）直接读取。
+    开发模式下，也支持从项目根目录（与 server/ 同级）直接读取。
     """
 
     PLUGIN_ID = "media-crawler"
