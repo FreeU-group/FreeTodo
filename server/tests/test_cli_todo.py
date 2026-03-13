@@ -393,6 +393,43 @@ class _StubSystemClient:
         return self.behavior("get_capabilities")
 
 
+class _StubSearchClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def search_screenshots(self, payload):
+        return self.behavior("search_screenshots", payload=payload)
+
+    def search_events(self, payload):
+        return self.behavior("search_events", payload=payload)
+
+
+class _StubVectorClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def semantic_search(self, payload):
+        return self.behavior("semantic_search", payload=payload)
+
+    def event_semantic_search(self, payload):
+        return self.behavior("event_semantic_search", payload=payload)
+
+    def get_vector_stats(self):
+        return self.behavior("get_vector_stats")
+
+    def sync_vector_database(self, *, limit: int | None, force_reset: bool):
+        return self.behavior("sync_vector_database", limit=limit, force_reset=force_reset)
+
+    def reset_vector_database(self):
+        return self.behavior("reset_vector_database")
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -595,6 +632,22 @@ def test_system_help_defaults_to_english():
     assert result.exit_code == 0
     assert "System resource commands" in result.stdout
     assert "freetodo system cleanup --days 30 --dry-run --json" in result.stdout
+
+
+def test_search_help_defaults_to_english():
+    result = runner.invoke(app, ["search", "--help"])
+
+    assert result.exit_code == 0
+    assert "Search resource commands" in result.stdout
+    assert "freetodo search events --input search.json --json" in result.stdout
+
+
+def test_vector_help_defaults_to_english():
+    result = runner.invoke(app, ["vector", "--help"])
+
+    assert result.exit_code == 0
+    assert "Vector resource commands" in result.stdout
+    assert "freetodo vector sync --limit 100 --dry-run --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -1010,3 +1063,98 @@ def test_system_cleanup_dry_run():
     payload = json.loads(result.stdout)
     assert payload["meta"]["dry_run"] is True
     assert payload["data"]["payload"]["days"] == 14
+
+
+def test_search_screenshots_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "search_screenshots"
+        assert kwargs["payload"]["query"] == "meeting notes"
+        assert kwargs["payload"]["limit"] == 5
+        return [{"id": 1, "app_name": "Cursor"}], "req-search-screens"
+
+    monkeypatch.setattr(
+        "cli.commands.search.create_search_client",
+        lambda: _StubSearchClient(behavior),
+    )
+
+    result = runner.invoke(
+        app, ["search", "screenshots", "--query", "meeting notes", "--limit", "5"]
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["id"] == 1
+    assert payload["meta"]["request_id"] == "req-search-screens"
+
+
+def test_search_events_accepts_input_file(monkeypatch, tmp_path):
+    input_file = tmp_path / "search.json"
+    input_file.write_text(
+        json.dumps({"query": "retro", "app_name": "Notion", "limit": 3}),
+        encoding="utf-8",
+    )
+
+    def behavior(name, **kwargs):
+        assert name == "search_events"
+        assert kwargs["payload"]["app_name"] == "Notion"
+        return [{"id": 9, "app_name": "Notion"}], "req-search-events"
+
+    monkeypatch.setattr(
+        "cli.commands.search.create_search_client",
+        lambda: _StubSearchClient(behavior),
+    )
+
+    result = runner.invoke(app, ["search", "events", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["id"] == 9
+
+
+def test_vector_semantic_search_calls_client(monkeypatch, tmp_path):
+    input_file = tmp_path / "semantic.json"
+    input_file.write_text(json.dumps({"query": "cli rollout", "top_k": 4}), encoding="utf-8")
+
+    def behavior(name, **kwargs):
+        assert name == "semantic_search"
+        assert kwargs["payload"]["top_k"] == 4
+        return [{"text": "result", "score": 0.9, "metadata": {}}], "req-vector-search"
+
+    monkeypatch.setattr(
+        "cli.commands.vector.create_vector_client",
+        lambda: _StubVectorClient(behavior),
+    )
+
+    result = runner.invoke(app, ["vector", "semantic-search", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["score"] == 0.9
+
+
+def test_vector_sync_dry_run():
+    result = runner.invoke(app, ["vector", "sync", "--limit", "50", "--force-reset", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["limit"] == 50
+    assert payload["data"]["payload"]["force_reset"] is True
+
+
+def test_vector_stats_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_vector_stats"
+        return {"enabled": True, "document_count": 25}, "req-vector-stats"
+
+    monkeypatch.setattr(
+        "cli.commands.vector.create_vector_client",
+        lambda: _StubVectorClient(behavior),
+    )
+
+    result = runner.invoke(app, ["vector", "stats"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["document_count"] == 25
+    assert payload["meta"]["request_id"] == "req-vector-stats"

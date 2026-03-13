@@ -16,8 +16,10 @@ from cli.commands.logs import logs_app
 from cli.commands.memory import memory_app
 from cli.commands.scheduler import scheduler_app
 from cli.commands.screenshot import screenshot_app
+from cli.commands.search import search_app
 from cli.commands.system import system_app
 from cli.commands.todo import todo_app
+from cli.commands.vector import vector_app
 from cli.config import load_config
 from cli.errors import CliError
 from cli.output import build_envelope, emit_json
@@ -292,6 +294,42 @@ SYSTEM_HELP_TEXT = {
     ),
 }
 
+SEARCH_HELP_TEXT = {
+    "en": (
+        "Search resource commands.\n\n"
+        "Use these commands to search screenshots and events through backend OCR indexes.\n\n"
+        "Examples:\n"
+        "  freetodo search screenshots --query meeting notes --json\n"
+        "  freetodo search events --input search.json --json\n"
+    ),
+    "zh": (
+        "Search 资源命令。\n\n"
+        "可以用这些命令通过后端 OCR 索引搜索截图和事件。\n\n"
+        "示例：\n"
+        "  freetodo search screenshots --query meeting notes --json\n"
+        "  freetodo search events --input search.json --json\n"
+    ),
+}
+
+VECTOR_HELP_TEXT = {
+    "en": (
+        "Vector resource commands.\n\n"
+        "Use these commands to run semantic search and manage the backend vector index.\n\n"
+        "Examples:\n"
+        "  freetodo vector semantic-search --input semantic.json --json\n"
+        "  freetodo vector stats --json\n"
+        "  freetodo vector sync --limit 100 --dry-run --json\n"
+    ),
+    "zh": (
+        "Vector 资源命令。\n\n"
+        "可以用这些命令做语义搜索，并管理后端向量索引。\n\n"
+        "示例：\n"
+        "  freetodo vector semantic-search --input semantic.json --json\n"
+        "  freetodo vector stats --json\n"
+        "  freetodo vector sync --limit 100 --dry-run --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -307,6 +345,8 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "scheduler": SCHEDULER_HELP_TEXT,
         "logs": LOGS_HELP_TEXT,
         "system": SYSTEM_HELP_TEXT,
+        "search": SEARCH_HELP_TEXT,
+        "vector": VECTOR_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -337,7 +377,8 @@ def render_help(
         "root",
         help=(
             "Help topic to render, currently: root, todo, journal, activity, event, "
-            "automation, memory, screenshot, audio, scheduler, logs, or system."
+            "automation, memory, screenshot, audio, scheduler, logs, system, "
+            "search, or vector."
         ),
     ),
     lang: HelpLanguage = typer.Option(
@@ -408,3 +449,5 @@ app.add_typer(audio_app, name="audio")
 app.add_typer(scheduler_app, name="scheduler")
 app.add_typer(logs_app, name="logs")
 app.add_typer(system_app, name="system")
+app.add_typer(search_app, name="search")
+app.add_typer(vector_app, name="vector")

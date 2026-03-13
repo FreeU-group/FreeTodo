@@ -512,3 +512,37 @@ class SystemApiClient(ApiClient):
 
     def get_capabilities(self) -> tuple[Any, str | None]:
         return self._request("GET", "/api/capabilities")
+
+
+class SearchApiClient(ApiClient):
+    """Search-focused API client."""
+
+    def search_screenshots(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/search", json=payload)
+
+    def search_events(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/event-search", json=payload)
+
+
+class VectorApiClient(ApiClient):
+    """Vector-focused API client."""
+
+    def semantic_search(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/semantic-search", json=payload)
+
+    def event_semantic_search(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/event-semantic-search", json=payload)
+
+    def get_vector_stats(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/vector-stats")
+
+    def sync_vector_database(
+        self, *, limit: int | None, force_reset: bool
+    ) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {"force_reset": force_reset}
+        if limit is not None:
+            params["limit"] = limit
+        return self._request("POST", "/api/vector-sync", params=params)
+
+    def reset_vector_database(self) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/vector-reset")
