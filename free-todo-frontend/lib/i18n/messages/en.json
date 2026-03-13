@@ -405,7 +405,8 @@
 		"generateFailed": "Generation failed",
 		"loadFailed": "Load failed: {error}",
 		"illustrationAlt": "Today's illustration",
-		"noIllustration": "No illustration yet — generate one!",
+		"noIllustration": "Click \"Generate AI View\" to also generate today's illustration",
+		"illustrationGenerating": "Generating illustration...",
 		"generateIllustration": "Generate today's illustration",
 		"regenerate": "Regenerate"
 	},

@@ -4,7 +4,6 @@ import { BookOpen, CalendarDays } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DiaryEditor } from "@/apps/diary/DiaryEditor";
-import { DiaryIllustration } from "@/apps/diary/DiaryIllustration";
 import type { JournalTab } from "@/apps/diary/DiaryTabs";
 import {
 	formatDateInput,
@@ -75,7 +74,6 @@ export function DiaryPanel() {
 		workHoursEnd,
 		customTime,
 		autoLinkEnabled,
-		autoGenerateObjectiveEnabled,
 		autoGenerateAiEnabled,
 	} = useJournalStore();
 	const dayRange = useMemo(() => getDayRange(selectedDate), [selectedDate]);
@@ -131,12 +129,10 @@ export function DiaryPanel() {
 		createJournal,
 		updateJournal,
 		autoLinkJournal,
-		generateObjective,
 		generateAiView,
 		isCreating,
 		isUpdating,
 		isAutoLinking,
-		isGeneratingObjective,
 		isGeneratingAi,
 	} = useJournalMutations();
 	const syncDraftFromJournal = useCallback(
@@ -211,23 +207,6 @@ export function DiaryPanel() {
 		checkIllustration(selectedDateStr);
 	}, [selectedDateStr, checkIllustration]);
 
-	const handleGenerateIllustration = async () => {
-		try {
-			setIllustrationGenerating(true);
-			const resp = await fetch(
-				`/api/diary-illustration/generate?date=${selectedDateStr}`,
-				{ method: "POST" },
-			);
-			if (resp.ok) {
-				setIllustrationExists(true);
-			}
-		} catch {
-			// ignore
-		} finally {
-			setIllustrationGenerating(false);
-		}
-	};
-
 	const handleDateChange = (value: Date) => {
 		const nextDate = normalizeDateOnly(value);
 		if (formatDateInput(nextDate) === formatDateInput(selectedDate)) return;
@@ -279,22 +258,6 @@ export function DiaryPanel() {
 				activityCount: result.relatedActivityIds.length,
 			}),
 		);
-	};
-	const runObjectiveGeneration = async (
-		journalId: number,
-		snapshot?: { title: string; content: string; date: Date },
-	) => {
-		const payload: JournalGenerateRequest = {
-			journal_id: journalId,
-			title: snapshot?.title ?? draft.name,
-			content_original: snapshot?.content ?? draft.userNotes,
-			date: formatDateInput(snapshot?.date ?? draft.date),
-			day_bucket_start: bucket.bucketStart.toISOString(),
-			language: locale,
-		};
-		const result = await generateObjective(payload);
-		setDraft((prev) => ({ ...prev, contentObjective: result.content }));
-		setActiveTab("objective");
 	};
 	const runAiGeneration = async (
 		journalId: number,
@@ -348,7 +311,6 @@ export function DiaryPanel() {
 
 		const autoOps: Array<[boolean, () => Promise<void>]> = [
 			[autoLinkEnabled, () => runAutoLink(saved.id, snapshot)],
-			[autoGenerateObjectiveEnabled && !saved.contentObjective, () => runObjectiveGeneration(saved.id, snapshot)],
 			[autoGenerateAiEnabled && !saved.contentAi, () => runAiGeneration(saved.id, snapshot)],
 		];
 		for (const [enabled, fn] of autoOps) {
@@ -391,21 +353,25 @@ export function DiaryPanel() {
 		});
 		setActiveTab("original");
 	};
-	const handleGenerateObjectiveClick = async () => {
-		if (!draft.id) return;
-		try {
-			await runObjectiveGeneration(draft.id);
-		} catch (_error) {
-			setAutoLinkMessage(t("generateFailed"));
-		}
-	};
 	const handleGenerateAiClick = async () => {
 		if (!draft.id) return;
-		try {
-			await runAiGeneration(draft.id);
-		} catch (_error) {
-			setAutoLinkMessage(t("generateFailed"));
-		}
+		setActiveTab("ai");
+		// 并发触发：AI 文字描述 + 插画生成
+		await Promise.allSettled([
+			runAiGeneration(draft.id).catch(() => setAutoLinkMessage(t("generateFailed"))),
+			(async () => {
+				setIllustrationGenerating(true);
+				try {
+					const resp = await fetch(
+						`/api/diary-illustration/generate?date=${selectedDateStr}`,
+						{ method: "POST" },
+					);
+					if (resp.ok) setIllustrationExists(true);
+				} finally {
+					setIllustrationGenerating(false);
+				}
+			})(),
+		]);
 	};
 	const handleAutoLinkClick = async () => {
 		if (!draft.id || isAutoLinking) return;
@@ -460,40 +426,32 @@ export function DiaryPanel() {
 						onClose={() => setIsDatePickerOpen(false)}
 					/>
 				)}
-				<DiaryEditor
-					draft={draft}
-					activeTab={activeTab}
-					onTabChange={setActiveTab}
-					onTitleChange={(value) =>
-						setDraft((prev) => ({ ...prev, name: value }))
-					}
-					onTitleBlur={(value) =>
-						handleAutoSave({ draftOverride: { name: value } })
-					}
-					onUserNotesChange={(value) =>
-						setDraft((prev) => ({ ...prev, userNotes: value }))
-					}
-					onUserNotesBlur={(value) =>
-						handleAutoSave({ draftOverride: { userNotes: value } })
-					}
-					onGenerateObjective={handleGenerateObjectiveClick}
-					onGenerateAi={handleGenerateAiClick}
-					onAutoLink={handleAutoLinkClick}
-					onCopyToOriginal={handleCopyToOriginal}
-					autoLinkMessage={autoLinkMessage}
-					isGeneratingObjective={isGeneratingObjective}
-					isGeneratingAi={isGeneratingAi}
-					isAutoLinking={isAutoLinking}
-					hasJournalId={Boolean(draft.id)}
-				/>
-
-				{/* 插画区域 */}
-				<DiaryIllustration
-					dateStr={selectedDateStr}
-					exists={illustrationExists}
-					generating={illustrationGenerating}
-					onGenerate={handleGenerateIllustration}
-				/>
+			<DiaryEditor
+				draft={draft}
+				activeTab={activeTab}
+				selectedDateStr={selectedDateStr}
+				onTabChange={setActiveTab}
+				onTitleChange={(value) =>
+					setDraft((prev) => ({ ...prev, name: value }))
+				}
+				onTitleBlur={(value) =>
+					handleAutoSave({ draftOverride: { name: value } })
+				}
+				onUserNotesChange={(value) =>
+					setDraft((prev) => ({ ...prev, userNotes: value }))
+				}
+				onUserNotesBlur={(value) =>
+					handleAutoSave({ draftOverride: { userNotes: value } })
+				}
+				onGenerateAi={handleGenerateAiClick}
+				onAutoLink={handleAutoLinkClick}
+				onCopyToOriginal={handleCopyToOriginal}
+				isGeneratingAi={isGeneratingAi}
+				isAutoLinking={isAutoLinking}
+				hasJournalId={Boolean(draft.id)}
+				illustrationExists={illustrationExists}
+				illustrationGenerating={illustrationGenerating}
+			/>
 			</div>
 		</div>
 	);

@@ -177,6 +177,7 @@ export function SettingsPanel() {
 					<>
 						<AutoTodoDetectionSection config={config} loading={loading} />
 						<JournalSettingsSection />
+						<DiaryIllustrationConfigSection config={config} loading={loading} />
 						<AutomationTasksSection loading={loading} />
 					</>
 				);
@@ -194,7 +195,6 @@ export function SettingsPanel() {
 								<AudioAsrConfigSection config={config} loading={loading} />
 							</>
 						)}
-						<DiaryIllustrationConfigSection config={config} loading={loading} />
 						<CrawlerConfigSection loading={loading} />
 						<CookiesConfigSection loading={loading} />
 						<KdlConfigSection loading={loading} />

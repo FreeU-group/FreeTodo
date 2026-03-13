@@ -405,7 +405,8 @@
 		"generateFailed": "生成失败",
 		"loadFailed": "加载失败: {error}",
 		"illustrationAlt": "今日插画",
-		"noIllustration": "今天还没有插画，试试生成一张吧",
+		"noIllustration": "点击「生成AI视角」即可同时生成今日插画",
+		"illustrationGenerating": "插画生成中...",
 		"generateIllustration": "生成今日插画",
 		"regenerate": "重新生成"
 	},

@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-export type JournalTab = "original" | "objective" | "ai";
+export type JournalTab = "original" | "ai";
 
 interface DiaryTabsProps {
 	activeTab: JournalTab;
@@ -15,7 +15,6 @@ export function DiaryTabs({ activeTab, onChange }: DiaryTabsProps) {
 
 	const tabs: { id: JournalTab; label: string }[] = [
 		{ id: "original", label: t("tabOriginal") },
-		{ id: "objective", label: t("tabObjective") },
 		{ id: "ai", label: t("tabAi") },
 	];
 
