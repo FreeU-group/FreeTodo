@@ -1,7 +1,7 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
 	"files": {
-		"includes": ["**", "!free-todo-frontend/lib/generated/**"]
+		"includes": ["**", "!frontend/lib/generated/**"]
 	},
 	"linter": {
 		"enabled": true,
