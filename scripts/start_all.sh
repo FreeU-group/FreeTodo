@@ -19,7 +19,9 @@ run_bg() {
   local pgid
   pgid="$(ps -o pgid= "$pid" 2>/dev/null | tr -d ' ' || true)"
   echo "$pid" >"$log_dir/$name.pid"
-  echo "${pgid:-$pid}" >"$log_dir/$name.pgid"
+  if [ -n "$pgid" ]; then
+    echo "$pgid" >"$log_dir/$name.pgid"
+  fi
 }
 
 cleanup_frontend_lock() {
