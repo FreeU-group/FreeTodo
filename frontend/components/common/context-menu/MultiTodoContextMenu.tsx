@@ -8,8 +8,10 @@ import {
 	type MenuItem,
 	useContextMenu,
 } from "@/components/common/context-menu/BaseContextMenu";
+import { extractErrorMessage } from "@/lib/errors";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import { useTodoStore } from "@/lib/store/todo-store";
+import { toastError } from "@/lib/toast";
 import type { Todo } from "@/lib/types";
 
 interface MultiTodoContextMenuProps {
@@ -48,23 +50,38 @@ export function MultiTodoContextMenu({
 	};
 
 	const handleCancel = async () => {
+		let failed = false;
+		let lastError: unknown = null;
 		try {
 			// 批量取消所有选中的 todo（更新状态为 canceled）
 			await Promise.all(
 				selectedTodoIds.map((id) =>
 					updateTodo(id, { status: "canceled" }).catch((err) => {
+						failed = true;
+						lastError = err;
 						console.error(`Failed to cancel todo ${id}:`, err);
 					}),
 				),
 			);
 		} catch (err) {
+			failed = true;
+			lastError = err;
 			console.error("Failed to cancel todos:", err);
+		}
+		if (failed) {
+			toastError(
+				t("batchCancelFailed", {
+					error: extractErrorMessage(lastError, t("unknownError")),
+				}),
+			);
 		}
 		closeContextMenu();
 		clearTodoSelection();
 	};
 
 	const handleDelete = async () => {
+		let failed = false;
+		let lastError: unknown = null;
 		try {
 			// 递归查找所有子任务 ID
 			const findAllChildIds = (
@@ -109,6 +126,8 @@ export function MultiTodoContextMenu({
 			await Promise.all(
 				rootIdsToDelete.map((id) =>
 					deleteTodo(id).catch((err) => {
+						failed = true;
+						lastError = err;
 						console.error(`Failed to delete todo ${id}:`, err);
 					}),
 				),
@@ -117,7 +136,16 @@ export function MultiTodoContextMenu({
 			// 清理 UI 状态
 			onTodoDeleted(Array.from(allIdsToRemove));
 		} catch (err) {
+			failed = true;
+			lastError = err;
 			console.error("Failed to delete todos:", err);
+		}
+		if (failed) {
+			toastError(
+				t("batchDeleteFailed", {
+					error: extractErrorMessage(lastError, t("unknownError")),
+				}),
+			);
 		}
 		closeContextMenu();
 		clearTodoSelection();

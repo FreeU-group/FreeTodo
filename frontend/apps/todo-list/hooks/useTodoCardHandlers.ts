@@ -1,10 +1,12 @@
 import { useTranslations } from "next-intl";
 import type React from "react";
+import { extractErrorMessage } from "@/lib/errors";
 import { useTodoMutations } from "@/lib/query";
 import { useBreakdownStore } from "@/lib/store/breakdown-store";
 import { useChatStore } from "@/lib/store/chat-store";
 import { useTodoStore } from "@/lib/store/todo-store";
 import { useUiStore } from "@/lib/store/ui-store";
+import { toastError } from "@/lib/toast";
 import type { Todo } from "@/lib/types";
 
 interface UseTodoCardHandlersParams {
@@ -27,6 +29,7 @@ export function useTodoCardHandlers({
 	setEditingName,
 }: UseTodoCardHandlersParams) {
 	const tChat = useTranslations("chat");
+	const tTodoList = useTranslations("todoList");
 	const { createTodo, updateTodo, toggleTodoStatus } = useTodoMutations();
 	const { startBreakdown } = useBreakdownStore();
 	const { setPendingPrompt } = useChatStore();
@@ -44,6 +47,11 @@ export function useTodoCardHandlers({
 			setIsAddingChild(false);
 		} catch (err) {
 			console.error("Failed to create child todo:", err);
+			toastError(
+				tTodoList("createChildFailed", {
+					error: extractErrorMessage(err, tTodoList("unknownError")),
+				}),
+			);
 		}
 	};
 
@@ -113,6 +121,11 @@ export function useTodoCardHandlers({
 			}
 		} catch (err) {
 			console.error("Failed to toggle todo status:", err);
+			toastError(
+				tTodoList("updateFailed", {
+					error: extractErrorMessage(err, tTodoList("unknownError")),
+				}),
+			);
 		}
 	};
 
@@ -146,6 +159,11 @@ export function useTodoCardHandlers({
 			setIsEditingName(false);
 		} catch (err) {
 			console.error("Failed to update todo name:", err);
+			toastError(
+				tTodoList("renameFailed", {
+					error: extractErrorMessage(err, tTodoList("unknownError")),
+				}),
+			);
 			// 保存失败时恢复原值
 			setEditingName(todo.name);
 			setIsEditingName(false);

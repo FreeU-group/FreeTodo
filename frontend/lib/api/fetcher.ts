@@ -59,6 +59,28 @@ const shouldParseBody = (body: BodyInit | null | undefined): unknown => {
 	}
 };
 
+const extractApiErrorMessage = (payload: unknown, status: number): string => {
+	if (typeof payload === "string" && payload.trim()) {
+		return payload;
+	}
+
+	if (payload && typeof payload === "object") {
+		const candidate = payload as {
+			detail?: unknown;
+			error?: unknown;
+			message?: unknown;
+		};
+
+		for (const value of [candidate.detail, candidate.error, candidate.message]) {
+			if (typeof value === "string" && value.trim()) {
+				return value;
+			}
+		}
+	}
+
+	return `API Error: ${status}`;
+};
+
 export const unwrapApiData = <T>(response: unknown): T | null => {
 	if (response === null || response === undefined) return null;
 	if (typeof response === "object" && response !== null && "data" in response) {
@@ -133,7 +155,18 @@ export async function customFetcher<T>(
 	const response = await fetch(`${baseUrl}${finalUrl}`, fetchInit);
 
 	if (!response.ok) {
-		throw new Error(`API Error: ${response.status}`);
+		let errorPayload: unknown = null;
+		const errorText = await response.text();
+
+		if (errorText.trim()) {
+			try {
+				errorPayload = snakeToCamel(JSON.parse(errorText));
+			} catch {
+				errorPayload = errorText;
+			}
+		}
+
+		throw new Error(extractApiErrorMessage(errorPayload, response.status));
 	}
 
 	// 处理空响应体（如 204 No Content 或 DELETE 操作）

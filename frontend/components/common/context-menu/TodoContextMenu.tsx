@@ -9,10 +9,12 @@ import {
 	type MenuItem,
 	useContextMenu,
 } from "@/components/common/context-menu/BaseContextMenu";
+import { extractErrorMessage } from "@/lib/errors";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import { useBreakdownStore } from "@/lib/store/breakdown-store";
 import { useTodoStore } from "@/lib/store/todo-store";
 import { useUiStore } from "@/lib/store/ui-store";
+import { toastError } from "@/lib/toast";
 import type { Todo } from "@/lib/types";
 
 interface TodoContextMenuProps {
@@ -85,6 +87,11 @@ export function TodoContextMenu({
 			setIsAddingChild(false);
 		} catch (err) {
 			console.error("Failed to create child todo:", err);
+			toastError(
+				t("createChildFailed", {
+					error: extractErrorMessage(err, t("unknownError")),
+				}),
+			);
 		}
 	};
 
@@ -135,6 +142,11 @@ export function TodoContextMenu({
 			await updateTodo(todoId, { status: "canceled" });
 		} catch (err) {
 			console.error("Failed to cancel todo:", err);
+			toastError(
+				t("cancelFailed", {
+					error: extractErrorMessage(err, t("unknownError")),
+				}),
+			);
 		}
 		closeContextMenu();
 	};
@@ -164,6 +176,11 @@ export function TodoContextMenu({
 			onTodoDeleted(allIdsToDelete);
 		} catch (err) {
 			console.error("Failed to delete todo:", err);
+			toastError(
+				t("deleteFailed", {
+					error: extractErrorMessage(err, t("unknownError")),
+				}),
+			);
 		}
 		closeContextMenu();
 	};
