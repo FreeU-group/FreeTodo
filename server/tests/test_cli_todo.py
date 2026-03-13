@@ -174,6 +174,128 @@ class _StubEventClient:
         return self.behavior("generate_event_summary", event_id=event_id)
 
 
+class _StubAutomationClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_tasks(self):
+        return self.behavior("list_tasks")
+
+    def get_task(self, task_id: int):
+        return self.behavior("get_task", task_id=task_id)
+
+    def create_task(self, payload):
+        return self.behavior("create_task", payload=payload)
+
+    def update_task(self, task_id: int, payload):
+        return self.behavior("update_task", task_id=task_id, payload=payload)
+
+    def delete_task(self, task_id: int):
+        return self.behavior("delete_task", task_id=task_id)
+
+    def run_task(self, task_id: int):
+        return self.behavior("run_task", task_id=task_id)
+
+    def pause_task(self, task_id: int):
+        return self.behavior("pause_task", task_id=task_id)
+
+    def resume_task(self, task_id: int):
+        return self.behavior("resume_task", task_id=task_id)
+
+
+class _StubMemoryClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_today_memory(self):
+        return self.behavior("get_today_memory")
+
+    def get_memory_by_date(self, date_str: str):
+        return self.behavior("get_memory_by_date", date_str=date_str)
+
+    def get_raw_memory(self, date_str: str):
+        return self.behavior("get_raw_memory", date_str=date_str)
+
+    def search_memory(self, *, keyword: str, days: int, max_results: int):
+        return self.behavior("search_memory", keyword=keyword, days=days, max_results=max_results)
+
+    def list_memory_dates(self):
+        return self.behavior("list_memory_dates")
+
+    def get_memory_status(self):
+        return self.behavior("get_memory_status")
+
+    def trigger_compress(self, date_str: str):
+        return self.behavior("trigger_compress", date_str=date_str)
+
+    def get_dedup_stats(self):
+        return self.behavior("get_dedup_stats")
+
+    def trigger_task_link(self, date_str: str):
+        return self.behavior("trigger_task_link", date_str=date_str)
+
+    def trigger_compress_and_link(self, date_str: str):
+        return self.behavior("trigger_compress_and_link", date_str=date_str)
+
+    def get_task_linker_stats(self):
+        return self.behavior("get_task_linker_stats")
+
+    def get_profile(self):
+        return self.behavior("get_profile")
+
+    def trigger_profile_update(self):
+        return self.behavior("trigger_profile_update")
+
+    def trigger_profile_consolidate(self):
+        return self.behavior("trigger_profile_consolidate")
+
+    def get_profile_stats(self):
+        return self.behavior("get_profile_stats")
+
+
+class _StubScreenshotClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_screenshots(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        start_date: str | None,
+        end_date: str | None,
+        app_name: str | None,
+    ):
+        return self.behavior(
+            "list_screenshots",
+            limit=limit,
+            offset=offset,
+            start_date=start_date,
+            end_date=end_date,
+            app_name=app_name,
+        )
+
+    def get_screenshot(self, screenshot_id: int):
+        return self.behavior("get_screenshot", screenshot_id=screenshot_id)
+
+    def get_screenshot_path(self, screenshot_id: int):
+        return self.behavior("get_screenshot_path", screenshot_id=screenshot_id)
+
+    def download_screenshot_image(self, screenshot_id: int, output_path: str):
+        return self.behavior(
+            "download_screenshot_image", screenshot_id=screenshot_id, output_path=output_path
+        )
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -320,6 +442,30 @@ def test_event_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Event resource commands" in result.stdout
     assert "freetodo event generate-summary --id 42 --json" in result.stdout
+
+
+def test_automation_help_defaults_to_english():
+    result = runner.invoke(app, ["automation", "--help"])
+
+    assert result.exit_code == 0
+    assert "Automation task commands" in result.stdout
+    assert "freetodo automation create --input task.json --json" in result.stdout
+
+
+def test_memory_help_defaults_to_english():
+    result = runner.invoke(app, ["memory", "--help"])
+
+    assert result.exit_code == 0
+    assert "Memory resource commands" in result.stdout
+    assert "freetodo memory search --keyword cli --json" in result.stdout
+
+
+def test_screenshot_help_defaults_to_english():
+    result = runner.invoke(app, ["screenshot", "--help"])
+
+    assert result.exit_code == 0
+    assert "Screenshot resource commands" in result.stdout
+    assert "freetodo screenshot download --id 42 --output shot.png --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -526,3 +672,101 @@ def test_event_generate_summary_calls_client(monkeypatch):
     payload = json.loads(result.stdout)
     assert payload["data"]["generated"] is True
     assert payload["meta"]["request_id"] == "req-event-summary"
+
+
+def test_automation_create_calls_client(monkeypatch, tmp_path):
+    input_file = tmp_path / "task.json"
+    input_file.write_text(
+        json.dumps(
+            {
+                "name": "Daily fetch",
+                "enabled": True,
+                "schedule": {"type": "interval", "interval_seconds": 3600},
+                "action": {"type": "web_fetch", "payload": {"url": "https://example.com"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def behavior(name, **kwargs):
+        assert name == "create_task"
+        assert kwargs["payload"]["name"] == "Daily fetch"
+        return {"id": 4, **kwargs["payload"]}, "req-automation-create"
+
+    monkeypatch.setattr(
+        "cli.commands.automation.create_automation_client",
+        lambda: _StubAutomationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["automation", "create", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["id"] == 4
+    assert payload["meta"]["request_id"] == "req-automation-create"
+
+
+def test_automation_run_dry_run():
+    result = runner.invoke(app, ["automation", "run", "--id", "9", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["id"] == 9
+
+
+def test_memory_search_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "search_memory"
+        assert kwargs == {"keyword": "cli", "days": 14, "max_results": 5}
+        return (
+            {"keyword": "cli", "count": 1, "results": [{"date": "2026-03-13"}]},
+            "req-memory-search",
+        )
+
+    monkeypatch.setattr(
+        "cli.commands.memory.create_memory_client",
+        lambda: _StubMemoryClient(behavior),
+    )
+
+    result = runner.invoke(
+        app, ["memory", "search", "--keyword", "cli", "--days", "14", "--max-results", "5"]
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["count"] == 1
+    assert payload["meta"]["request_id"] == "req-memory-search"
+
+
+def test_memory_profile_update_dry_run():
+    result = runner.invoke(app, ["memory", "profile-update", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+
+
+def test_screenshot_download_calls_client(monkeypatch, tmp_path):
+    output_file = tmp_path / "shot.png"
+
+    def behavior(name, **kwargs):
+        assert name == "download_screenshot_image"
+        assert kwargs["screenshot_id"] == 42
+        assert kwargs["output_path"] == str(output_file)
+        return {"saved_to": str(output_file), "bytes": 256}, "req-screenshot-download"
+
+    monkeypatch.setattr(
+        "cli.commands.screenshot.create_screenshot_client",
+        lambda: _StubScreenshotClient(behavior),
+    )
+
+    result = runner.invoke(
+        app,
+        ["screenshot", "download", "--id", "42", "--output", str(output_file)],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["saved_to"] == str(output_file)
+    assert payload["meta"]["request_id"] == "req-screenshot-download"

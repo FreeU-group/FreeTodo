@@ -84,6 +84,28 @@ class ApiClient:
             return None, request_id
         return response.json(), request_id
 
+    def _download(self, path: str, output_path: str) -> tuple[Any, str | None]:
+        try:
+            response = self._client.get(path)
+        except httpx.ConnectError as exc:
+            raise CliError(
+                code="BACKEND_UNAVAILABLE",
+                message=f"Cannot connect to backend: {exc}",
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise CliError(
+                code="HTTP_ERROR",
+                message=str(exc),
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        if response.is_error:
+            raise _extract_error(response)
+        output = Path(output_path)
+        output.write_bytes(response.content)
+        request_id = response.headers.get("X-Request-Id") or response.headers.get("X-Request-ID")
+        return {"saved_to": str(output.resolve()), "bytes": len(response.content)}, request_id
+
     def health_check(self) -> tuple[Any, str | None]:
         """Check backend health."""
         return self._request("GET", "/health")
@@ -133,26 +155,7 @@ class TodoApiClient(ApiClient):
         return self._request("DELETE", f"/api/todos/{todo_id}/attachments/{attachment_id}")
 
     def download_attachment(self, attachment_id: int, output_path: str) -> tuple[Any, str | None]:
-        try:
-            response = self._client.get(f"/api/todos/attachments/{attachment_id}/file")
-        except httpx.ConnectError as exc:
-            raise CliError(
-                code="BACKEND_UNAVAILABLE",
-                message=f"Cannot connect to backend: {exc}",
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise CliError(
-                code="HTTP_ERROR",
-                message=str(exc),
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
-        if response.is_error:
-            raise _extract_error(response)
-        output = Path(output_path)
-        output.write_bytes(response.content)
-        request_id = response.headers.get("X-Request-Id") or response.headers.get("X-Request-ID")
-        return {"saved_to": str(output.resolve()), "bytes": len(response.content)}, request_id
+        return self._download(f"/api/todos/attachments/{attachment_id}/file", output_path)
 
     def export_ics(
         self,
@@ -309,3 +312,114 @@ class EventApiClient(ApiClient):
 
     def generate_event_summary(self, event_id: int) -> tuple[Any, str | None]:
         return self._request("POST", f"/api/events/{event_id}/generate-summary")
+
+
+class AutomationApiClient(ApiClient):
+    """Automation-focused API client."""
+
+    def list_tasks(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/automation/tasks")
+
+    def get_task(self, task_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/automation/tasks/{task_id}")
+
+    def create_task(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/automation/tasks", json=payload)
+
+    def update_task(self, task_id: int, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("PUT", f"/api/automation/tasks/{task_id}", json=payload)
+
+    def delete_task(self, task_id: int) -> tuple[Any, str | None]:
+        return self._request("DELETE", f"/api/automation/tasks/{task_id}")
+
+    def run_task(self, task_id: int) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/automation/tasks/{task_id}/run")
+
+    def pause_task(self, task_id: int) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/automation/tasks/{task_id}/pause")
+
+    def resume_task(self, task_id: int) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/automation/tasks/{task_id}/resume")
+
+
+class MemoryApiClient(ApiClient):
+    """Memory-focused API client."""
+
+    def get_today_memory(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/memory/today")
+
+    def get_memory_by_date(self, date_str: str) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/memory/date/{date_str}")
+
+    def get_raw_memory(self, date_str: str) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/memory/raw/{date_str}")
+
+    def search_memory(self, *, keyword: str, days: int, max_results: int) -> tuple[Any, str | None]:
+        params = {"keyword": keyword, "days": days, "max_results": max_results}
+        return self._request("GET", "/api/memory/search", params=params)
+
+    def list_memory_dates(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/memory/dates")
+
+    def get_memory_status(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/memory/status")
+
+    def trigger_compress(self, date_str: str) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/memory/compress/{date_str}")
+
+    def get_dedup_stats(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/memory/dedup-stats")
+
+    def trigger_task_link(self, date_str: str) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/memory/link/{date_str}")
+
+    def trigger_compress_and_link(self, date_str: str) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/memory/compress-and-link/{date_str}")
+
+    def get_task_linker_stats(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/memory/task-linker-stats")
+
+    def get_profile(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/memory/profile")
+
+    def trigger_profile_update(self) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/memory/profile/update")
+
+    def trigger_profile_consolidate(self) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/memory/profile/consolidate")
+
+    def get_profile_stats(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/memory/profile-stats")
+
+
+class ScreenshotApiClient(ApiClient):
+    """Screenshot-focused API client."""
+
+    def list_screenshots(
+        self,
+        *,
+        limit: int,
+        offset: int,
+        start_date: str | None,
+        end_date: str | None,
+        app_name: str | None,
+    ) -> tuple[Any, str | None]:
+        params = {"limit": limit, "offset": offset}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+        if app_name:
+            params["app_name"] = app_name
+        return self._request("GET", "/api/screenshots", params=params)
+
+    def get_screenshot(self, screenshot_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/screenshots/{screenshot_id}")
+
+    def get_screenshot_path(self, screenshot_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/screenshots/{screenshot_id}/path")
+
+    def download_screenshot_image(
+        self, screenshot_id: int, output_path: str
+    ) -> tuple[Any, str | None]:
+        return self._download(f"/api/screenshots/{screenshot_id}/image", output_path)

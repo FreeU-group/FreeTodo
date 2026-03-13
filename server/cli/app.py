@@ -8,8 +8,11 @@ import typer
 
 from cli.client import ApiClient
 from cli.commands.activity import activity_app
+from cli.commands.automation import automation_app
 from cli.commands.event import event_app
 from cli.commands.journal import journal_app
+from cli.commands.memory import memory_app
+from cli.commands.screenshot import screenshot_app
 from cli.commands.todo import todo_app
 from cli.config import load_config
 from cli.errors import CliError
@@ -141,6 +144,69 @@ EVENT_HELP_TEXT = {
     ),
 }
 
+AUTOMATION_HELP_TEXT = {
+    "en": (
+        "Automation task commands.\n\n"
+        "Use these commands to inspect, create, update, and control backend automation tasks.\n\n"
+        "Examples:\n"
+        "  freetodo automation list --json\n"
+        "  freetodo automation create --input task.json --json\n"
+        "  freetodo automation run --id 12 --json\n"
+        "  freetodo automation pause --id 12 --json\n"
+    ),
+    "zh": (
+        "Automation 任务命令。\n\n"
+        "可以用这些命令查看、创建、更新并控制后端自动化任务。\n\n"
+        "示例：\n"
+        "  freetodo automation list --json\n"
+        "  freetodo automation create --input task.json --json\n"
+        "  freetodo automation run --id 12 --json\n"
+        "  freetodo automation pause --id 12 --json\n"
+    ),
+}
+
+MEMORY_HELP_TEXT = {
+    "en": (
+        "Memory resource commands.\n\n"
+        "Use these commands to inspect daily memory, search historical notes, and trigger memory maintenance flows.\n\n"
+        "Examples:\n"
+        "  freetodo memory today --json\n"
+        "  freetodo memory search --keyword cli --json\n"
+        "  freetodo memory compress --date 2026-03-13 --json\n"
+        "  freetodo memory profile --json\n"
+    ),
+    "zh": (
+        "Memory 资源命令。\n\n"
+        "可以用这些命令查看每日记忆、搜索历史内容，并触发记忆维护流程。\n\n"
+        "示例：\n"
+        "  freetodo memory today --json\n"
+        "  freetodo memory search --keyword cli --json\n"
+        "  freetodo memory compress --date 2026-03-13 --json\n"
+        "  freetodo memory profile --json\n"
+    ),
+}
+
+SCREENSHOT_HELP_TEXT = {
+    "en": (
+        "Screenshot resource commands.\n\n"
+        "Use these commands to inspect screenshot metadata, OCR-enriched detail, file paths, and image downloads.\n\n"
+        "Examples:\n"
+        "  freetodo screenshot list --json\n"
+        "  freetodo screenshot get --id 42 --json\n"
+        "  freetodo screenshot path --id 42 --json\n"
+        "  freetodo screenshot download --id 42 --output shot.png --json\n"
+    ),
+    "zh": (
+        "Screenshot 资源命令。\n\n"
+        "可以用这些命令查看截图元数据、OCR 详情、文件路径，以及下载图片文件。\n\n"
+        "示例：\n"
+        "  freetodo screenshot list --json\n"
+        "  freetodo screenshot get --id 42 --json\n"
+        "  freetodo screenshot path --id 42 --json\n"
+        "  freetodo screenshot download --id 42 --output shot.png --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -149,6 +215,9 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "journal": JOURNAL_HELP_TEXT,
         "activity": ACTIVITY_HELP_TEXT,
         "event": EVENT_HELP_TEXT,
+        "automation": AUTOMATION_HELP_TEXT,
+        "memory": MEMORY_HELP_TEXT,
+        "screenshot": SCREENSHOT_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -177,7 +246,10 @@ def _doctor_payload() -> dict[str, str | float | bool | None]:
 def render_help(
     topic: str = typer.Argument(
         "root",
-        help="Help topic to render, currently: root, todo, journal, activity, or event.",
+        help=(
+            "Help topic to render, currently: root, todo, journal, activity, event, "
+            "automation, memory, or screenshot."
+        ),
     ),
     lang: HelpLanguage = typer.Option(
         HelpLanguage.EN,
@@ -240,3 +312,6 @@ app.add_typer(todo_app, name="todo")
 app.add_typer(journal_app, name="journal")
 app.add_typer(activity_app, name="activity")
 app.add_typer(event_app, name="event")
+app.add_typer(automation_app, name="automation")
+app.add_typer(memory_app, name="memory")
+app.add_typer(screenshot_app, name="screenshot")
