@@ -11,6 +11,7 @@ import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import type { Todo, TodoPriority, TodoStatus } from "@/lib/types";
 import { cn, getPriorityLabel, getStatusLabel } from "@/lib/utils";
+import { formatTodoIntl, parseTodoDateTime } from "@/lib/utils/todoTime";
 import type { ActiveDragState, DragData } from "./types";
 
 // ============================================================================
@@ -43,38 +44,46 @@ function getPriorityBgColor(priority: TodoPriority) {
 	}
 }
 
-function formatScheduleLabel(startTime?: string, endTime?: string) {
+function formatScheduleLabel(
+	startTime?: string,
+	endTime?: string,
+	timeZone?: string,
+) {
 	const schedule = startTime ?? endTime;
 	if (!schedule) return null;
-	const startDate = new Date(schedule);
-	if (Number.isNaN(startDate.getTime())) return null;
-	const dateLabel = startDate.toLocaleDateString("en-US", {
+	const startZoned = parseTodoDateTime(schedule, timeZone);
+	if (!startZoned) return null;
+	const locale = typeof navigator !== "undefined" ? navigator.language : "en-US";
+	const dateLabel = formatTodoIntl(schedule, timeZone, locale, {
 		year: "numeric",
 		month: "short",
 		day: "numeric",
 	});
-	const timeLabel = startDate.toLocaleTimeString("en-US", {
+	const timeLabel = formatTodoIntl(schedule, timeZone, locale, {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
-	const startLabel =
-		startDate.getHours() === 0 && startDate.getMinutes() === 0
-			? dateLabel
-			: `${dateLabel} ${timeLabel}`;
+	if (!dateLabel || !timeLabel) return null;
+	const isMidnight =
+		startZoned.hour() === 0 &&
+		startZoned.minute() === 0 &&
+		startZoned.second() === 0;
+	const startLabel = isMidnight ? dateLabel : `${dateLabel} ${timeLabel}`;
 
 	if (!endTime) return startLabel;
-	const endDate = new Date(endTime);
-	if (Number.isNaN(endDate.getTime())) return startLabel;
-	const sameDay = startDate.toDateString() === endDate.toDateString();
-	const endDateLabel = endDate.toLocaleDateString("en-US", {
+	const endZoned = parseTodoDateTime(endTime, timeZone);
+	if (!endZoned) return startLabel;
+	const endDateLabel = formatTodoIntl(endTime, timeZone, locale, {
 		year: "numeric",
 		month: "short",
 		day: "numeric",
 	});
-	const endTimeLabel = endDate.toLocaleTimeString("en-US", {
+	const endTimeLabel = formatTodoIntl(endTime, timeZone, locale, {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
+	if (!endDateLabel || !endTimeLabel) return startLabel;
+	const sameDay = startZoned.format("YYYY-MM-DD") === endZoned.format("YYYY-MM-DD");
 	const endLabel = sameDay ? endTimeLabel : `${endDateLabel} ${endTimeLabel}`;
 	return `${startLabel} - ${endLabel}`;
 }
@@ -184,7 +193,11 @@ function TodoCardOverlay({ todo, depth = 0 }: TodoCardOverlayProps) {
 								<div className="flex items-center gap-1 rounded-md bg-muted/40 px-2 py-1">
 									<Calendar className="h-3 w-3" />
 									<span>
-										{formatScheduleLabel(todo.startTime, todo.endTime)}
+										{formatScheduleLabel(
+											todo.startTime,
+											todo.endTime,
+											todo.timeZone,
+										)}
 									</span>
 								</div>
 							)}

@@ -19,7 +19,11 @@ export function TodoCardMetadata({ todo }: TodoCardMetadataProps) {
 		return null;
 	}
 
-	const scheduleLabel = formatScheduleLabel(todo.startTime, todo.endTime);
+	const scheduleLabel = formatScheduleLabel(
+		todo.startTime,
+		todo.endTime,
+		todo.timeZone,
+	);
 	const folder = getTodoFolder(todo);
 
 	return (

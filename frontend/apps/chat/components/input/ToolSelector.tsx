@@ -18,19 +18,8 @@ const FREETODO_TOOLS = [
 	{ id: "list_todos", category: "todo" },
 	{ id: "search_todos", category: "todo" },
 	{ id: "delete_todo", category: "todo" },
-	// 任务拆解工具（1个）
-	{ id: "breakdown_task", category: "breakdown" },
 	// 时间解析工具（1个）
 	{ id: "parse_time", category: "time" },
-	// 冲突检测工具（1个）
-	{ id: "check_schedule_conflict", category: "conflict" },
-	// 统计分析工具（2个）
-	{ id: "get_todo_stats", category: "stats" },
-	{ id: "get_overdue_todos", category: "stats" },
-	// 标签管理工具（3个）
-	{ id: "list_tags", category: "tags" },
-	{ id: "get_todos_by_tag", category: "tags" },
-	{ id: "suggest_tags", category: "tags" },
 	// 记忆工具（4个）
 	{ id: "recall_today", category: "memory" },
 	{ id: "recall_date", category: "memory" },
