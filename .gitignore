@@ -39,8 +39,7 @@ venv/
 Thumbs.db
 
 # LifeTrace specific
-lifetrace/data/
-lifetrace/config/config.yaml
+server/data/
 server/config/config.yaml
 
 # Legacy submodules (not used)

@@ -101,12 +101,12 @@ class MediaCrawlerPlugin:
         return self.install_dir / _MANIFEST_FILE
 
     # ------------------------------------------------------------------
-    # 开发模式路径（与 lifetrace/ 同级）
+    # 开发模式路径（与 server/ 同级）
     # ------------------------------------------------------------------
 
     @staticmethod
     def _dev_project_root() -> Path:
-        """返回项目根目录（lifetrace/ 的父目录）。"""
+        """返回项目根目录（server/ 的父目录）。"""
         return get_app_root().parent
 
     @property

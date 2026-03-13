@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 
 # Get the script directory and project root
 $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
-# Script is in lifetrace/scripts/, so go up two levels to get project root
+# Script is in server/scripts/, so go up two levels to get project root
 $PROJECT_ROOT = Split-Path -Parent (Split-Path -Parent $SCRIPT_DIR)
 $LIFETRACE_DIR = Split-Path -Parent $SCRIPT_DIR
 $DIST_DIR = "$PROJECT_ROOT\dist-backend"
@@ -79,7 +79,7 @@ Set-Location $PROJECT_ROOT
 
 # Run PyInstaller using .venv Python
 Write-Host "Running PyInstaller..."
-# Change to lifetrace directory to run PyInstaller (so paths in spec file work correctly)
+# Change to server directory to run PyInstaller (so paths in spec file work correctly)
 Set-Location $LIFETRACE_DIR
 # Use .venv Python explicitly to ensure all dependencies are from .venv
 & $VENV_PYTHON -m PyInstaller --clean --noconfirm pyinstaller.spec

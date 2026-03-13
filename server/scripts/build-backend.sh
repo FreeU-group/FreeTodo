@@ -7,7 +7,7 @@ set -e  # Exit on error
 
 # Get the script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Script is in lifetrace/scripts/, so go up two levels to get project root
+# Script is in server/scripts/, so go up two levels to get project root
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LIFETRACE_DIR="$SCRIPT_DIR/.."
 DIST_DIR="$PROJECT_ROOT/dist-backend"
@@ -135,7 +135,7 @@ cd "$PROJECT_ROOT"
 
 # Run PyInstaller using .venv Python
 echo "Running PyInstaller..."
-# Change to lifetrace directory to run PyInstaller (so paths in spec file work correctly)
+# Change to server directory to run PyInstaller (so paths in spec file work correctly)
 cd "$LIFETRACE_DIR"
 # Use .venv Python explicitly to ensure all dependencies are from .venv
 "$VENV_PYTHON" -m PyInstaller --clean --noconfirm pyinstaller.spec
