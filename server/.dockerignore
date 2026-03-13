@@ -39,8 +39,8 @@ venv/
 Thumbs.db
 
 # LifeTrace specific
-lifetrace/data/
-lifetrace/config/config.yaml
+server/data/
+server/config/config.yaml
 
 # Legacy submodules (not used)
 MediaCrawlerPro-Downloader/
@@ -114,7 +114,7 @@ deploy/volume/
 .env
 
 phone/
-free-todo-frontend/
+frontend/
 deploy/
 docs/
 hardware/

@@ -14,7 +14,7 @@ def get_app_root() -> Path:
     """
     获取应用程序根目录，兼容开发环境 + PyInstaller 打包环境。
 
-    - 开发环境：返回 lifetrace 包所在的项目根（lifetrace/）
+    - 开发环境：返回 server 包所在的项目根（server/）
     - 打包环境：返回可执行文件所在目录（backend/，与 _internal 同级别）
 
     Returns:
@@ -27,8 +27,8 @@ def get_app_root() -> Path:
         exe_dir = Path(sys.executable).resolve().parent
         return exe_dir
 
-    # 开发环境：当前文件在 lifetrace/util/path_utils.py
-    # 返回 lifetrace/ 目录
+    # 开发环境：当前文件在 server/util/path_utils.py
+    # 返回 server/ 目录
     return Path(__file__).resolve().parent.parent
 
 
@@ -55,7 +55,7 @@ def get_config_dir() -> Path:
     """
     获取内置配置所在目录（default_config.yaml, prompt.yaml, rapidocr_config.yaml 等）。
 
-    - 开发环境：lifetrace/config/
+    - 开发环境：server/config/
     - 打包环境：backend/config/（与 _internal 同级别，不在 _internal 内）
 
     Returns:
@@ -68,7 +68,7 @@ def get_models_dir() -> Path:
     """
     获取内置模型目录（ONNX 等）。
 
-    - 开发环境：lifetrace/models/
+    - 开发环境：server/models/
     - 打包环境：backend/models/（与 _internal 同级别，不在 _internal 内）
 
     Returns:
