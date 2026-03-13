@@ -98,7 +98,7 @@ async def llm_health_check():
         model = settings.llm.model
 
         # 发送最小化测试请求
-        response = client.chat.completions.create(  # noqa: F841
+        client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "test"}],
             max_tokens=5,

@@ -57,7 +57,6 @@ async def chat_with_llm(
         rag_result = await rag_service.process_query(message.message)
 
         if rag_result.get("success", False):
-            success = True  # noqa: F841
             response = ChatResponse(
                 response=rag_result["response"],
                 timestamp=get_utc_now(),

@@ -85,7 +85,7 @@ def _get_windows_active_window() -> tuple[str | None, str | None]:
             try:
                 process = psutil.Process(pid)
                 app_name = process.name()
-            except:  # noqa: E722
+            except psutil.Error:
                 app_name = None
             return app_name, window_title
     except Exception as e:

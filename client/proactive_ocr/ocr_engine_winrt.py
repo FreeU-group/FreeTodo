@@ -17,14 +17,6 @@ IMAGE_CHANNEL_RGBA = 4
 IMAGE_CHANNEL_RGB = 3
 
 try:
-    import cv2
-
-    CV2_AVAILABLE = True
-except ImportError:
-    cv2 = None
-    CV2_AVAILABLE = False
-
-try:
     import winocr
 
     WINOCR_AVAILABLE = True
@@ -60,7 +52,9 @@ class WinRtOcrEngine:
         logger.info(f"WinRT OCR engine initialized (lang={self.lang})")
 
     def _resize_image(self, image: np.ndarray, max_side: int) -> tuple:
-        if not CV2_AVAILABLE or cv2 is None:
+        try:
+            import cv2  # noqa: PLC0415
+        except ImportError:
             return image, 1.0
         h, w = image.shape[:2]
         max_dim = max(h, w)

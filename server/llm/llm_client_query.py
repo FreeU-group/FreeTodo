@@ -83,8 +83,6 @@ def parse_query_with_llm(client, model: str, user_query: str) -> dict[str, Any]:
 
 def rule_based_parse(user_query: str) -> dict[str, Any]:
     """基于规则的查询解析（备用方案）"""
-    query_lower = user_query.lower()  # noqa: F841
-
     keywords = []
     time_keywords = ["今天", "昨天", "本周", "上周", "本月", "上月", "最近"]
     app_keywords = ["微信", "qq", "浏览器", "chrome", "edge", "word", "excel"]

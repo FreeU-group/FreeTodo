@@ -36,7 +36,7 @@ else:
 
 # Import loguru first to ensure PyInstaller detects it
 with contextlib.suppress(ImportError):
-    import loguru  # noqa: F401
+    importlib.import_module("loguru")
 
 from util.base_paths import get_config_dir
 from util.logging_config import get_logger
