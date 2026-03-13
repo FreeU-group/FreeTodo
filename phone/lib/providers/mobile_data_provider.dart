@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -83,7 +83,9 @@ class MobileDataProvider extends ChangeNotifier {
     final now = DateTime.now();
     final dayStart = DateTime(now.year, now.month, now.day);
     final dayEnd = dayStart.add(const Duration(days: 1));
-    return _tasks.where((t) => t.dueAt.isAfter(dayStart) && t.dueAt.isBefore(dayEnd)).toList();
+    return _tasks
+        .where((t) => t.dueAt.isAfter(dayStart) && t.dueAt.isBefore(dayEnd))
+        .toList();
   }
 
   List<MobileTask> get weekTasks {
@@ -95,10 +97,7 @@ class MobileDataProvider extends ChangeNotifier {
   Future<void> refreshAll() async {
     _loading = true;
     notifyListeners();
-    await Future.wait<void>([
-      refreshTasks(),
-      refreshMessages(),
-    ]);
+    await Future.wait<void>([refreshTasks(), refreshMessages()]);
     _loading = false;
     notifyListeners();
   }
@@ -148,7 +147,14 @@ class MobileDataProvider extends ChangeNotifier {
       return;
     }
 
-    _tasks.insert(0, _mapActionItemToTask(created, sourceOverride: source, priorityOverride: priority));
+    _tasks.insert(
+      0,
+      _mapActionItemToTask(
+        created,
+        sourceOverride: source,
+        priorityOverride: priority,
+      ),
+    );
     notifyListeners();
   }
 
@@ -228,7 +234,9 @@ class MobileDataProvider extends ChangeNotifier {
   }
 
   void addTaskFromText(String text, {String source = 'AI 识别'}) {
-    unawaited(addTask(title: text, source: source, priority: MobileTaskPriority.high));
+    unawaited(
+      addTask(title: text, source: source, priority: MobileTaskPriority.high),
+    );
   }
 
   Future<void> sendChatMessage(String text) async {
@@ -261,17 +269,23 @@ class MobileDataProvider extends ChangeNotifier {
     final aiIndex = _messages.length - 1;
 
     try {
-      await for (final chunk in sendMessageStreamServer(trimmed)) {
-        if (chunk.type == MessageChunkType.data || chunk.type == MessageChunkType.think) {
+      await for (final chunk in sendMessageAgnoStreamServer(trimmed)) {
+        if (chunk.type == MessageChunkType.data ||
+            chunk.type == MessageChunkType.think) {
           aiText += chunk.text;
-          _messages[aiIndex] = _messages[aiIndex].copyWith(text: aiText.isEmpty ? '...' : aiText);
+          _messages[aiIndex] = _messages[aiIndex].copyWith(
+            text: aiText.isEmpty ? '...' : aiText,
+          );
           notifyListeners();
           continue;
         }
         if (chunk.type == MessageChunkType.done && chunk.message != null) {
           aiMessageId = chunk.message!.id;
           aiText = chunk.message!.text;
-          _messages[aiIndex] = _messages[aiIndex].copyWith(id: aiMessageId, text: aiText);
+          _messages[aiIndex] = _messages[aiIndex].copyWith(
+            id: aiMessageId,
+            text: aiText,
+          );
           notifyListeners();
           unawaited(refreshMessages());
           return;
@@ -291,7 +305,10 @@ class MobileDataProvider extends ChangeNotifier {
       aiText = '请求失败，请稍后重试。';
     }
 
-    _messages[aiIndex] = _messages[aiIndex].copyWith(id: aiMessageId, text: aiText);
+    _messages[aiIndex] = _messages[aiIndex].copyWith(
+      id: aiMessageId,
+      text: aiText,
+    );
     notifyListeners();
     unawaited(refreshMessages());
   }
@@ -307,7 +324,9 @@ class MobileDataProvider extends ChangeNotifier {
       id: item.id,
       title: item.description,
       source: sourceOverride ?? '中心节点同步',
-      priority: priorityOverride ?? (isHigh ? MobileTaskPriority.high : MobileTaskPriority.normal),
+      priority:
+          priorityOverride ??
+          (isHigh ? MobileTaskPriority.high : MobileTaskPriority.normal),
       status: item.completed ? MobileTaskStatus.done : MobileTaskStatus.todo,
       dueAt: due,
     );

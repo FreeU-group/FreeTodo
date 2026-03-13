@@ -49,7 +49,7 @@ let popupWindow = null;
 let avatarBase64 = "";
 let hideTimeout = null;
 let fadeTimeout = null;
-let intervalHandle = null;
+let _intervalHandle = null;
 let lastSeenDraftTodoId = null; // 记录上次看到的 draft todo ID
 
 // ─── 读取配置 ────────────────────────────────────────
@@ -269,8 +269,8 @@ function showNotification(data) {
 		workArea.y + workArea.height - HEIGHT - MARGIN,
 	);
 
-	const title = escapeForJs((data && data.title) || DEFAULT_TITLE);
-	const message = escapeForJs((data && data.message) || DEFAULT_MESSAGE);
+	const title = escapeForJs(data?.title || DEFAULT_TITLE);
+	const message = escapeForJs(data?.message || DEFAULT_MESSAGE);
 
 	// 更新文本内容、重置动画并播放
 	popupWindow.webContents
@@ -373,7 +373,7 @@ app.whenReady().then(() => {
 	createWindow();
 
 	const cfg = readConfig();
-	intervalHandle = setInterval(pollDraftTodos, POLL_INTERVAL_MS);
+	_intervalHandle = setInterval(pollDraftTodos, POLL_INTERVAL_MS);
 	console.log(
 		`[notification-popup] Started (event-driven, poll: ${POLL_INTERVAL_MS}ms, duration: ${DURATION_MS}ms, enabled: ${cfg.enabled})`,
 	);
