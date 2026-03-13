@@ -19,9 +19,7 @@ run_bg() {
   local pgid
   pgid="$(ps -o pgid= "$pid" 2>/dev/null | tr -d ' ' || true)"
   echo "$pid" >"$log_dir/$name.pid"
-  if [ -n "$pgid" ]; then
-    echo "$pgid" >"$log_dir/$name.pgid"
-  fi
+  echo "${pgid:-$pid}" >"$log_dir/$name.pgid"
 }
 
 cleanup_frontend_lock() {
@@ -70,3 +68,5 @@ if [ -n "$frontend_url" ]; then
 else
   echo "Frontend UI: check $log_dir/frontend.dev.log"
 fi
+
+echo "Stop all: bash scripts/stop_all.sh"
