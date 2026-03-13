@@ -7,6 +7,7 @@ import { flushSync } from "react-dom";
 import { extractErrorMessage } from "@/lib/errors";
 import type { TodoListResponse, TodoResponse } from "@/lib/generated/schemas";
 import { updateTodoApiTodosTodoIdPut } from "@/lib/generated/todos/todos";
+import { getClientTranslator } from "@/lib/i18n/runtime";
 import { getQueryClient, queryKeys } from "@/lib/query";
 import { useUiStore } from "@/lib/store/ui-store";
 import { toastError } from "@/lib/toast";
@@ -27,6 +28,7 @@ import type {
  * 键格式: "SOURCE_TYPE->TARGET_TYPE"
  */
 const handlerRegistry: Partial<Record<HandlerKey, DragDropHandler>> = {};
+const getTodoListTranslator = () => getClientTranslator();
 
 // Normalize date strings that may lack timezone info.
 const normalizeTodoDate = (value?: string) => {
@@ -257,8 +259,14 @@ const handleTodoToCalendarDate: DragDropHandler = (
 		.catch((error) => {
 			// API 失败时回滚到之前的数据
 			console.error("[DnD] Failed to update schedule:", error);
+			const tTodoList = getTodoListTranslator();
 			toastError(
-				`更新待办时间失败: ${extractErrorMessage(error, "未知错误")}`,
+				tTodoList("todoList.updateFailed", {
+					error: extractErrorMessage(
+						error,
+						tTodoList("todoList.unknownError"),
+					),
+				}),
 			);
 			if (previousTodos) {
 				getQueryClient().setQueryData(queryKeys.todos.list(), previousTodos);
@@ -349,8 +357,14 @@ const handleTodoToCalendarTimelineSlot: DragDropHandler = (
 		})
 		.catch((error) => {
 			console.error("[DnD] Failed to update timeline slot:", error);
+			const tTodoList = getTodoListTranslator();
 			toastError(
-				`更新时间安排失败: ${extractErrorMessage(error, "未知错误")}`,
+				tTodoList("todoList.updateFailed", {
+					error: extractErrorMessage(
+						error,
+						tTodoList("todoList.unknownError"),
+					),
+				}),
 			);
 			if (previousTodos) {
 				getQueryClient().setQueryData(queryKeys.todos.list(), previousTodos);
@@ -430,8 +444,14 @@ const handleTodoToTodoList: DragDropHandler = (
 			})
 			.catch((error) => {
 				console.error("[DnD] Failed to update parent:", error);
+				const tTodoList = getTodoListTranslator();
 				toastError(
-					`更新父子关系失败: ${extractErrorMessage(error, "未知错误")}`,
+					tTodoList("todoList.reorderFailed", {
+						error: extractErrorMessage(
+							error,
+							tTodoList("todoList.unknownError"),
+						),
+					}),
 				);
 				if (previousTodos) {
 					queryClient.setQueryData(queryKeys.todos.list(), previousTodos);
