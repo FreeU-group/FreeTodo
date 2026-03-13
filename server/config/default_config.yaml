@@ -185,7 +185,7 @@ chat:
 # Agno Learning 配置
 agno:
   user_id: local-user # 默认用户 ID（用于个人画像/记忆）
-  default_workspace: "" # 默认工作区路径（Agent 文件操作的根目录，留空则使用用户主目录）
+  default_workspace: "." # 默认工作区路径（Agent 文件操作的根目录）
   learning:
     enabled: true # 是否启用 Agno Learning
     mode: always # always | agentic
@@ -197,8 +197,8 @@ agno:
     port: 8002 # AgentOS 监听端口
     debug: false # AgentOS 调试模式（独立于 server.debug）
     base_url: "" # 可选：直接指定 AgentOS 访问地址（优先级最高）
-    agent_id: lifetrace-agent # AgentOS 中的 Agent ID
-    agent_name: Lifetrace Agent # AgentOS 中的 Agent 名称
+    agent_id: freetodo-agent # AgentOS 中的 Agent ID
+    agent_name: FreeTodo Agent # AgentOS 中的 Agent 名称
     lang: en # AgentOS 默认语言
     timeout_sec: 60 # AgentOS 调用超时（秒）
     selected_tools: [] # 空表示启用全部 Lifetrace 工具（AgentOS 启动时）
@@ -293,7 +293,7 @@ observability:
     pretty_print: true # JSON 是否格式化输出（便于人类阅读）
   phoenix:
     endpoint: http://localhost:6006 # Phoenix 服务端点（需先启动 phoenix serve）
-    project_name: lifetrace-agent # 项目名称（用于 Phoenix UI 中分组）
+    project_name: freetodo-agent # 项目名称（用于 Phoenix UI 中分组）
     export_timeout_sec: 2.0 # 导出超时（秒），避免 Phoenix 不可用时阻塞
     disable_after_failures: 1 # 连续失败达到阈值后自动禁用 Phoenix 导出
     retry_cooldown_sec: 60 # 触发禁用后多久尝试恢复（秒，0 表示不自动重试）
