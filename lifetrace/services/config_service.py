@@ -92,6 +92,7 @@ _COMPOUND_JOB_NAMES: dict[str, str] = {
     "clean": "clean_data",
     "activity": "activity_aggregator",
     "auto": "auto_todo_detection",
+    "diary": "diary_illustration",
 }
 
 # 最小 jobs 配置部分数量
