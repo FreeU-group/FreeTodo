@@ -30,16 +30,15 @@ repos:
         language_version: python3.12
         files: ^(server|scripts)/
         types_or: [ python, pyi ]
-  # Biome for frontend (JavaScript/TypeScript)
-  - repo: https://github.com/biomejs/pre-commit
-    rev: "v0.6.1"
-    hooks:
-      - id: biome-check
-        additional_dependencies: ["@biomejs/biome@2.3.13"]
-        files: ^(frontend/)
-  # TypeScript type checking for free-todo-frontend
   - repo: local
     hooks:
+      - id: biome-check
+        name: Biome check (frontend)
+        entry: pnpm --dir frontend exec biome check --write --no-errors-on-unmatched
+        language: system
+        files: ^frontend/.*\.(js|jsx|ts|tsx|json|jsonc|css|astro|vue|svelte|graphql|gql)$
+        pass_filenames: true
+
       # Temporarily disabled local hooks. Restore these blocks when the local
       # Bandit / Pyright toolchain is ready to be enforced again.
       # - id: bandit
@@ -61,15 +60,15 @@ repos:
 
       - id: pytest-quick
         name: Pytest quick checks
-        entry: uv run --no-sync pytest -q tests/test_todo_service_mapping.py tests/test_icalendar_service.py tests/test_todo_serialization.py
+        entry: uv run --directory server --no-sync pytest -q tests/test_todo_service_mapping.py tests/test_icalendar_service.py tests/test_todo_serialization.py
         language: system
         files: ^(server|tests)/.*\.py$
         pass_filenames: false
         require_serial: true
 
       - id: tsc-frontend
-        name: TypeScript type check (frontend)
-        entry: bash -c 'cd frontend && pnpm run type-check'
+        name: TypeScript type check (frontend/)
+        entry: pnpm --dir frontend run type-check
         language: system
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
@@ -87,7 +86,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-backend-code-lines
         name: Check backend Python code lines (max 500)
-        entry: uv run --no-sync python server/scripts/check_code_lines.py --include server,scripts --exclude server/__pycache__,server/dist,server/migrations/versions
+        entry: uv run --directory server --no-sync python ../server/scripts/check_code_lines.py --include server,scripts --exclude server/__pycache__,server/dist,server/migrations/versions
         language: system
         files: ^(server|scripts)/.*\.py$
         pass_filenames: true
@@ -99,14 +98,14 @@ repos:
         name: Check Tauri Rust code lines (max 500)
         entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/target
         language: system
-        files: ^free-todo-frontend/src-tauri/.*\.rs$
+        files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: true
 
       # Rust format check (rustfmt)
       - id: rustfmt
         name: Rust format (rustfmt)
         entry: python scripts/precommit_rustfmt.py
-        language: python
+        language: system
         files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: false
 
@@ -114,6 +113,6 @@ repos:
       - id: clippy
         name: Rust linter (clippy)
         entry: python scripts/precommit_clippy.py
-        language: python
+        language: system
         files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: false

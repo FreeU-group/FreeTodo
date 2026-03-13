@@ -10,7 +10,7 @@ from pathlib import Path
 
 def run() -> int:
     repo_root = Path(__file__).resolve().parents[1]
-    tauri_dir = repo_root / "free-todo-frontend" / "src-tauri"
+    tauri_dir = repo_root / "frontend" / "src-tauri"
     if not tauri_dir.exists():
         print(f"Rust hook skipped: missing {tauri_dir}", file=sys.stderr)
         return 0
