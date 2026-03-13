@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { PasswordInput } from "@/components/common/ui/PasswordInput";
 import { SettingsSection } from "./SettingsSection";
 
 // 使用相对路径，由 Next.js rewrites 代理到后端，避免端口不一致导致 404
@@ -145,10 +146,8 @@ export function KdlConfigSection({ loading = false }: KdlConfigSectionProps) {
 						>
 							KDL_USER_PWD
 						</label>
-						<input
+						<PasswordInput
 							id="kdl-user-pwd"
-							type="password"
-							className={inputClassName}
 							placeholder={t("userPwdPlaceholder")}
 							value={kdlUserPwd}
 							onChange={(e) => setKdlUserPwd(e.target.value)}

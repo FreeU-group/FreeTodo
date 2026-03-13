@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CollapsibleSection } from "@/components/common/layout/CollapsibleSection";
 import {
 	ALL_PANEL_FEATURES,
@@ -11,7 +11,12 @@ import {
 } from "@/lib/config/panel-config";
 import { useUiStore } from "@/lib/store/ui-store";
 import { toastError, toastSuccess } from "@/lib/toast";
-import { SettingsSection } from "./SettingsSection";
+import {
+	doesSearchMatch,
+	SettingsSearchHighlight,
+	SettingsSection,
+	useSettingsSearchQuery,
+} from "./SettingsSection";
 import { ToggleSwitch } from "./ToggleSwitch";
 
 interface PanelSwitchesSectionProps {
@@ -32,6 +37,7 @@ export function PanelSwitchesSection({
 		(state) => state.backendDisabledFeatures,
 	);
 	const [showDevPanels, setShowDevPanels] = useState(false);
+	const searchQuery = useSettingsSearchQuery();
 
 	// 获取所有可用的面板（排除 settings）
 	const availablePanels = ALL_PANEL_FEATURES.filter(
@@ -48,6 +54,28 @@ export function PanelSwitchesSection({
 	const panelKeywords = [...regularPanels, ...devPanels].map(
 		(feature) => tBottomDock(feature) || feature,
 	);
+
+	const devPanelKeywords = useMemo(
+		() =>
+			devPanels.map((feature) => tBottomDock(feature) || feature).filter(Boolean),
+		[devPanels, tBottomDock],
+	);
+
+	const shouldAutoExpandDevPanels = useMemo(() => {
+		if (!devPanels.length) return false;
+		const hasSearchQuery = searchQuery.trim().length > 0;
+		if (!hasSearchQuery) return false;
+		return doesSearchMatch(searchQuery, [
+			tSettings("devPanelsTitle"),
+			...devPanelKeywords,
+		]);
+	}, [devPanels.length, searchQuery, tSettings, devPanelKeywords]);
+
+	useEffect(() => {
+		if (shouldAutoExpandDevPanels) {
+			setShowDevPanels(true);
+		}
+	}, [shouldAutoExpandDevPanels]);
 
 	// 面板开关处理
 	const handleTogglePanel = async (feature: PanelFeature, enabled: boolean) => {
@@ -91,7 +119,7 @@ export function PanelSwitchesSection({
 									htmlFor={`panel-toggle-${feature}`}
 									className="text-sm font-medium text-foreground cursor-pointer"
 								>
-									{panelLabel}
+									<SettingsSearchHighlight text={panelLabel} />
 								</label>
 							</div>
 							<ToggleSwitch
@@ -119,6 +147,7 @@ export function PanelSwitchesSection({
 						<SettingsSection
 							title={tSettings("devPanelsTitle")}
 							description={tSettings("devPanelsDescription")}
+							searchKeywords={devPanelKeywords}
 						>
 							<div className="space-y-3">
 								{devPanels.map((feature) => {
@@ -141,7 +170,7 @@ export function PanelSwitchesSection({
 													htmlFor={`panel-toggle-${feature}`}
 													className="text-sm font-medium text-foreground cursor-pointer"
 												>
-													{panelLabel}
+													<SettingsSearchHighlight text={panelLabel} />
 												</label>
 											</div>
 											<ToggleSwitch

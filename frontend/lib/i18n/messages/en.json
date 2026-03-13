@@ -896,6 +896,8 @@
 		}
 	},
 	"common": {
+		"passwordShow": "Show password",
+		"passwordHide": "Hide password",
 		"priority": {
 			"high": "High",
 			"medium": "Medium",

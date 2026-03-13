@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { PasswordInput } from "@/components/common/ui/PasswordInput";
 // 注意：需要运行 orval 生成 API hooks 后才能使用
 import { useTestAsrConfigApiTestAsrConfigPost } from "@/lib/generated/config/config";
 import { useSaveConfig } from "@/lib/query";
@@ -141,10 +142,8 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 						<label htmlFor="asr-api-key" className="mb-1 block text-sm font-medium text-foreground">
 							API Key <span className="text-red-500">*</span>
 						</label>
-						<input
+						<PasswordInput
 							id="asr-api-key"
-							type="password"
-							className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 							placeholder="sk-..."
 							value={apiKey}
 							onChange={(e) => setApiKey(e.target.value)}

@@ -45,11 +45,17 @@ ASR_RELATED_BACKEND_KEYS = [
 # 任务启用状态配置键到调度器任务ID的映射（支持两种格式）
 JOB_ENABLED_CONFIG_TO_JOB_ID = {
     # 点分隔格式（后端标准）
+    "jobs.recorder.enabled": "recorder_job",
+    "jobs.ocr.enabled": "ocr_job",
     "jobs.clean_data.enabled": "clean_data_job",
     "jobs.activity_aggregator.enabled": "activity_aggregator_job",
+    "jobs.audio_recording.enabled": "audio_recording_job",
     # snake_case 格式（前端 fetcher 转换后发送的格式）
+    "jobs_recorder_enabled": "recorder_job",
+    "jobs_ocr_enabled": "ocr_job",
     "jobs_clean_data_enabled": "clean_data_job",
     "jobs_activity_aggregator_enabled": "activity_aggregator_job",
+    "jobs_audio_recording_enabled": "audio_recording_job",
 }
 
 # 联动配置映射：配置键 -> 需要联动的配置键列表
@@ -65,6 +71,7 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "dify_": (5, "dify"),
     "tavily_": (7, "tavily"),
     "sensor_": (7, "sensor"),
+    "banna2_": (7, "banna2"),
 }
 
 # ASR 配置键名映射（保留下划线的键名）
@@ -85,6 +92,7 @@ _COMPOUND_JOB_NAMES: dict[str, str] = {
     "clean": "clean_data",
     "activity": "activity_aggregator",
     "auto": "auto_todo_detection",
+    "diary": "diary_illustration",
 }
 
 # 最小 jobs 配置部分数量
@@ -326,6 +334,11 @@ class ConfigService:
             "audio.asr.semantic_punctuation_enabled",
             "audio.asr.max_sentence_silence",
             "audio.asr.heartbeat",
+            # 感知节点配置
+            "sensor.screenshot_enabled",
+            "sensor.screenshot_interval",
+            "sensor.proactive_ocr_enabled",
+            "sensor.proactive_ocr_interval",
         ]
 
         config_dict = {}
