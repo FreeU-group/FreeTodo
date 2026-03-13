@@ -359,6 +359,114 @@ class _StubSchedulerClient:
         return self.behavior("resume_all_jobs")
 
 
+class _StubLogsClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_log_files(self):
+        return self.behavior("list_log_files")
+
+    def get_log_content(self, file_path: str):
+        return self.behavior("get_log_content", file_path=file_path)
+
+
+class _StubSystemClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_statistics(self):
+        return self.behavior("get_statistics")
+
+    def cleanup_old_data(self, *, days: int):
+        return self.behavior("cleanup_old_data", days=days)
+
+    def get_system_resources(self):
+        return self.behavior("get_system_resources")
+
+    def get_capabilities(self):
+        return self.behavior("get_capabilities")
+
+
+class _StubSearchClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def search_screenshots(self, payload):
+        return self.behavior("search_screenshots", payload=payload)
+
+    def search_events(self, payload):
+        return self.behavior("search_events", payload=payload)
+
+
+class _StubVectorClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def semantic_search(self, payload):
+        return self.behavior("semantic_search", payload=payload)
+
+    def event_semantic_search(self, payload):
+        return self.behavior("event_semantic_search", payload=payload)
+
+    def get_vector_stats(self):
+        return self.behavior("get_vector_stats")
+
+    def sync_vector_database(self, *, limit: int | None, force_reset: bool):
+        return self.behavior("sync_vector_database", limit=limit, force_reset=force_reset)
+
+    def reset_vector_database(self):
+        return self.behavior("reset_vector_database")
+
+
+class _StubNotificationClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_notifications(self):
+        return self.behavior("list_notifications")
+
+    def delete_notification(self, notification_id: str):
+        return self.behavior("delete_notification", notification_id=notification_id)
+
+
+class _StubLocationClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def report_location(self, payload):
+        return self.behavior("report_location", payload=payload)
+
+    def get_latest_location(self):
+        return self.behavior("get_latest_location")
+
+    def get_location_history(self, *, start: str | None, end: str | None, limit: int, offset: int):
+        return self.behavior(
+            "get_location_history",
+            start=start,
+            end=end,
+            limit=limit,
+            offset=offset,
+        )
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -545,6 +653,54 @@ def test_scheduler_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Scheduler resource commands" in result.stdout
     assert "freetodo scheduler pause --id clean_data_job --json" in result.stdout
+
+
+def test_logs_help_defaults_to_english():
+    result = runner.invoke(app, ["logs", "--help"])
+
+    assert result.exit_code == 0
+    assert "Logs resource commands" in result.stdout
+    assert "freetodo logs content --file server/app.log --json" in result.stdout
+
+
+def test_system_help_defaults_to_english():
+    result = runner.invoke(app, ["system", "--help"])
+
+    assert result.exit_code == 0
+    assert "System resource commands" in result.stdout
+    assert "freetodo system cleanup --days 30 --dry-run --json" in result.stdout
+
+
+def test_search_help_defaults_to_english():
+    result = runner.invoke(app, ["search", "--help"])
+
+    assert result.exit_code == 0
+    assert "Search resource commands" in result.stdout
+    assert "freetodo search events --input search.json --json" in result.stdout
+
+
+def test_vector_help_defaults_to_english():
+    result = runner.invoke(app, ["vector", "--help"])
+
+    assert result.exit_code == 0
+    assert "Vector resource commands" in result.stdout
+    assert "freetodo vector sync --limit 100 --dry-run --json" in result.stdout
+
+
+def test_notification_help_defaults_to_english():
+    result = runner.invoke(app, ["notification", "--help"])
+
+    assert result.exit_code == 0
+    assert "Notification resource commands" in result.stdout
+    assert "freetodo notification delete --id notif-123 --dry-run --json" in result.stdout
+
+
+def test_location_help_defaults_to_english():
+    result = runner.invoke(app, ["location", "--help"])
+
+    assert result.exit_code == 0
+    assert "Location resource commands" in result.stdout
+    assert "freetodo location report --input location.json --dry-run --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -917,3 +1073,217 @@ def test_scheduler_pause_all_dry_run():
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["meta"]["dry_run"] is True
+
+
+def test_logs_content_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_log_content"
+        assert kwargs["file_path"] == "server/app.log"
+        return {"file": "server/app.log", "content": "line1\nline2"}, "req-logs-content"
+
+    monkeypatch.setattr("cli.commands.logs.create_logs_client", lambda: _StubLogsClient(behavior))
+
+    result = runner.invoke(app, ["logs", "content", "--file", "server/app.log"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["file"] == "server/app.log"
+    assert "line1" in payload["data"]["content"]
+
+
+def test_system_statistics_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_statistics"
+        return {"overview": {"events": 10}}, "req-system-stats"
+
+    monkeypatch.setattr(
+        "cli.commands.system.create_system_client",
+        lambda: _StubSystemClient(behavior),
+    )
+
+    result = runner.invoke(app, ["system", "statistics"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["overview"]["events"] == 10
+    assert payload["meta"]["request_id"] == "req-system-stats"
+
+
+def test_system_cleanup_dry_run():
+    result = runner.invoke(app, ["system", "cleanup", "--days", "14", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["days"] == 14
+
+
+def test_search_screenshots_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "search_screenshots"
+        assert kwargs["payload"]["query"] == "meeting notes"
+        assert kwargs["payload"]["limit"] == 5
+        return [{"id": 1, "app_name": "Cursor"}], "req-search-screens"
+
+    monkeypatch.setattr(
+        "cli.commands.search.create_search_client",
+        lambda: _StubSearchClient(behavior),
+    )
+
+    result = runner.invoke(
+        app, ["search", "screenshots", "--query", "meeting notes", "--limit", "5"]
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["id"] == 1
+    assert payload["meta"]["request_id"] == "req-search-screens"
+
+
+def test_search_events_accepts_input_file(monkeypatch, tmp_path):
+    input_file = tmp_path / "search.json"
+    input_file.write_text(
+        json.dumps({"query": "retro", "app_name": "Notion", "limit": 3}),
+        encoding="utf-8",
+    )
+
+    def behavior(name, **kwargs):
+        assert name == "search_events"
+        assert kwargs["payload"]["app_name"] == "Notion"
+        return [{"id": 9, "app_name": "Notion"}], "req-search-events"
+
+    monkeypatch.setattr(
+        "cli.commands.search.create_search_client",
+        lambda: _StubSearchClient(behavior),
+    )
+
+    result = runner.invoke(app, ["search", "events", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["id"] == 9
+
+
+def test_vector_semantic_search_calls_client(monkeypatch, tmp_path):
+    input_file = tmp_path / "semantic.json"
+    input_file.write_text(json.dumps({"query": "cli rollout", "top_k": 4}), encoding="utf-8")
+
+    def behavior(name, **kwargs):
+        assert name == "semantic_search"
+        assert kwargs["payload"]["top_k"] == 4
+        return [{"text": "result", "score": 0.9, "metadata": {}}], "req-vector-search"
+
+    monkeypatch.setattr(
+        "cli.commands.vector.create_vector_client",
+        lambda: _StubVectorClient(behavior),
+    )
+
+    result = runner.invoke(app, ["vector", "semantic-search", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["score"] == 0.9
+
+
+def test_vector_sync_dry_run():
+    result = runner.invoke(app, ["vector", "sync", "--limit", "50", "--force-reset", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["limit"] == 50
+    assert payload["data"]["payload"]["force_reset"] is True
+
+
+def test_vector_stats_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_vector_stats"
+        return {"enabled": True, "document_count": 25}, "req-vector-stats"
+
+    monkeypatch.setattr(
+        "cli.commands.vector.create_vector_client",
+        lambda: _StubVectorClient(behavior),
+    )
+
+    result = runner.invoke(app, ["vector", "stats"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["document_count"] == 25
+    assert payload["meta"]["request_id"] == "req-vector-stats"
+
+
+def test_notification_list_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "list_notifications"
+        return [{"id": "notif-1", "title": "Reminder"}], "req-notification-list"
+
+    monkeypatch.setattr(
+        "cli.commands.notification.create_notification_client",
+        lambda: _StubNotificationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["notification", "list"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"][0]["id"] == "notif-1"
+
+
+def test_notification_delete_dry_run():
+    result = runner.invoke(app, ["notification", "delete", "--id", "notif-2", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["id"] == "notif-2"
+
+
+def test_location_report_dry_run(tmp_path):
+    input_file = tmp_path / "location.json"
+    input_file.write_text(
+        json.dumps({"latitude": 31.2304, "longitude": 121.4737, "accuracy": 15.0}),
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(app, ["location", "report", "--input", str(input_file), "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["latitude"] == 31.2304
+
+
+def test_location_latest_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_latest_location"
+        return {"ok": True, "location": {"id": 7}}, "req-location-latest"
+
+    monkeypatch.setattr(
+        "cli.commands.location.create_location_client",
+        lambda: _StubLocationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["location", "latest"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["location"]["id"] == 7
+
+
+def test_location_history_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_location_history"
+        assert kwargs["limit"] == 20
+        return {"ok": True, "total": 1, "locations": [{"id": 1}]}, "req-location-history"
+
+    monkeypatch.setattr(
+        "cli.commands.location.create_location_client",
+        lambda: _StubLocationClient(behavior),
+    )
+
+    result = runner.invoke(app, ["location", "history", "--limit", "20"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["total"] == 1
