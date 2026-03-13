@@ -423,3 +423,65 @@ class ScreenshotApiClient(ApiClient):
         self, screenshot_id: int, output_path: str
     ) -> tuple[Any, str | None]:
         return self._download(f"/api/screenshots/{screenshot_id}/image", output_path)
+
+
+class AudioApiClient(ApiClient):
+    """Audio-focused API client."""
+
+    def get_recordings(self, *, date: str | None) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {}
+        if date:
+            params["date"] = date
+        return self._request("GET", "/api/audio/recordings", params=params)
+
+    def get_timeline(self, *, date: str | None) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {}
+        if date:
+            params["date"] = date
+        return self._request("GET", "/api/audio/timeline", params=params)
+
+    def get_transcription(self, recording_id: int) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/audio/transcription/{recording_id}")
+
+    def link_extracted_items(
+        self, recording_id: int, payload: dict[str, Any]
+    ) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/audio/transcription/{recording_id}/link", json=payload)
+
+    def extract_todos(self, recording_id: int) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/audio/extract", params={"recording_id": recording_id})
+
+    def download_recording(self, recording_id: int, output_path: str) -> tuple[Any, str | None]:
+        return self._download(f"/api/audio/recording/{recording_id}/file", output_path)
+
+
+class SchedulerApiClient(ApiClient):
+    """Scheduler-focused API client."""
+
+    def list_jobs(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/scheduler/jobs")
+
+    def get_job(self, job_id: str) -> tuple[Any, str | None]:
+        return self._request("GET", f"/api/scheduler/jobs/{job_id}")
+
+    def get_status(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/scheduler/status")
+
+    def pause_job(self, job_id: str) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/scheduler/jobs/{job_id}/pause")
+
+    def resume_job(self, job_id: str) -> tuple[Any, str | None]:
+        return self._request("POST", f"/api/scheduler/jobs/{job_id}/resume")
+
+    def delete_job(self, job_id: str) -> tuple[Any, str | None]:
+        return self._request("DELETE", f"/api/scheduler/jobs/{job_id}")
+
+    def update_job_interval(self, job_id: str, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        payload_with_id = {"job_id": job_id, **payload}
+        return self._request("PUT", f"/api/scheduler/jobs/{job_id}/interval", json=payload_with_id)
+
+    def pause_all_jobs(self) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/scheduler/jobs/pause-all")
+
+    def resume_all_jobs(self) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/scheduler/jobs/resume-all")

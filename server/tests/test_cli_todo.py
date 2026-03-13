@@ -296,6 +296,69 @@ class _StubScreenshotClient:
         )
 
 
+class _StubAudioClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_recordings(self, *, date: str | None):
+        return self.behavior("get_recordings", date=date)
+
+    def get_timeline(self, *, date: str | None):
+        return self.behavior("get_timeline", date=date)
+
+    def get_transcription(self, recording_id: int):
+        return self.behavior("get_transcription", recording_id=recording_id)
+
+    def link_extracted_items(self, recording_id: int, payload):
+        return self.behavior("link_extracted_items", recording_id=recording_id, payload=payload)
+
+    def extract_todos(self, recording_id: int):
+        return self.behavior("extract_todos", recording_id=recording_id)
+
+    def download_recording(self, recording_id: int, output_path: str):
+        return self.behavior(
+            "download_recording", recording_id=recording_id, output_path=output_path
+        )
+
+
+class _StubSchedulerClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_jobs(self):
+        return self.behavior("list_jobs")
+
+    def get_job(self, job_id: str):
+        return self.behavior("get_job", job_id=job_id)
+
+    def get_status(self):
+        return self.behavior("get_status")
+
+    def pause_job(self, job_id: str):
+        return self.behavior("pause_job", job_id=job_id)
+
+    def resume_job(self, job_id: str):
+        return self.behavior("resume_job", job_id=job_id)
+
+    def delete_job(self, job_id: str):
+        return self.behavior("delete_job", job_id=job_id)
+
+    def update_job_interval(self, job_id: str, payload):
+        return self.behavior("update_job_interval", job_id=job_id, payload=payload)
+
+    def pause_all_jobs(self):
+        return self.behavior("pause_all_jobs")
+
+    def resume_all_jobs(self):
+        return self.behavior("resume_all_jobs")
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -466,6 +529,22 @@ def test_screenshot_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Screenshot resource commands" in result.stdout
     assert "freetodo screenshot download --id 42 --output shot.png --json" in result.stdout
+
+
+def test_audio_help_defaults_to_english():
+    result = runner.invoke(app, ["audio", "--help"])
+
+    assert result.exit_code == 0
+    assert "Audio resource commands" in result.stdout
+    assert "freetodo audio transcription --id 12 --json" in result.stdout
+
+
+def test_scheduler_help_defaults_to_english():
+    result = runner.invoke(app, ["scheduler", "--help"])
+
+    assert result.exit_code == 0
+    assert "Scheduler resource commands" in result.stdout
+    assert "freetodo scheduler pause --id clean_data_job --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -770,3 +849,71 @@ def test_screenshot_download_calls_client(monkeypatch, tmp_path):
     payload = json.loads(result.stdout)
     assert payload["data"]["saved_to"] == str(output_file)
     assert payload["meta"]["request_id"] == "req-screenshot-download"
+
+
+def test_audio_recordings_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_recordings"
+        assert kwargs["date"] == "2026-03-13"
+        return {"recordings": [{"id": 1}]}, "req-audio-recordings"
+
+    monkeypatch.setattr(
+        "cli.commands.audio.create_audio_client", lambda: _StubAudioClient(behavior)
+    )
+
+    result = runner.invoke(app, ["audio", "recordings", "--date", "2026-03-13"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["recordings"][0]["id"] == 1
+    assert payload["meta"]["request_id"] == "req-audio-recordings"
+
+
+def test_audio_extract_dry_run():
+    result = runner.invoke(app, ["audio", "extract", "--id", "12", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["recording_id"] == 12
+
+
+def test_scheduler_update_interval_calls_client(monkeypatch, tmp_path):
+    input_file = tmp_path / "interval.json"
+    input_file.write_text(json.dumps({"minutes": 30}), encoding="utf-8")
+
+    def behavior(name, **kwargs):
+        assert name == "update_job_interval"
+        assert kwargs["job_id"] == "clean_data_job"
+        assert kwargs["payload"] == {"minutes": 30}
+        return {"success": True, "message": "updated"}, "req-scheduler-update"
+
+    monkeypatch.setattr(
+        "cli.commands.scheduler.create_scheduler_client",
+        lambda: _StubSchedulerClient(behavior),
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "scheduler",
+            "update-interval",
+            "--id",
+            "clean_data_job",
+            "--input",
+            str(input_file),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["success"] is True
+    assert payload["meta"]["request_id"] == "req-scheduler-update"
+
+
+def test_scheduler_pause_all_dry_run():
+    result = runner.invoke(app, ["scheduler", "pause-all", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True

@@ -8,10 +8,12 @@ import typer
 
 from cli.client import ApiClient
 from cli.commands.activity import activity_app
+from cli.commands.audio import audio_app
 from cli.commands.automation import automation_app
 from cli.commands.event import event_app
 from cli.commands.journal import journal_app
 from cli.commands.memory import memory_app
+from cli.commands.scheduler import scheduler_app
 from cli.commands.screenshot import screenshot_app
 from cli.commands.todo import todo_app
 from cli.config import load_config
@@ -207,6 +209,49 @@ SCREENSHOT_HELP_TEXT = {
     ),
 }
 
+AUDIO_HELP_TEXT = {
+    "en": (
+        "Audio resource commands.\n\n"
+        "Use these commands to inspect recordings and transcriptions, download audio files, "
+        "and operate extracted todo links.\n\n"
+        "Examples:\n"
+        "  freetodo audio recordings --date 2026-03-13 --json\n"
+        "  freetodo audio transcription --id 12 --json\n"
+        "  freetodo audio extract --id 12 --json\n"
+        "  freetodo audio download-recording --id 12 --output clip.wav --json\n"
+    ),
+    "zh": (
+        "Audio 资源命令。\n\n"
+        "可以用这些命令查看录音和转录、下载音频文件，并处理提取出的待办关联。\n\n"
+        "示例：\n"
+        "  freetodo audio recordings --date 2026-03-13 --json\n"
+        "  freetodo audio transcription --id 12 --json\n"
+        "  freetodo audio extract --id 12 --json\n"
+        "  freetodo audio download-recording --id 12 --output clip.wav --json\n"
+    ),
+}
+
+SCHEDULER_HELP_TEXT = {
+    "en": (
+        "Scheduler resource commands.\n\n"
+        "Use these commands to inspect and control backend scheduled jobs.\n\n"
+        "Examples:\n"
+        "  freetodo scheduler list --json\n"
+        "  freetodo scheduler status --json\n"
+        "  freetodo scheduler pause --id clean_data_job --json\n"
+        "  freetodo scheduler update-interval --id clean_data_job --input interval.json --json\n"
+    ),
+    "zh": (
+        "Scheduler 资源命令。\n\n"
+        "可以用这些命令查看并控制后端定时任务。\n\n"
+        "示例：\n"
+        "  freetodo scheduler list --json\n"
+        "  freetodo scheduler status --json\n"
+        "  freetodo scheduler pause --id clean_data_job --json\n"
+        "  freetodo scheduler update-interval --id clean_data_job --input interval.json --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -218,6 +263,8 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "automation": AUTOMATION_HELP_TEXT,
         "memory": MEMORY_HELP_TEXT,
         "screenshot": SCREENSHOT_HELP_TEXT,
+        "audio": AUDIO_HELP_TEXT,
+        "scheduler": SCHEDULER_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -248,7 +295,7 @@ def render_help(
         "root",
         help=(
             "Help topic to render, currently: root, todo, journal, activity, event, "
-            "automation, memory, or screenshot."
+            "automation, memory, screenshot, audio, or scheduler."
         ),
     ),
     lang: HelpLanguage = typer.Option(
@@ -315,3 +362,5 @@ app.add_typer(event_app, name="event")
 app.add_typer(automation_app, name="automation")
 app.add_typer(memory_app, name="memory")
 app.add_typer(screenshot_app, name="screenshot")
+app.add_typer(audio_app, name="audio")
+app.add_typer(scheduler_app, name="scheduler")
