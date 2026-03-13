@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -27,15 +27,20 @@ Future<String> getAuthHeader() async {
     return 'Bearer ${LifeTraceEnv.lifetraceToken}';
   }
 
-  DateTime? expiry = DateTime.fromMillisecondsSinceEpoch(SharedPreferencesUtil().tokenExpirationTime);
+  DateTime? expiry = DateTime.fromMillisecondsSinceEpoch(
+    SharedPreferencesUtil().tokenExpirationTime,
+  );
   bool hasAuthToken = SharedPreferencesUtil().authToken.isNotEmpty;
 
-  bool isExpirationDateValid = !(expiry.isBefore(DateTime.now()) ||
-      expiry.isAtSameMomentAs(DateTime.fromMillisecondsSinceEpoch(0)) ||
-      (expiry.isBefore(DateTime.now().add(const Duration(minutes: 5))) && expiry.isAfter(DateTime.now())));
+  bool isExpirationDateValid =
+      !(expiry.isBefore(DateTime.now()) ||
+          expiry.isAtSameMomentAs(DateTime.fromMillisecondsSinceEpoch(0)) ||
+          (expiry.isBefore(DateTime.now().add(const Duration(minutes: 5))) &&
+              expiry.isAfter(DateTime.now())));
 
   if (!hasAuthToken || !isExpirationDateValid) {
-    SharedPreferencesUtil().authToken = await AuthService.instance.getIdToken() ?? '';
+    SharedPreferencesUtil().authToken =
+        await AuthService.instance.getIdToken() ?? '';
   }
 
   if (!hasAuthToken) {
@@ -54,7 +59,8 @@ Future<Map<String, String>> buildHeaders({
   Map<String, String> fromHeaders = const {},
 }) async {
   final headers = <String, String>{
-    'X-Request-Start-Time': (DateTime.now().millisecondsSinceEpoch / 1000).toString(),
+    'X-Request-Start-Time':
+        (DateTime.now().millisecondsSinceEpoch / 1000).toString(),
     'X-App-Platform': PlatformManager.instance.platform,
     'X-Device-Id-Hash': PlatformManager.instance.deviceIdHash,
     'X-App-Version': PlatformManager.instance.appVersion,
@@ -79,6 +85,7 @@ Future<http.StreamedResponse> makeRawApiCall({
   required String url,
   required String method,
   Map<String, String> headers = const {},
+  String? body,
 }) async {
   final builtHeaders = await buildHeaders(
     requireAuthCheck: _isRequiredAuthCheck(url),
@@ -86,6 +93,10 @@ Future<http.StreamedResponse> makeRawApiCall({
   );
   var request = http.Request(method, Uri.parse(url));
   request.headers.addAll(builtHeaders);
+  if (body != null && body.isNotEmpty) {
+    request.headers['Content-Type'] = 'application/json';
+    request.body = body;
+  }
   return HttpPoolManager.instance.sendStreaming(request);
 }
 
@@ -105,7 +116,10 @@ Future<http.Response?> makeApiCall({
     );
 
     final effectiveTimeout =
-        timeout ?? (method == 'GET' ? ApiClient.requestTimeoutRead : ApiClient.requestTimeoutWrite);
+        timeout ??
+        (method == 'GET'
+            ? ApiClient.requestTimeoutRead
+            : ApiClient.requestTimeoutWrite);
     final effectiveRetries = retries ?? 1;
 
     http.Response response = await HttpPoolManager.instance.send(
@@ -119,7 +133,8 @@ Future<http.Response?> makeApiCall({
         Logger.log('LifeTrace 401: static token rejected by server');
       } else {
         Logger.log('Token expired on 1st attempt');
-        SharedPreferencesUtil().authToken = await AuthService.instance.getIdToken() ?? '';
+        SharedPreferencesUtil().authToken =
+            await AuthService.instance.getIdToken() ?? '';
         if (SharedPreferencesUtil().authToken.isNotEmpty) {
           builtHeaders = await buildHeaders(
             requireAuthCheck: requireAuthCheck,
@@ -133,13 +148,19 @@ Future<http.Response?> makeApiCall({
           Logger.log('Token refreshed and request retried');
           if (response.statusCode == 401) {
             await AuthService.instance.signOut();
-            Logger.handle(Exception('Authentication failed. Please sign in again.'), StackTrace.current,
-                message: 'Authentication failed. Please sign in again.');
+            Logger.handle(
+              Exception('Authentication failed. Please sign in again.'),
+              StackTrace.current,
+              message: 'Authentication failed. Please sign in again.',
+            );
           }
         } else {
           await AuthService.instance.signOut();
-          Logger.handle(Exception('Authentication failed. Please sign in again.'), StackTrace.current,
-              message: 'Authentication failed. Please sign in again.');
+          Logger.handle(
+            Exception('Authentication failed. Please sign in again.'),
+            StackTrace.current,
+            message: 'Authentication failed. Please sign in again.',
+          );
         }
       }
     }
@@ -147,7 +168,11 @@ Future<http.Response?> makeApiCall({
     return response;
   } catch (e, stackTrace) {
     Logger.debug('HTTP request failed: $e, $stackTrace');
-    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace, userAttributes: {'url': url, 'method': method});
+    PlatformManager.instance.crashReporter.reportCrash(
+      e,
+      stackTrace,
+      userAttributes: {'url': url, 'method': method},
+    );
     return null;
   }
 }
@@ -197,11 +222,17 @@ Future<http.Response> makeMultipartApiCall({
       request.files.add(multipartFile);
     }
 
-    var streamedResponse = await HttpPoolManager.instance.sendStreaming(request);
+    var streamedResponse = await HttpPoolManager.instance.sendStreaming(
+      request,
+    );
     return await http.Response.fromStream(streamedResponse);
   } catch (e, stackTrace) {
     Logger.debug('Multipart HTTP request failed: $e, $stackTrace');
-    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace, userAttributes: {'url': url, 'method': method});
+    PlatformManager.instance.crashReporter.reportCrash(
+      e,
+      stackTrace,
+      userAttributes: {'url': url, 'method': method},
+    );
     rethrow;
   }
 }
@@ -226,7 +257,9 @@ Stream<String> makeStreamingApiCall({
       request.body = body;
     }
 
-    var streamedResponse = await HttpPoolManager.instance.sendStreaming(request);
+    var streamedResponse = await HttpPoolManager.instance.sendStreaming(
+      request,
+    );
 
     if (streamedResponse.statusCode != 200) {
       Logger.error('Streaming request failed: ${streamedResponse.statusCode}');
@@ -253,7 +286,11 @@ Stream<String> makeStreamingApiCall({
     }
   } catch (e, stackTrace) {
     Logger.error('Streaming request error: $e');
-    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace, userAttributes: {'url': url, 'method': method});
+    PlatformManager.instance.crashReporter.reportCrash(
+      e,
+      stackTrace,
+      userAttributes: {'url': url, 'method': method},
+    );
   }
 }
 
@@ -275,13 +312,21 @@ Stream<String> makeMultipartStreamingApiCall({
     request.fields.addAll(fields);
 
     for (var file in files) {
-      request.files.add(await http.MultipartFile.fromPath(fileFieldName, file.path, filename: basename(file.path)));
+      request.files.add(
+        await http.MultipartFile.fromPath(
+          fileFieldName,
+          file.path,
+          filename: basename(file.path),
+        ),
+      );
     }
 
     var response = await HttpPoolManager.instance.sendStreaming(request);
 
     if (response.statusCode != 200) {
-      Logger.error('Multipart streaming request failed: ${response.statusCode}');
+      Logger.error(
+        'Multipart streaming request failed: ${response.statusCode}',
+      );
       return;
     }
 
@@ -305,7 +350,11 @@ Stream<String> makeMultipartStreamingApiCall({
     }
   } catch (e, stackTrace) {
     Logger.error('Multipart streaming request error: $e');
-    PlatformManager.instance.crashReporter.reportCrash(e, stackTrace, userAttributes: {'url': url, 'method': 'POST'});
+    PlatformManager.instance.crashReporter.reportCrash(
+      e,
+      stackTrace,
+      userAttributes: {'url': url, 'method': 'POST'},
+    );
   }
 }
 
@@ -331,13 +380,16 @@ dynamic extractContentFromResponse(
   } else {
     Logger.debug('Error fetching data: ${response?.statusCode}');
     // TODO: handle error, better specially for script migration
-    PlatformManager.instance.crashReporter
-        .reportCrash(Exception('Error fetching data: ${response?.statusCode}'), StackTrace.current, userAttributes: {
-      'response_null': (response == null).toString(),
-      'response_status_code': response?.statusCode.toString() ?? '',
-      'is_embedding': isEmbedding.toString(),
-      'is_function_calling': isFunctionCalling.toString(),
-    });
+    PlatformManager.instance.crashReporter.reportCrash(
+      Exception('Error fetching data: ${response?.statusCode}'),
+      StackTrace.current,
+      userAttributes: {
+        'response_null': (response == null).toString(),
+        'response_status_code': response?.statusCode.toString() ?? '',
+        'is_embedding': isEmbedding.toString(),
+        'is_function_calling': isFunctionCalling.toString(),
+      },
+    );
     return null;
   }
 }

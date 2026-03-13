@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -17,12 +17,13 @@ class MessagesPage extends StatefulWidget {
   State<MessagesPage> createState() => _MessagesPageState();
 }
 
-class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClientMixin {
+class _MessagesPageState extends State<MessagesPage>
+    with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
   final ScrollController _scrollController = ScrollController();
-  String _filter = 'all'; // all/today/week
+  String _filter = 'all';
 
   @override
   void initState() {
@@ -42,11 +43,17 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
 
   void scrollToTop() {
     if (_scrollController.hasClients) {
-      _scrollController.animateTo(0, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
     }
   }
 
-  List<AppNotification> _getFilteredNotifications(List<AppNotification> notifications) {
+  List<AppNotification> _getFilteredNotifications(
+    List<AppNotification> notifications,
+  ) {
     final now = DateTime.now();
     switch (_filter) {
       case 'today':
@@ -89,43 +96,57 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
   }
 
   Future<void> _acceptNotification(AppNotification n) async {
-    final ok = await context.read<NotificationCenterProvider>().acceptOrIgnore(n.id);
+    final ok = await context.read<NotificationCenterProvider>().acceptOrIgnore(
+      n.id,
+    );
     if (!mounted) return;
     if (ok) {
       await context.read<NotificationCenterProvider>().refresh(force: true);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已采纳建议')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已采纳建议')));
     }
   }
 
   Future<void> _ignoreNotification(AppNotification n) async {
-    final ok = await context.read<NotificationCenterProvider>().acceptOrIgnore(n.id);
+    final ok = await context.read<NotificationCenterProvider>().acceptOrIgnore(
+      n.id,
+    );
     if (!mounted) return;
     if (ok) {
       await context.read<NotificationCenterProvider>().refresh(force: true);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已忽略该消息')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('已忽略该消息')));
     }
   }
 
   void _markLater(AppNotification n) {
     context.read<NotificationCenterProvider>().markLater(n.id);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已加入稍后处理')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已加入稍后处理')));
   }
 
   Future<void> _convertToTaskAndJump(AppNotification n) async {
     final created = await context.read<ActionItemsProvider>().createActionItem(
-          description: n.title,
-          dueAt: DateTime.now().add(const Duration(hours: 8)),
-          completed: false,
-        );
+      description: n.title,
+      dueAt: DateTime.now().add(const Duration(hours: 8)),
+      completed: false,
+    );
     if (!mounted) return;
     if (created == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('转待办失败，请检查中心节点连接')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('转待办失败，请检查中心节点连接')));
       return;
     }
     await context.read<NotificationCenterProvider>().refresh(force: true);
     await context.read<ActionItemsProvider>().forceRefreshActionItems();
     context.read<HomeProvider>().setIndex(1);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已转为待办，已跳转')));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已转为待办，已跳转')));
   }
 
   @override
@@ -135,6 +156,9 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
     return Consumer<NotificationCenterProvider>(
       builder: (context, center, child) {
         final list = _getFilteredNotifications(center.notifications);
+        final drafts = center.draftTodos;
+        final totalCount = list.length + drafts.length;
+        final hasAnyContent = totalCount > 0;
 
         return Container(
           decoration: const BoxDecoration(gradient: MobileTokens.appBackground),
@@ -144,7 +168,10 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
                 title: '消息',
                 subtitle: 'AI 主动提醒流，支持快速处理与转待办',
                 trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: MobileTokens.surface,
                     borderRadius: BorderRadius.circular(12),
@@ -154,12 +181,18 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${list.length} 条',
-                        style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 12),
+                        '$totalCount 条',
+                        style: const TextStyle(
+                          color: MobileTokens.textSecondary,
+                          fontSize: 12,
+                        ),
                       ),
                       Text(
                         _syncText(center),
-                        style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 11),
+                        style: const TextStyle(
+                          color: MobileTokens.textSecondary,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),
@@ -179,24 +212,44 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: center.loading
-                    ? const Center(child: CircularProgressIndicator(color: MobileTokens.accent))
-                    : list.isEmpty
+                child:
+                    center.loading && !hasAnyContent
+                        ? const Center(
+                          child: CircularProgressIndicator(
+                            color: MobileTokens.accent,
+                          ),
+                        )
+                        : !hasAnyContent
                         ? _buildEmptyState()
                         : RefreshIndicator(
-                            color: MobileTokens.accent,
-                            onRefresh: () => center.refresh(force: true),
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                              itemCount: list.length,
+                          color: MobileTokens.accent,
+                          onRefresh: () async {
+                            await Future.wait([
+                              center.refresh(force: true),
+                              center.pollDraftTodos(force: true),
+                            ]);
+                          },
+                          child: ListView.builder(
+                            controller: _scrollController,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                            itemCount: drafts.length + list.length,
                             itemBuilder: (context, index) {
-                              final n = list[index];
+                              if (index < drafts.length) {
+                                return _buildDraftTodoCard(
+                                  drafts[index],
+                                  index,
+                                );
+                              }
+                              final nIdx = index - drafts.length;
+                              final n = list[nIdx];
                               final isLater = center.laterIds.contains(n.id);
                               return TweenAnimationBuilder<double>(
                                 key: ValueKey('msg_${n.id}'),
-                                duration: Duration(milliseconds: 200 + (index * 40).clamp(0, 240)),
+                                duration: Duration(
+                                  milliseconds:
+                                      200 + (index * 40).clamp(0, 240),
+                                ),
                                 curve: Curves.easeOutCubic,
                                 tween: Tween<double>(begin: 0, end: 1),
                                 builder: (context, value, child) {
@@ -224,6 +277,134 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
     );
   }
 
+  Widget _buildDraftTodoCard(DraftTodo draft, int index) {
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('draft_${draft.id}'),
+      duration: Duration(milliseconds: 200 + (index * 40).clamp(0, 240)),
+      curve: Curves.easeOutCubic,
+      tween: Tween<double>(begin: 0, end: 1),
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 14 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          decoration: MobileTokens.cardDecoration(highlight: true),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1A3A5C),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Center(
+                      child: FaIcon(
+                        FontAwesomeIcons.listCheck,
+                        size: 13,
+                        color: MobileTokens.accent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'AI 识别待办 · 待确认',
+                      style: TextStyle(
+                        color: MobileTokens.accent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _relativeTime(draft.createdAt),
+                    style: const TextStyle(
+                      color: MobileTokens.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                draft.name,
+                style: const TextStyle(
+                  color: MobileTokens.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (draft.description != null &&
+                  draft.description!.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  draft.description!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: MobileTokens.textSecondary,
+                    fontSize: 14,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _actionButton(
+                      label: '确认添加',
+                      primary: true,
+                      onTap: () async {
+                        final ok = await context
+                            .read<NotificationCenterProvider>()
+                            .acceptDraft(draft.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ok ? '已确认为待办' : '操作失败')),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _actionButton(
+                      label: '忽略',
+                      primary: false,
+                      onTap: () async {
+                        final ok = await context
+                            .read<NotificationCenterProvider>()
+                            .dismissDraft(draft.id);
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(ok ? '已忽略' : '操作失败')),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilter(String value, String text) {
     final active = _filter == value;
     return GestureDetector(
@@ -234,12 +415,15 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
         decoration: BoxDecoration(
           color: active ? MobileTokens.accentSoft : MobileTokens.surface,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: active ? MobileTokens.accentSoft : MobileTokens.border),
+          border: Border.all(
+            color: active ? MobileTokens.accentSoft : MobileTokens.border,
+          ),
         ),
         child: Text(
           text,
           style: TextStyle(
-            color: active ? MobileTokens.textPrimary : MobileTokens.textSecondary,
+            color:
+                active ? MobileTokens.textPrimary : MobileTokens.textSecondary,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
@@ -267,19 +451,29 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
-                  child: FaIcon(_sourceIcon(n.source), size: 13, color: MobileTokens.textSecondary),
+                  child: FaIcon(
+                    _sourceIcon(n.source),
+                    size: 13,
+                    color: MobileTokens.textSecondary,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   n.source?.isNotEmpty == true ? n.source! : '系统消息',
-                  style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 13),
+                  style: const TextStyle(
+                    color: MobileTokens.textSecondary,
+                    fontSize: 13,
+                  ),
                 ),
               ),
               Text(
                 _relativeTime(n.timestamp),
-                style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 12),
+                style: const TextStyle(
+                  color: MobileTokens.textSecondary,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -295,7 +489,11 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
           const SizedBox(height: 8),
           Text(
             n.content,
-            style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 14, height: 1.35),
+            style: const TextStyle(
+              color: MobileTokens.textSecondary,
+              fontSize: 14,
+              height: 1.35,
+            ),
           ),
           if (n.aiSuggestion != null && n.aiSuggestion!.trim().isNotEmpty) ...[
             const SizedBox(height: 10),
@@ -309,7 +507,11 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
               ),
               child: Text(
                 'AI 建议：${n.aiSuggestion}',
-                style: const TextStyle(color: MobileTokens.textPrimary, fontSize: 13, height: 1.35),
+                style: const TextStyle(
+                  color: MobileTokens.textPrimary,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
               ),
             ),
           ],
@@ -363,12 +565,18 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
         onPressed: onTap,
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: primary ? MobileTokens.accent : MobileTokens.surfaceElevated,
+          backgroundColor:
+              primary ? MobileTokens.accent : MobileTokens.surfaceElevated,
           foregroundColor: Colors.white,
           side: const BorderSide(color: MobileTokens.border),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }
@@ -389,13 +597,21 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
                 border: Border.all(color: MobileTokens.border),
               ),
               child: const Center(
-                child: FaIcon(FontAwesomeIcons.inbox, size: 28, color: MobileTokens.textSecondary),
+                child: FaIcon(
+                  FontAwesomeIcons.inbox,
+                  size: 28,
+                  color: MobileTokens.textSecondary,
+                ),
               ),
             ),
             const SizedBox(height: 16),
             const Text(
               '暂无需要处理的消息',
-              style: TextStyle(color: MobileTokens.textPrimary, fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: MobileTokens.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -423,102 +639,122 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-                Text(
-                  n.title,
-                  style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700),
+              Text(
+                n.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(height: 6),
-                Row(
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: MobileTokens.surfaceElevated,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: MobileTokens.border),
+                    ),
+                    child: Text(
+                      n.source ?? '系统消息',
+                      style: const TextStyle(
+                        color: MobileTokens.accent,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _relativeTime(n.timestamp),
+                    style: const TextStyle(
+                      color: MobileTokens.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _detailBlock(
+                title: '事件摘要',
+                child: Text(
+                  n.content,
+                  style: const TextStyle(
+                    color: MobileTokens.textPrimary,
+                    fontSize: 15,
+                    height: 1.45,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              _detailBlock(
+                title: '上下文时间线',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: MobileTokens.surfaceElevated,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: MobileTokens.border),
-                      ),
-                      child: Text(
-                        n.source ?? '系统消息',
-                        style: const TextStyle(
-                          color: MobileTokens.accent,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _relativeTime(n.timestamp),
-                      style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 12),
-                    ),
+                    _timelineLine('10:20', '收到触发消息'),
+                    _timelineLine('10:22', 'AI 识别风险与优先级'),
+                    _timelineLine('10:24', '生成建议动作'),
                   ],
                 ),
-                const SizedBox(height: 14),
-                _detailBlock(
-                  title: '事件摘要',
-                  child: Text(
-                    n.content,
-                    style: const TextStyle(color: MobileTokens.textPrimary, fontSize: 15, height: 1.45),
+              ),
+              const SizedBox(height: 10),
+              _detailBlock(
+                title: 'AI 建议',
+                child: Text(
+                  n.aiSuggestion?.isNotEmpty == true
+                      ? n.aiSuggestion!
+                      : '建议先确认细节，再安排可执行动作。',
+                  style: const TextStyle(
+                    color: MobileTokens.textPrimary,
+                    fontSize: 14,
+                    height: 1.4,
                   ),
                 ),
-                const SizedBox(height: 10),
-                _detailBlock(
-                  title: '上下文时间线',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _timelineLine('10:20', '收到触发消息'),
-                      _timelineLine('10:22', 'AI 识别风险与优先级'),
-                      _timelineLine('10:24', '生成建议动作'),
-                    ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _actionButton(
+                      label: '转待办',
+                      primary: false,
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _convertToTaskAndJump(n);
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                _detailBlock(
-                  title: 'AI 建议',
-                  child: Text(
-                    n.aiSuggestion?.isNotEmpty == true ? n.aiSuggestion! : '建议先确认细节，再安排可执行动作。',
-                    style: const TextStyle(color: MobileTokens.textPrimary, fontSize: 14, height: 1.4),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _actionButton(
+                      label: '忽略',
+                      primary: false,
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _ignoreNotification(n);
+                      },
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _actionButton(
-                        label: '转待办',
-                        primary: false,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          _convertToTaskAndJump(n);
-                        },
-                      ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _actionButton(
+                      label: '采纳',
+                      primary: true,
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        _acceptNotification(n);
+                      },
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _actionButton(
-                        label: '忽略',
-                        primary: false,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          _ignoreNotification(n);
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _actionButton(
-                        label: '采纳',
-                        primary: true,
-                        onTap: () {
-                          Navigator.of(ctx).pop();
-                          _acceptNotification(n);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
+            ],
           ),
         );
       },
@@ -560,20 +796,32 @@ class _MessagesPageState extends State<MessagesPage> with AutomaticKeepAliveClie
         children: [
           SizedBox(
             width: 48,
-            child: Text(time, style: const TextStyle(color: MobileTokens.textSecondary, fontSize: 12)),
+            child: Text(
+              time,
+              style: const TextStyle(
+                color: MobileTokens.textSecondary,
+                fontSize: 12,
+              ),
+            ),
           ),
           const SizedBox(width: 6),
           Container(
             width: 6,
             height: 6,
             margin: const EdgeInsets.only(top: 5),
-            decoration: const BoxDecoration(color: MobileTokens.accent, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: MobileTokens.accent,
+              shape: BoxShape.circle,
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: MobileTokens.textPrimary, fontSize: 13.5),
+              style: const TextStyle(
+                color: MobileTokens.textPrimary,
+                fontSize: 13.5,
+              ),
             ),
           ),
         ],
