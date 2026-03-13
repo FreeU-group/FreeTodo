@@ -113,6 +113,38 @@ declare global {
 			}>;
 
 			/**
+			 * 打开 Panel 独立窗口
+			 */
+			openPanelWindow?: (payload: {
+				feature: string;
+				position?: string;
+				width?: number;
+				height?: number;
+			}) => Promise<{ ok: boolean; error?: string }>;
+
+			/**
+			 * 通过主进程广播 query 失效消息
+			 */
+			broadcastQueryInvalidation?: (payload: {
+				version: 1;
+				action: "invalidate";
+				queryKey?: ReadonlyArray<unknown>;
+				senderId?: string;
+			}) => void;
+
+			/**
+			 * 监听主进程转发的 query 失效消息
+			 */
+			onQueryInvalidation?: (
+				callback: (payload: {
+					version: 1;
+					action: "invalidate";
+					queryKey?: ReadonlyArray<unknown>;
+					senderId?: string;
+				}) => void,
+			) => () => void;
+
+			/**
 		 * 触发通知弹窗（由自动待办检测等事件调用）
 		 * @param data 可选的弹窗内容数据
 		 */

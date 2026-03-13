@@ -9,6 +9,7 @@ import { app, BrowserWindow, dialog, ipcMain, screen, shell } from "electron";
 import { setupTodoCaptureIpcHandlers } from "./ipc-handlers-todo-capture";
 import type { IslandWindowManager } from "./island-window-manager";
 import { logger } from "./logger";
+import { getServerUrl } from "./next-server";
 import {
 	type NotificationData,
 	showSystemNotification,
@@ -17,6 +18,23 @@ import type { WindowManager } from "./window-manager";
 
 const MAX_PREVIEW_TEXT_BYTES = 2 * 1024 * 1024;
 const MAX_PREVIEW_BINARY_BYTES = 50 * 1024 * 1024;
+
+type QuerySyncPayload = {
+	version: 1;
+	action: "invalidate";
+	queryKey?: ReadonlyArray<unknown>;
+	senderId?: string;
+};
+
+function broadcastQueryInvalidationToWindows(
+	payload: QuerySyncPayload,
+	sourceWebContentsId?: number,
+): void {
+	for (const win of BrowserWindow.getAllWindows()) {
+		if (win.webContents.id === sourceWebContentsId) continue;
+		win.webContents.send("query-sync:invalidate", payload);
+	}
+}
 
 /**
  * 设置所有 IPC 处理器
@@ -100,6 +118,44 @@ export function setupIpcHandlers(
 			logger.info(`Window background color set to: ${color}`);
 		}
 	});
+
+	// 打开 Panel 独立窗口
+	ipcMain.handle(
+		"panel-window:open",
+		async (
+			_event,
+			payload: { feature?: string; position?: string; width?: number; height?: number },
+		) => {
+			if (!payload?.feature) {
+				return { ok: false, error: "Missing feature" };
+			}
+			try {
+				windowManager.createPanelWindow({
+					serverUrl: getServerUrl(),
+					feature: payload.feature,
+					position: payload.position,
+					width: payload.width,
+					height: payload.height,
+				});
+				return { ok: true };
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : "Failed to open panel window";
+				logger.error(`[panel-window] ${message}`);
+				return { ok: false, error: message };
+			}
+		},
+	);
+
+	ipcMain.on(
+		"query-sync:broadcast",
+		(event, payload: QuerySyncPayload) => {
+			if (!payload || payload.version !== 1 || payload.action !== "invalidate") {
+				return;
+			}
+			broadcastQueryInvalidationToWindows(payload, event.sender.id);
+		},
+	);
 
 	// ========== 文件预览相关 IPC 处理器 ==========
 

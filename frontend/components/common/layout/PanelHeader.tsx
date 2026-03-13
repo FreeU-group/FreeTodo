@@ -28,11 +28,13 @@ import {
 import {
 	ALL_PANEL_FEATURES,
 	FEATURE_ICON_MAP,
+	type PanelFeature,
 	type PanelPosition,
 } from "@/lib/config/panel-config";
 import type { DragData } from "@/lib/dnd";
 import { useUiStore } from "@/lib/store/ui-store";
 import { cn } from "@/lib/utils";
+import { isElectron, isWeb } from "@/lib/utils/platform";
 
 /**
  * Panel Icon 样式配置接口
@@ -330,6 +332,11 @@ export function PanelPositionProvider({
 	);
 }
 
+function isPanelFeature(value: string | null) {
+	if (!value) return false;
+	return (ALL_PANEL_FEATURES as string[]).includes(value);
+}
+
 function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 	const t = useTranslations("panelMenu");
 	const tDock = useTranslations("bottomDock");
@@ -346,8 +353,21 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 		togglePanelB,
 		togglePanelC,
 	} = useUiStore();
-	const currentFeature = panelFeatureMap[position];
+	const isPanelWindow =
+		typeof window !== "undefined" &&
+		window.location.pathname === "/panel-window";
+	const panelWindowFeature =
+		isPanelWindow && typeof window !== "undefined"
+			? new URLSearchParams(window.location.search).get("feature")
+			: null;
+	const currentFeature = isPanelWindow
+		? isPanelFeature(panelWindowFeature)
+			? panelWindowFeature
+			: null
+		: panelFeatureMap[position];
 	const isPinned = panelPinMap[position];
+	const canOpenInNewWindow =
+		!isPanelWindow && (isWeb() || isElectron()) && Boolean(currentFeature);
 
 	const switchableFeatures = useMemo(() => {
 		const disabledSet = new Set([
@@ -358,6 +378,10 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 	}, [disabledFeatures, backendDisabledFeatures]);
 
 	const handleClose = () => {
+		if (isPanelWindow) {
+			window.close();
+			return;
+		}
 		switch (position) {
 			case "panelA":
 				togglePanelA();
@@ -368,6 +392,68 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 			case "panelC":
 				togglePanelC();
 				break;
+		}
+	};
+
+	const handleSwitchPanel = (feature: PanelFeature) => {
+		if (!isPanelWindow) {
+			setPanelFeature(position, feature as PanelFeature);
+			return;
+		}
+		const url = new URL(window.location.href);
+		url.searchParams.set("feature", feature);
+		window.location.assign(url.toString());
+	};
+
+	const handleOpenInNewWindow = async () => {
+		if (!currentFeature || typeof window === "undefined") return;
+
+		if (isElectron() && window.electronAPI?.openPanelWindow) {
+			const result = await window.electronAPI.openPanelWindow({
+				feature: currentFeature,
+				position,
+			});
+			if (result?.ok) {
+				handleClose();
+			}
+			return;
+		}
+
+		if (!isWeb()) return;
+
+		const width = 400;
+		const height = 600;
+		const left = Math.max(
+			0,
+			Math.round(window.screenX + (window.outerWidth - width) / 2),
+		);
+		const top = Math.max(
+			0,
+			Math.round(window.screenY + (window.outerHeight - height) / 2),
+		);
+		const url = new URL("/panel-window", window.location.origin);
+		url.searchParams.set("feature", currentFeature);
+		url.searchParams.set("position", position);
+
+		const features = [
+			"popup=yes",
+			"width=" + width,
+			"height=" + height,
+			"left=" + left,
+			"top=" + top,
+			"resizable=no",
+			"scrollbars=yes",
+		].join(",");
+
+		const popup = window.open(
+			url.toString(),
+			"panel-" + currentFeature + "-" + Date.now(),
+			features,
+		);
+
+		if (popup) {
+			popup.focus();
+			handleClose();
 		}
 	};
 
@@ -400,7 +486,7 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 									key={feature}
 									disabled={isPinned}
 									onSelect={() => {
-										setPanelFeature(position, feature);
+										handleSwitchPanel(feature);
 									}}
 								>
 									<Icon className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -419,6 +505,7 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 					{t("closePanel")}
 				</DropdownMenuItem>
 				<DropdownMenuItem
+					disabled={isPanelWindow}
 					onSelect={() => setPanelPinned(position, !isPinned)}
 				>
 					{isPinned ? (
@@ -429,7 +516,10 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 					{isPinned ? t("unpinPanel") : t("pinPanel")}
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem disabled>
+				<DropdownMenuItem
+					disabled={!canOpenInNewWindow}
+					onSelect={handleOpenInNewWindow}
+				>
 					<ExternalLink className="mr-2 h-4 w-4 text-muted-foreground" />
 					{t("openInNewWindow")}
 				</DropdownMenuItem>

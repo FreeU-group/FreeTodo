@@ -54,6 +54,29 @@ export type ElectronAPI = typeof window & {
 			ok: boolean;
 			error?: string;
 		}>;
+		openPanelWindow?: (payload: {
+			feature: string;
+			position?: string;
+			width?: number;
+			height?: number;
+		}) => Promise<{
+			ok: boolean;
+			error?: string;
+		}>;
+		broadcastQueryInvalidation?: (payload: {
+			version: 1;
+			action: "invalidate";
+			queryKey?: ReadonlyArray<unknown>;
+			senderId?: string;
+		}) => void;
+		onQueryInvalidation?: (
+			callback: (payload: {
+				version: 1;
+				action: "invalidate";
+				queryKey?: ReadonlyArray<unknown>;
+				senderId?: string;
+			}) => void,
+		) => () => void;
 	};
 	require?: (module: string) => {
 		ipcRenderer?: { send: (...args: unknown[]) => void };
