@@ -5,9 +5,11 @@ import json
 import uuid
 from typing import Any
 
+import httpx
 from fastapi import APIRouter, HTTPException
 
 from services.config_service import ConfigService, is_llm_configured
+from util.agent_os_utils import resolve_agent_os_base_url
 from util.logging_config import get_logger
 from util.prompt_loader import get_prompt
 from util.settings import settings
@@ -117,6 +119,20 @@ def _get_config_value(config_data: dict[str, Any], camel_key: str, snake_key: st
         配置值，如果都不存在则返回 None
     """
     return config_data.get(camel_key) or config_data.get(snake_key)
+
+
+async def _reload_agent_os_if_running() -> dict[str, Any]:
+    """Best-effort reload of the separate AgentOS process after config changes."""
+    reload_url = f"{resolve_agent_os_base_url()}/internal/reload-agent"
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(reload_url)
+        response.raise_for_status()
+        logger.info("AgentOS agent 热重载成功")
+        return {"success": True}
+    except Exception as exc:
+        logger.warning(f"AgentOS 热重载失败: {exc}")
+        return {"success": False, "error": str(exc)}
 
 
 @router.post("/test-llm-config")
@@ -499,6 +515,10 @@ async def save_and_init_llm(config_data: dict[str, str]):
         # 3. 测试成功，标记连接已验证
         _llm_connection_state["verified"] = True
         logger.info("LLM 连接验证成功，配置已保存")
+
+        agent_os_reload = await _reload_agent_os_if_running()
+        if not agent_os_reload["success"]:
+            logger.warning("LLM 配置已更新，但 AgentOS 未能热重载，可能需要手动重启 agent_os.py")
 
         return {"success": True, "message": "配置保存成功，正在跳转..."}
 

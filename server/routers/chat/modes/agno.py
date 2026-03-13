@@ -171,8 +171,8 @@ def _build_agent_os_token_generator(
     message: ChatMessage,
     session_id: str,
     user_id: str,
-    dependencies: dict[str, Any],
     chat_service: ChatService,
+    dependencies: dict[str, Any],
     add_history_to_context: bool,
 ):
     def token_generator():
@@ -262,8 +262,8 @@ def create_agno_streaming_response(
             message,
             session_id,
             user_id,
-            dependencies,
             chat_service,
+            dependencies,
             add_history_to_context,
         ),
         media_type="text/plain; charset=utf-8",

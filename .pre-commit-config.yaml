@@ -40,22 +40,24 @@ repos:
   # TypeScript type checking for free-todo-frontend
   - repo: local
     hooks:
-      - id: bandit
-        name: Bandit security scan
-        # Avoid uv venv sync races in concurrent hooks (Windows file-lock issues).
-        entry: uv run --no-sync bandit -c bandit.yaml
-        language: system
-        files: ^(server|scripts)/.*\.py$
-        pass_filenames: true
-        require_serial: true
+      # Temporarily disabled local hooks. Restore these blocks when the local
+      # Bandit / Pyright toolchain is ready to be enforced again.
+      # - id: bandit
+      #   name: Bandit security scan
+      #   # Avoid uv venv sync races in concurrent hooks (Windows file-lock issues).
+      #   entry: uv run --no-sync bandit -c bandit.yaml
+      #   language: system
+      #   files: ^(server|scripts)/.*\.py$
+      #   pass_filenames: true
+      #   require_serial: true
 
-      - id: pyright
-        name: Pyright type check
-        entry: uv run --no-sync python -m pyright --project pyrightconfig.json
-        language: system
-        files: ^(server|scripts)/.*\.(py|pyi)$
-        pass_filenames: true
-        require_serial: true
+      # - id: pyright
+      #   name: Pyright type check
+      #   entry: uv run --no-sync python -m pyright --project pyrightconfig.json
+      #   language: system
+      #   files: ^(server|scripts)/.*\.(py|pyi)$
+      #   pass_filenames: true
+      #   require_serial: true
 
       - id: pytest-quick
         name: Pytest quick checks

@@ -122,7 +122,6 @@ chmod +x scripts/start_all.sh
 ```
 
 **Windows（PowerShell）**
-这里目前还没有调试好。
 
 ```powershell
 .\scripts\start_all.ps1

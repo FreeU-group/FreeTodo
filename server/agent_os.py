@@ -1,6 +1,7 @@
 """AgentOS entrypoint for Lifetrace (Agno)."""
 
 from agno.os import AgentOS
+from fastapi import HTTPException, Request
 
 from llm.agent_os_tools import (
     agent_os_session_end,
@@ -57,8 +58,32 @@ def _build_agent():
     return service.agent
 
 
+def reload_agent_os_agent() -> None:
+    """Rebuild the in-memory AgentOS agent to pick up latest runtime settings."""
+    agent_os.agents = [_build_agent()]
+
+
 agent_os = AgentOS(agents=[_build_agent()])
 app = agent_os.get_app()
+
+
+@app.post("/internal/reload-agent")
+async def reload_agent(request: Request):
+    """Reload the AgentOS agent in-process.
+
+    This endpoint is intentionally restricted to loopback callers because it mutates
+    the running AgentOS configuration.
+    """
+    client_host = request.client.host if request.client else None
+    if client_host not in {"127.0.0.1", "::1", "localhost"}:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    try:
+        reload_agent_os_agent()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Reload failed: {exc!s}") from exc
+
+    return {"success": True}
 
 
 if __name__ == "__main__":
