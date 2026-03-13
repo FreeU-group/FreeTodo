@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
+import { logTelemetryEvent } from "@/lib/telemetry";
 import { queryKeys } from "@/lib/query/keys";
 import { toastError, toastInfo, toastSuccess } from "@/lib/toast";
 import { getElectronAPI } from "@/lib/utils/electron-api";
@@ -39,6 +40,12 @@ export function useTodoCapture() {
 			return null;
 		}
 
+		const startedAt = performance.now();
+		void logTelemetryEvent({
+			eventName: "capture_extract_start",
+			modality: "screenshot",
+		});
+
 		try {
 			setIsCapturing(true);
 			setResult(null);
@@ -68,7 +75,7 @@ export function useTodoCapture() {
 			const response = await api.electronAPI.captureAndExtractTodos(panelBounds);
 
 			if (response.success) {
-				const createdCount = response.createdCount ?? 0;
+				const createdCount = response.createdCount != null ? response.createdCount : 0;
 
 				if (createdCount > 0) {
 					// 后端已直接创建了 draft 状态的待办
@@ -89,23 +96,49 @@ export function useTodoCapture() {
 					createdCount,
 				};
 
+				const durationMs = performance.now() - startedAt;
+				void logTelemetryEvent({
+					eventName: "capture_extract_success",
+					modality: "screenshot",
+					success: true,
+					todoCount: response.extractedTodos.length,
+					durationMs,
+					metadata: { createdCount },
+				});
+
 				setResult(captureResult);
 				return captureResult;
-			} else {
-				const errorMessage = response.message || "提取失败";
-				toastError(errorMessage);
-				setResult({
-					success: false,
-					message: errorMessage,
-					extractedTodos: [],
-					createdCount: 0,
-				});
-				return null;
 			}
+
+			const errorMessage = response.message || "提取失败";
+			toastError(errorMessage);
+			const durationMs = performance.now() - startedAt;
+			void logTelemetryEvent({
+				eventName: "capture_extract_error",
+				modality: "screenshot",
+				success: false,
+				durationMs,
+				metadata: { error: errorMessage },
+			});
+			setResult({
+				success: false,
+				message: errorMessage,
+				extractedTodos: [],
+				createdCount: 0,
+			});
+			return null;
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "未知错误";
 			toastError(`提取待办失败: ${errorMessage}`);
+			const durationMs = performance.now() - startedAt;
+			void logTelemetryEvent({
+				eventName: "capture_extract_error",
+				modality: "screenshot",
+				success: false,
+				durationMs,
+				metadata: { error: errorMessage },
+			});
 			setResult({
 				success: false,
 				message: errorMessage,

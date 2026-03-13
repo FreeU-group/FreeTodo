@@ -32,6 +32,7 @@ MODULES: tuple[ModuleDefinition, ...] = (
     ModuleDefinition(id="config", router_module="routers.config", core=True),
     ModuleDefinition(id="system", router_module="routers.system", core=True),
     ModuleDefinition(id="logs", router_module="routers.logs"),
+    ModuleDefinition(id="telemetry", router_module="routers.telemetry"),
     ModuleDefinition(id="preview", router_module="routers.preview"),
     ModuleDefinition(id="chat", router_module="routers.chat"),
     ModuleDefinition(id="agent_plan", router_module="routers.agent_plan"),

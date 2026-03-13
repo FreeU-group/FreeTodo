@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useRef, useState } from "react";
 import type { ChatMessage } from "@/apps/chat/types";
 import { buildHierarchicalTodoContext } from "@/apps/chat/utils/todoContext";
+import { logTelemetryEvent } from "@/lib/telemetry";
 import { toastError } from "@/lib/toast";
 import type { Todo } from "@/lib/types";
 
@@ -33,6 +34,7 @@ export function useMessageExtraction({
 		Map<string, ExtractionState>
 	>(new Map());
 	const extractionStatesRef = useRef<Map<string, ExtractionState>>(new Map());
+	const extractionStartRef = useRef<Map<string, number>>(new Map());
 
 	// 同步 ref 和 state
 	const updateExtractionStates = useCallback(
@@ -54,6 +56,13 @@ export function useMessageExtraction({
 		async (messageId: string, messages: ChatMessage[]) => {
 			const currentState = extractionStatesRef.current.get(messageId);
 			if (currentState?.isExtracting) return;
+
+			extractionStartRef.current.set(messageId, performance.now());
+			void logTelemetryEvent({
+				eventName: "message_extract_start",
+				modality: "message_text",
+				messageId,
+			});
 
 			// 获取目标消息及其之前的所有消息
 			const targetIndex = messages.findIndex((m) => m.id === messageId);
@@ -85,43 +94,50 @@ export function useMessageExtraction({
 				return newMap;
 			});
 
-		try {
-			// 客户端使用相对路径，通过 Next.js rewrites 代理到后端（支持动态端口）
-			const response = await fetch(`/api/chat/extract-todos-from-messages`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify({
-					messages: messagesForExtraction,
-					parent_todo_id: parentTodoId,
-					todo_context: todoContext,
-				}),
-			});
+			try {
+				// 客户端使用相对路径，通过 Next.js rewrites 代理到后端（支持动态端口）
+				const response = await fetch(`/api/chat/extract-todos-from-messages`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						messages: messagesForExtraction,
+						parent_todo_id: parentTodoId,
+						todo_context: todoContext,
+					}),
+				});
 
-			if (!response.ok) {
-				// 尝试从响应中获取错误信息
-				let errorMessage = `提取待办失败 (${response.status})`;
-				try {
-					const errorData = await response.json();
-					if (errorData.detail) {
-						errorMessage = errorData.detail;
-					} else if (errorData.error_message) {
-						errorMessage = errorData.error_message;
-					} else if (errorData.message) {
-						errorMessage = errorData.message;
+				if (!response.ok) {
+					// 尝试从响应中获取错误信息
+					let errorMessage = `提取待办失败 (${response.status})`;
+					try {
+						const errorData = await response.json();
+						if (errorData.detail) {
+							errorMessage = errorData.detail;
+						} else if (errorData.error_message) {
+							errorMessage = errorData.error_message;
+						} else if (errorData.message) {
+							errorMessage = errorData.message;
+						}
+					} catch {
+						// 如果无法解析 JSON，使用状态文本
+						errorMessage = `提取待办失败: ${response.statusText || response.status}`;
 					}
-				} catch {
-					// 如果无法解析 JSON，使用状态文本
-					errorMessage = `提取待办失败: ${response.statusText || response.status}`;
+					throw new Error(errorMessage);
 				}
-				throw new Error(errorMessage);
-			}
 
 				const data = await response.json();
 
 				if (data.error_message) {
 					toastError(data.error_message);
+					void logTelemetryEvent({
+						eventName: "message_extract_error",
+						modality: "message_text",
+						messageId,
+						success: false,
+						metadata: { error: data.error_message },
+					});
 					updateExtractionStates((prev) => {
 						const newMap = new Map(prev);
 						newMap.delete(messageId);
@@ -132,6 +148,13 @@ export function useMessageExtraction({
 
 				if (data.todos.length === 0) {
 					toastError(t("noTodosFound") || "未发现待办事项");
+					void logTelemetryEvent({
+						eventName: "message_extract_empty",
+						modality: "message_text",
+						messageId,
+						success: true,
+						todoCount: 0,
+					});
 					updateExtractionStates((prev) => {
 						const newMap = new Map(prev);
 						newMap.delete(messageId);
@@ -181,11 +204,33 @@ export function useMessageExtraction({
 					}
 					return newMap;
 				});
+
+				const startedAt = extractionStartRef.current.get(messageId);
+				const durationMs =
+					startedAt != null ? performance.now() - startedAt : undefined;
+				void logTelemetryEvent({
+					eventName: "message_extract_success",
+					modality: "message_text",
+					messageId,
+					success: true,
+					todoCount: extractedTodos.length,
+					durationMs,
+				});
 			} catch (error) {
 				console.error("提取待办失败:", error);
 				toastError(
 					error instanceof Error ? error.message : "提取待办失败，请稍后重试",
 				);
+				void logTelemetryEvent({
+					eventName: "message_extract_error",
+					modality: "message_text",
+					messageId,
+					success: false,
+					metadata: {
+						error:
+							error instanceof Error ? error.message : "unknown_extraction_error",
+					},
+				});
 				updateExtractionStates((prev) => {
 					const newMap = new Map(prev);
 					newMap.delete(messageId);

@@ -3,6 +3,7 @@
 import { Check, Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { logTelemetryEvent } from "@/lib/telemetry";
 import { useCreateTodo, useUpdateTodo } from "@/lib/query";
 import type { Todo } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,13 @@ export function MessageTodoExtractionPanel({
 	const handleApply = async () => {
 		if (selectedTodos.size === 0) return;
 
+		const startedAt = performance.now();
+		void logTelemetryEvent({
+			eventName: "message_todo_apply_start",
+			modality: "message_text",
+			todoCount: selectedTodos.size,
+		});
+
 		setIsApplying(true);
 		try {
 			// 创建选中的待办（status 为 draft）
@@ -74,9 +82,29 @@ export function MessageTodoExtractionPanel({
 				),
 			);
 
+			const durationMs = performance.now() - startedAt;
+			void logTelemetryEvent({
+				eventName: "message_todo_apply_success",
+				modality: "message_text",
+				todoCount: selectedTodos.size,
+				success: true,
+				durationMs,
+			});
+
 			onComplete?.();
 		} catch (error) {
 			console.error("创建待办失败:", error);
+			const durationMs = performance.now() - startedAt;
+			void logTelemetryEvent({
+				eventName: "message_todo_apply_error",
+				modality: "message_text",
+				todoCount: selectedTodos.size,
+				success: false,
+				durationMs,
+				metadata: {
+					error: error instanceof Error ? error.message : "unknown_create_error",
+				},
+			});
 		} finally {
 			setIsApplying(false);
 		}
