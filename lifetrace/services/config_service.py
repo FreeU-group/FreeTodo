@@ -71,6 +71,7 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "dify_": (5, "dify"),
     "tavily_": (7, "tavily"),
     "sensor_": (7, "sensor"),
+    "banna2_": (7, "banna2"),
 }
 
 # ASR 配置键名映射（保留下划线的键名）
@@ -332,6 +333,16 @@ class ConfigService:
             "audio.asr.semantic_punctuation_enabled",
             "audio.asr.max_sentence_silence",
             "audio.asr.heartbeat",
+            # 感知节点配置
+            "sensor.screenshot_enabled",
+            "sensor.screenshot_interval",
+            "sensor.proactive_ocr_enabled",
+            "sensor.proactive_ocr_interval",
+            # Gemini / 日记插画配置
+            "banna2.api_key",
+            "banna2.ref_image_path",
+            "jobs.diary_illustration.enabled",
+            "jobs.diary_illustration.cron",
         ]
 
         config_dict = {}
