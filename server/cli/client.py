@@ -666,3 +666,41 @@ class PluginsApiClient(ApiClient):
                 message=str(exc),
                 exit_code=map_status_to_exit_code(503),
             ) from exc
+
+
+class ConfigApiClient(ApiClient):
+    """Config API client."""
+
+    def get_config(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/get-config")
+
+    def get_llm_status(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/llm-status")
+
+    def test_llm_config(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/test-llm-config", json=payload)
+
+    def test_tavily_config(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/test-tavily-config", json=payload)
+
+    def test_asr_config(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/test-asr-config", json=payload)
+
+    def save_config(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/save-config", json=payload)
+
+    def save_and_init_llm(self, payload: dict[str, Any]) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/save-and-init-llm", json=payload)
+
+
+class HealthApiClient(ApiClient):
+    """Health API client."""
+
+    def get_root(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/")
+
+    def get_health(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/health")
+
+    def get_llm_health(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/health/llm")

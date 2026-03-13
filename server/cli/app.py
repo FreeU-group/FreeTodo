@@ -10,8 +10,10 @@ from cli.client import ApiClient
 from cli.commands.activity import activity_app
 from cli.commands.audio import audio_app
 from cli.commands.automation import automation_app
+from cli.commands.config import config_app
 from cli.commands.cost_tracking import cost_tracking_app
 from cli.commands.event import event_app
+from cli.commands.health import health_app
 from cli.commands.journal import journal_app
 from cli.commands.location import location_app
 from cli.commands.logs import logs_app
@@ -442,6 +444,46 @@ PLUGINS_HELP_TEXT = {
     ),
 }
 
+CONFIG_HELP_TEXT = {
+    "en": (
+        "Config resource commands.\n\n"
+        "Use these commands to inspect and update backend configuration.\n\n"
+        "Examples:\n"
+        "  freetodo config get --json\n"
+        "  freetodo config llm-status --json\n"
+        "  freetodo config test-llm --input llm.json --json\n"
+        "  freetodo config save --input config.json --dry-run --json\n"
+    ),
+    "zh": (
+        "Config 资源命令。\n\n"
+        "可以用这些命令查看或更新后端配置。\n\n"
+        "示例：\n"
+        "  freetodo config get --json\n"
+        "  freetodo config llm-status --json\n"
+        "  freetodo config test-llm --input llm.json --json\n"
+        "  freetodo config save --input config.json --dry-run --json\n"
+    ),
+}
+
+HEALTH_HELP_TEXT = {
+    "en": (
+        "Health resource commands.\n\n"
+        "Use these commands to check backend and LLM health.\n\n"
+        "Examples:\n"
+        "  freetodo health root --json\n"
+        "  freetodo health status --json\n"
+        "  freetodo health llm --json\n"
+    ),
+    "zh": (
+        "Health 资源命令。\n\n"
+        "可以用这些命令检查后端与 LLM 的健康状态。\n\n"
+        "示例：\n"
+        "  freetodo health root --json\n"
+        "  freetodo health status --json\n"
+        "  freetodo health llm --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -465,6 +507,8 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "preview": PREVIEW_HELP_TEXT,
         "cost-tracking": COST_TRACKING_HELP_TEXT,
         "plugins": PLUGINS_HELP_TEXT,
+        "config": CONFIG_HELP_TEXT,
+        "health": HEALTH_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -497,7 +541,7 @@ def render_help(
             "Help topic to render, currently: root, todo, journal, activity, event, "
             "automation, memory, screenshot, audio, scheduler, logs, system, "
             "search, vector, notification, location, time-allocation, preview, "
-            "cost-tracking, or plugins."
+            "cost-tracking, plugins, config, or health."
         ),
     ),
     lang: HelpLanguage = typer.Option(
@@ -562,6 +606,7 @@ app.add_typer(journal_app, name="journal")
 app.add_typer(activity_app, name="activity")
 app.add_typer(event_app, name="event")
 app.add_typer(automation_app, name="automation")
+app.add_typer(config_app, name="config")
 app.add_typer(memory_app, name="memory")
 app.add_typer(notification_app, name="notification")
 app.add_typer(location_app, name="location")
@@ -569,6 +614,7 @@ app.add_typer(time_allocation_app, name="time-allocation")
 app.add_typer(preview_app, name="preview")
 app.add_typer(cost_tracking_app, name="cost-tracking")
 app.add_typer(plugins_app, name="plugins")
+app.add_typer(health_app, name="health")
 app.add_typer(screenshot_app, name="screenshot")
 app.add_typer(audio_app, name="audio")
 app.add_typer(scheduler_app, name="scheduler")
