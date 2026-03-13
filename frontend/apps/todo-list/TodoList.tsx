@@ -13,9 +13,11 @@ import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MultiTodoContextMenu } from "@/components/common/context-menu/MultiTodoContextMenu";
 import type { DragData } from "@/lib/dnd";
+import { extractErrorMessage } from "@/lib/errors";
 import { useTodoMutations, useTodos } from "@/lib/query";
 import type { ReorderTodoItem } from "@/lib/query/todos";
 import { useTodoStore } from "@/lib/store/todo-store";
+import { toastError } from "@/lib/toast";
 import type { CreateTodoInput, Todo } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { TodoFilterState } from "./components/TodoFilter";
@@ -145,6 +147,11 @@ export function TodoList() {
 							]);
 						} catch (err) {
 							console.error("Failed to set parent-child relationship:", err);
+							toastError(
+								tTodoList("reorderFailed", {
+									error: extractErrorMessage(err, tTodoList("unknownError")),
+								}),
+							);
 						}
 					}
 					return;
@@ -203,6 +210,11 @@ export function TodoList() {
 								await reorderTodos(reorderItems);
 							} catch (err) {
 								console.error("Failed to reorder todos:", err);
+								toastError(
+									tTodoList("reorderFailed", {
+										error: extractErrorMessage(err, tTodoList("unknownError")),
+									}),
+								);
 							}
 						}
 					} else {
@@ -236,12 +248,17 @@ export function TodoList() {
 							await reorderTodos(reorderItems);
 						} catch (err) {
 							console.error("Failed to move todo:", err);
+							toastError(
+								tTodoList("reorderFailed", {
+									error: extractErrorMessage(err, tTodoList("unknownError")),
+								}),
+							);
 						}
 					}
 				}
 			}
 		},
-		[orderedTodos, todos, reorderTodos],
+		[orderedTodos, todos, reorderTodos, tTodoList],
 	);
 
 	// 使用 useDndMonitor 监听全局拖拽事件
@@ -315,6 +332,11 @@ export function TodoList() {
 			setNewTodoName("");
 		} catch (err) {
 			console.error("Failed to create todo:", err);
+			toastError(
+				tTodoList("createFailed", {
+					error: extractErrorMessage(err, tTodoList("unknownError")),
+				}),
+			);
 		}
 	};
 

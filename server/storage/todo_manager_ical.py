@@ -51,6 +51,15 @@ class TodoIcalMixin:
 
         def _set_todo_tags(self, session, todo_id: int, tags: list[str]) -> None: ...
 
+        def _validate_parent_link(
+            self,
+            session,
+            *,
+            todo_id: int,
+            parent_todo_id: int | None,
+            proposed_parent_map: dict[int, int | None] | None = None,
+        ) -> bool: ...
+
     def _todo_to_dict(self, session, todo: Todo) -> dict[str, Any]:
         todo_id = todo.id
         if todo_id is None:
@@ -403,6 +412,17 @@ class TodoIcalMixin:
                 todo = session.query(Todo).filter_by(id=todo_id).first()
                 if not todo:
                     logger.warning(f"todo 不存在: {todo_id}")
+                    return False
+                if parent_todo_id is not _UNSET and not self._validate_parent_link(
+                    session,
+                    todo_id=todo_id,
+                    parent_todo_id=parent_todo_id,
+                ):
+                    logger.warning(
+                        "更新 todo 失败: parent_todo_id 无效 todo_id=%s parent_id=%s",
+                        todo_id,
+                        parent_todo_id,
+                    )
                     return False
 
                 resolved_completed_at = completed_at

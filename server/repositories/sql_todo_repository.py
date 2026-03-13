@@ -26,6 +26,20 @@ class SqlTodoRepository(ITodoRepository):
     def list_todos(self, limit: int, offset: int, status: str | None) -> list[dict[str, Any]]:
         return self._manager.list_todos(limit=limit, offset=offset, status=status)
 
+    def search(
+        self,
+        keyword: str,
+        limit: int,
+        offset: int,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return self._manager.search_todos(
+            keyword=keyword,
+            limit=limit,
+            offset=offset,
+            status=status,
+        )
+
     def count(self, status: str | None) -> int:
         return self._manager.count_todos(status=status)
 
