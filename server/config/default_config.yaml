@@ -39,6 +39,7 @@ backend_modules:
     - todo
     - todo_extraction
     - journal
+    - diary_illustration
     - vision
     - notification
     - floating_capture
@@ -162,6 +163,11 @@ jobs:
     enabled: false # 是否启用 DDL 提醒任务（默认关闭，需用户手动开启）
     params:
       reminder_window_minutes: 5 # 兼容保留字段，不再作为待办默认提醒
+  diary_illustration:
+    id: diary_illustration
+    name: 日记插画生成
+    enabled: false
+    cron: "0 22 * * *"
 
 # 向量数据库配置
 vector_db:
@@ -247,6 +253,11 @@ tavily:
   max_results: 5 # 最大返回结果数
   include_domains: [] # 包含的域名列表（可选）
   exclude_domains: [] # 排除的域名列表（可选）
+
+# Gemini 图像生成配置（日记插画）
+banna2:
+  api_key: YOUR_GOOGLE_GEMINI_API_KEY_HERE
+  ref_image_path: ""
 
 # 音频识别配置（阿里云Fun-ASR）
 audio:

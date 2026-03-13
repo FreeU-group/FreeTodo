@@ -61,6 +61,7 @@ MODULES: tuple[ModuleDefinition, ...] = (
     ModuleDefinition(id="todo", router_module="routers.todo"),
     ModuleDefinition(id="todo_extraction", router_module="routers.todo_extraction"),
     ModuleDefinition(id="journal", router_module="routers.journal"),
+    ModuleDefinition(id="diary_illustration", router_module="routers.diary_illustration"),
     ModuleDefinition(id="vision", router_module="routers.vision"),
     ModuleDefinition(id="notification", router_module="routers.notification"),
     ModuleDefinition(id="floating_capture", router_module="routers.floating_capture"),

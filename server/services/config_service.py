@@ -50,12 +50,14 @@ JOB_ENABLED_CONFIG_TO_JOB_ID = {
     "jobs.clean_data.enabled": "clean_data_job",
     "jobs.activity_aggregator.enabled": "activity_aggregator_job",
     "jobs.audio_recording.enabled": "audio_recording_job",
+    "jobs.diary_illustration.enabled": "diary_illustration_job",
     # snake_case 格式（前端 fetcher 转换后发送的格式）
     "jobs_recorder_enabled": "recorder_job",
     "jobs_ocr_enabled": "ocr_job",
     "jobs_clean_data_enabled": "clean_data_job",
     "jobs_activity_aggregator_enabled": "activity_aggregator_job",
     "jobs_audio_recording_enabled": "audio_recording_job",
+    "jobs_diary_illustration_enabled": "diary_illustration_job",
 }
 
 # 联动配置映射：配置键 -> 需要联动的配置键列表
@@ -339,6 +341,11 @@ class ConfigService:
             "sensor.screenshot_interval",
             "sensor.proactive_ocr_enabled",
             "sensor.proactive_ocr_interval",
+            # Diary illustration
+            "banna2.api_key",
+            "banna2.ref_image_path",
+            "jobs.diary_illustration.enabled",
+            "jobs.diary_illustration.cron",
         ]
 
         config_dict = {}

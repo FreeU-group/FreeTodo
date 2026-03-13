@@ -47,9 +47,13 @@ export interface AppConfig {
 	llmModel?: string;
 	llmTemperature?: number;
 	llmMaxTokens?: number;
+	banna2ApiKey?: string;
+	banna2RefImagePath?: string;
 	// 录制配置
 	jobsRecorderEnabled?: boolean;
 	jobsRecorderInterval?: number;
+	jobsDiaryIllustrationEnabled?: boolean;
+	jobsDiaryIllustrationCron?: string;
 	jobsRecorderParamsBlacklistEnabled?: boolean;
 	jobsRecorderParamsBlacklistApps?: string[];
 	[key: string]: unknown;
