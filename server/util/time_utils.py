@@ -1,4 +1,4 @@
-"""时间工具函数模块
+"""时间工具函数模块.
 
 提供 UTC 时间处理相关的工具函数，确保项目中所有时间都使用 UTC 存储和处理。
 面向用户的日期/时间使用东八区（Asia/Shanghai）。
@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import time
 from datetime import UTC, datetime, timedelta, timezone
 
 USER_TIMEZONE = timezone(timedelta(hours=8))
@@ -50,16 +49,11 @@ def to_utc(dt: datetime) -> datetime:
         datetime: UTC 时间（timezone-aware）
 
     注意：
-        - 如果 dt 是 naive datetime（无时区信息），假设为本地时间并转换为 UTC
+        - 如果 dt 是 naive datetime（无时区信息），假设为用户时区时间并转换为 UTC
         - 如果 dt 已经是 timezone-aware，则转换为 UTC
     """
     if dt.tzinfo is None:
-        # naive datetime 假设为本地时间，转换为 UTC
-        # 使用 local timezone 转换
-        local_tz = timezone(
-            timedelta(seconds=-time.timezone if time.daylight == 0 else -time.altzone)
-        )
-        dt_with_tz = dt.replace(tzinfo=local_tz)
+        dt_with_tz = dt.replace(tzinfo=USER_TIMEZONE)
         return dt_with_tz.astimezone(UTC)
     return dt.astimezone(UTC)
 
@@ -98,15 +92,27 @@ def ensure_utc(dt: datetime | None) -> datetime | None:
     return to_utc(dt) if dt is not None else None
 
 
-def to_local(dt: datetime | None) -> datetime | None:
-    """将 datetime 转换为本地时间（timezone-aware）。
+def utc_to_storage(dt: datetime | None) -> datetime | None:
+    """将时间规范化为 UTC，并去掉 tzinfo 以兼容 SQLite 的 naive 存储。"""
+    normalized = ensure_utc(dt)
+    if normalized is None:
+        return None
+    return normalized.replace(tzinfo=None)
 
-    如果 dt 为 naive，则视为本地时间并补充本地时区；如果已有 tzinfo，则转换到本地时区。
+
+def db_datetime_as_utc(dt: datetime | None) -> datetime | None:
+    """将数据库中的 datetime 统一视为 UTC。
+
+    SQLite 读出的时间通常是 naive datetime。项目约定数据库统一存 UTC，
+    所以这里将 naive 值直接补成 UTC；若已带时区则统一转换为 UTC。
     """
     if dt is None:
         return None
-    if dt.tzinfo is None:
-        offset = -time.timezone if time.daylight == 0 else -time.altzone
-        local_tz = timezone(timedelta(seconds=offset))
-        return dt.replace(tzinfo=local_tz)
-    return dt.astimezone()
+    return naive_as_utc(dt)
+
+
+def to_local(dt: datetime | None) -> datetime | None:
+    """将 datetime 转换为用户本地时间（timezone-aware）。"""
+    if dt is None:
+        return None
+    return db_datetime_as_utc(dt).astimezone(USER_TIMEZONE)

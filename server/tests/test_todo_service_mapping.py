@@ -111,3 +111,14 @@ def test_update_todo_time_zone_sets_tzid() -> None:
     assert repo.updated is not None
     assert repo.updated["time_zone"] == "Asia/Shanghai"
     assert repo.updated["tzid"] == "Asia/Shanghai"
+
+
+def test_create_todo_normalizes_naive_local_time_to_utc() -> None:
+    repo = FakeTodoRepository()
+    service = TodoService(repo)
+
+    service.create_todo(TodoCreate(name="Morning Meeting", start_time=datetime(2024, 3, 12, 8, 0)))
+
+    assert repo.created_payload is not None
+    assert repo.created_payload["start_time"] == datetime(2024, 3, 12, 0, 0, tzinfo=UTC)
+    assert repo.created_payload["dtstart"] == datetime(2024, 3, 12, 0, 0, tzinfo=UTC)

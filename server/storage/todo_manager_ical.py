@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -15,15 +16,13 @@ from storage.todo_manager_utils import (
     _serialize_reminder_offsets,
 )
 from util.logging_config import get_logger
-from util.time_utils import get_utc_now
+from util.time_utils import db_datetime_as_utc, get_utc_now, utc_to_storage
 
 logger = get_logger()
 
 _UNSET = object()
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from storage.database_base import DatabaseBase
 
 
@@ -37,6 +36,37 @@ def _to_ical_status(status: str | None) -> str | None:
         "draft": "NEEDS-ACTION",
     }
     return mapping.get(status, "NEEDS-ACTION")
+
+
+_TODO_DATETIME_FIELDS = (
+    "deadline",
+    "start_time",
+    "end_time",
+    "dtstart",
+    "dtend",
+    "due",
+    "dtstamp",
+    "created",
+    "last_modified",
+    "recurrence_id",
+    "completed_at",
+)
+
+
+def _normalize_todo_datetime(value: datetime | None) -> datetime | None:
+    return utc_to_storage(value)
+
+
+def _normalize_todo_datetimes(values: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(values)
+    for field in _TODO_DATETIME_FIELDS:
+        if field in normalized and isinstance(normalized[field], datetime | type(None)):
+            normalized[field] = _normalize_todo_datetime(normalized[field])
+    return normalized
+
+
+def _restore_todo_datetime(value: datetime | None) -> datetime | None:
+    return db_datetime_as_utc(value)
 
 
 class TodoIcalMixin:
@@ -88,23 +118,23 @@ class TodoIcalMixin:
             "location": getattr(todo, "location", None),
             "categories": getattr(todo, "categories", None),
             "classification": getattr(todo, "classification", None),
-            "deadline": todo.deadline,
-            "start_time": todo.start_time,
-            "end_time": todo.end_time,
-            "dtstart": dtstart,
-            "dtend": dtend,
-            "due": due,
+            "deadline": _restore_todo_datetime(todo.deadline),
+            "start_time": _restore_todo_datetime(todo.start_time),
+            "end_time": _restore_todo_datetime(todo.end_time),
+            "dtstart": _restore_todo_datetime(dtstart),
+            "dtend": _restore_todo_datetime(dtend),
+            "due": _restore_todo_datetime(due),
             "duration": getattr(todo, "duration", None),
             "time_zone": getattr(todo, "time_zone", None),
             "tzid": tzid,
             "is_all_day": bool(is_all_day),
-            "dtstamp": dtstamp,
-            "created": created,
-            "last_modified": last_modified,
+            "dtstamp": _restore_todo_datetime(dtstamp),
+            "created": _restore_todo_datetime(created),
+            "last_modified": _restore_todo_datetime(last_modified),
             "sequence": getattr(todo, "sequence", 0),
             "rdate": getattr(todo, "rdate", None),
             "exdate": getattr(todo, "exdate", None),
-            "recurrence_id": getattr(todo, "recurrence_id", None),
+            "recurrence_id": _restore_todo_datetime(getattr(todo, "recurrence_id", None)),
             "related_to_uid": getattr(todo, "related_to_uid", None),
             "related_to_reltype": getattr(todo, "related_to_reltype", None),
             "ical_status": ical_status,
@@ -113,7 +143,7 @@ class TodoIcalMixin:
             ),
             "status": todo.status,
             "priority": todo.priority,
-            "completed_at": getattr(todo, "completed_at", None),
+            "completed_at": _restore_todo_datetime(getattr(todo, "completed_at", None)),
             "percent_complete": (
                 todo.percent_complete if getattr(todo, "percent_complete", None) is not None else 0
             ),
@@ -125,8 +155,8 @@ class TodoIcalMixin:
             "source_type": getattr(todo, "source_type", None),
             "source_key": getattr(todo, "source_key", None),
             "source_date": getattr(todo, "source_date", None),
-            "created_at": todo.created_at,
-            "updated_at": todo.updated_at,
+            "created_at": _restore_todo_datetime(todo.created_at),
+            "updated_at": _restore_todo_datetime(todo.updated_at),
         }
 
     def create_todo(  # noqa: PLR0913, C901, PLR0912
@@ -253,7 +283,7 @@ class TodoIcalMixin:
                 if cleaned_uid:
                     todo_kwargs["uid"] = cleaned_uid
 
-                todo = Todo(**todo_kwargs)
+                todo = Todo(**_normalize_todo_datetimes(todo_kwargs))
                 session.add(todo)
                 session.flush()
 
@@ -354,7 +384,7 @@ class TodoIcalMixin:
             "order": order,
         }
 
-        for attr, value in updates.items():
+        for attr, value in _normalize_todo_datetimes(updates).items():
             if value is not _UNSET:
                 setattr(todo, attr, value)
 
