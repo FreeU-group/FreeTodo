@@ -3,6 +3,7 @@
 import { ImageIcon, Loader2, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
+import { useCallback, useEffect, useState } from "react";
 import { DiaryTabs, type JournalTab } from "@/apps/diary/DiaryTabs";
 import type { JournalDraft } from "@/apps/diary/types";
 import { Button } from "@/components/ui/button";
@@ -19,11 +20,10 @@ interface DiaryEditorProps {
 	onUserNotesBlur: (value: string) => void;
 	onGenerateAi: () => void;
 	onAutoLink: () => void;
-	onCopyToOriginal: (content: string) => void;
 	isGeneratingAi: boolean;
 	isAutoLinking: boolean;
 	hasJournalId: boolean;
-	illustrationExists: boolean;
+	illustrationUrls: string[];
 	illustrationGenerating: boolean;
 }
 
@@ -38,16 +38,22 @@ export function DiaryEditor({
 	onUserNotesBlur,
 	onGenerateAi,
 	onAutoLink,
-	onCopyToOriginal,
 	isGeneratingAi,
 	isAutoLinking,
 	hasJournalId,
-	illustrationExists,
+	illustrationUrls,
 	illustrationGenerating,
 }: DiaryEditorProps) {
 	const t = useTranslations("journalPanel");
-
 	const isGenerating = isGeneratingAi || illustrationGenerating;
+
+	// 加时间戳避免图片缓存
+	const [imgKey, setImgKey] = useState(0);
+	const refreshImages = useCallback(() => setImgKey((k) => k + 1), []);
+
+	useEffect(() => {
+		if (illustrationUrls.length > 0) refreshImages();
+	}, [illustrationUrls.length, refreshImages]);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-4 py-4">
@@ -79,7 +85,7 @@ export function DiaryEditor({
 				</div>
 			</div>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-3">
+			<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
 				{activeTab === "original" && (
 					<div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-background px-4 py-4 shadow-sm">
 						<input
@@ -100,50 +106,42 @@ export function DiaryEditor({
 				)}
 
 				{activeTab === "ai" && (
-					<div className="flex min-h-0 flex-1 flex-col gap-3">
-						{/* 插画 */}
-						<div className="overflow-hidden rounded-2xl border border-border bg-muted/10">
-							{illustrationExists ? (
-								<div className="relative w-full">
+					<div className="flex flex-col gap-3">
+						{illustrationUrls.length > 0 ? (
+							illustrationUrls.map((url) => (
+								<div
+									key={url}
+									className="overflow-hidden rounded-2xl border border-border"
+								>
 									<Image
-										src={`/api/diary-illustration/image/${selectedDateStr}`}
+										src={`${url}?v=${imgKey}`}
 										alt={t("illustrationAlt")}
 										width={800}
-										height={800}
+										height={1000}
 										className="w-full object-cover"
 										unoptimized
 									/>
 								</div>
-							) : (
-								<div
-									className={cn(
-										"flex items-center gap-2 px-4 py-3 text-xs text-muted-foreground",
-										isGenerating && "animate-pulse",
-									)}
-								>
-									<ImageIcon className="h-4 w-4 shrink-0" />
-									<span>
-										{isGenerating ? t("illustrationGenerating") : t("noIllustration")}
-									</span>
-								</div>
-							)}
-						</div>
-
-						{/* AI 文字描述 */}
-						<textarea
-							value={draft.contentAi}
-							readOnly
-							placeholder={isGenerating ? t("generatingAi") : t("aiPlaceholder")}
-							className="min-h-[160px] flex-1 rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed"
-						/>
-						{draft.contentAi && (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => onCopyToOriginal(draft.contentAi)}
+							))
+						) : (
+							<div
+								className={cn(
+									"flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-4 py-12 text-center",
+									isGenerating && "animate-pulse",
+								)}
 							>
-								{t("copyToOriginal")}
-							</Button>
+								{isGenerating ? (
+									<>
+										<Loader2 className="h-8 w-8 animate-spin text-primary" />
+										<p className="text-sm text-muted-foreground">{t("illustrationGenerating")}</p>
+									</>
+								) : (
+									<>
+										<ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+										<p className="text-xs text-muted-foreground">{t("noIllustration")}</p>
+									</>
+								)}
+							</div>
 						)}
 					</div>
 				)}

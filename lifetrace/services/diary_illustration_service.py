@@ -2,15 +2,14 @@
 
 工作流：
 1. 读取当天 L2 事件流（memory/events_L2/{date}.md）
-2. 调用 LLM 将事件总结转化为图像描述（漫画风格，主角为用户）
-3. 调用 Gemini API（gemini-3.1-flash-image-preview）生成图像
-   - 若配置了个人形象参考图，则连同图片一起发送（image+text → image）
-   - 否则纯文字生成（text → image）
-4. 将生成的图片保存到 data/diary_illustrations/{date}.png
+2. 调用 LLM 将事件流拆分为多个场景，每个场景生成一段漫画分镜 prompt
+3. 对每个分镜调用 Gemini API 生成一张漫画图
+4. 保存到 data/diary_illustrations/{date}_1.png, {date}_2.png ...
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -29,25 +28,25 @@ logger = get_logger()
 ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
 
 PROMPT_SYSTEM = (
-    "你是一位漫画分镜师。请根据用户今天的事件摘要，创作一段图像生成提示词（英文）。\n"
-    "风格：日系漫画分镜页（manga page layout），包含多个分格，纵向排列。\n\n"
+    "你是一位漫画分镜师。根据用户今天的事件摘要，将一天拆分为多个关键场景，"
+    "为每个场景各写一段独立的英文图像 prompt。\n\n"
     "要求：\n"
-    "- 输出纯英文 prompt，250 词以内\n"
-    "- 根据事件数量分成 3-6 个漫画分格（comic panels），按时间顺序排列\n"
-    "- 描述整体布局：a vertical manga page with N panels arranged in rows\n"
-    "- 每个 panel 描述一个场景：人物动作、表情、环境、简短的画外音或对话气泡内容\n"
-    "- 同一个主角贯穿所有分格，保持外貌一致性\n"
-    "- 包含时间线感（如：morning panel → afternoon panel → evening panel）\n"
-    "- 结尾加上风格词：manga page layout, multiple comic panels, warm anime style, "
-    "soft lighting, consistent character design, speech bubbles, panel borders\n"
-    "- 只输出 prompt，不要解释"
+    "- 根据事件数量拆分为 2-5 个场景（每个场景对应一天中的一个重要时刻）\n"
+    "- 每个场景的 prompt 100-150 词，描述漫画分镜风格的单格画面\n"
+    "- 包含：人物动作/表情、环境细节、光线/时间氛围、画面构图、对话气泡文字\n"
+    "- 同一个主角贯穿所有场景，保持外貌一致\n"
+    "- 每个 prompt 结尾加上风格词：manga panel, warm anime style, detailed background, "
+    "speech bubbles with text, soft lighting, consistent character\n"
+    "- 按时间顺序排列\n\n"
+    "输出格式（严格 JSON 数组，不要输出其他内容）：\n"
+    '[{{"scene": "场景标题", "prompt": "英文prompt"}}, ...]'
 )
 
 PROMPT_USER_TEMPLATE = """\
-今天的事件摘要（请为每个重要事件分配一个漫画分格）：
+今天的事件摘要：
 {events}
 
-请生成一个多分格漫画页的图像 prompt，每个分格对应一个事件场景。
+请拆分为多个场景，为每个场景生成独立的漫画 prompt。只输出 JSON 数组。
 """
 
 
@@ -65,81 +64,101 @@ class DiaryIllustrationService:
     # ------------------------------------------------------------------
 
     async def generate_for_date(self, date_str: str | None = None) -> dict:
-        """为指定日期生成插画。date_str 为空则使用今天。
+        """为指定日期生成多张插画。
 
         Returns:
-            {"ok": bool, "path": str | None, "date": str, "prompt": str | None, "error": str | None}
+            {"ok": bool, "date": str, "count": int, "paths": list[str], "error": str | None}
         """
         date_str = date_str or local_today_str()
-        out_path = self._illustrations_dir / f"{date_str}.png"
 
-        # 读取当天事件流
+        # 清理旧图片
+        self._clean_date_images(date_str)
+
         events_content = self._memory_reader.read_by_date(date_str)
         if not events_content or not events_content.strip():
             return {
                 "ok": False,
-                "path": None,
                 "date": date_str,
-                "prompt": None,
-                "error": f"No events found for {date_str}",
+                "count": 0,
+                "paths": [],
+                "error": f"No events for {date_str}",
             }
 
-        # 生成图像 prompt
+        # LLM 拆分场景 → 多个 prompt
         try:
-            image_prompt = await self._build_image_prompt(events_content)
+            scenes = await self._build_scene_prompts(events_content)
         except Exception as e:
-            logger.exception("DiaryIllustration: LLM prompt generation failed")
-            return {"ok": False, "path": None, "date": date_str, "prompt": None, "error": str(e)}
+            logger.exception("DiaryIllustration: scene prompt generation failed")
+            return {"ok": False, "date": date_str, "count": 0, "paths": [], "error": str(e)}
 
-        # 调用 Banna2 生成图像
-        try:
-            image_bytes = await self._call_banna2(image_prompt)
-        except Exception as e:
-            logger.exception("DiaryIllustration: Banna2 API call failed")
+        if not scenes:
             return {
                 "ok": False,
-                "path": None,
                 "date": date_str,
-                "prompt": image_prompt,
-                "error": str(e),
+                "count": 0,
+                "paths": [],
+                "error": "LLM returned no scenes",
             }
 
-        # 保存图片
-        out_path.write_bytes(image_bytes)
-        logger.info("DiaryIllustration: saved illustration to %s", out_path)
+        # 逐个场景生成图片
+        saved_paths: list[str] = []
+        for idx, scene in enumerate(scenes):
+            prompt = scene.get("prompt", "")
+            if not prompt:
+                continue
+            try:
+                image_bytes = await self._call_gemini(prompt)
+                out_path = self._illustrations_dir / f"{date_str}_{idx + 1}.png"
+                out_path.write_bytes(image_bytes)
+                saved_paths.append(str(out_path))
+                logger.info(
+                    "DiaryIllustration: saved panel %d/%d to %s", idx + 1, len(scenes), out_path
+                )
+            except Exception:
+                logger.exception("DiaryIllustration: panel %d generation failed", idx + 1)
 
         return {
-            "ok": True,
-            "path": str(out_path),
+            "ok": len(saved_paths) > 0,
             "date": date_str,
-            "prompt": image_prompt,
+            "count": len(saved_paths),
+            "paths": saved_paths,
             "error": None,
         }
 
-    def get_illustration_path(self, date_str: str | None = None) -> Path | None:
-        """返回指定日期的插画路径（不存在则返回 None）"""
+    def get_illustration_paths(self, date_str: str | None = None) -> list[Path]:
+        """返回指定日期的所有插画路径，按序号排序"""
         date_str = date_str or local_today_str()
-        p = self._illustrations_dir / f"{date_str}.png"
-        return p if p.exists() else None
+        paths = sorted(self._illustrations_dir.glob(f"{date_str}_*.png"))
+        return paths
+
+    def get_illustration_path(self, date_str: str | None = None) -> Path | None:
+        """兼容旧接口：返回第一张插画"""
+        paths = self.get_illustration_paths(date_str)
+        return paths[0] if paths else None
+
+    def _clean_date_images(self, date_str: str) -> None:
+        """删除指定日期的旧插画"""
+        for p in self._illustrations_dir.glob(f"{date_str}_*.png"):
+            p.unlink(missing_ok=True)
 
     # ------------------------------------------------------------------
-    # Prompt builder
+    # Scene prompt builder
     # ------------------------------------------------------------------
 
-    async def _build_image_prompt(self, events_content: str) -> str:
-        """用 LLM 将事件摘要转化为图像 prompt"""
-        import asyncio  # noqa: PLC0415
+    async def _build_scene_prompts(self, events_content: str) -> list[dict]:
+        """用 LLM 将事件摘要拆分为多个场景 prompt"""
+        import json  # noqa: PLC0415
 
         messages = [
             {"role": "system", "content": PROMPT_SYSTEM},
-            {"role": "user", "content": PROMPT_USER_TEMPLATE.format(events=events_content[:3000])},
+            {"role": "user", "content": PROMPT_USER_TEMPLATE.format(events=events_content[:4000])},
         ]
         resp = await asyncio.to_thread(
             self._llm.chat,
             messages,
             0.7,
             None,
-            500,
+            1200,
             log_usage=True,
             log_meta={
                 "endpoint": "diary_illustration_prompt",
@@ -147,22 +166,25 @@ class DiaryIllustrationService:
             },
         )
         if not resp or not resp.strip():
-            raise ValueError("LLM returned empty prompt")
-        return resp.strip()
+            raise ValueError("LLM returned empty response")
+
+        text = resp.strip()
+        # 提取 JSON 数组
+        start = text.find("[")
+        end = text.rfind("]")
+        if start == -1 or end == -1:
+            raise ValueError(f"LLM response is not a JSON array: {text[:200]}")
+        scenes = json.loads(text[start : end + 1])
+        if not isinstance(scenes, list):
+            raise ValueError("LLM returned non-list JSON")
+        return scenes[:6]
 
     # ------------------------------------------------------------------
-    # Gemini image generation caller
+    # Gemini image generation
     # ------------------------------------------------------------------
 
-    async def _call_banna2(self, prompt: str) -> bytes:
-        """调用 Gemini gemini-3.1-flash-image-preview 生成图像
-
-        支持两种模式：
-        - text-to-image：纯文字描述
-        - 携带参考图：将个人形象图作为输入，配合文字描述生成（image+text → image）
-        """
-        import asyncio  # noqa: PLC0415
-
+    async def _call_gemini(self, prompt: str) -> bytes:
+        """调用 Gemini gemini-3.1-flash-image-preview 生成单张图像"""
         cfg = _get_banna2_config()
         api_key: str = cfg.get("api_key", "")
         ref_image_path: str = cfg.get("ref_image_path", "")
@@ -176,16 +198,13 @@ class DiaryIllustrationService:
             f"{model}:generateContent?key={api_key}"
         )
 
-        # Build parts list
         parts: list[dict] = []
-
         ref_path = Path(ref_image_path) if ref_image_path else None
         if ref_path and ref_path.exists():
             suffix = ref_path.suffix.lstrip(".").lower() or "jpeg"
             mime = f"image/{suffix}" if suffix != "jpg" else "image/jpeg"
             img_b64 = base64.b64encode(ref_path.read_bytes()).decode()
             parts.append({"inline_data": {"mime_type": mime, "data": img_b64}})
-            logger.info("DiaryIllustration: using reference image %s", ref_path)
             parts.append(
                 {"text": f"Using the person in the reference image as the main character, {prompt}"}
             )
@@ -202,7 +221,7 @@ class DiaryIllustrationService:
 
     @staticmethod
     def _gemini_request(url: str, payload: dict) -> bytes:
-        """同步执行 Gemini API 请求，在线程中调用"""
+        """同步执行 Gemini API 请求"""
         import json as _json  # noqa: PLC0415
 
         import httpx  # noqa: PLC0415
@@ -212,7 +231,6 @@ class DiaryIllustrationService:
             resp.raise_for_status()
             data = resp.json()
 
-        # Extract image from response
         candidates = data.get("candidates", [])
         if not candidates:
             raise ValueError(f"Gemini returned no candidates: {_json.dumps(data)[:300]}")
@@ -220,8 +238,7 @@ class DiaryIllustrationService:
         for part in candidates[0].get("content", {}).get("parts", []):
             inline = part.get("inlineData") or part.get("inline_data")
             if inline:
-                raw_b64 = inline.get("data", "")
-                return base64.b64decode(raw_b64)
+                return base64.b64decode(inline.get("data", ""))
 
         raise ValueError(f"Gemini response contained no image data: {_json.dumps(data)[:300]}")
 

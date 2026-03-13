@@ -22,7 +22,7 @@ def _require_service():
 
 @router.post("/generate")
 async def generate_illustration(date: str | None = None):
-    """触发生成指定日期的插画（不指定则用今天）"""
+    """触发生成指定日期的插画（多张）"""
     svc = _require_service()
     result = await svc.generate_for_date(date)
     if not result["ok"]:
@@ -30,22 +30,34 @@ async def generate_illustration(date: str | None = None):
     return result
 
 
-@router.get("/image/{date_str}")
-async def get_illustration_image(date_str: str):
-    """返回指定日期的插画文件"""
+@router.get("/image/{date_str}/{index}")
+async def get_illustration_image(date_str: str, index: int):
+    """返回指定日期的第 N 张插画（1-based）"""
     svc = _require_service()
-    path = svc.get_illustration_path(date_str)
-    if path is None:
-        raise HTTPException(status_code=404, detail=f"No illustration found for {date_str}")
-    return FileResponse(str(path), media_type="image/png")
+    paths = svc.get_illustration_paths(date_str)
+    if index < 1 or index > len(paths):
+        raise HTTPException(status_code=404, detail=f"Panel {index} not found for {date_str}")
+    return FileResponse(str(paths[index - 1]), media_type="image/png")
+
+
+@router.get("/images/{date_str}")
+async def list_illustration_images(date_str: str):
+    """列出指定日期的所有插画"""
+    svc = _require_service()
+    paths = svc.get_illustration_paths(date_str)
+    return {
+        "date": date_str,
+        "count": len(paths),
+        "urls": [f"/api/diary-illustration/image/{date_str}/{i + 1}" for i in range(len(paths))],
+    }
 
 
 @router.get("/status/{date_str}")
 async def get_illustration_status(date_str: str):
     """检查指定日期是否已有插画"""
     svc = _require_service()
-    path = svc.get_illustration_path(date_str)
-    return {"date": date_str, "exists": path is not None, "path": str(path) if path else None}
+    paths = svc.get_illustration_paths(date_str)
+    return {"date": date_str, "exists": len(paths) > 0, "count": len(paths)}
 
 
 @router.get("/today")
@@ -53,5 +65,5 @@ async def get_today_status():
     """今天的插画状态"""
     today = local_today_str()
     svc = _require_service()
-    path = svc.get_illustration_path(today)
-    return {"date": today, "exists": path is not None, "path": str(path) if path else None}
+    paths = svc.get_illustration_paths(today)
+    return {"date": today, "exists": len(paths) > 0, "count": len(paths)}
