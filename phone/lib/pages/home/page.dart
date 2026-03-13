@@ -313,6 +313,7 @@ class _HomePageState extends State<HomePage>
       final selected = context.read<HomeProvider>().selectedIndex;
       unawaited(_refreshTabData(selected));
     });
+    // Start continuous polling for notifications & draft todos (like PC frontend)
     context.read<NotificationCenterProvider>().startPolling();
     WidgetsBinding.instance.addObserver(this);
 
@@ -357,12 +358,7 @@ class _HomePageState extends State<HomePage>
         );
       }
       if (mounted) {
-        await Future.wait([
-          context.read<NotificationCenterProvider>().refresh(force: true),
-          context.read<NotificationCenterProvider>().pollDraftTodos(
-            force: true,
-          ),
-        ]);
+        context.read<NotificationCenterProvider>().refresh(force: true);
       }
 
       // Navigate
@@ -527,12 +523,7 @@ class _HomePageState extends State<HomePage>
       if (!mounted) return;
       switch (index) {
         case 0:
-          await Future.wait([
-            context.read<NotificationCenterProvider>().refresh(force: force),
-            context.read<NotificationCenterProvider>().pollDraftTodos(
-              force: force,
-            ),
-          ]);
+          // Notifications/draft todos are now self-polled by the provider.
           break;
         case 1:
           await context.read<MobileDataProvider>().refreshTasks();
