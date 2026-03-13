@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
 
 from storage.models import Tag, Todo, TodoAttachmentRelation, TodoTagRelation
@@ -19,12 +20,62 @@ logger = get_logger()
 if TYPE_CHECKING:
     from storage.database_base import DatabaseBase
 
+_MISSING_PARENT = object()
+
 
 class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
     """Todo 管理类"""
 
     def __init__(self, db_base: DatabaseBase):
         self.db_base = db_base
+
+    def _get_parent_id(
+        self,
+        session,
+        todo_id: int,
+        proposed_parent_map: dict[int, int | None] | None = None,
+    ) -> int | None | object:
+        if proposed_parent_map and todo_id in proposed_parent_map:
+            return proposed_parent_map[todo_id]
+        row = session.query(col(Todo.parent_todo_id)).filter(col(Todo.id) == todo_id).first()
+        if not row:
+            return _MISSING_PARENT
+        return row[0]
+
+    def _validate_parent_link(
+        self,
+        session,
+        *,
+        todo_id: int,
+        parent_todo_id: int | None,
+        proposed_parent_map: dict[int, int | None] | None = None,
+    ) -> bool:
+        if parent_todo_id is None:
+            return True
+        if parent_todo_id == todo_id:
+            return False
+
+        parent_exists = session.query(col(Todo.id)).filter(col(Todo.id) == parent_todo_id).first()
+        if not parent_exists:
+            return False
+
+        visited: set[int] = set()
+        current_id: int | None = parent_todo_id
+        while current_id is not None:
+            if current_id == todo_id:
+                return False
+            if current_id in visited:
+                return False
+            visited.add(current_id)
+            next_parent = self._get_parent_id(
+                session,
+                current_id,
+                proposed_parent_map=proposed_parent_map,
+            )
+            if next_parent is _MISSING_PARENT:
+                break
+            current_id = cast("int | None", next_parent)
+        return True
 
     # ========== 查询辅助 ==========
     def _get_todo_tags(self, session, todo_id: int) -> list[str]:
@@ -146,6 +197,38 @@ class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
             logger.error(f"列出 todo 失败: {e}")
             return []
 
+    def search_todos(
+        self,
+        *,
+        keyword: str,
+        limit: int = 200,
+        offset: int = 0,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        keyword = (keyword or "").strip()
+        if not keyword:
+            return []
+        keyword_lower = keyword.lower()
+        pattern = f"%{keyword_lower}%"
+        try:
+            with self.db_base.get_session() as session:
+                q = session.query(Todo)
+                with contextlib.suppress(Exception):
+                    q = q.filter(col(Todo.deleted_at).is_(None))
+                if status:
+                    q = q.filter(col(Todo.status) == status)
+                q = q.filter(
+                    or_(
+                        func.lower(col(Todo.name)).like(pattern),
+                        func.lower(col(Todo.description)).like(pattern),
+                    )
+                )
+                todos = q.order_by(col(Todo.created_at).desc()).offset(offset).limit(limit).all()
+                return [self._todo_to_dict(session, t) for t in todos]
+        except SQLAlchemyError as e:
+            logger.error(f"搜索 todo 失败: {e}")
+            return []
+
     def count_todos(self, *, status: str | None = None) -> int:
         try:
             with self.db_base.get_session() as session:
@@ -245,6 +328,31 @@ class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
         """
         try:
             with self.db_base.get_session() as session:
+                proposed_parent_map = {
+                    int(item["id"]): item.get("parent_todo_id")
+                    for item in items
+                    if item.get("id") and "parent_todo_id" in item
+                }
+                for todo_id, parent_id in proposed_parent_map.items():
+                    todo_exists = (
+                        session.query(col(Todo.id)).filter(col(Todo.id) == todo_id).first()
+                    )
+                    if not todo_exists:
+                        logger.warning(f"reorder_todos: todo 不存在: {todo_id}")
+                        continue
+                    if not self._validate_parent_link(
+                        session,
+                        todo_id=todo_id,
+                        parent_todo_id=parent_id,
+                        proposed_parent_map=proposed_parent_map,
+                    ):
+                        logger.warning(
+                            "reorder_todos: parent_todo_id 无效: todo_id=%s parent_id=%s",
+                            todo_id,
+                            parent_id,
+                        )
+                        return False
+
                 for item in items:
                     todo_id = item.get("id")
                     if not todo_id:
