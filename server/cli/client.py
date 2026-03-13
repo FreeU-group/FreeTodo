@@ -83,6 +83,10 @@ class ApiClient:
             return None, request_id
         return response.json(), request_id
 
+    def health_check(self) -> tuple[Any, str | None]:
+        """Check backend health."""
+        return self._request("GET", "/health")
+
 
 class TodoApiClient(ApiClient):
     """Todo-focused API client."""

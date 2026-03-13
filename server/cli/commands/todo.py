@@ -32,6 +32,25 @@ todo_app = typer.Typer(
     add_completion=False,
 )
 
+SCHEMA_EXAMPLES: dict[str, dict[str, Any]] = {
+    "create": {
+        "name": "Prepare weekly review",
+        "description": "Collect notes and summarize progress",
+        "status": "active",
+        "priority": "medium",
+    },
+    "update": {
+        "status": "completed",
+        "percent_complete": 100,
+    },
+    "reorder": {
+        "items": [
+            {"id": 1, "order": 10},
+            {"id": 2, "order": 20, "parent_todo_id": 1},
+        ]
+    },
+}
+
 
 def create_todo_client() -> TodoApiClient:
     """Build a Todo API client from environment configuration."""
@@ -104,7 +123,13 @@ def _model_payload(
 
 
 def _emit_success(
-    *, resource: str, action: str, data: Any, request_id: str | None, json_output: bool
+    *,
+    resource: str,
+    action: str,
+    data: Any,
+    request_id: str | None,
+    json_output: bool,
+    dry_run: bool = False,
 ) -> None:
     payload = build_envelope(
         ok=True,
@@ -112,6 +137,7 @@ def _emit_success(
         action=action,
         data=data,
         request_id=request_id,
+        dry_run=dry_run,
     )
     if json_output:
         emit_json(payload)
@@ -136,6 +162,71 @@ def _handle_cli_error(*, resource: str, action: str, error: CliError, json_outpu
     else:
         typer.echo(json.dumps(payload, ensure_ascii=False, indent=2), err=True)
     raise typer.Exit(code=error.exit_code)
+
+
+def _emit_dry_run(
+    *,
+    action: str,
+    payload: Any,
+    json_output: bool,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    dry_run_data = {"payload": payload}
+    if extra:
+        dry_run_data.update(extra)
+    _emit_success(
+        resource="todo",
+        action=action,
+        data=dry_run_data,
+        request_id="dry-run",
+        json_output=json_output,
+        dry_run=True,
+    )
+
+
+@todo_app.command("schema")
+def todo_schema(
+    kind: Annotated[
+        str,
+        typer.Option(
+            "--kind",
+            help="Schema kind to render: create, update, or reorder.",
+            case_sensitive=False,
+        ),
+    ] = "create",
+    include_example: Annotated[
+        bool,
+        typer.Option("--example/--no-example", help="Include an example payload."),
+    ] = True,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json/--no-json", help="Emit structured JSON output."),
+    ] = True,
+) -> None:
+    """Render JSON schema for todo command payloads."""
+    schema_map = {
+        "create": TodoCreate,
+        "update": TodoUpdate,
+        "reorder": TodoReorderRequest,
+    }
+    normalized_kind = kind.lower()
+    if normalized_kind not in schema_map:
+        raise typer.BadParameter("kind must be one of: create, update, reorder")
+
+    data: dict[str, Any] = {
+        "kind": normalized_kind,
+        "schema": schema_map[normalized_kind].model_json_schema(),
+    }
+    if include_example:
+        data["example"] = SCHEMA_EXAMPLES[normalized_kind]
+
+    _emit_success(
+        resource="todo",
+        action="schema",
+        data=data,
+        request_id="local-schema",
+        json_output=json_output,
+    )
 
 
 @todo_app.command("list")
@@ -213,6 +304,10 @@ def create_todo(
         bool,
         typer.Option("--stdin", help="Read JSON payload from stdin."),
     ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate and preview the request without sending it."),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option("--json/--no-json", help="Emit structured JSON output."),
@@ -223,6 +318,9 @@ def create_todo(
         payload = _model_payload(
             TodoCreate, _read_json_payload(input_path=input_path, use_stdin=use_stdin)
         )
+        if dry_run:
+            _emit_dry_run(action="create", payload=payload, json_output=json_output)
+            return
         client = create_todo_client()
         try:
             data, request_id = client.create_todo(payload)
@@ -258,6 +356,10 @@ def update_todo(
         bool,
         typer.Option("--stdin", help="Read patch JSON from stdin."),
     ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate and preview the request without sending it."),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option("--json/--no-json", help="Emit structured JSON output."),
@@ -274,6 +376,14 @@ def update_todo(
                 message="Update payload must include at least one field",
                 exit_code=2,
             )
+        if dry_run:
+            _emit_dry_run(
+                action="update",
+                payload=payload,
+                json_output=json_output,
+                extra={"todo_id": todo_id},
+            )
+            return
         client = create_todo_client()
         try:
             data, request_id = client.update_todo(todo_id, payload)
@@ -296,12 +406,23 @@ def delete_todo(
         int,
         typer.Option("--id", help="Todo ID to delete."),
     ],
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Preview the delete request without sending it."),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option("--json/--no-json", help="Emit structured JSON output."),
     ] = True,
 ) -> None:
     """Delete a todo."""
+    if dry_run:
+        _emit_dry_run(
+            action="delete",
+            payload={"id": todo_id},
+            json_output=json_output,
+        )
+        return
     client = create_todo_client()
     try:
         _, request_id = client.delete_todo(todo_id)
@@ -333,6 +454,10 @@ def reorder_todos(
         bool,
         typer.Option("--stdin", help="Read reorder JSON from stdin."),
     ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Validate and preview the request without sending it."),
+    ] = False,
     json_output: Annotated[
         bool,
         typer.Option("--json/--no-json", help="Emit structured JSON output."),
@@ -344,6 +469,9 @@ def reorder_todos(
             TodoReorderRequest,
             _read_json_payload(input_path=input_path, use_stdin=use_stdin),
         )
+        if dry_run:
+            _emit_dry_run(action="reorder", payload=payload, json_output=json_output)
+            return
         client = create_todo_client()
         try:
             data, request_id = client.reorder_todos(payload)

@@ -6,7 +6,11 @@ from enum import StrEnum
 
 import typer
 
+from cli.client import ApiClient
 from cli.commands.todo import todo_app
+from cli.config import load_config
+from cli.errors import CliError
+from cli.output import build_envelope, emit_json
 
 
 class HelpLanguage(StrEnum):
@@ -88,6 +92,15 @@ app = typer.Typer(
 )
 
 
+def _doctor_payload() -> dict[str, str | float | bool | None]:
+    config = load_config()
+    return {
+        "base_url": config.base_url,
+        "has_api_token": bool(config.api_token),
+        "timeout_sec": config.timeout_sec,
+    }
+
+
 @app.command("help")
 def render_help(
     topic: str = typer.Argument(
@@ -103,6 +116,52 @@ def render_help(
 ) -> None:
     """Render localized help text for a command group."""
     typer.echo(_merge_help(topic, lang))
+
+
+@app.command("doctor")
+def doctor(
+    json_output: bool = typer.Option(True, "--json/--no-json", help="Emit structured JSON output."),
+) -> None:
+    """Check CLI configuration and backend health."""
+    config = load_config()
+    client = ApiClient(config)
+    try:
+        health, request_id = client.health_check()
+        payload = build_envelope(
+            ok=True,
+            resource="system",
+            action="doctor",
+            data={
+                "config": _doctor_payload(),
+                "backend_health": health,
+            },
+            request_id=request_id,
+        )
+        if json_output:
+            emit_json(payload)
+        else:
+            typer.echo(payload)
+    except CliError as exc:
+        payload = build_envelope(
+            ok=False,
+            resource="system",
+            action="doctor",
+            error={
+                "code": exc.code,
+                "message": exc.message,
+                "details": {
+                    "config": _doctor_payload(),
+                    **(exc.details or {}),
+                },
+            },
+        )
+        if json_output:
+            emit_json(payload, stream="stderr")
+        else:
+            typer.echo(payload, err=True)
+        raise typer.Exit(exc.exit_code) from exc
+    finally:
+        client.close()
 
 
 app.add_typer(todo_app, name="todo")

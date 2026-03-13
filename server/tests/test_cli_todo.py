@@ -36,6 +36,17 @@ class _StubTodoClient:
         return self.behavior("reorder_todos", payload=payload)
 
 
+class _StubApiClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def health_check(self):
+        return self.behavior("health_check")
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -80,6 +91,20 @@ def test_todo_create_validates_payload_and_passes_json(monkeypatch, tmp_path):
     payload = json.loads(result.stdout)
     assert payload["data"]["id"] == 8
     assert payload["meta"]["request_id"] == "req-create"
+
+
+def test_todo_create_dry_run_does_not_call_backend(tmp_path):
+    input_file = tmp_path / "todo.json"
+    input_file.write_text(
+        json.dumps({"name": "Dry Run Todo", "status": "active"}), encoding="utf-8"
+    )
+
+    result = runner.invoke(app, ["todo", "create", "--input", str(input_file), "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["name"] == "Dry Run Todo"
 
 
 def test_todo_update_requires_non_empty_patch(tmp_path):
@@ -144,3 +169,27 @@ def test_localized_help_can_render_bilingual_root():
     assert result.exit_code == 0
     assert "Agent-first CLI" in result.stdout
     assert "面向 Agent 的 Lifetrace/FreeTodo 后端命令行入口" in result.stdout
+
+
+def test_todo_schema_outputs_example():
+    result = runner.invoke(app, ["todo", "schema", "--kind", "update"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["kind"] == "update"
+    assert payload["data"]["example"]["status"] == "completed"
+
+
+def test_doctor_outputs_health(monkeypatch):
+    def behavior(name):
+        assert name == "health_check"
+        return {"status": "healthy", "app": "lifetrace"}, "req-health"
+
+    monkeypatch.setattr("cli.app.ApiClient", lambda _config: _StubApiClient(behavior))
+
+    result = runner.invoke(app, ["doctor"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["backend_health"]["status"] == "healthy"
+    assert payload["meta"]["request_id"] == "req-health"
