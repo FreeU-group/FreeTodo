@@ -10,12 +10,14 @@ from cli.client import ApiClient
 from cli.commands.activity import activity_app
 from cli.commands.audio import audio_app
 from cli.commands.automation import automation_app
+from cli.commands.cost_tracking import cost_tracking_app
 from cli.commands.event import event_app
 from cli.commands.journal import journal_app
 from cli.commands.location import location_app
 from cli.commands.logs import logs_app
 from cli.commands.memory import memory_app
 from cli.commands.notification import notification_app
+from cli.commands.plugins import plugins_app
 from cli.commands.preview import preview_app
 from cli.commands.scheduler import scheduler_app
 from cli.commands.screenshot import screenshot_app
@@ -404,6 +406,42 @@ PREVIEW_HELP_TEXT = {
     ),
 }
 
+COST_TRACKING_HELP_TEXT = {
+    "en": (
+        "Cost tracking resource commands.\n\n"
+        "Use these commands to inspect token usage and cost statistics.\n\n"
+        "Examples:\n"
+        "  freetodo cost-tracking stats --days 30 --json\n"
+        "  freetodo cost-tracking config --json\n"
+    ),
+    "zh": (
+        "Cost tracking 资源命令。\n\n"
+        "可以用这些命令查看 token 使用与费用统计。\n\n"
+        "示例：\n"
+        "  freetodo cost-tracking stats --days 30 --json\n"
+        "  freetodo cost-tracking config --json\n"
+    ),
+}
+
+PLUGINS_HELP_TEXT = {
+    "en": (
+        "Plugins resource commands.\n\n"
+        "Use these commands to inspect plugin status and manage plugin installation.\n\n"
+        "Examples:\n"
+        "  freetodo plugins list --json\n"
+        "  freetodo plugins media-crawler status --json\n"
+        "  freetodo plugins media-crawler install --version 1.2.3 --dry-run --json\n"
+    ),
+    "zh": (
+        "Plugins 资源命令。\n\n"
+        "可以用这些命令查看插件状态并管理插件安装。\n\n"
+        "示例：\n"
+        "  freetodo plugins list --json\n"
+        "  freetodo plugins media-crawler status --json\n"
+        "  freetodo plugins media-crawler install --version 1.2.3 --dry-run --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -425,6 +463,8 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "location": LOCATION_HELP_TEXT,
         "time-allocation": TIME_ALLOCATION_HELP_TEXT,
         "preview": PREVIEW_HELP_TEXT,
+        "cost-tracking": COST_TRACKING_HELP_TEXT,
+        "plugins": PLUGINS_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -456,7 +496,8 @@ def render_help(
         help=(
             "Help topic to render, currently: root, todo, journal, activity, event, "
             "automation, memory, screenshot, audio, scheduler, logs, system, "
-            "search, vector, notification, location, time-allocation, or preview."
+            "search, vector, notification, location, time-allocation, preview, "
+            "cost-tracking, or plugins."
         ),
     ),
     lang: HelpLanguage = typer.Option(
@@ -526,6 +567,8 @@ app.add_typer(notification_app, name="notification")
 app.add_typer(location_app, name="location")
 app.add_typer(time_allocation_app, name="time-allocation")
 app.add_typer(preview_app, name="preview")
+app.add_typer(cost_tracking_app, name="cost-tracking")
+app.add_typer(plugins_app, name="plugins")
 app.add_typer(screenshot_app, name="screenshot")
 app.add_typer(audio_app, name="audio")
 app.add_typer(scheduler_app, name="scheduler")

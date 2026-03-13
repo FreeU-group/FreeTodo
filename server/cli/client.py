@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -602,3 +603,66 @@ class PreviewApiClient(ApiClient):
         if max_bytes is not None:
             params["max_bytes"] = max_bytes
         return self._request("GET", "/api/preview/file", params=params)
+
+
+class CostTrackingApiClient(ApiClient):
+    """Cost tracking API client."""
+
+    def get_cost_stats(self, *, days: int) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/cost-tracking/stats", params={"days": days})
+
+    def get_cost_config(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/cost-tracking/config")
+
+
+class PluginsApiClient(ApiClient):
+    """Plugins API client."""
+
+    def list_plugins(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/plugins/list")
+
+    def get_media_crawler_status(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/plugins/media-crawler/status")
+
+    def uninstall_media_crawler(self) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/plugins/media-crawler/uninstall")
+
+    def install_media_crawler(
+        self, *, version: str | None, download_url: str | None
+    ) -> tuple[Any, str | None]:
+        params: dict[str, Any] = {}
+        if version is not None:
+            params["version"] = version
+        if download_url is not None:
+            params["download_url"] = download_url
+        try:
+            with self._client.stream(
+                "POST", "/api/plugins/media-crawler/install", params=params
+            ) as response:
+                if response.is_error:
+                    response.read()
+                    raise _extract_error(response)
+                steps: list[Any] = []
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    try:
+                        steps.append(json.loads(line))
+                    except Exception:
+                        steps.append({"raw": line})
+                request_id = response.headers.get("X-Request-Id") or response.headers.get(
+                    "X-Request-ID"
+                )
+                return {"steps": steps}, request_id
+        except httpx.ConnectError as exc:
+            raise CliError(
+                code="BACKEND_UNAVAILABLE",
+                message=f"Cannot connect to backend: {exc}",
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise CliError(
+                code="HTTP_ERROR",
+                message=str(exc),
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
