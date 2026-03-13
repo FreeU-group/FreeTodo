@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { SettingsSection } from "./SettingsSection";
 
 // API 基础 URL
@@ -51,25 +51,8 @@ export function CookiesConfigSection({ loading = false }: CookiesConfigSectionPr
 	const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 	const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
 
-	// 加载所有平台的 cookies
-	useEffect(() => {
-		fetchAllCookies();
-	}, []);
-
-	// 当选择的平台变化时，更新编辑框内容
-	useEffect(() => {
-		const accounts = platformCookies[selectedPlatform] || [];
-		if (accounts.length > 0) {
-			setEditingCookies(accounts[0].cookies || "");
-			setEditingAccountName(accounts[0].account_name || "");
-		} else {
-			setEditingCookies("");
-			setEditingAccountName("");
-		}
-	}, [selectedPlatform, platformCookies]);
-
 	// 从后端加载所有 cookies
-	const fetchAllCookies = async (showLoading = true) => {
+	const fetchAllCookies = useCallback(async (showLoading = true) => {
 		console.log("[CookiesConfig] 开始加载 cookies, showLoading:", showLoading);
 		if (showLoading) {
 			setIsLoading(true);
@@ -99,13 +82,30 @@ export function CookiesConfigSection({ loading = false }: CookiesConfigSectionPr
 				setIsLoading(false);
 			}
 		}
-	};
+	}, []);
+
+	// 加载所有平台的 cookies
+	useEffect(() => {
+		void fetchAllCookies();
+	}, [fetchAllCookies]);
+
+	// 当选择的平台变化时，更新编辑框内容
+	useEffect(() => {
+		const accounts = platformCookies[selectedPlatform] || [];
+		if (accounts.length > 0) {
+			setEditingCookies(accounts[0].cookies || "");
+			setEditingAccountName(accounts[0].account_name || "");
+		} else {
+			setEditingCookies("");
+			setEditingAccountName("");
+		}
+	}, [selectedPlatform, platformCookies]);
 
 	// 保存当前平台的 cookies
 	const saveCookies = async () => {
 		console.log("[CookiesConfig] 开始保存 cookies", {
 			selectedPlatform,
-			editingCookies: editingCookies.substring(0, 50) + "...",
+			editingCookies: `${editingCookies.substring(0, 50)}...`,
 			editingAccountName,
 		});
 
@@ -213,6 +213,7 @@ export function CookiesConfigSection({ loading = false }: CookiesConfigSectionPr
 										stroke="currentColor"
 										viewBox="0 0 24 24"
 									>
+										<title>{isExpanded ? "Collapse platform" : "Expand platform"}</title>
 										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
 									</svg>
 								</button>

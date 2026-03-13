@@ -896,6 +896,8 @@
 		}
 	},
 	"common": {
+		"passwordShow": "显示密码",
+		"passwordHide": "隐藏密码",
 		"priority": {
 			"high": "高",
 			"medium": "中",

@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { PasswordInput } from "@/components/common/ui/PasswordInput";
 import {
 	useSaveAndInitLlmApiSaveAndInitLlmPost,
 	useTestLlmConfigApiTestLlmConfigPost,
@@ -265,10 +266,8 @@ export function LlmConfigSection({
 					>
 						{t("apiKey")} <span className="text-red-500">*</span>
 					</label>
-					<input
+					<PasswordInput
 						id="llm-api-key"
-						type="password"
-						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 						placeholder={t("apiKey")}
 						value={llmApiKey}
 						onChange={(e) => setLlmApiKey(e.target.value)}
