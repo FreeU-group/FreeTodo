@@ -8,6 +8,8 @@ dependencies = [
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.20.0",
     "pydantic>=2.0.0",
+    "typer>=0.24.1",
+    "httpx>=0.28.1",
     "sqlalchemy>=2.0.0",
     "sqlmodel>=0.0.22",
     "alembic>=1.14.0",
@@ -108,3 +110,6 @@ explicit = true
 # 告诉 uv，torch 相关的包去 pytorch-cpu 这个索引找
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+
+[project.scripts]
+freetodo = "cli.main:main"

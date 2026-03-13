@@ -1,0 +1,112 @@
+from __future__ import annotations
+
+import json
+
+from typer.testing import CliRunner
+
+from cli.app import app
+from cli.errors import CliError
+
+runner = CliRunner()
+
+
+class _StubTodoClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_todos(self, *, limit: int, offset: int, status: str | None):
+        return self.behavior("list_todos", limit=limit, offset=offset, status=status)
+
+    def get_todo(self, todo_id: int):
+        return self.behavior("get_todo", todo_id=todo_id)
+
+    def create_todo(self, payload):
+        return self.behavior("create_todo", payload=payload)
+
+    def update_todo(self, todo_id: int, payload):
+        return self.behavior("update_todo", todo_id=todo_id, payload=payload)
+
+    def delete_todo(self, todo_id: int):
+        return self.behavior("delete_todo", todo_id=todo_id)
+
+    def reorder_todos(self, payload):
+        return self.behavior("reorder_todos", payload=payload)
+
+
+def test_todo_list_outputs_json(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "list_todos"
+        assert kwargs == {"limit": 10, "offset": 5, "status": "active"}
+        return {"total": 1, "todos": [{"id": 1, "name": "demo"}]}, "req-list"
+
+    monkeypatch.setattr(
+        "cli.commands.todo.create_todo_client",
+        lambda: _StubTodoClient(behavior),
+    )
+
+    result = runner.invoke(
+        app, ["todo", "list", "--limit", "10", "--offset", "5", "--status", "active"]
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is True
+    assert payload["meta"]["action"] == "list"
+    assert payload["meta"]["request_id"] == "req-list"
+    assert payload["data"]["total"] == 1
+
+
+def test_todo_create_validates_payload_and_passes_json(monkeypatch, tmp_path):
+    input_file = tmp_path / "todo.json"
+    input_file.write_text(json.dumps({"name": "Write tests", "status": "active"}), encoding="utf-8")
+
+    def behavior(name, **kwargs):
+        assert name == "create_todo"
+        assert kwargs["payload"]["name"] == "Write tests"
+        assert kwargs["payload"]["status"] == "active"
+        return {"id": 8, "name": "Write tests", "status": "active"}, "req-create"
+
+    monkeypatch.setattr(
+        "cli.commands.todo.create_todo_client",
+        lambda: _StubTodoClient(behavior),
+    )
+
+    result = runner.invoke(app, ["todo", "create", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["id"] == 8
+    assert payload["meta"]["request_id"] == "req-create"
+
+
+def test_todo_update_requires_non_empty_patch(tmp_path):
+    patch_file = tmp_path / "patch.json"
+    patch_file.write_text("{}", encoding="utf-8")
+
+    result = runner.invoke(app, ["todo", "update", "--id", "3", "--patch", str(patch_file)])
+
+    assert result.exit_code == 2
+    payload = json.loads(result.stderr)
+    assert payload["ok"] is False
+    assert payload["error"]["code"] == "EMPTY_PATCH"
+
+
+def test_todo_get_returns_structured_error(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_todo"
+        raise CliError(code="HTTP_404", message="todo 不存在", exit_code=5, details={"todo_id": 99})
+
+    monkeypatch.setattr(
+        "cli.commands.todo.create_todo_client",
+        lambda: _StubTodoClient(behavior),
+    )
+
+    result = runner.invoke(app, ["todo", "get", "--id", "99"])
+
+    assert result.exit_code == 5
+    payload = json.loads(result.stderr)
+    assert payload["error"]["code"] == "HTTP_404"
+    assert payload["error"]["message"] == "todo 不存在"
