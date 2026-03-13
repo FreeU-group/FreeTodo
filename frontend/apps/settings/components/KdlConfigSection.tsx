@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PasswordInput } from "@/components/common/ui/PasswordInput";
 import { SettingsSection } from "./SettingsSection";
 
@@ -29,11 +29,7 @@ export function KdlConfigSection({ loading = false }: KdlConfigSectionProps) {
 		text: string;
 	} | null>(null);
 
-	useEffect(() => {
-		fetchConfig();
-	}, []);
-
-	const fetchConfig = async () => {
+	const fetchConfig = useCallback(async () => {
 		setIsLoading(true);
 		try {
 			const response = await fetch(PROXY_CONFIG_API);
@@ -49,7 +45,11 @@ export function KdlConfigSection({ loading = false }: KdlConfigSectionProps) {
 		} finally {
 			setIsLoading(false);
 		}
-	};
+	}, []);
+
+	useEffect(() => {
+		void fetchConfig();
+	}, [fetchConfig]);
 
 	const saveConfig = async () => {
 		setIsSaving(true);

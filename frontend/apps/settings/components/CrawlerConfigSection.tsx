@@ -57,19 +57,7 @@ export function CrawlerConfigSection({ loading = false }: CrawlerConfigSectionPr
 	const [showUninstallConfirm, setShowUninstallConfirm] = useState(false);
 	const initialLoadRef = useRef(false);
 
-	// 组件挂载时从后端加载配置
-	useEffect(() => {
-		if (!initialLoadRef.current) {
-			initialLoadRef.current = true;
-			loadConfigFromBackend();
-			checkPluginStatus();
-			// 加载额外的配置项
-			fetchFullConfig();
-		}
-	}, [loadConfigFromBackend, checkPluginStatus]);
-
-	// 从后端加载完整配置
-	const fetchFullConfig = async () => {
+	const fetchFullConfig = useCallback(async () => {
 		try {
 			const response = await fetch(`${API_BASE_URL}/api/crawler/config`);
 			if (response.ok) {
@@ -84,7 +72,18 @@ export function CrawlerConfigSection({ loading = false }: CrawlerConfigSectionPr
 		} catch (error) {
 			console.error("[CrawlerConfig] 加载配置失败:", error);
 		}
-	};
+	}, []);
+
+	// 组件挂载时从后端加载配置
+	useEffect(() => {
+		if (!initialLoadRef.current) {
+			initialLoadRef.current = true;
+			loadConfigFromBackend();
+			checkPluginStatus();
+			// 加载额外的配置项
+			void fetchFullConfig();
+		}
+	}, [loadConfigFromBackend, checkPluginStatus, fetchFullConfig]);
 
 	// 保存配置到后端
 	const saveConfig = async (updates: Record<string, unknown>) => {
@@ -170,10 +169,10 @@ export function CrawlerConfigSection({ loading = false }: CrawlerConfigSectionPr
 		<SettingsSection title={t("title")} description={t("description")}>
 			<div className="space-y-4">
 				{/* 爬取类型 */}
-				<div>
-					<label className="mb-2 block text-sm font-medium text-foreground">
+				<fieldset>
+					<legend className="mb-2 block text-sm font-medium text-foreground">
 						{t("crawlerType")}
-					</label>
+					</legend>
 					<div className="grid grid-cols-2 gap-2">
 						{CRAWLER_TYPES.map((type) => (
 							<button
@@ -191,7 +190,7 @@ export function CrawlerConfigSection({ loading = false }: CrawlerConfigSectionPr
 							</button>
 						))}
 					</div>
-				</div>
+				</fieldset>
 
 				{/* 数量和间隔设置 */}
 				<div className="grid grid-cols-2 gap-3">
@@ -237,10 +236,10 @@ export function CrawlerConfigSection({ loading = false }: CrawlerConfigSectionPr
 				</div>
 
 				{/* 数据保存类型 */}
-				<div>
-					<label className="mb-2 block text-sm font-medium text-foreground">
+				<fieldset>
+					<legend className="mb-2 block text-sm font-medium text-foreground">
 						{t("saveDataOption")}
-					</label>
+					</legend>
 					<div className="flex gap-2">
 						{SAVE_OPTIONS.map((option) => (
 							<button
@@ -258,7 +257,7 @@ export function CrawlerConfigSection({ loading = false }: CrawlerConfigSectionPr
 							</button>
 						))}
 					</div>
-				</div>
+				</fieldset>
 
 				{/* 开关选项 */}
 				<div className="space-y-3">

@@ -279,7 +279,7 @@ export function SchedulerSection({
 	const activeJobs = allJobs.filter((job) => {
 		if (isLegacyJob(job.id)) return false;
 		if (includeJobIds && !includeJobIds.includes(job.id)) return false;
-		if (excludeJobIds && excludeJobIds.includes(job.id)) return false;
+		if (excludeJobIds?.includes(job.id)) return false;
 		return true;
 	});
 	const legacyJobs = compact
