@@ -485,3 +485,30 @@ class SchedulerApiClient(ApiClient):
 
     def resume_all_jobs(self) -> tuple[Any, str | None]:
         return self._request("POST", "/api/scheduler/jobs/resume-all")
+
+
+class LogsApiClient(ApiClient):
+    """Logs-focused API client."""
+
+    def list_log_files(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/logs/files")
+
+    def get_log_content(self, file_path: str) -> tuple[Any, str | None]:
+        data, request_id = self._request("GET", "/api/logs/content", params={"file": file_path})
+        return {"file": file_path, "content": data}, request_id
+
+
+class SystemApiClient(ApiClient):
+    """System-focused API client."""
+
+    def get_statistics(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/statistics")
+
+    def cleanup_old_data(self, *, days: int) -> tuple[Any, str | None]:
+        return self._request("POST", "/api/cleanup", params={"days": days})
+
+    def get_system_resources(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/system-resources")
+
+    def get_capabilities(self) -> tuple[Any, str | None]:
+        return self._request("GET", "/api/capabilities")

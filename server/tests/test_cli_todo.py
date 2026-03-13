@@ -359,6 +359,40 @@ class _StubSchedulerClient:
         return self.behavior("resume_all_jobs")
 
 
+class _StubLogsClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def list_log_files(self):
+        return self.behavior("list_log_files")
+
+    def get_log_content(self, file_path: str):
+        return self.behavior("get_log_content", file_path=file_path)
+
+
+class _StubSystemClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_statistics(self):
+        return self.behavior("get_statistics")
+
+    def cleanup_old_data(self, *, days: int):
+        return self.behavior("cleanup_old_data", days=days)
+
+    def get_system_resources(self):
+        return self.behavior("get_system_resources")
+
+    def get_capabilities(self):
+        return self.behavior("get_capabilities")
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -545,6 +579,22 @@ def test_scheduler_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Scheduler resource commands" in result.stdout
     assert "freetodo scheduler pause --id clean_data_job --json" in result.stdout
+
+
+def test_logs_help_defaults_to_english():
+    result = runner.invoke(app, ["logs", "--help"])
+
+    assert result.exit_code == 0
+    assert "Logs resource commands" in result.stdout
+    assert "freetodo logs content --file server/app.log --json" in result.stdout
+
+
+def test_system_help_defaults_to_english():
+    result = runner.invoke(app, ["system", "--help"])
+
+    assert result.exit_code == 0
+    assert "System resource commands" in result.stdout
+    assert "freetodo system cleanup --days 30 --dry-run --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -917,3 +967,46 @@ def test_scheduler_pause_all_dry_run():
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["meta"]["dry_run"] is True
+
+
+def test_logs_content_calls_client(monkeypatch):
+    def behavior(name, **kwargs):
+        assert name == "get_log_content"
+        assert kwargs["file_path"] == "server/app.log"
+        return {"file": "server/app.log", "content": "line1\nline2"}, "req-logs-content"
+
+    monkeypatch.setattr("cli.commands.logs.create_logs_client", lambda: _StubLogsClient(behavior))
+
+    result = runner.invoke(app, ["logs", "content", "--file", "server/app.log"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["file"] == "server/app.log"
+    assert "line1" in payload["data"]["content"]
+
+
+def test_system_statistics_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_statistics"
+        return {"overview": {"events": 10}}, "req-system-stats"
+
+    monkeypatch.setattr(
+        "cli.commands.system.create_system_client",
+        lambda: _StubSystemClient(behavior),
+    )
+
+    result = runner.invoke(app, ["system", "statistics"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["overview"]["events"] == 10
+    assert payload["meta"]["request_id"] == "req-system-stats"
+
+
+def test_system_cleanup_dry_run():
+    result = runner.invoke(app, ["system", "cleanup", "--days", "14", "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["days"] == 14

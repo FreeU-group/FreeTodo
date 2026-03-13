@@ -12,9 +12,11 @@ from cli.commands.audio import audio_app
 from cli.commands.automation import automation_app
 from cli.commands.event import event_app
 from cli.commands.journal import journal_app
+from cli.commands.logs import logs_app
 from cli.commands.memory import memory_app
 from cli.commands.scheduler import scheduler_app
 from cli.commands.screenshot import screenshot_app
+from cli.commands.system import system_app
 from cli.commands.todo import todo_app
 from cli.config import load_config
 from cli.errors import CliError
@@ -252,6 +254,44 @@ SCHEDULER_HELP_TEXT = {
     ),
 }
 
+LOGS_HELP_TEXT = {
+    "en": (
+        "Logs resource commands.\n\n"
+        "Use these commands to inspect backend log files and read recent log content.\n\n"
+        "Examples:\n"
+        "  freetodo logs files --json\n"
+        "  freetodo logs content --file server/app.log --json\n"
+    ),
+    "zh": (
+        "Logs 资源命令。\n\n"
+        "可以用这些命令查看后端日志文件，并读取最近的日志内容。\n\n"
+        "示例：\n"
+        "  freetodo logs files --json\n"
+        "  freetodo logs content --file server/app.log --json\n"
+    ),
+}
+
+SYSTEM_HELP_TEXT = {
+    "en": (
+        "System resource commands.\n\n"
+        "Use these commands to inspect backend capabilities and system state, and trigger cleanup operations.\n\n"
+        "Examples:\n"
+        "  freetodo system statistics --json\n"
+        "  freetodo system resources --json\n"
+        "  freetodo system capabilities --json\n"
+        "  freetodo system cleanup --days 30 --dry-run --json\n"
+    ),
+    "zh": (
+        "System 资源命令。\n\n"
+        "可以用这些命令查看后端能力和系统状态，并触发清理操作。\n\n"
+        "示例：\n"
+        "  freetodo system statistics --json\n"
+        "  freetodo system resources --json\n"
+        "  freetodo system capabilities --json\n"
+        "  freetodo system cleanup --days 30 --dry-run --json\n"
+    ),
+}
+
 
 def _merge_help(topic: str, language: HelpLanguage) -> str:
     help_map = {
@@ -265,6 +305,8 @@ def _merge_help(topic: str, language: HelpLanguage) -> str:
         "screenshot": SCREENSHOT_HELP_TEXT,
         "audio": AUDIO_HELP_TEXT,
         "scheduler": SCHEDULER_HELP_TEXT,
+        "logs": LOGS_HELP_TEXT,
+        "system": SYSTEM_HELP_TEXT,
     }
     if topic not in help_map:
         raise typer.BadParameter(f"Unsupported help topic: {topic}")
@@ -295,7 +337,7 @@ def render_help(
         "root",
         help=(
             "Help topic to render, currently: root, todo, journal, activity, event, "
-            "automation, memory, screenshot, audio, or scheduler."
+            "automation, memory, screenshot, audio, scheduler, logs, or system."
         ),
     ),
     lang: HelpLanguage = typer.Option(
@@ -364,3 +406,5 @@ app.add_typer(memory_app, name="memory")
 app.add_typer(screenshot_app, name="screenshot")
 app.add_typer(audio_app, name="audio")
 app.add_typer(scheduler_app, name="scheduler")
+app.add_typer(logs_app, name="logs")
+app.add_typer(system_app, name="system")
