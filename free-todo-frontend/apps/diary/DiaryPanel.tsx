@@ -354,11 +354,18 @@ export function DiaryPanel() {
 		setActiveTab("original");
 	};
 	const handleGenerateAiClick = async () => {
-		if (!draft.id) return;
 		setActiveTab("ai");
-		// 并发触发：AI 文字描述 + 插画生成
-		await Promise.allSettled([
-			runAiGeneration(draft.id).catch(() => setAutoLinkMessage(t("generateFailed"))),
+		const tasks: Promise<unknown>[] = [];
+
+		// AI 文字生成需要 journal ID
+		if (draft.id) {
+			tasks.push(
+				runAiGeneration(draft.id).catch(() => setAutoLinkMessage(t("generateFailed"))),
+			);
+		}
+
+		// 插画生成不需要 journal ID，直接基于 L2 事件流
+		tasks.push(
 			(async () => {
 				setIllustrationGenerating(true);
 				try {
@@ -371,7 +378,9 @@ export function DiaryPanel() {
 					setIllustrationGenerating(false);
 				}
 			})(),
-		]);
+		);
+
+		await Promise.allSettled(tasks);
 	};
 	const handleAutoLinkClick = async () => {
 		if (!draft.id || isAutoLinking) return;

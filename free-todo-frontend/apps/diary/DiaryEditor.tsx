@@ -58,7 +58,7 @@ export function DiaryEditor({
 						variant="outline"
 						size="sm"
 						onClick={onGenerateAi}
-						disabled={!hasJournalId || isGenerating}
+						disabled={isGenerating}
 						className="gap-1.5"
 					>
 						{isGenerating ? (
