@@ -530,6 +530,52 @@ class _StubPluginsClient:
         return self.behavior("uninstall_media_crawler")
 
 
+class _StubConfigClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_config(self):
+        return self.behavior("get_config")
+
+    def get_llm_status(self):
+        return self.behavior("get_llm_status")
+
+    def test_llm_config(self, payload):
+        return self.behavior("test_llm_config", payload=payload)
+
+    def test_tavily_config(self, payload):
+        return self.behavior("test_tavily_config", payload=payload)
+
+    def test_asr_config(self, payload):
+        return self.behavior("test_asr_config", payload=payload)
+
+    def save_config(self, payload):
+        return self.behavior("save_config", payload=payload)
+
+    def save_and_init_llm(self, payload):
+        return self.behavior("save_and_init_llm", payload=payload)
+
+
+class _StubHealthClient:
+    def __init__(self, behavior):
+        self.behavior = behavior
+
+    def close(self) -> None:
+        return None
+
+    def get_root(self):
+        return self.behavior("get_root")
+
+    def get_health(self):
+        return self.behavior("get_health")
+
+    def get_llm_health(self):
+        return self.behavior("get_llm_health")
+
+
 def test_todo_list_outputs_json(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "list_todos"
@@ -796,6 +842,22 @@ def test_plugins_help_defaults_to_english():
     assert result.exit_code == 0
     assert "Plugins resource commands" in result.stdout
     assert "freetodo plugins media-crawler status --json" in result.stdout
+
+
+def test_config_help_defaults_to_english():
+    result = runner.invoke(app, ["config", "--help"])
+
+    assert result.exit_code == 0
+    assert "Config resource commands" in result.stdout
+    assert "freetodo config save --input config.json --dry-run --json" in result.stdout
+
+
+def test_health_help_defaults_to_english():
+    result = runner.invoke(app, ["health", "--help"])
+
+    assert result.exit_code == 0
+    assert "Health resource commands" in result.stdout
+    assert "freetodo health status --json" in result.stdout
 
 
 def test_todo_schema_outputs_example():
@@ -1514,3 +1576,73 @@ def test_plugins_media_crawler_uninstall_dry_run():
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["meta"]["dry_run"] is True
+
+
+def test_config_get_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_config"
+        return {"success": True, "config": {"llmModel": "gpt-4o"}}, "req-config-get"
+
+    monkeypatch.setattr(
+        "cli.commands.config.create_config_client",
+        lambda: _StubConfigClient(behavior),
+    )
+
+    result = runner.invoke(app, ["config", "get"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["config"]["llmModel"] == "gpt-4o"
+
+
+def test_config_save_dry_run(tmp_path):
+    input_file = tmp_path / "config.json"
+    input_file.write_text(json.dumps({"llmModel": "gpt-4o"}), encoding="utf-8")
+
+    result = runner.invoke(app, ["config", "save", "--input", str(input_file), "--dry-run"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["meta"]["dry_run"] is True
+    assert payload["data"]["payload"]["llmModel"] == "gpt-4o"
+
+
+def test_config_test_llm_calls_client(monkeypatch, tmp_path):
+    input_file = tmp_path / "llm.json"
+    input_file.write_text(
+        json.dumps({"llmApiKey": "sk-test", "llmBaseUrl": "https://example.com"}),
+        encoding="utf-8",
+    )
+
+    def behavior(name, **kwargs):
+        assert name == "test_llm_config"
+        assert "llmApiKey" in kwargs["payload"]
+        return {"success": True}, "req-test-llm"
+
+    monkeypatch.setattr(
+        "cli.commands.config.create_config_client",
+        lambda: _StubConfigClient(behavior),
+    )
+
+    result = runner.invoke(app, ["config", "test-llm", "--input", str(input_file)])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["success"] is True
+
+
+def test_health_status_calls_client(monkeypatch):
+    def behavior(name, **_ignored):
+        assert name == "get_health"
+        return {"status": "healthy"}, "req-health"
+
+    monkeypatch.setattr(
+        "cli.commands.health.create_health_client",
+        lambda: _StubHealthClient(behavior),
+    )
+
+    result = runner.invoke(app, ["health", "status"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["data"]["status"] == "healthy"
