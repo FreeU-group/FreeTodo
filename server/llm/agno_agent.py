@@ -329,7 +329,7 @@ class AgnoAgentService:
         if not user_id:
             return None
 
-        learning = self.agent.get_learning_machine()
+        learning = self._get_learning_machine()
         if not learning:
             return None
 
@@ -340,6 +340,24 @@ class AgnoAgentService:
         memories = safe_store_get(memory_store, user_id)
 
         return normalize_profile(profile), normalize_memories(memories)
+
+    def _get_learning_machine(self) -> LearningMachine | None:
+        """获取 LearningMachine（兼容不同 Agno 版本的 API）"""
+        get_learning_machine = getattr(self.agent, "get_learning_machine", None)
+        if callable(get_learning_machine):
+            learning = get_learning_machine()
+            if isinstance(learning, LearningMachine):
+                return learning
+
+        learning_machine = getattr(self.agent, "learning_machine", None)
+        if isinstance(learning_machine, LearningMachine):
+            return learning_machine
+
+        learning_attr = getattr(self.agent, "learning", None)
+        if isinstance(learning_attr, LearningMachine):
+            return learning_attr
+
+        return None
 
     def _build_memory_event(
         self,
