@@ -269,7 +269,7 @@ export const useSessionManager = ({
 			content: item.content,
 			toolCallSteps: parseToolEvents(item.extraData),
 			attachments: parseAttachments(item.extraData),
-		));
+		}));
 		setMessages(mapped);
 		isLoadingSessionRef.current = false;
 	}, [
