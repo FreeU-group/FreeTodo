@@ -157,8 +157,8 @@ Services:
   Backend:      ${BACKEND_LOCAL_URL}
   Frontend:     ${FRONTEND_LOCAL_URL}
 
-Sensor startup command:
-  python -m lifetrace.sensor --center-url ${BACKEND_LOCAL_URL}
+Sensor startup command (run from client/ directory):
+  cd client && uv run python -m sensor --center-url ${BACKEND_LOCAL_URL}
 
 Logs: ${log_dir}
 PIDs: ${log_dir}/*.pid

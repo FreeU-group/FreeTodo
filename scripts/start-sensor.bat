@@ -67,12 +67,13 @@ if "%HEALTH_CODE%"=="200" (
 )
 echo.
 
-REM Build sensor command
-set "SENSOR_CMD=uv run python -m lifetrace.sensor --center-url %CENTER_URL% --node-id %NODE_ID%"
+REM Build sensor command (runs from client/ directory which is a standalone uv project)
+set "SENSOR_DIR=%REPO_ROOT%\client"
+set "SENSOR_CMD=uv run python -m sensor --center-url %CENTER_URL% --node-id %NODE_ID%"
 
 REM Start perception daemon
 echo [1/2] Starting perception daemon...
-start "LifeTrace Sensor" cmd /k "pushd %REPO_ROOT% && %SENSOR_CMD%"
+start "LifeTrace Sensor" cmd /k "pushd %SENSOR_DIR% && %SENSOR_CMD%"
 
 REM Open browser
 echo [2/2] Opening browser...

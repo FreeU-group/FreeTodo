@@ -7,8 +7,8 @@ The daemon periodically polls the Center for configuration updates
 (screenshot/proactive-OCR enable/disable, intervals, blacklist) so the
 user can control it from the frontend settings panel.
 
-Usage:
-    python -m sensor --center-url https://xxx.cpolar.cn --node-id MY-PC
+Usage (run from client/ directory):
+    uv run python -m sensor --center-url https://xxx.cpolar.cn --node-id MY-PC
 """
 
 from __future__ import annotations

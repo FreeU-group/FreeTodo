@@ -148,8 +148,8 @@ echo IMPORTANT: Copy the TCP tunnel address (e.g. tcp://1.tcp.cpolar.cn:20xxx)
 echo            and update phone/lib/env/lifetrace_env.dart with:
 echo            http://HOST:PORT/
 echo.
-echo Sensor startup command:
-echo   python -m lifetrace.sensor --center-url %BACKEND_PUBLIC_URL%
+echo Sensor startup command (run from client/ directory):
+echo   cd client ^&^& uv run python -m sensor --center-url %BACKEND_PUBLIC_URL%
 echo.
 echo Tip: close each window to stop its service.
 echo.
