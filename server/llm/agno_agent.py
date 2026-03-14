@@ -160,13 +160,12 @@ def _build_instructions(
         instructions 列表或 None
     """
     date_instruction = _get_current_date_instruction(lang)
+    _ = (use_all_lifetrace_tools, has_external_tools)
 
-    if use_all_lifetrace_tools and not has_external_tools:
-        # Load full instructions from agno_tools/{lang}/instructions.yaml
-        instructions = get_message(lang, "instructions")
-        if instructions and instructions != "[instructions]":
-            return [date_instruction, instructions]
-        return [date_instruction]
+    # Load instructions from agno_tools/{lang}/instructions.yaml (if available)
+    instructions = get_message(lang, "instructions")
+    if instructions and instructions != "[instructions]":
+        return [date_instruction, instructions]
 
     # 简化的 instructions
     if lang == "zh":
