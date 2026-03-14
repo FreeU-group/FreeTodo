@@ -568,6 +568,13 @@
 		"mentionFileOrTodo": "Mention a file or todo",
 		"send": "Send",
 		"stop": "Stop",
+		"attachments": {
+			"add": "Add attachment",
+			"pending": "Pending attachments ({count})",
+			"remove": "Remove",
+			"fileTooLarge": "File exceeds {size} limit",
+			"tooMany": "Up to {count} attachments"
+		},
 		"linkedTodos": "Linked todos ({count})",
 		"linkedTodosEn": "Linked todos ({count})",
 		"collapse": "Collapse",
@@ -1423,3 +1430,4 @@
 		"restartTourDescription": "Click this button to start or restart the onboarding tour anytime"
 	}
 }
+

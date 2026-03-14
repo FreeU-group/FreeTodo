@@ -76,6 +76,8 @@ export interface UseSendMessageParams {
 	setIsStreaming: React.Dispatch<React.SetStateAction<boolean>>;
 	/** 设置错误状态 */
 	setError: React.Dispatch<React.SetStateAction<string | null>>;
+	/** 清空待发送附件 */
+	clearPendingAttachments?: () => void;
 }
 
 /**
@@ -83,7 +85,7 @@ export interface UseSendMessageParams {
  */
 export interface SendMessageReturn {
 	/** 发送消息 */
-	sendMessage: (text: string, clearInput?: boolean) => Promise<void>;
+	sendMessage: (text: string, clearInput?: boolean, attachments?: File[]) => Promise<void>;
 }
 
 /**
@@ -107,6 +109,7 @@ export const useSendMessage = ({
 	setInputValue,
 	setIsStreaming,
 	setError,
+	clearPendingAttachments,
 }: UseSendMessageParams): SendMessageReturn => {
 	const todoRefreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
@@ -138,7 +141,7 @@ export const useSendMessage = ({
 	 * @param clearInput - 是否清空输入框
 	 */
 	const sendMessage = useCallback(
-		async (text: string, clearInput = false) => {
+		async (text: string, clearInput = false, attachments?: File[]) => {
 			const trimmedText = text.trim();
 			if (!trimmedText) return;
 
@@ -297,6 +300,7 @@ export const useSendMessage = ({
 						mode: modeForBackend,
 						selectedTools: selectedAgnoTools,
 						externalTools: selectedExternalTools,
+						attachments,
 					},
 					// onChunk 回调
 					(chunk) => {
@@ -421,6 +425,11 @@ export const useSendMessage = ({
 							}
 						}
 					},
+					() => {
+						if (attachments?.length) {
+							clearPendingAttachments?.();
+						}
+					}
 				);
 
 				// 流结束后，强制完成所有还在运行中的工具调用步骤（兜底清理）
@@ -480,24 +489,44 @@ export const useSendMessage = ({
 		effectiveTodos,
 		hasSelection,
 		locale,
-			previewFileTools,
+		previewFileTools,
 		queryClient,
 		scheduleTodosRefresh,
 		selectedAgnoTools,
 		selectedExternalTools,
 		sessionCache,
 		setConversationId,
-			setError,
-			setInputValue,
-			setIsStreaming,
-			setMessages,
-			streamController,
-			t,
-			tCommon,
-			todos,
-			toolCallTracker,
-		],
+		setError,
+		setInputValue,
+		setIsStreaming,
+		setMessages,
+		streamController,
+		t,
+		tCommon,
+		todos,
+		toolCallTracker,
+		clearPendingAttachments,
+	],
 	);
 
 	return { sendMessage };
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
