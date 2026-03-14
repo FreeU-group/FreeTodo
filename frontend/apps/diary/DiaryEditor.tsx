@@ -18,12 +18,10 @@ interface DiaryEditorProps {
 	onTitleBlur: (value: string) => void;
 	onUserNotesChange: (value: string) => void;
 	onUserNotesBlur: (value: string) => void;
-	onGenerateObjective: () => void;
 	onGenerateAi: () => void;
 	onAutoLink: () => void;
 	onCopyToOriginal: (content: string) => void;
 	autoLinkMessage: string | null;
-	isGeneratingObjective: boolean;
 	isGeneratingAi: boolean;
 	isAutoLinking: boolean;
 	hasJournalId: boolean;
@@ -41,12 +39,10 @@ export function DiaryEditor({
 	onTitleBlur,
 	onUserNotesChange,
 	onUserNotesBlur,
-	onGenerateObjective,
 	onGenerateAi,
 	onAutoLink,
 	onCopyToOriginal,
 	autoLinkMessage,
-	isGeneratingObjective,
 	isGeneratingAi,
 	isAutoLinking,
 	hasJournalId,
@@ -70,16 +66,6 @@ export function DiaryEditor({
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<DiaryTabs activeTab={activeTab} onChange={onTabChange} />
 				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={onGenerateObjective}
-						disabled={!hasJournalId || isGeneratingObjective}
-					>
-						{isGeneratingObjective
-							? t("generatingObjective")
-							: t("generateObjective")}
-					</Button>
 					<Button
 						variant="outline"
 						size="sm"
@@ -128,27 +114,23 @@ export function DiaryEditor({
 						/>
 					</div>
 				)}
-				{activeTab === "objective" && (
-					<div className="flex min-h-0 flex-1 flex-col gap-2">
-						<textarea
-							value={draft.contentObjective}
-							readOnly
-							placeholder={t("objectivePlaceholder")}
-							className="min-h-[240px] flex-1 rounded-xl border border-border bg-muted/20 p-4 text-sm leading-relaxed"
-						/>
-						{draft.contentObjective && (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => onCopyToOriginal(draft.contentObjective)}
-							>
-								{t("copyToOriginal")}
-							</Button>
-						)}
-					</div>
-				)}
 				{activeTab === "ai" && (
 					<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+						{draft.contentAi && (
+							<div className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/20 px-4 py-4">
+								<p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+									{draft.contentAi}
+								</p>
+								<Button
+									variant="outline"
+									size="sm"
+									className="self-start"
+									onClick={() => onCopyToOriginal(draft.contentAi)}
+								>
+									{t("copyToOriginal")}
+								</Button>
+							</div>
+						)}
 						{illustrationLoading && illustrationUrls.length === 0 ? (
 							<div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-4 py-12 text-center">
 								<Loader2 className="h-8 w-8 animate-spin text-primary" />
