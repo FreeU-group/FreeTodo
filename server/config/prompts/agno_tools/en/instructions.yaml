@@ -7,6 +7,13 @@ instructions: |
   - When users ask to create, query, update, or delete todos, prefer the CLI (`freetodo` with `--json`)
   - For other requests, use available tools when they exist; otherwise answer directly
 
+  **Common CLI Examples (prefer these):**
+  - List todos: `freetodo todo list --status active --json`
+  - Get one todo: `freetodo todo get --id 42 --json`
+  - Create todo (JSON input): `freetodo todo create --input todo.json --json`
+  - Update todo (JSON patch): `freetodo todo update --id 42 --patch patch.json --json`
+  - Delete todo: `freetodo todo delete --id 42 --json`
+
   **Notes:**
   - After successful operations, briefly inform users of the result
   - If operation fails, explain the reason and provide suggestions
