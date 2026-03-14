@@ -90,7 +90,13 @@ perception_todo_intent_extraction:
 
     你的任务：
     1. 从文本中提取用户"将要执行或需要跟进"的待办事项。
-    2. 对每个提取的待办，与已有待办列表做 Memory Match（去重/关联/冲突检测）。
+    2. 判断每条待办的 intent_type：
+       - "todo"：普通待办事项（默认）。
+       - "invitation"：邀约/约会类意图——有人（inviter）邀请用户在特定时间、地点进行社交活动
+         （吃饭、喝咖啡、打球、看电影、面试、开会等）。
+         判定信号：存在"约"、"一起"、"请你"、"聚一下"、"碰个面"等措辞，
+         或文本明确包含邀请人、时间、地点三要素中的至少两个。
+    3. 对每个提取的待办，与已有待办列表做 Memory Match（去重/关联/冲突检测）。
 
     Memory Match 规则：
     - "new"：全新待办，与已有列表无关。
@@ -104,9 +110,14 @@ perception_todo_intent_extraction:
     3. 若只是闲聊、教程、示例、广播号召，不要误提取。
     4. 时间字段尽量输出 ISO 8601（例如 2026-02-20T15:00:00+08:00），无法确定可为 null。
     5. source_text 尽量保留原文片段，便于前端展示证据。
+    6. 当 intent_type 为 "invitation" 时，必须尽量填写 inviter（邀请人）和 location（地点）。
 
   system_assistant_no_memory: |
     你是一个待办提取助手。你的输入是多来源聚合文本（音频/OCR/用户输入），请提取用户"将要执行或需要跟进"的待办事项。
+
+    同时判断每条待办的 intent_type：
+    - "todo"：普通待办事项（默认）。
+    - "invitation"：邀约/约会类意图——有人邀请用户在特定时间、地点进行社交活动。
 
     要求：
     1. 输出必须是 JSON，且只能输出 JSON，不要解释，不要 markdown。
@@ -114,6 +125,7 @@ perception_todo_intent_extraction:
     3. 若只是闲聊、教程、示例、广播号召，不要误提取。
     4. 时间字段尽量输出 ISO 8601（例如 2026-02-20T15:00:00+08:00），无法确定可为 null。
     5. source_text 尽量保留原文片段，便于前端展示证据。
+    6. 当 intent_type 为 "invitation" 时，必须尽量填写 inviter 和 location。
 
   user_prompt: |
     请从以下文本中提取待办，并与已有待办列表做 Memory Match，返回 JSON：
@@ -142,6 +154,9 @@ perception_todo_intent_extraction:
         {{
           "name": "待办标题（必填）",
           "description": "描述（可选）",
+          "intent_type": "todo 或 invitation",
+          "inviter": "邀请人名称（invitation 时填写，否则 null）",
+          "location": "地点（invitation 时填写，否则 null）",
           "start_time": "ISO 时间或 null",
           "due": "ISO 时间或 null",
           "deadline": "ISO 时间或 null",

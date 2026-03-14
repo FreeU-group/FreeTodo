@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from llm.llm_client import LLMClient
 from schemas.perception_todo_intent import (
     ExtractedTodoCandidate,
+    IntentType,
     MemoryMatch,
     MemoryMatchAction,
 )
@@ -158,6 +159,18 @@ class TodoIntentExtractor:
             name = str(item.get("name") or item.get("title") or "").strip()
             if not name:
                 continue
+            intent_type_raw = str(item.get("intent_type") or "todo").strip().lower()
+            try:
+                intent_type = IntentType(intent_type_raw)
+            except ValueError:
+                intent_type = IntentType.TODO
+
+            inviter_raw = item.get("inviter")
+            inviter = str(inviter_raw).strip() if inviter_raw else None
+
+            location_raw = item.get("location")
+            location = str(location_raw).strip() if location_raw else None
+
             out.append(
                 ExtractedTodoCandidate(
                     name=name,
@@ -177,6 +190,9 @@ class TodoIntentExtractor:
                     if item.get("source_text") is not None
                     else None,
                     memory_match=self._parse_memory_match(item.get("memory_match")),
+                    intent_type=intent_type,
+                    inviter=inviter,
+                    location=location,
                 )
             )
         return out

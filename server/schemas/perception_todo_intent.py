@@ -58,6 +58,13 @@ class IntentGateDecision(BaseModel):
     raw: dict[str, Any] | None = None
 
 
+class IntentType(str, Enum):
+    """High-level intent category detected by the Extractor."""
+
+    TODO = "todo"
+    INVITATION = "invitation"
+
+
 class ExtractedTodoCandidate(BaseModel):
     name: str
     description: str | None = None
@@ -71,6 +78,9 @@ class ExtractedTodoCandidate(BaseModel):
     source_text: str | None = None
     source_event_ids: list[str] = Field(default_factory=list)
     memory_match: MemoryMatch = Field(default_factory=MemoryMatch)
+    intent_type: IntentType = IntentType.TODO
+    inviter: str | None = None
+    location: str | None = None
 
 
 class TodoIntegrationResult(BaseModel):

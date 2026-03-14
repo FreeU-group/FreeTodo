@@ -4,11 +4,13 @@ import asyncio
 import hashlib
 import re
 from collections import OrderedDict
+from uuid import uuid4
 
 from schemas.perception_todo_intent import (
     ExtractedTodoCandidate,
     IntegrationAction,
     IntentGateDecision,
+    IntentType,
     MemoryMatchAction,
     TodoIntegrationResult,
     TodoIntentContext,
@@ -21,12 +23,19 @@ logger = get_logger()
 _NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
 _MULTI_SPACE_RE = re.compile(r"\s+")
 
-_AGNO_TOOLS_FOR_INTENT = [
+_AGNO_TOOLS_FOR_TODO = [
     "create_todo",
     "list_todos",
     "search_todos",
     "check_schedule_conflict",
     "parse_time",
+]
+
+_AGNO_TOOLS_FOR_INVITATION = [
+    *_AGNO_TOOLS_FOR_TODO,
+    "find_free_slots",
+    "search_nearby_places",
+    "draft_reply_message",
 ]
 
 
@@ -168,24 +177,77 @@ def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
 
 def _build_agno_message(candidate: ExtractedTodoCandidate) -> str:
     """Build a message describing the detected intent for Agno to act on."""
+    if candidate.intent_type == IntentType.INVITATION:
+        return _build_invitation_message(candidate)
     lines = ["[自动意图识别] 系统从用户的感知流中检测到以下待办意图："]
     lines.extend(_candidate_fields(candidate))
     lines.append(_memory_match_instruction(candidate))
     return "\n".join(lines)
 
 
-def _run_agno_sync(message: str) -> str:
+def _build_invitation_message(candidate: ExtractedTodoCandidate) -> str:
+    """Build a scheduling-coordination prompt for invitation intents."""
+    lines = [
+        "[自动意图识别 — 邀约] 系统从用户的感知流中检测到一条邀约：",
+        "",
+    ]
+    lines.extend(_candidate_fields(candidate))
+
+    if candidate.inviter:
+        lines.append(f"邀请人：{candidate.inviter}")
+    if candidate.location:
+        lines.append(f"地点：{candidate.location}")
+
+    lines.append("")
+    lines.append("请按以下步骤处理：")
+    lines.append("1. 调用 check_schedule_conflict 检查用户该时段是否有冲突。")
+    lines.append("2. 如果有冲突，调用 find_free_slots 找出当天的空闲时段。")
+    if candidate.location:
+        lines.append(f"3. 调用 search_nearby_places 搜索「{candidate.location}」附近的推荐地点。")
+    else:
+        lines.append("3. 如果邀约涉及餐饮，调用 search_nearby_places 搜索附近餐厅推荐。")
+    lines.append("4. 综合以上信息，调用 draft_reply_message 为用户草拟一条得体的回复消息。")
+    lines.append("5. 如果没有冲突，也请帮用户创建对应的待办事项。")
+    lines.append("")
+    lines.append("请用结构化的方式汇总所有分析结果。")
+    return "\n".join(lines)
+
+
+def _select_tools(candidate: ExtractedTodoCandidate) -> list[str]:
+    if candidate.intent_type == IntentType.INVITATION:
+        return list(_AGNO_TOOLS_FOR_INVITATION)
+    return list(_AGNO_TOOLS_FOR_TODO)
+
+
+def _run_agno_sync(message: str, tools: list[str]) -> str:
     """Run Agno agent synchronously and collect the full text response."""
     from llm.agno_agent import AgnoAgentService  # noqa: PLC0415
 
     service = AgnoAgentService(
         lang="zh",
-        selected_tools=list(_AGNO_TOOLS_FOR_INTENT),
+        selected_tools=tools,
     )
     response_parts: list[str] = []
     for chunk in service.stream_response(message, include_tool_events=False):
         response_parts.append(chunk)
     return "".join(response_parts)
+
+
+def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None:
+    """Write Agno's response into the notification storage for frontend display."""
+    from storage.notification_storage import add_notification  # noqa: PLC0415
+
+    is_invitation = candidate.intent_type == IntentType.INVITATION
+    title = f"📨 邀约助手：{candidate.name}" if is_invitation else f"✅ 自动待办：{candidate.name}"
+    notification_id = f"intent_{uuid4().hex[:12]}"
+
+    add_notification(
+        notification_id=notification_id,
+        title=title,
+        content=response,
+        timestamp=get_utc_now(),
+    )
+    logger.info("Pushed notification %s for intent %r", notification_id, candidate.name)
 
 
 async def _dispatch_to_agno(
@@ -195,13 +257,16 @@ async def _dispatch_to_agno(
     """Dispatch an extracted intent to Agno agent for execution."""
     try:
         message = _build_agno_message(candidate)
-        response = await asyncio.to_thread(_run_agno_sync, message)
+        tools = _select_tools(candidate)
+        response = await asyncio.to_thread(_run_agno_sync, message, tools)
         logger.info(
-            "Agno handled intent %r (action=%s): %s",
+            "Agno handled intent %r (type=%s, action=%s): %s",
             candidate.name,
+            candidate.intent_type.value,
             candidate.memory_match.action.value,
             response[:300],
         )
+        _push_notification(candidate, response)
         return TodoIntegrationResult(
             action=IntegrationAction.CREATED,
             dedupe_key=dedupe_key,
