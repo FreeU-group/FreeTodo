@@ -5,7 +5,10 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from services.diary_illustration_service import get_diary_illustration_service
+from services.diary_illustration_service import (
+    ensure_diary_illustration_service,
+    get_diary_illustration_service,
+)
 from util.time_utils import local_today_str
 
 router = APIRouter(prefix="/api/diary-illustration", tags=["diary-illustration"])
@@ -13,6 +16,8 @@ router = APIRouter(prefix="/api/diary-illustration", tags=["diary-illustration"]
 
 def _require_service():
     service = get_diary_illustration_service()
+    if service is None:
+        service = ensure_diary_illustration_service()
     if service is None:
         raise HTTPException(
             status_code=503,

@@ -87,6 +87,22 @@ audio:
 # Tavily 搜索（可选）
 tavily:
   api_key: your-tavily-api-key
+
+# Gemini 日记插画（可选，用于生成日记漫画插画）
+banna2:
+  api_key: your-gemini-api-key
+```
+
+也可以通过 `server/.env` 环境变量配置（优先级高于 `config.yaml`）：
+
+```bash
+cp server/.env.example server/.env
+```
+
+编辑 `server/.env`，按需填入：
+
+```bash
+LIFETRACE_BANNA2__API_KEY=your-gemini-api-key
 ```
 
 > **注意**：`llm.api_key` 为必填项，未配置时 AI 相关功能不可用。

@@ -83,6 +83,9 @@ LIFETRACE_AUDIO__ASR__API_KEY=your-asr-api-key
 
 # Tavily 搜索（可选）
 LIFETRACE_TAVILY__API_KEY=your-tavily-api-key
+
+# Gemini 日记插画（可选，用于生成日记漫画插画）
+LIFETRACE_BANNA2__API_KEY=your-gemini-api-key
 ```
 
 > **注意**：`LIFETRACE_LLM__API_KEY` 为必填项，未配置时 AI 相关功能不可用。
@@ -279,6 +282,7 @@ Server 容器将 `./volume/data` 挂载到容器内的 `/app/data`，该目录�
 |------|------|
 | `LIFETRACE_AUDIO__ASR__API_KEY` | 阿里云语音识别 API Key |
 | `LIFETRACE_TAVILY__API_KEY` | Tavily 搜索 API Key |
+| `LIFETRACE_BANNA2__API_KEY` | Google Gemini API Key（日记插画生成） |
 
 ## 九、常见问题
 
