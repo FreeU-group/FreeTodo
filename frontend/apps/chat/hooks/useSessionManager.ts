@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { SessionCacheReturn } from "@/apps/chat/hooks/useSessionCache";
 import type { StreamControllerReturn } from "@/apps/chat/hooks/useStreamController";
-import type { ChatAttachment, ChatMessage, ToolCallStep } from "@/apps/chat/types";
+import type {
+	ChatAttachment,
+	ChatMessage,
+	ToolCallAnchor,
+	ToolCallStep,
+} from "@/apps/chat/types";
 import { createId } from "@/apps/chat/utils/id";
 import { snakeToCamel } from "@/lib/generated/case-transform";
 import type { ChatHistoryItem } from "@/lib/api";
@@ -13,6 +18,7 @@ type ToolEvent = {
 	tool_args?: Record<string, unknown>;
 	result_preview?: string;
 	error?: boolean;
+	offset?: number;
 };
 
 /**
@@ -57,7 +63,9 @@ export interface SessionManagerReturn {
 	handleLoadSession: (sessionId: string) => Promise<void>;
 }
 
-const parseToolEvents = (extraData?: string): ToolCallStep[] | undefined => {
+const parseToolEvents = (
+	extraData?: string,
+): { steps?: ToolCallStep[]; anchors?: ToolCallAnchor[] } | undefined => {
 	if (!extraData) return undefined;
 	try {
 		const parsed = JSON.parse(extraData) as { tool_events?: ToolEvent[] };
@@ -65,15 +73,25 @@ const parseToolEvents = (extraData?: string): ToolCallStep[] | undefined => {
 		if (!Array.isArray(events) || events.length === 0) return undefined;
 
 		const steps: ToolCallStep[] = [];
+		const anchors: ToolCallAnchor[] = [];
 		for (const event of events) {
 			if (event.type === "tool_call_start" && event.tool_name) {
+				const stepId = `${event.tool_name}-${steps.length}`;
 				steps.push({
-					id: `${event.tool_name}-${steps.length}`,
+					id: stepId,
 					toolName: event.tool_name,
 					toolArgs: event.tool_args,
 					status: "running",
-					startTime: Date.now(),
+					startTime: 0,
 				});
+				if (typeof event.offset === "number" && Number.isFinite(event.offset)) {
+					anchors.push({
+						stepId,
+						toolName: event.tool_name,
+						toolArgs: event.tool_args,
+						offset: Math.max(0, event.offset),
+					});
+				}
 				continue;
 			}
 
@@ -81,9 +99,10 @@ const parseToolEvents = (extraData?: string): ToolCallStep[] | undefined => {
 				const idx = [...steps]
 					.map((step, index) => ({ step, index }))
 					.reverse()
-					.find((item) =>
-						item.step.toolName === event.tool_name &&
-						item.step.status === "running",
+					.find(
+						(item) =>
+							item.step.toolName === event.tool_name &&
+							item.step.status === "running",
 					)?.index;
 
 				if (idx !== undefined) {
@@ -91,13 +110,16 @@ const parseToolEvents = (extraData?: string): ToolCallStep[] | undefined => {
 						...steps[idx],
 						status: event.error ? "error" : "completed",
 						resultPreview: event.result_preview,
-						endTime: Date.now(),
+						endTime: 0,
 					};
 				}
 			}
 		}
 
-		return steps.length > 0 ? steps : undefined;
+		return {
+			steps: steps.length > 0 ? steps : undefined,
+			anchors: anchors.length > 0 ? anchors : undefined,
+		};
 	} catch (error) {
 		console.warn("Failed to parse tool events from history:", error);
 		return undefined;
@@ -263,13 +285,17 @@ export const useSessionManager = ({
 			prevConversationIdRef.current = conversationId;
 		}
 
-		const mapped = sessionHistory.map((item: ChatHistoryItem) => ({
-			id: createId(),
-			role: item.role,
-			content: item.content,
-			toolCallSteps: parseToolEvents(item.extraData),
-			attachments: parseAttachments(item.extraData),
-		}));
+		const mapped = sessionHistory.map((item: ChatHistoryItem) => {
+			const parsedTools = parseToolEvents(item.extraData);
+			return {
+				id: createId(),
+				role: item.role,
+				content: item.content,
+				toolCallSteps: parsedTools?.steps,
+				toolCallAnchors: parsedTools?.anchors,
+				attachments: parseAttachments(item.extraData),
+			};
+		});
 		setMessages(mapped);
 		isLoadingSessionRef.current = false;
 	}, [

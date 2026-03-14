@@ -43,21 +43,21 @@ export function createMarkdownComponents(
 				{children}
 			</h3>
 		),
-		p: ({ children }) => <p className="my-1.5 leading-relaxed">{children}</p>,
+		p: ({ children }) => <p className="my-1.5 leading-relaxed break-words">{children}</p>,
 		ul: ({ children }) => (
 			<ul className="my-2 list-disc pl-5 space-y-0.5">{children}</ul>
 		),
 		ol: ({ children }) => (
 			<ol className="my-2 list-decimal pl-5 space-y-0.5">{children}</ol>
 		),
-		li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+		li: ({ children }) => <li className="leading-relaxed break-words">{children}</li>,
 		strong: ({ children }) => (
 			<strong className="font-semibold">{children}</strong>
 		),
 		code: ({ children }) => (
 			<code
 				className={cn(
-					"px-1.5 py-0.5 rounded text-xs font-mono",
+					"px-1.5 py-0.5 rounded text-xs font-mono break-all",
 					isAssistant
 						? "bg-background text-foreground"
 						: "bg-primary-foreground/20 text-primary-foreground",
@@ -69,7 +69,7 @@ export function createMarkdownComponents(
 		pre: ({ children }) => (
 			<pre
 				className={cn(
-					"rounded p-2 overflow-x-auto my-2 text-xs",
+					"rounded p-2 overflow-x-auto my-2 text-xs max-w-full",
 					isAssistant
 						? "bg-background border border-border"
 						: "bg-primary-foreground/20",
@@ -127,7 +127,7 @@ export function createMarkdownComponents(
 					className={cn(
 						isSourceLink
 							? "text-primary font-medium hover:text-primary/80 no-underline"
-							: "underline underline-offset-2",
+							: "underline underline-offset-2 break-all",
 						!isSourceLink && isAssistant
 							? "hover:opacity-80"
 							: "hover:opacity-90",

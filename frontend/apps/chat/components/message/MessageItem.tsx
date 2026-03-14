@@ -77,12 +77,12 @@ export function MessageItem({
 				message.role === "assistant" ? "items-start" : "items-end",
 			)}
 		>
-			<div className="max-w-[80%] flex flex-col">
+			<div className="max-w-[80%] min-w-0 flex flex-col">
 				<div
 					ref={handleMessageBoxRef}
 					role="group"
 					className={cn(
-						"relative rounded-2xl px-4 py-3 text-sm shadow-sm",
+						"relative max-w-full break-words rounded-2xl px-4 py-3 text-sm shadow-sm",
 						message.role === "assistant"
 							? "bg-muted/30 text-foreground"
 							: "bg-primary/10 dark:bg-primary/20 text-foreground",
@@ -99,7 +99,7 @@ export function MessageItem({
 					{/* <div className="mb-1 text-[11px] uppercase tracking-wide opacity-70">
 						{message.role === "assistant" ? t("assistant") : t("user")}
 					</div> */}
-					<div className="leading-relaxed relative">
+					<div className="leading-relaxed relative break-words min-w-0">
 						{/* Hover 时显示的菜单按钮 - 位于右下角 */}
 						{showMenu && hovered && isAssistantMessageWithContent && (
 							<button
