@@ -69,6 +69,36 @@ export type ParsedTodo = Pick<
 
 export type ParsedTodoTree = ParsedTodo & { subtasks?: ParsedTodoTree[] };
 
+export type AgnoAttachmentKind = "image" | "file";
+
+export type AgnoAttachment = {
+	id: string;
+	fileName: string;
+	filePath: string;
+	fileSize: number;
+	mimeType: string;
+	kind: AgnoAttachmentKind;
+	storageName: string;
+	downloadUrl: string;
+};
+
+export type AgnoAttachmentValidationErrorCode =
+	| "too_many"
+	| "too_large"
+	| "unsupported_type";
+
+export type AgnoAttachmentValidationError = {
+	code: AgnoAttachmentValidationErrorCode;
+	message: string;
+	file?: File;
+};
+
+export type AgnoAttachmentValidationResult = {
+	accepted: File[];
+	rejected: File[];
+	errors: AgnoAttachmentValidationError[];
+};
+
 // Edit mode content block with AI-recommended target todo
 export type EditContentBlock = {
 	id: string;
