@@ -35,9 +35,8 @@ import {
 	SettingsSearchAction,
 	SettingsSearchProvider,
 	SettingsSection,
-	TavilyConfigSection,
 	VersionInfoSection,
-} from "./components";
+} from "./components"; 
 import { useSettingsSearchMatchStats } from "./hooks/useSettingsSearchMatchStats";
 
 const SETTINGS_CATEGORY_IDS: SettingsCategoryId[] = [
@@ -154,10 +153,9 @@ export function SettingsPanel() {
 				return (
 					<>
 						<LlmConfigSection config={config} loading={loading} />
-						<TavilyConfigSection config={config} loading={loading} />
 						<GeminiConfigSection config={config} loading={loading} />
 					</>
-				);
+				); 
 			case "sensing":
 				return (
 					<>
