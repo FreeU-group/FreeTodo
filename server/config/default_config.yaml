@@ -191,6 +191,13 @@ agno:
     mode: always # always | agentic
     db_path: agno/learning.db # 相对 base_dir 的学习数据库路径
     add_history_to_context: false # 是否使用 Agno 自带历史注入
+  tracing:
+    enabled: false # 是否启用 Agno Tracing（用于 AgentOS 调试）
+    db_path: agno/traces.db # 相对 base_dir 的 Tracing 数据库路径（建议独立 DB）
+    use_setup_tracing: false # 是否调用 Agno setup_tracing 进行更细粒度配置
+    batch_processing: true # setup_tracing 批处理开关
+    max_queue_size: 2048 # setup_tracing 队列最大长度
+    schedule_delay_millis: 3000 # setup_tracing 批处理调度间隔（毫秒）
   agent_os:
     enabled: true # 是否启用 AgentOS 入口
     host: 127.0.0.1 # AgentOS 监听地址

@@ -125,6 +125,12 @@ settings = Dynaconf(
         Validator("agno.learning.mode", default="always"),
         Validator("agno.learning.db_path", default="agno/learning.db"),
         Validator("agno.learning.add_history_to_context", default=False, is_type_of=bool),
+        Validator("agno.tracing.enabled", default=False, is_type_of=bool),
+        Validator("agno.tracing.db_path", default="agno/traces.db"),
+        Validator("agno.tracing.use_setup_tracing", default=False, is_type_of=bool),
+        Validator("agno.tracing.batch_processing", default=True, is_type_of=bool),
+        Validator("agno.tracing.max_queue_size", default=2048, is_type_of=int),
+        Validator("agno.tracing.schedule_delay_millis", default=3000, is_type_of=int),
         Validator("agno.user_id", default="local-user"),
         Validator("agno.default_workspace", default="."),
         # AgentOS 配置

@@ -1,6 +1,8 @@
 """AgentOS entrypoint for Lifetrace (Agno)."""
 
+from agno.db.sqlite import SqliteDb
 from agno.os import AgentOS
+from agno.tracing import setup_tracing
 from fastapi import HTTPException, Request
 
 from llm.agent_os_tools import (
@@ -12,7 +14,11 @@ from llm.agent_os_tools import (
 )
 from llm.agno_agent import DEFAULT_LANG, AgnoAgentService
 from llm.agno_tools.memory_toolkit import MemoryToolkit
+from util.logging_config import get_logger
+from util.path_utils import get_agno_tracing_db_path
 from util.settings import settings
+
+logger = get_logger()
 
 
 def _normalize_list(value) -> list[str] | None:
@@ -58,12 +64,35 @@ def _build_agent():
     return service.agent
 
 
+def _configure_tracing() -> tuple[SqliteDb | None, bool]:
+    tracing_enabled = bool(settings.get("agno.tracing.enabled", False))
+    if not tracing_enabled:
+        return None, False
+
+    db_path = get_agno_tracing_db_path()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    tracing_db = SqliteDb(db_file=str(db_path))
+
+    if bool(settings.get("agno.tracing.use_setup_tracing", False)):
+        setup_tracing(
+            db=tracing_db,
+            batch_processing=bool(settings.get("agno.tracing.batch_processing", True)),
+            max_queue_size=int(settings.get("agno.tracing.max_queue_size", 2048)),
+            schedule_delay_millis=int(settings.get("agno.tracing.schedule_delay_millis", 3000)),
+        )
+        logger.info("Agno tracing setup_tracing 已启用")
+
+    logger.info("Agno tracing 已启用: db=%s", db_path)
+    return tracing_db, True
+
+
 def reload_agent_os_agent() -> None:
     """Rebuild the in-memory AgentOS agent to pick up latest runtime settings."""
     agent_os.agents = [_build_agent()]
 
 
-agent_os = AgentOS(agents=[_build_agent()])
+_tracing_db, _tracing_enabled = _configure_tracing()
+agent_os = AgentOS(agents=[_build_agent()], db=_tracing_db, tracing=_tracing_enabled)
 app = agent_os.get_app()
 
 

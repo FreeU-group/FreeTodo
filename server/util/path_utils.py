@@ -88,6 +88,18 @@ def get_agno_learning_db_path() -> Path:
     return Path(db_path)
 
 
+def get_agno_tracing_db_path() -> Path:
+    """获取 Agno Tracing 数据库路径
+
+    Returns:
+        Path: Agno Tracing 数据库文件的绝对路径
+    """
+    db_path = settings.agno.tracing.db_path
+    if not os.path.isabs(db_path):
+        return base_paths.get_user_data_dir() / db_path
+    return Path(db_path)
+
+
 def get_log_dir() -> Path:
     """获取日志目录（替代原有 log_path 属性）
 
