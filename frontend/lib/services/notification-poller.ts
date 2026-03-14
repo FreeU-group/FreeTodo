@@ -115,6 +115,13 @@ class NotificationPoller {
 				}));
 
 			const store = useNotificationStore.getState();
+
+			for (const n of notifications) {
+				if (!store.notifiedIds.has(n.id)) {
+					this.triggerElectronPopupIfNeeded(n);
+				}
+			}
+
 			store.setNotificationsFromSource(endpoint.id, notifications);
 		} catch (error) {
 			// 静默处理错误，避免频繁失败请求
@@ -202,6 +209,31 @@ class NotificationPoller {
 			// 静默处理错误，避免频繁失败请求
 			console.warn(`Failed to poll draft todos from ${endpoint.id}:`, error);
 		}
+	}
+
+	/**
+	 * Trigger Electron system popup for important notifications (invitation, etc.)
+	 */
+	private triggerElectronPopupIfNeeded(notification: Notification): void {
+		if (
+			typeof window === "undefined" ||
+			!window.electronAPI?.triggerNotificationPopup
+		) {
+			return;
+		}
+		const title = notification.title || "";
+		const isImportant =
+			title.includes("邀约") || title.includes("invitation");
+		if (!isImportant) return;
+
+		const snippet =
+			notification.content.length > 80
+				? `${notification.content.slice(0, 80)}…`
+				: notification.content;
+		window.electronAPI.triggerNotificationPopup({
+			title: notification.title,
+			message: snippet,
+		});
 	}
 
 	/**

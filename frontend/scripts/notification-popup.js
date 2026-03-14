@@ -341,7 +341,6 @@ function pollDraftTodos() {
 					if (todos.length > 0) {
 						const latestId = todos[0].id;
 						const todoName = todos[0].name || "";
-						// 仅在检测到新的 draft todo 时弹窗
 						if (latestId !== lastSeenDraftTodoId) {
 							lastSeenDraftTodoId = latestId;
 							showNotification({
@@ -367,6 +366,55 @@ function pollDraftTodos() {
 	}
 }
 
+// ─── 轮询后端检测邀约等重要通知 ──────────────────────────
+const seenNotificationIds = new Set();
+const NOTIFICATION_POLL_INTERVAL_MS = 10_000;
+
+function pollNotifications() {
+	const cfg = readConfig();
+	if (!cfg.enabled) return;
+
+	const url = `${BACKEND_URL}/api/notifications`;
+
+	try {
+		const request = net.request(url);
+		request.on("response", (response) => {
+			let body = "";
+			response.on("data", (chunk) => {
+				body += chunk.toString();
+			});
+			response.on("end", () => {
+				try {
+					const items = JSON.parse(body);
+					if (!Array.isArray(items)) return;
+					for (const item of items) {
+						const id = item.id;
+						if (!id || seenNotificationIds.has(id)) continue;
+						seenNotificationIds.add(id);
+						const title = item.title || "";
+						const isImportant =
+							title.includes("邀约") || title.includes("invitation");
+						if (!isImportant) continue;
+						const content = item.content || "";
+						const snippet =
+							content.length > 80 ? `${content.slice(0, 80)}…` : content;
+						showNotification({ title, message: snippet });
+						console.log(
+							`[notification-popup] Invitation notification: ${title}`,
+						);
+					}
+				} catch {
+					// 解析失败，静默忽略
+				}
+			});
+		});
+		request.on("error", () => {});
+		request.end();
+	} catch {
+		// 请求失败，静默忽略
+	}
+}
+
 // ─── 启动 ───────────────────────────────────────────
 app.whenReady().then(() => {
 	loadAvatar();
@@ -374,8 +422,10 @@ app.whenReady().then(() => {
 
 	const cfg = readConfig();
 	_intervalHandle = setInterval(pollDraftTodos, POLL_INTERVAL_MS);
+	setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
+	pollNotifications();
 	console.log(
-		`[notification-popup] Started (event-driven, poll: ${POLL_INTERVAL_MS}ms, duration: ${DURATION_MS}ms, enabled: ${cfg.enabled})`,
+		`[notification-popup] Started (draft: ${POLL_INTERVAL_MS}ms, notifications: ${NOTIFICATION_POLL_INTERVAL_MS}ms, duration: ${DURATION_MS}ms, enabled: ${cfg.enabled})`,
 	);
 });
 
