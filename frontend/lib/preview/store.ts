@@ -70,7 +70,7 @@ const updateRecentFiles = (
 	next: PreviewFile,
 ): PreviewFile[] => {
 	const existing = current.find((item) => item.id === next.id);
-	if (existing && existing.objectUrl && existing.objectUrl !== next.objectUrl) {
+	if (existing?.objectUrl && existing.objectUrl !== next.objectUrl) {
 		revokeObjectUrl(existing);
 	}
 	const filtered = current.filter((item) => item.id !== next.id);

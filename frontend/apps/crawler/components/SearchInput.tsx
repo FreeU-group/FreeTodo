@@ -115,9 +115,9 @@ export function SearchInput() {
 										<Sparkles className="h-3 w-3" />
 										<span>感兴趣关键词：</span>
 									</div>
-									{extractedKeywords.map((keyword, index) => (
+									{extractedKeywords.map((keyword) => (
 										<button
-											key={index}
+											key={keyword}
 											type="button"
 											onClick={() => handleKeywordClick(keyword)}
 											className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -134,9 +134,9 @@ export function SearchInput() {
 										<Ban className="h-3 w-3" />
 										<span>排除关键词：</span>
 									</div>
-									{excludedKeywords.map((keyword, index) => (
+									{excludedKeywords.map((keyword) => (
 										<span
-											key={index}
+											key={keyword}
 											className="inline-flex items-center rounded-full bg-destructive/10 px-2.5 py-1 text-xs font-medium text-destructive"
 										>
 											{keyword}

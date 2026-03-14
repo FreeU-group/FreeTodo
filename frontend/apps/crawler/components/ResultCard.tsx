@@ -1,6 +1,7 @@
 "use client";
 
 import { Bookmark, Check, ExternalLink, Heart, MessageCircle, Video } from "lucide-react";
+import Image, { type ImageLoader } from "next/image";
 import { useCrawlerStore } from "../store";
 import type { CrawlResultItem } from "../types";
 
@@ -14,6 +15,8 @@ interface ResultCardProps {
 export function ResultCard({ item }: ResultCardProps) {
 	const { setSelectedResult, markAsViewed, isViewed } = useCrawlerStore();
 	const viewed = isViewed(item.id);
+
+	const avatarLoader: ImageLoader = ({ src }) => src;
 
 	const handleViewDetail = () => {
 		setSelectedResult(item);
@@ -32,12 +35,16 @@ export function ResultCard({ item }: ResultCardProps) {
 			{/* 用户信息 */}
 			<div className="flex items-center gap-3">
 				{item.avatar ? (
-					<img
-						src={item.avatar}
-						alt={item.nickname}
-						className="h-10 w-10 rounded-full bg-muted object-cover"
-						referrerPolicy="no-referrer"
-					/>
+										<Image
+									loader={avatarLoader}
+									src={item.avatar}
+									alt={item.nickname}
+									width={40}
+									height={40}
+									className="h-10 w-10 rounded-full bg-muted object-cover"
+									referrerPolicy="no-referrer"
+									unoptimized
+								/>
 				) : (
 					<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
 						{item.nickname?.charAt(0) || "?"}
@@ -53,9 +60,9 @@ export function ResultCard({ item }: ResultCardProps) {
 
 			{/* 标签 */}
 			<div className="mt-2 flex flex-wrap gap-1">
-				{item.tags.slice(0, 5).map((tag, index) => (
+				{item.tags.slice(0, 5).map((tag) => (
 					<span
-						key={index}
+						key={tag}
 						className="text-xs text-primary/80 hover:text-primary cursor-pointer"
 					>
 						{tag}
