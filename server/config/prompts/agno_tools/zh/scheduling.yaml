@@ -1,0 +1,5 @@
+# 日程调度工具消息 - 中文版
+
+free_slots_found: "在 {date} 找到 {count} 个空闲时段（每段至少可用）：\n{slots}"
+no_free_slots: "在 {date} 没有找到至少 {min_duration} 分钟的空闲时段，当天日程已满。"
+free_slots_failed: "查找空闲时段失败: {error}"

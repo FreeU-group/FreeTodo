@@ -1,0 +1,5 @@
+# Location tool messages - English
+
+nearby_found: "Found {count} result(s) for \"{keyword}\" near \"{location}\":\n{results}"
+nearby_no_results: "No results found for \"{keyword}\" near \"{location}\". Try searching: {query}"
+nearby_failed: "Nearby place search failed: {error}"

@@ -1,0 +1,5 @@
+# 位置推荐工具消息 - 中文版
+
+nearby_found: "在「{location}」附近搜索到 {count} 条「{keyword}」相关结果：\n{results}"
+nearby_no_results: "未在「{location}」附近搜索到「{keyword}」相关结果。你可以尝试搜索：{query}"
+nearby_failed: "附近场所搜索失败: {error}"

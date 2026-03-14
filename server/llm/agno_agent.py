@@ -239,7 +239,7 @@ class AgnoAgentService:
                 tools_to_use.extend(extra_tools)
 
             # 判断工具配置
-            total_lifetrace_tools_count = 14
+            total_lifetrace_tools_count = 17
             use_all_lifetrace_tools = bool(
                 selected_tools and len(selected_tools) == total_lifetrace_tools_count
             )

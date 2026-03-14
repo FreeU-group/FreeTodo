@@ -1,0 +1,15 @@
+# 消息草拟工具消息 - 中文版
+
+draft_message_card: |
+  📨 **待发送消息**
+  **收件人**：{recipient}
+
+  ---
+  {body}
+  ---
+
+  💡 *建议理由*：{reason}
+
+  👉 请确认：**发送** / **编辑** / **取消**
+
+draft_message_failed: "消息草拟失败: {error}"

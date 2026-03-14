@@ -13,6 +13,9 @@ from llm.agno_tools.base import AgnoToolsMessageLoader
 from llm.agno_tools.tools import (
     BreakdownTools,
     ConflictTools,
+    LocationTools,
+    MessageTools,
+    SchedulingTools,
     StatsTools,
     TagTools,
     TimeTools,
@@ -28,6 +31,9 @@ class LifetraceToolkit(
     BreakdownTools,
     TimeTools,
     ConflictTools,
+    SchedulingTools,
+    LocationTools,
+    MessageTools,
     StatsTools,
     TagTools,
     Toolkit,
@@ -42,6 +48,9 @@ class LifetraceToolkit(
     - Task breakdown: breakdown_task
     - Time parsing: parse_time
     - Conflict detection: check_schedule_conflict
+    - Scheduling: find_free_slots
+    - Location: search_nearby_places
+    - Message: draft_reply_message
     - Statistics: get_todo_stats, get_overdue_todos
     - Tag management: list_tags, get_todos_by_tag, suggest_tags
     """
@@ -83,6 +92,12 @@ class LifetraceToolkit(
             "parse_time": self.parse_time,
             # Conflict detection (from ConflictTools)
             "check_schedule_conflict": self.check_schedule_conflict,
+            # Scheduling (from SchedulingTools)
+            "find_free_slots": self.find_free_slots,
+            # Location (from LocationTools)
+            "search_nearby_places": self.search_nearby_places,
+            # Message (from MessageTools)
+            "draft_reply_message": self.draft_reply_message,
             # Statistics (from StatsTools)
             "get_todo_stats": self.get_todo_stats,
             "get_overdue_todos": self.get_overdue_todos,

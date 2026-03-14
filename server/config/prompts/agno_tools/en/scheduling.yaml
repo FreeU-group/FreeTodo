@@ -1,0 +1,5 @@
+# Scheduling tool messages - English
+
+free_slots_found: "Found {count} free slot(s) on {date}:\n{slots}"
+no_free_slots: "No free slots of at least {min_duration} minutes found on {date}. The day is fully booked."
+free_slots_failed: "Failed to find free slots: {error}"

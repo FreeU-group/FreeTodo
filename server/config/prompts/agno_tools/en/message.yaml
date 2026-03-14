@@ -1,0 +1,15 @@
+# Message tool messages - English
+
+draft_message_card: |
+  📨 **Draft Message**
+  **To**: {recipient}
+
+  ---
+  {body}
+  ---
+
+  💡 *Reason*: {reason}
+
+  👉 Please confirm: **Send** / **Edit** / **Cancel**
+
+draft_message_failed: "Failed to draft message: {error}"
