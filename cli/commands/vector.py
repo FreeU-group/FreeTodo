@@ -15,7 +15,7 @@ from cli.commands.common import (
 )
 from cli.config import load_config
 from cli.errors import CliError
-from schemas.vector import SemanticSearchRequest
+from cli.schemas.vector import SemanticSearchRequest
 
 vector_app = typer.Typer(
     help=(

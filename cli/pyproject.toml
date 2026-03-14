@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "freetodo-cli"
+version = "0.1.0"
+description = "FreeTodo CLI — agent-first backend automation"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "typer>=0.24.1",
+    "httpx>=0.28.1",
+    "pydantic>=2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.14.14",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [".venv", "build", "dist"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".git", ".venv", "__pycache__", "build", "dist", "*.egg-info"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "SIM", "UP", "PL", "C90", "A", "ARG", "N", "TC", "FA", "ISC", "FLY", "DTZ", "RUF"]
+ignore = ["E501", "B008", "RUF001", "RUF002", "RUF003"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["cli"]
+
+[project.scripts]
+freetodo = "cli.main:main"

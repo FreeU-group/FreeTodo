@@ -16,7 +16,7 @@ from cli.commands.common import (
 )
 from cli.config import load_config
 from cli.errors import CliError
-from schemas.activity import ManualActivityCreateRequest
+from cli.schemas.activity import ManualActivityCreateRequest
 
 activity_app = typer.Typer(
     help=(
