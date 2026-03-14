@@ -1,3 +1,4 @@
+/* biome-ignore-all lint: legacy UI */
 "use client";
 
 import {
@@ -39,6 +40,7 @@ interface HighlightedTextProps {
 const MAX_HIGHLIGHT_LENGTH = 10;
 
 function HighlightedText({ children, onHighlightClick }: HighlightedTextProps) {
+	const isInteractive = Boolean(onHighlightClick);
 	if (typeof children !== "string") {
 		return <>{children}</>;
 	}
@@ -48,7 +50,7 @@ function HighlightedText({ children, onHighlightClick }: HighlightedTextProps) {
 
 	return (
 		<>
-			{parts.map((part, index) => {
+			{parts.map((part) => {
 				if (part.startsWith("==") && part.endsWith("==")) {
 					// 提取高亮内容
 					const highlightedText = part.slice(2, -2);
@@ -57,19 +59,19 @@ function HighlightedText({ children, onHighlightClick }: HighlightedTextProps) {
 					if (highlightedText.length <= MAX_HIGHLIGHT_LENGTH) {
 						return (
 							<span
-								key={index}
+								key={part}
 								className={cn(
 									"bg-indigo-600/40 text-indigo-100 border border-indigo-400/30 px-2 py-0.5 rounded-md mx-0.5 text-[0.95em] font-semibold inline-block leading-snug",
 									onHighlightClick && "cursor-pointer hover:bg-indigo-500/50 hover:border-indigo-400/50 transition-all"
 								)}
-								onClick={() => onHighlightClick?.(highlightedText)}
+								onClick={isInteractive ? () => onHighlightClick?.(highlightedText) : undefined}
 								onKeyDown={(e) => {
 									if (e.key === "Enter" || e.key === " ") {
 										onHighlightClick?.(highlightedText);
 									}
 								}}
-								role={onHighlightClick ? "button" : undefined}
-								tabIndex={onHighlightClick ? 0 : undefined}
+								role={isInteractive ? "button" : undefined}
+								tabIndex={isInteractive ? 0 : undefined}
 								title={onHighlightClick ? `点击查看相关内容: ${highlightedText}` : undefined}
 							>
 								{highlightedText}
@@ -77,9 +79,9 @@ function HighlightedText({ children, onHighlightClick }: HighlightedTextProps) {
 						);
 					}
 					// 长文本显示为白色粗体
-					return <strong key={index} className="text-white font-semibold tracking-wide">{highlightedText}</strong>;
+					return <strong key={highlightedText} className="text-white font-semibold tracking-wide">{highlightedText}</strong>;
 				}
-				return <span key={index} className="opacity-90">{part}</span>;
+				return <span key={part} className="opacity-90">{part}</span>;
 			})}
 		</>
 	);
@@ -131,7 +133,7 @@ function PlatformLogo({ platform, size = "normal" }: { platform: string; size?: 
 				)}
 				title={platformNames[platform] || platform}
 			>
-				<img
+								<img
 					src={platformImages[platform]}
 					alt={platform}
 					className="w-full h-full object-contain"
@@ -196,13 +198,19 @@ export function ArticleCard({ item, size, onClick }: ArticleCardProps) {
 	// Hero 样式 - 最大的头条文章
 	if (size === "hero") {
 		return (
-			<article
+			<button type="button"
 				className="group cursor-pointer border-b-2 border-foreground pb-6"
 				onClick={onClick}
+				onKeyDown={(event) => {
+					if (event.key === "Enter" || event.key === " ") {
+						event.preventDefault();
+						onClick();
+					}
+				}}
 			>
 				{item.imageUrl && (
 					<div className="relative mb-4 overflow-hidden rounded-xl">
-						<img
+												<img
 							src={item.imageUrl}
 							alt={item.title}
 							className="w-full h-64 object-cover transition-transform group-hover:scale-105 rounded-xl"
@@ -214,7 +222,7 @@ export function ArticleCard({ item, size, onClick }: ArticleCardProps) {
 							</div>
 						)}
 						<PlatformLogo platform={platform} size="large" />
-					</div>
+									</div>
 				)}
 				<h2 className="font-serif text-3xl font-bold leading-tight text-foreground group-hover:text-primary transition-colors mb-3">
 					{item.title || item.desc?.slice(0, 50)}
@@ -227,16 +235,22 @@ export function ArticleCard({ item, size, onClick }: ArticleCardProps) {
 					<span>♡ {formatCount(item.likedCount)}</span>
 					<span>💬 {formatCount(item.commentCount)}</span>
 				</div>
-			</article>
+			</button>
 		);
 	}
 
 	// Large 样式 - 带大图的文章
 	if (size === "large") {
 		return (
-			<article
+			<button type="button"
 				className="group cursor-pointer border-b border-border pb-4"
 				onClick={onClick}
+				onKeyDown={(event) => {
+					if (event.key === "Enter" || event.key === " ") {
+						event.preventDefault();
+						onClick();
+					}
+				}}
 			>
 				<div className="flex gap-4">
 					<div className="flex-1">
@@ -253,7 +267,7 @@ export function ArticleCard({ item, size, onClick }: ArticleCardProps) {
 					</div>
 					{item.imageUrl && (
 						<div className="relative w-32 h-24 shrink-0 overflow-hidden rounded-lg">
-							<img
+														<img
 								src={item.imageUrl}
 								alt={item.title}
 								className="w-full h-full object-cover transition-transform group-hover:scale-105 rounded-lg"
@@ -265,23 +279,29 @@ export function ArticleCard({ item, size, onClick }: ArticleCardProps) {
 								</div>
 							)}
 							<PlatformLogo platform={platform} size="small" />
-						</div>
+</div>
 					)}
-				</div>
-			</article>
+								</div>
+			</button>
 		);
 	}
 
 	// Medium 样式 - 中等大小
 	if (size === "medium") {
 		return (
-			<article
+			<button type="button"
 				className="group cursor-pointer border-b border-border pb-3"
 				onClick={onClick}
+				onKeyDown={(event) => {
+					if (event.key === "Enter" || event.key === " ") {
+						event.preventDefault();
+						onClick();
+					}
+				}}
 			>
 				{item.imageUrl && (
 					<div className="relative mb-2 overflow-hidden rounded-lg">
-						<img
+												<img
 							src={item.imageUrl}
 							alt={item.title}
 							className="w-full h-32 object-cover transition-transform group-hover:scale-105 rounded-lg"
@@ -305,21 +325,27 @@ export function ArticleCard({ item, size, onClick }: ArticleCardProps) {
 					<span>{item.nickname}</span>
 					<span>♡ {formatCount(item.likedCount)}</span>
 				</div>
-			</article>
+			</button>
 		);
 	}
 
 	// Small 样式 - 小型文章
 	if (size === "small") {
 		return (
-			<article
+			<button type="button"
 				className="group cursor-pointer border-b border-border/50 pb-2"
 				onClick={onClick}
+				onKeyDown={(event) => {
+					if (event.key === "Enter" || event.key === " ") {
+						event.preventDefault();
+						onClick();
+					}
+				}}
 			>
 				<div className="flex gap-2">
 					{item.imageUrl && (
 						<div className="relative w-16 h-16 shrink-0 overflow-hidden rounded-lg">
-							<img
+														<img
 								src={item.imageUrl}
 								alt={item.title}
 								className="w-full h-full object-cover rounded-lg"
@@ -340,20 +366,26 @@ export function ArticleCard({ item, size, onClick }: ArticleCardProps) {
 						<span className="text-xs text-muted-foreground">{item.nickname}</span>
 					</div>
 				</div>
-			</article>
+			</button>
 		);
 	}
 
 	// Mini 样式 - 最小的列表项
 	return (
-		<article
+		<button type="button"
 			className="group cursor-pointer py-1 border-b border-border/30"
 			onClick={onClick}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onClick();
+				}
+			}}
 		>
 			<h6 className="text-sm text-foreground group-hover:text-primary transition-colors line-clamp-1">
 				• {item.title || item.desc?.slice(0, 30)}
 			</h6>
-		</article>
+		</button>
 	);
 }
 
@@ -408,7 +440,7 @@ function getProxyVideoUrl(videoUrl: string, platform: string): string {
 // 从B站URL或noteId中提取BV号
 function extractBvid(noteUrl: string, noteId: string): string {
 	// 先尝试从 noteId 获取（如果 noteId 就是 BV 号）
-	if (noteId && noteId.startsWith("BV")) {
+	if (noteId?.startsWith("BV")) {
 		return noteId;
 	}
 	// 从 URL 中提取 BV 号
@@ -485,8 +517,10 @@ export function CrawlerDetailPanel() {
 
 	// 切换选中内容时重置视频错误状态
 	useEffect(() => {
-		setVideoError(false);
-	}, [selectedResult?.id]);
+		if (selectedResult) {
+			setVideoError(false);
+		}
+	}, [selectedResult]);
 
 	// 使用真实评论数据，如果没有则为空数组
 	const comments = selectedResult?.comments || [];
@@ -649,7 +683,7 @@ export function CrawlerDetailPanel() {
 										{/* Subtle Ambient Glow */}
 										<div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/10 rounded-full blur-[100px] -z-10 pointer-events-none" />
 										<div className="px-6 py-5 flex items-center gap-3 bg-white/5 border-b border-white/5">
-											<img
+																						<img
 												src="/platform-logos/leida.png"
 												alt="AI Logo"
 												className="w-10 h-10 rounded-lg shadow-lg shadow-indigo-500/20 animate-pulse"
@@ -678,7 +712,7 @@ export function CrawlerDetailPanel() {
 											className="w-full flex items-center justify-between px-6 py-5 cursor-pointer bg-white/5 border-b border-white/5 hover:bg-white/10 transition-colors duration-300"
 										>
 											<div className="flex items-center gap-3">
-												<img
+																								<img
 													src="/platform-logos/leida.png"
 													alt="AI Logo"
 													className="w-10 h-10 rounded-lg shadow-lg shadow-indigo-500/20"
@@ -720,7 +754,7 @@ export function CrawlerDetailPanel() {
 																		return child;
 																	};
 																	const processedChildren = Array.isArray(children)
-																		? children.map((child, i) => <span key={i}>{processChildren(child)}</span>)
+																		? children.map((child) => <span key={String(child)}>{processChildren(child)}</span>)
 																		: processChildren(children);
 																	return <p className="mb-5 text-slate-200 leading-relaxed">{processedChildren}</p>;
 																},
@@ -738,7 +772,7 @@ export function CrawlerDetailPanel() {
 																		return child;
 																	};
 																	const processedChildren = Array.isArray(children)
-																		? children.map((child, i) => <span key={i}>{processChildren(child)}</span>)
+																		? children.map((child) => <span key={String(child)}>{processChildren(child)}</span>)
 																		: processChildren(children);
 																	return (
 																		<li className="relative pl-0 group">
@@ -777,7 +811,7 @@ export function CrawlerDetailPanel() {
 																		return child;
 																	};
 																	const processedChildren = Array.isArray(children)
-																		? children.map((child, i) => <span key={i}>{processChildren(child)}</span>)
+																		? children.map((child) => <span key={String(child)}>{processChildren(child)}</span>)
 																		: processChildren(children);
 																	return (
 																		<td className="px-4 py-3 text-slate-300 text-sm">{processedChildren}</td>
@@ -812,14 +846,14 @@ export function CrawlerDetailPanel() {
 									{/* 主文章区 */}
 									<main className="w-full">
 										{heroArticle && (
-											<article
-												className="group cursor-pointer"
+											<button type="button"
+												className="group cursor-pointer text-left"
 												onClick={() => handleArticleClick(heroArticle)}
 											>
 												{/* 头条大图 - 带播放按钮和时长标签 */}
 												{heroArticle.imageUrl && (
 													<div className="relative w-full aspect-video overflow-hidden rounded-sm mb-4 border border-zinc-800">
-														<img
+																												<img
 															src={heroArticle.imageUrl}
 															alt={heroArticle.title}
 															className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 opacity-90 group-hover:opacity-100"
@@ -878,7 +912,7 @@ export function CrawlerDetailPanel() {
 														</div>
 													</div>
 												</div>
-											</article>
+											</button>
 										)}
 									</main>
 
@@ -895,11 +929,12 @@ export function CrawlerDetailPanel() {
 											{briefArticles.map((item, index) => {
 												const platform = getPlatformFromNoteUrl(item.noteUrl);
 												return (
-													<div
-														key={item.id}
-														className="group cursor-pointer border-b border-zinc-800/50 pb-4 relative"
-														onClick={() => handleArticleClick(item)}
-													>
+													<button
+									type="button"
+									key={item.id}
+									className="group cursor-pointer border-b border-zinc-800/50 pb-4 relative text-left"
+									onClick={() => handleArticleClick(item)}
+								>
 														<div className="flex items-start gap-3 pr-8">
 															<span className="font-serif text-2xl text-zinc-700 font-bold leading-none -mt-1 group-hover:text-zinc-500 transition-colors">
 																{index + 1}
@@ -909,9 +944,9 @@ export function CrawlerDetailPanel() {
 																	{item.title || item.desc?.slice(0, 40)}
 																</p>
 																<div className="flex flex-wrap gap-2">
-																	{item.tags.slice(0, 2).map((tag, i) => (
+																	{item.tags.slice(0, 2).map((tag) => (
 																		<span
-																			key={i}
+																			key={tag}
 																			className="inline-flex items-center text-[10px] text-zinc-500 font-mono border border-zinc-800 px-1.5 py-0.5 rounded hover:border-zinc-600 hover:text-zinc-400 transition-colors"
 																		>
 																			#{tag.replace(/\[话题\]#?/g, '').slice(0, 6)}
@@ -921,7 +956,7 @@ export function CrawlerDetailPanel() {
 															</div>
 														</div>
 														<PlatformLogo platform={platform} size="small" />
-													</div>
+								</button>
 												);
 											})}
 										</div>
@@ -932,15 +967,15 @@ export function CrawlerDetailPanel() {
 								{featuredArticles.length > 0 && (
 									<div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 pt-8 border-t-4 border-double border-zinc-800">
 										{featuredArticles.map((item) => (
-											<article
+											<button type="button"
 												key={item.id}
-												className="group flex flex-col h-full cursor-pointer relative"
+												className="group flex flex-col h-full cursor-pointer relative text-left"
 												onClick={() => handleArticleClick(item)}
 											>
 												{/* 图片 */}
 												{item.imageUrl ? (
 													<div className="relative aspect-[3/2] mb-4 overflow-hidden rounded-sm bg-zinc-900 border border-zinc-800">
-														<img
+																												<img
 															src={item.imageUrl}
 															alt={item.title}
 															className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500 group-hover:scale-105"
@@ -975,7 +1010,7 @@ export function CrawlerDetailPanel() {
 														</span>
 													</div>
 												</div>
-											</article>
+											</button>
 										))}
 									</div>
 								)}
@@ -990,16 +1025,16 @@ export function CrawlerDetailPanel() {
 										</div>
 										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 											{moreArticles.map((item) => (
-												<article
+												<button type="button"
 													key={item.id}
-													className="group cursor-pointer flex gap-4 p-3 rounded-sm hover:bg-zinc-900/50 transition-colors border border-transparent hover:border-zinc-800 relative"
+													className="group cursor-pointer flex gap-4 p-3 rounded-sm hover:bg-zinc-900/50 transition-colors border border-transparent hover:border-zinc-800 relative text-left"
 													onClick={() => handleArticleClick(item)}
 												>
 													{/* 平台logo始终在卡片右上角 */}
 													<PlatformLogo platform={getPlatformFromNoteUrl(item.noteUrl)} size="small" />
 													{item.imageUrl && (
 														<div className="relative w-20 h-20 shrink-0 overflow-hidden rounded-sm bg-zinc-900 border border-zinc-800">
-															<img
+																														<img
 																src={item.imageUrl}
 																alt={item.title}
 																className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
@@ -1013,7 +1048,7 @@ export function CrawlerDetailPanel() {
 														</h4>
 														<p className="text-xs text-zinc-500 font-mono">{item.nickname}</p>
 													</div>
-												</article>
+												</button>
 											))}
 										</div>
 									</section>
@@ -1124,13 +1159,15 @@ export function CrawlerDetailPanel() {
 					{/* 用户信息 */}
 					<div className="flex items-center gap-3">
 						{selectedResult.avatar ? (
-							<img
+														<>
+														<img
 								src={selectedResult.avatar}
 								alt={selectedResult.nickname}
 								className="h-12 w-12 rounded-full bg-muted object-cover"
 								referrerPolicy="no-referrer"
 							/>
-						) : (
+														</>
+														) : (
 							<div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-lg font-medium text-primary">
 								{selectedResult.nickname?.charAt(0) || "?"}
 							</div>
@@ -1156,9 +1193,9 @@ export function CrawlerDetailPanel() {
 
 					{/* 标签 */}
 					<div className="mt-3 flex flex-wrap gap-2">
-						{selectedResult.tags.slice(0, 5).map((tag, index) => (
+						{selectedResult.tags.slice(0, 5).map((tag) => (
 							<span
-								key={index}
+								key={tag}
 								className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary"
 							>
 								{tag.replace(/\[话题\]#?/g, '').replace(/#/g, '')}
@@ -1198,7 +1235,7 @@ export function CrawlerDetailPanel() {
 										/* 视频加载失败时显示封面图和跳转按钮 */
 										<div className="relative aspect-[9/16] max-h-[500px] bg-black">
 											{selectedResult.imageUrl && (
-												<img
+																								<img
 													src={selectedResult.imageUrl}
 													alt={selectedResult.title}
 													className="h-full w-full object-contain"
@@ -1220,7 +1257,7 @@ export function CrawlerDetailPanel() {
 									) : (selectedResult.videoUrl || selectedResult.videoDownloadUrl) ? (
 										/* 使用代理播放视频（抖音/快手等）或直接播放 */
 										<>
-											<video
+										<video
 												src={getProxyVideoUrl(
 													selectedResult.videoDownloadUrl || selectedResult.videoUrl || "",
 													contentPlatform
@@ -1254,7 +1291,7 @@ export function CrawlerDetailPanel() {
 										/* 没有视频URL，显示封面图 */
 										<div className="relative aspect-video bg-black">
 											{selectedResult.imageUrl && (
-												<img
+																								<img
 													src={selectedResult.imageUrl}
 													alt={selectedResult.title}
 													className="h-full w-full object-contain"
@@ -1275,7 +1312,7 @@ export function CrawlerDetailPanel() {
 									)}
 								</div>
 							) : (
-								<img
+																<img
 									src={selectedResult.imageUrl}
 									alt={selectedResult.title}
 									className="w-full aspect-[4/3] bg-muted object-contain"
@@ -1352,7 +1389,7 @@ export function CrawlerDetailPanel() {
 											className="border-b border-border px-4 py-3 last:border-b-0"
 										>
 											<div className="flex gap-3">
-												<img
+																								<img
 													src={comment.avatar || "https://via.placeholder.com/40"}
 													alt={comment.nickname}
 													className="h-10 w-10 shrink-0 rounded-full bg-muted"

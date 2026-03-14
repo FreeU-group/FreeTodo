@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 /** 通知间隔（毫秒）- 每 10 秒 */
@@ -53,11 +54,13 @@ export function DevMessagePopup() {
 							<div className="flex items-center gap-3.5">
 								{/* 头像 + 渐变圆环 */}
 								<div className="shrink-0 w-[50px] h-[50px] rounded-full p-[2.5px] bg-gradient-to-br from-amber-400 via-orange-500 to-red-500">
-									<img
-										src="/hi_dog2.png"
-										alt="Cool Doge"
-										className="w-full h-full rounded-full object-cover bg-white dark:bg-slate-800"
-									/>
+									<Image
+									src="/hi_dog2.png"
+									alt="Cool Doge"
+									width={50}
+									height={50}
+									className="w-full h-full rounded-full object-cover bg-white dark:bg-slate-800"
+								/>
 								</div>
 
 								{/* 文字内容 */}

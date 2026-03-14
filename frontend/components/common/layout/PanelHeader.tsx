@@ -437,17 +437,17 @@ function PanelHeaderMenu({ position }: { position: PanelPosition }) {
 
 		const features = [
 			"popup=yes",
-			"width=" + width,
-			"height=" + height,
-			"left=" + left,
-			"top=" + top,
+			`width=${width}`,
+			`height=${height}`,
+			`left=${left}`,
+			`top=${top}`,
 			"resizable=no",
 			"scrollbars=yes",
 		].join(",");
 
 		const popup = window.open(
 			url.toString(),
-			"panel-" + currentFeature + "-" + Date.now(),
+			`panel-${currentFeature}-${Date.now()}`,
 			features,
 		);
 

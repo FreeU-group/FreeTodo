@@ -12,6 +12,7 @@ import {
 	FolderOpen,
 	Loader2,
 } from "lucide-react";
+import Image, { type ImageLoader } from "next/image";
 import { useTranslations } from "next-intl";
 import type { ChangeEvent } from "react";
 import { useMemo, useRef } from "react";
@@ -101,6 +102,8 @@ export function PreviewPanel() {
 	const activateRecent = usePreviewStore((state) => state.activateRecent);
 
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+	const objectUrlLoader: ImageLoader = ({ src }) => src;
 
 	const supportsCode = activeFile ? supportsCodeMode(activeFile.kind) : false;
 	const kindMeta = activeFile ? FILE_KIND_META[activeFile.kind] : null;
@@ -451,11 +454,15 @@ export function PreviewPanel() {
 									{activeFile.kind === "image" && (
 										<div className="rounded-2xl border border-border bg-background p-5 shadow-sm">
 											{activeFile.objectUrl ? (
-												<img
-													src={activeFile.objectUrl}
-													alt={activeFile.name}
-													className="mx-auto max-h-[620px] w-auto rounded-lg object-contain"
-												/>
+																								<Image
+									loader={objectUrlLoader}
+									src={activeFile.objectUrl}
+									alt={activeFile.name}
+									width={800}
+									height={620}
+									className="mx-auto max-h-[620px] w-auto rounded-lg object-contain"
+									unoptimized
+								/>
 											) : (
 												<div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
 													{t("unsupported")}

@@ -31,7 +31,7 @@ export function ResultList() {
 			setIsInitialLoading(false);
 		};
 		loadInitialResults();
-	}, [showDailySummary]);
+	}, [showDailySummary, loadConfigFromBackend, refreshResults]);
 
 	const handleRefresh = async () => {
 		await refreshResults();
