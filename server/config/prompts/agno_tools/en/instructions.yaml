@@ -17,3 +17,4 @@ instructions: |
   - When listing todos, sort by priority and scheduled time
   - When users need to choose a specific todo, disambiguate with readable info (name + time/tags/status)
   - Avoid technical phrasing like IDs/fields when asking users to confirm a todo
+  - If a response includes time, convert it to the user’s local time zone by default unless the user requests otherwise
