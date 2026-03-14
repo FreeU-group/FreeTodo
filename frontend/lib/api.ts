@@ -29,6 +29,7 @@ export interface SendChatParams {
 	mode?: string;
 	selectedTools?: string[];
 	externalTools?: string[];
+	attachments?: File[];
 }
 
 /**
@@ -151,6 +152,7 @@ export async function sendChatMessageStream(
 	signal?: AbortSignal,
 	locale?: string,
 	onToolEvent?: (event: ToolCallEvent) => void,
+	onRequestStart?: () => void,
 ): Promise<void> {
 	// 流式请求直接调用后端 API，绕过 Next.js 代理
 	const baseUrl = getStreamApiBaseUrl();
@@ -164,28 +166,76 @@ export async function sendChatMessageStream(
 
 	let response: Response;
 	try {
-		const requestBody = {
-			message: params.message,
-			user_input: params.userInput,
-			context: params.context,
-			system_prompt: params.systemPrompt,
-			conversation_id: params.conversationId,
-			use_rag: params.useRag,
-			mode: params.mode,
-			selected_tools: params.selectedTools,
-			external_tools: params.externalTools,
-		};
-		console.log("[sendChatMessageStream] Request body:", requestBody);
+		const hasAttachments =
+			Array.isArray(params.attachments) && params.attachments.length > 0;
 
-		response = await fetch(apiUrl, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"Accept-Language": locale || "en",
-			},
-			body: JSON.stringify(requestBody),
-			signal,
-		});
+		if (hasAttachments) {
+			const formData = new FormData();
+			formData.append("message", params.message);
+			if (params.userInput !== undefined) {
+				formData.append("user_input", params.userInput);
+			}
+			if (params.context !== undefined) {
+				formData.append("context", params.context);
+			}
+			if (params.systemPrompt !== undefined) {
+				formData.append("system_prompt", params.systemPrompt);
+			}
+			if (params.conversationId !== undefined) {
+				formData.append("conversation_id", params.conversationId);
+			}
+			if (params.useRag !== undefined) {
+				formData.append("use_rag", String(params.useRag));
+			}
+			if (params.mode !== undefined) {
+				formData.append("mode", params.mode);
+			}
+			if (params.selectedTools?.length) {
+				for (const tool of params.selectedTools) {
+					formData.append("selected_tools", tool);
+				}
+			}
+			if (params.externalTools?.length) {
+				for (const tool of params.externalTools) {
+					formData.append("external_tools", tool);
+				}
+			}
+			for (const file of (params.attachments ?? [])) {
+				formData.append("attachments", file);
+			}
+
+			response = await fetch(apiUrl, {
+				method: "POST",
+				headers: {
+					"Accept-Language": locale || "en",
+				},
+				body: formData,
+				signal,
+			});
+		} else {
+			const requestBody = {
+				message: params.message,
+				user_input: params.userInput,
+				context: params.context,
+				system_prompt: params.systemPrompt,
+				conversation_id: params.conversationId,
+				use_rag: params.useRag,
+				mode: params.mode,
+				selected_tools: params.selectedTools,
+				external_tools: params.externalTools,
+			};
+			console.log("[sendChatMessageStream] Request body:", requestBody);
+
+			response = await fetch(apiUrl, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"Accept-Language": locale || "en",
+				},
+				body: JSON.stringify(requestBody),
+				signal,
+			});
+		}
 	} catch (error) {
 		// 调试日志
 		console.error("[sendChatMessageStream] fetch error:", error);
@@ -208,6 +258,10 @@ export async function sendChatMessageStream(
 	const sessionId = response.headers.get("X-Session-Id");
 	if (sessionId && onSessionId) {
 		onSessionId(sessionId);
+	}
+
+	if (onRequestStart) {
+		onRequestStart();
 	}
 
 	if (!response.body) {
@@ -283,7 +337,6 @@ export async function sendChatMessageStream(
 		throw error;
 	}
 }
-
 /**
  * Plan功能：生成选择题（流式输出）
  */

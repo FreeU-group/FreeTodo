@@ -1,7 +1,7 @@
-import { AtSign, Send, Square } from "lucide-react";
+import { AtSign, Paperclip, Send, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type React from "react";
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type InputBoxProps = {
@@ -22,6 +22,10 @@ type InputBoxProps = {
 	linkedTodos?: React.ReactNode;
 	/** 最大高度，默认为 "40vh"（视口高度的40%） */
 	maxHeight?: string;
+	/** 是否启用附件上传入口（Agno 模式） */
+	enableAttachments?: boolean;
+	/** 新增附件 */
+	onAddAttachments?: (files: File[]) => void;
 };
 
 /** textarea 的最小行高（像素） */
@@ -46,16 +50,20 @@ export function InputBox({
 	onAtClick,
 	linkedTodos,
 	maxHeight = "40vh",
+	enableAttachments = false,
+	onAddAttachments,
 }: InputBoxProps) {
 	const t = useTranslations("chat");
 	const isSendDisabled = !inputValue.trim() || isStreaming;
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const prevInputValueRef = useRef<string>(inputValue);
+	const fileInputRef = useRef<HTMLInputElement | null>(null);
+	const [isDragActive, setIsDragActive] = useState(false);
 
 	// 判断是否使用单行紧凑布局：Mode Switcher 菜单没打开的时候使用它
 	const isCompactLayout = !modeMenuOpen;
 	// 判断是否需要显示 Mode Switcher（作为 modeSwitcher 存在）
-	const hasModeSwitcher = !!modeSwitcher;
+	const hasModeSwitcher = Boolean(modeSwitcher);
 	// 展开模式：有 modeSwitcher 且菜单打开时
 	const isExpandedLayout = hasModeSwitcher && modeMenuOpen;
 
@@ -102,9 +110,107 @@ export function InputBox({
 		[onChange, adjustHeight],
 	);
 
+	const handleAddAttachments = useCallback(
+		(files: FileList | File[]) => {
+			if (!enableAttachments || !onAddAttachments) return;
+			const list = Array.from(files);
+			if (list.length === 0) return;
+			onAddAttachments(list);
+		},
+		[enableAttachments, onAddAttachments],
+	);
+
+	const handleFileChange = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			if (!event.target.files) return;
+			handleAddAttachments(event.target.files);
+			event.target.value = "";
+		},
+		[handleAddAttachments],
+	);
+
+	const handlePickFiles = useCallback(() => {
+		if (!enableAttachments) return;
+		fileInputRef.current?.click();
+	}, [enableAttachments]);
+
+	const handleDragEnter = useCallback(() => {
+		if (!enableAttachments) return;
+		setIsDragActive(true);
+	}, [enableAttachments]);
+
+	const handleDragOver = useCallback(
+		(event: React.DragEvent<HTMLDivElement>) => {
+			if (!enableAttachments) return;
+			if (event.dataTransfer?.files?.length) {
+				event.preventDefault();
+				setIsDragActive(true);
+			}
+		},
+		[enableAttachments],
+	);
+
+	const handleDragLeave = useCallback(
+		(event: React.DragEvent<HTMLDivElement>) => {
+			if (!enableAttachments) return;
+			const related = event.relatedTarget as Node | null;
+			if (related && event.currentTarget.contains(related)) return;
+			setIsDragActive(false);
+		},
+		[enableAttachments],
+	);
+
+	const handleDrop = useCallback(
+		(event: React.DragEvent<HTMLDivElement>) => {
+			if (!enableAttachments) return;
+			event.preventDefault();
+			setIsDragActive(false);
+			if (event.dataTransfer?.files?.length) {
+				handleAddAttachments(event.dataTransfer.files);
+			}
+		},
+		[enableAttachments, handleAddAttachments],
+	);
+
+	const handlePaste = useCallback(
+		(event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+			if (!enableAttachments) return;
+			const files = Array.from(event.clipboardData.files || []);
+			if (files.length === 0) return;
+			handleAddAttachments(files);
+			const pastedText = event.clipboardData.getData("text");
+			if (!pastedText) {
+				event.preventDefault();
+			}
+		},
+		[enableAttachments, handleAddAttachments],
+	);
+
 	// 右侧按钮组（@ 按钮和发送/停止按钮）
 	const actionButtons = (
 		<div className="flex items-center gap-1">
+			{enableAttachments && (
+				<>
+					<input
+						ref={fileInputRef}
+						type="file"
+						multiple
+						className="hidden"
+						onChange={handleFileChange}
+					/>
+					<button
+						type="button"
+						onClick={handlePickFiles}
+						className={cn(
+							"flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground",
+							"hover:bg-foreground/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+						)}
+						aria-label={t("attachments.add")}
+					>
+						<Paperclip className="h-4 w-4" />
+					</button>
+				</>
+			)}
 			<button
 				type="button"
 				onClick={onAtClick}
@@ -158,7 +264,12 @@ export function InputBox({
 				className={cn(
 					"flex flex-col rounded-xl border border-border",
 					"bg-background/60 px-3 py-2 mb-4",
+					isDragActive && enableAttachments && "border-primary/60 bg-primary/5",
 				)}
+				onDragEnter={handleDragEnter}
+				onDragOver={handleDragOver}
+				onDragLeave={handleDragLeave}
+				onDrop={handleDrop}
 			>
 				{/* 关联待办区域 */}
 				{linkedTodos}
@@ -178,6 +289,7 @@ export function InputBox({
 						onCompositionStart={onCompositionStart}
 						onCompositionEnd={onCompositionEnd}
 						onKeyDown={onKeyDown}
+						onPaste={handlePaste}
 						placeholder={placeholder}
 						rows={SINGLE_LINE_ROWS}
 						style={{ maxHeight, minHeight: `${MIN_TEXTAREA_HEIGHT}px` }}
@@ -200,7 +312,12 @@ export function InputBox({
 			className={cn(
 				"relative flex flex-col rounded-xl border border-border",
 				"bg-background/60 px-3 pt-2 pb-14",
+				isDragActive && enableAttachments && "border-primary/60 bg-primary/5",
 			)}
+			onDragEnter={handleDragEnter}
+			onDragOver={handleDragOver}
+			onDragLeave={handleDragLeave}
+			onDrop={handleDrop}
 		>
 			{/* 关联待办区域 */}
 			{linkedTodos}
@@ -212,6 +329,7 @@ export function InputBox({
 				onCompositionStart={onCompositionStart}
 				onCompositionEnd={onCompositionEnd}
 				onKeyDown={onKeyDown}
+				onPaste={handlePaste}
 				placeholder={placeholder}
 				rows={MULTI_LINE_ROWS}
 				style={{ maxHeight, minHeight: `${MIN_TEXTAREA_HEIGHT}px` }}

@@ -568,6 +568,13 @@
 		"mentionFileOrTodo": "提及文件或任务",
 		"send": "发送",
 		"stop": "停止",
+		"attachments": {
+			"add": "添加附件",
+			"pending": "待发送附件（{count}）",
+			"remove": "移除",
+			"fileTooLarge": "文件超过 {size} 限制",
+			"tooMany": "最多可添加 {count} 个附件"
+		},
 		"linkedTodos": "关联待办（{count}）",
 		"linkedTodosEn": "Linked todos ({count})",
 		"collapse": "收起",

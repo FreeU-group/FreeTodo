@@ -205,38 +205,43 @@ export function ChatPanel() {
 						/>
 					)}
 
-				{/* 首页时在输入框上方显示建议按钮 */}
-				{shouldShowSuggestions &&
-					(breakdownQuestionnaire.stage === "idle" ||
-						breakdownQuestionnaire.stage === "completed") && (
-						<PromptSuggestions
-							onSelect={handleSelectPrompt}
-							className="pb-4"
-						/>
-					)}
+					{/* 首页时在输入框上方显示建议按钮 */}
+					{shouldShowSuggestions &&
+						(breakdownQuestionnaire.stage === "idle" ||
+							breakdownQuestionnaire.stage === "completed") && (
+							<PromptSuggestions
+								onSelect={handleSelectPrompt}
+								className="pb-4"
+							/>
+						)}
 
-				<ChatInputSection
-					locale={locale}
-					inputValue={chatController.inputValue}
-					isStreaming={chatController.isStreaming}
-					error={chatController.error}
-					effectiveTodos={chatController.effectiveTodos}
-					hasSelection={chatController.hasSelection}
-					showTodosExpanded={showTodosExpanded}
-					crawlerResult={chatController.selectedCrawlerResult}
-					onInputChange={chatController.setInputValue}
-					onSend={chatController.handleSend}
-					onStop={chatController.handleStop}
-					onKeyDown={chatController.handleKeyDown}
-					onCompositionStart={() => chatController.setIsComposing(true)}
-					onCompositionEnd={() => chatController.setIsComposing(false)}
-					onToggleExpand={() => setShowTodosExpanded((prev) => !prev)}
-					onClearSelection={clearTodoSelection}
-					onToggleTodo={toggleTodoSelection}
-					onClearCrawlerSelection={() => setSelectedCrawlerResult(null)}
-				/>
+					<ChatInputSection
+						locale={locale}
+						inputValue={chatController.inputValue}
+						isStreaming={chatController.isStreaming}
+						error={chatController.error}
+						effectiveTodos={chatController.effectiveTodos}
+						hasSelection={chatController.hasSelection}
+						showTodosExpanded={showTodosExpanded}
+						crawlerResult={chatController.selectedCrawlerResult}
+						pendingAttachments={chatController.pendingAttachments}
+						onAddAttachments={chatController.addPendingAttachments}
+						onRemoveAttachment={chatController.removePendingAttachment}
+						onInputChange={chatController.setInputValue}
+						onSend={chatController.handleSend}
+						onStop={chatController.handleStop}
+						onKeyDown={chatController.handleKeyDown}
+						onCompositionStart={() => chatController.setIsComposing(true)}
+						onCompositionEnd={() => chatController.setIsComposing(false)}
+						onToggleExpand={() => setShowTodosExpanded((prev) => !prev)}
+						onClearSelection={clearTodoSelection}
+						onToggleTodo={toggleTodoSelection}
+						onClearCrawlerSelection={() =>
+							setSelectedCrawlerResult(null)
+						}
+					/>
+				</div>
 			</div>
-		</div>
 		</div>
 	);
 }
