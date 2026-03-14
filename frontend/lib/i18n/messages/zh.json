@@ -851,7 +851,8 @@
 		"layouts": {
 			"default": "待办列表模式",
 			"calendar": "待办日历模式",
-			"lifetrace": "LifeTrace 模式"
+			"lifetrace": "LifeTrace 模式",
+			"insight": "感知画像"
 		}
 	},
 	"sensorNodes": {

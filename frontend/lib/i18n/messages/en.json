@@ -851,7 +851,8 @@
 		"layouts": {
 			"default": "Todo List Mode",
 			"calendar": "Todo Calendar Mode",
-			"lifetrace": "LifeTrace Mode"
+			"lifetrace": "LifeTrace Mode",
+			"insight": "Perception Profile"
 		}
 	},
 	"sensorNodes": {
