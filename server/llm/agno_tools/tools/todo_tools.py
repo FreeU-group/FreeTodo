@@ -12,6 +12,7 @@ from llm.agno_tools.base import get_message
 from llm.agno_tools.tools.todo_tool_helpers import CreateTodoPayload, build_create_kwargs
 from llm.agno_tools.tools.todo_tool_update_helpers import UpdateTodoPayload, build_update_kwargs
 from util.logging_config import get_logger
+from util.time_utils import to_local
 
 if TYPE_CHECKING:
     from repositories.sql_todo_repository import SqlTodoRepository
@@ -379,13 +380,15 @@ class TodoTools:
                 end_time = todo.get("dtend") or todo.get("end_time")
                 if start_time:
                     if isinstance(start_time, datetime):
-                        start_label = start_time.strftime("%Y-%m-%d %H:%M")
+                        local_start = to_local(start_time) or start_time
+                        start_label = local_start.strftime("%Y-%m-%d %H:%M")
                     else:
                         start_label = str(start_time)
                     end_label = None
                     if end_time:
                         if isinstance(end_time, datetime):
-                            end_label = end_time.strftime("%Y-%m-%d %H:%M")
+                            local_end = to_local(end_time) or end_time
+                            end_label = local_end.strftime("%Y-%m-%d %H:%M")
                         else:
                             end_label = str(end_time)
                     time_label = start_label

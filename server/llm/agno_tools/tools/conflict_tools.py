@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from llm.agno_tools.base import get_message
 from util.logging_config import get_logger
+from util.time_utils import USER_TIMEZONE, to_local
 
 if TYPE_CHECKING:
     from repositories.sql_todo_repository import SqlTodoRepository
@@ -140,8 +141,10 @@ class ConflictTools:
                 "conflict_item",
                 id=c["id"],
                 name=c["name"],
-                start=c["start"].strftime("%H:%M") if c.get("start") else "N/A",
-                end=c["end"].strftime("%H:%M") if c.get("end") else "",
+                start=(to_local(c["start"]) or c["start"]).strftime("%H:%M")
+                if c.get("start")
+                else "N/A",
+                end=(to_local(c["end"]) or c["end"]).strftime("%H:%M") if c.get("end") else "",
             )
             for c in conflicts
         ]
@@ -156,7 +159,7 @@ class ConflictTools:
         """Check if the specified time conflicts with existing todos
 
         Args:
-            start_time: Start time in ISO format
+            start_time: Start time in ISO format (interpreted as local time if no timezone)
             end_time: End time in ISO format (optional, defaults to start_time + 1 hour)
 
         Returns:
@@ -164,13 +167,20 @@ class ConflictTools:
         """
         try:
             start = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=USER_TIMEZONE)
+
             end = (
                 datetime.fromisoformat(end_time.replace("Z", "+00:00"))
                 if end_time
                 else start + timedelta(hours=DEFAULT_TODO_DURATION_HOURS)
             )
+            if end.tzinfo is None:
+                end = end.replace(tzinfo=USER_TIMEZONE)
 
-            time_range = f"{start.strftime('%Y-%m-%d %H:%M')} - {end.strftime('%H:%M')}"
+            local_start = to_local(start) or start
+            local_end = to_local(end) or end
+            time_range = f"{local_start.strftime('%Y-%m-%d %H:%M')} - {local_end.strftime('%H:%M')}"
             todos = self.todo_repo.list_todos(limit=200, offset=0, status="active")
             conflicts = _find_conflicts(todos, start, end)
 

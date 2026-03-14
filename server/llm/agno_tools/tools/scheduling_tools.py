@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from llm.agno_tools.base import get_message
 from llm.agno_tools.tools.conflict_tools import _get_todo_range
 from util.logging_config import get_logger
+from util.time_utils import USER_TIMEZONE, to_local
 
 if TYPE_CHECKING:
     from repositories.sql_todo_repository import SqlTodoRepository
@@ -99,8 +100,8 @@ class SchedulingTools:
         """
         try:
             target = datetime.fromisoformat(date)
-            day_start = datetime.combine(target.date(), time(hour=start_hour))
-            day_end = datetime.combine(target.date(), time(hour=end_hour))
+            day_start = datetime.combine(target.date(), time(hour=start_hour), tzinfo=USER_TIMEZONE)
+            day_end = datetime.combine(target.date(), time(hour=end_hour), tzinfo=USER_TIMEZONE)
 
             todos = self.todo_repo.list_todos(limit=200, offset=0, status="active")
             free = _find_free_windows(todos, day_start, day_end, min_duration_minutes)
@@ -115,9 +116,11 @@ class SchedulingTools:
             lines = []
             for idx, (slot_start, slot_end) in enumerate(free, 1):
                 duration = int((slot_end - slot_start).total_seconds() / 60)
+                local_start = to_local(slot_start) or slot_start
+                local_end = to_local(slot_end) or slot_end
                 lines.append(
-                    f"  {idx}. {slot_start.strftime('%H:%M')} - "
-                    f"{slot_end.strftime('%H:%M')}（{duration} 分钟）"
+                    f"  {idx}. {local_start.strftime('%H:%M')} - "
+                    f"{local_end.strftime('%H:%M')}（{duration} 分钟）"
                 )
 
             return self._msg(
