@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import httpx
 
@@ -201,6 +202,89 @@ class TodoApiClient(ApiClient):
                 exit_code=2,
             ) from exc
         return self._request("POST", "/api/todos/import/ics", files=files)
+
+
+class ChatApiClient(ApiClient):
+    """Chat streaming API client."""
+
+    def stream_chat(
+        self,
+        *,
+        message: str,
+        user_input: str | None,
+        mode: str | None,
+        attachments: list[str] | None,
+        selected_tools: list[str] | None,
+        external_tools: list[str] | None,
+        context: str | None,
+        system_prompt: str | None,
+        conversation_id: str | None,
+        use_rag: bool | None,
+        on_chunk: Callable[[str], None] | None = None,
+    ) -> tuple[Any, str | None]:
+        files = None
+        data: list[tuple[str, str]] = []
+
+        def _append_field(key: str, value: str | None) -> None:
+            if value is None:
+                return
+            data.append((key, value))
+
+        _append_field("message", message)
+        _append_field("user_input", user_input)
+        _append_field("mode", mode)
+        _append_field("context", context)
+        _append_field("system_prompt", system_prompt)
+        _append_field("conversation_id", conversation_id)
+        if use_rag is not None:
+            _append_field("use_rag", str(use_rag))
+        for tool in selected_tools or []:
+            _append_field("selected_tools", tool)
+        for tool in external_tools or []:
+            _append_field("external_tools", tool)
+
+        if attachments:
+            files = []
+            for file_path in attachments:
+                path = Path(file_path)
+                content_type = (
+                    mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+                )
+                files.append(
+                    ("attachments", (path.name, path.read_bytes(), content_type))
+                )
+
+        try:
+            with self._client.stream(
+                "POST", "/api/chat/stream", data=data, files=files
+            ) as response:
+                if response.is_error:
+                    response.read()
+                    raise _extract_error(response)
+                session_id = response.headers.get("X-Session-Id")
+                request_id = response.headers.get("X-Request-Id") or response.headers.get(
+                    "X-Request-ID"
+                )
+                chunks: list[str] = []
+                for chunk in response.iter_text():
+                    if not chunk:
+                        continue
+                    chunks.append(chunk)
+                    if on_chunk:
+                        on_chunk(chunk)
+                return {"session_id": session_id, "response": "".join(chunks)}, request_id
+        except httpx.ConnectError as exc:
+            raise CliError(
+                code="BACKEND_UNAVAILABLE",
+                message=f"Cannot connect to backend: {exc}",
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise CliError(
+                code="HTTP_ERROR",
+                message=str(exc),
+                exit_code=map_status_to_exit_code(503),
+            ) from exc
 
 
 class JournalApiClient(ApiClient):
