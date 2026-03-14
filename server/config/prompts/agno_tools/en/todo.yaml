@@ -1,31 +1,31 @@
 # Todo Management Tool Messages - English
 
 # Create
-create_success: "Successfully created todo #{id}: {name}"
+create_success: "Successfully created todo: {name}"
 create_failed: "Failed to create todo: {error}"
 
 # Complete
-complete_success: "Todo #{id} marked as completed"
-complete_not_found: "Todo #{id} not found"
+complete_success: "Todo marked as completed"
+complete_not_found: "Todo not found"
 complete_failed: "Failed to complete todo: {error}"
 
 # Update
-update_success: "Todo #{id} updated"
-update_not_found: "Todo #{id} not found"
+update_success: "Todo updated"
+update_not_found: "Todo not found"
 update_failed: "Failed to update todo: {error}"
 
 # List
 list_header: "Todo list ({status}, {count} items):\n"
-list_item: "- #{id} [{priority}] {name}"
+list_item: "- [{priority}] {name}"
 list_item_with_time: " (time: {time})"
 list_empty: "No {status} todos found"
 
 # Search
 search_header: "Search results for \"{keyword}\" ({count} items):\n"
-search_item: "- #{id} [{status}] {name}"
+search_item: "- [{status}] {name}"
 search_empty: "No todos found containing \"{keyword}\""
 
 # Delete
-delete_success: "Todo #{id} deleted"
-delete_not_found: "Todo #{id} not found"
+delete_success: "Todo deleted"
+delete_not_found: "Todo not found"
 delete_failed: "Failed to delete todo: {error}"

@@ -1,31 +1,31 @@
 # Todo 管理工具消息 - 中文版
 
 # 创建
-create_success: "成功创建待办 #{id}: {name}"
+create_success: "成功创建待办：{name}"
 create_failed: "创建待办失败: {error}"
 
 # 完成
-complete_success: "已将待办 #{id} 标记为完成"
-complete_not_found: "未找到待办 #{id}"
+complete_success: "已将待办标记为完成"
+complete_not_found: "未找到待办"
 complete_failed: "完成待办失败: {error}"
 
 # 更新
-update_success: "已更新待办 #{id}"
-update_not_found: "未找到待办 #{id}"
+update_success: "已更新待办"
+update_not_found: "未找到待办"
 update_failed: "更新待办失败: {error}"
 
 # 列表
 list_header: "待办列表 ({status}, 共 {count} 项):\n"
-list_item: "- #{id} [{priority}] {name}"
+list_item: "- [{priority}] {name}"
 list_item_with_time: " (时间: {time})"
 list_empty: "没有找到{status}的待办事项"
 
 # 搜索
 search_header: "搜索 \"{keyword}\" 的结果 (共 {count} 项):\n"
-search_item: "- #{id} [{status}] {name}"
+search_item: "- [{status}] {name}"
 search_empty: "未找到包含 \"{keyword}\" 的待办"
 
 # 删除
-delete_success: "已删除待办 #{id}"
-delete_not_found: "未找到待办 #{id}"
+delete_success: "已删除待办"
+delete_not_found: "未找到待办"
 delete_failed: "删除待办失败: {error}"

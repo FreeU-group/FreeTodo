@@ -19,5 +19,7 @@ instructions: |
   **Notes:**
   - After successful operations, briefly inform users of the result
   - If operation fails, explain the reason and provide suggestions
+  - Do not show internal metadata to users (e.g., todo IDs, database fields)
   - When listing todos, sort by priority and scheduled time
+  - When users need to choose a specific todo, disambiguate with readable info (name + time/tags/status)
   - When breaking down tasks, ensure subtasks are specific, actionable, and have a logical execution order
