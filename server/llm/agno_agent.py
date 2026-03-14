@@ -216,6 +216,7 @@ class AgnoAgentService:
         post_hooks: list[Any] | None = None,
         agent_id: str | None = None,
         agent_name: str | None = None,
+        model: str | None = None,
     ):
         """初始化 Agno Agent 服务
 
@@ -252,9 +253,10 @@ class AgnoAgentService:
 
             db, learning, add_history_to_context, db_path = _build_learning_config()
 
+            resolved_model = model or settings.llm.model
             self.agent = Agent(
                 model=OpenAILike(
-                    id=settings.llm.model,
+                    id=resolved_model,
                     api_key=settings.llm.api_key,
                     base_url=settings.llm.base_url,
                 ),
@@ -277,7 +279,7 @@ class AgnoAgentService:
                     db_path,
                 )
             logger.info(
-                f"Agno Agent 初始化成功，模型: {settings.llm.model}, "
+                f"Agno Agent 初始化成功，模型: {resolved_model}, "
                 f"Base URL: {settings.llm.base_url}, lang: {self.lang}, "
                 f"工具数量: {len(tools_to_use)}",
             )

@@ -137,6 +137,19 @@ def _sanitize_attachments_for_metadata(
     return sanitized or None
 
 
+def _has_image_attachments(attachments: list[dict[str, Any]] | None) -> bool:
+    if not attachments:
+        return False
+    for item in attachments:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or "").lower()
+        mime_type = str(item.get("mime_type") or "").lower()
+        if kind == "image" or mime_type.startswith("image/"):
+            return True
+    return False
+
+
 def _build_agent_os_token_generator(
     agent_service: AgnoAgentService,
     message: ChatMessage,
@@ -232,11 +245,20 @@ def create_agno_streaming_response(
                 "enable_delete": bool(message.enable_file_delete),
             }
 
+    model_override = None
+    if _has_image_attachments(message.attachments):
+        model_override = settings.llm.vision_model or settings.llm.model
+        if settings.llm.vision_model:
+            logger.info("[stream][agno] 图片附件检测到，切换到视觉模型: %s", model_override)
+        else:
+            logger.warning("[stream][agno] 图片附件检测到，但未配置 vision_model，继续使用默认模型")
+
     agent_service = AgnoAgentService(
         lang=lang,
         selected_tools=message.selected_tools,
         external_tools=message.external_tools,
         external_tools_config=external_tools_config or None,
+        model=model_override,
     )
 
     headers = {
