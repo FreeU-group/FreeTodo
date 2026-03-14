@@ -31,6 +31,20 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
 		panelCWidth: 0.25, // panelC 占右边 1/4
 	},
 	{
+		id: "insight",
+		name: "感知画像",
+		panelFeatureMap: {
+			panelA: "perceptionStream",
+			panelB: "eventStream",
+			panelC: "userProfile",
+		},
+		isPanelAOpen: true,
+		isPanelBOpen: true,
+		isPanelCOpen: true,
+		panelAWidth: 0.4,
+		panelCWidth: 0.3,
+	},
+	{
 		id: "lifetrace",
 		name: "LifeTrace 模式",
 		panelFeatureMap: {
@@ -43,19 +57,5 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
 		isPanelCOpen: false,
 		panelAWidth: 2 / 3, // 当 panelA 关闭时，这个值不影响布局
 		panelCWidth: 1 / 4,
-	},
-	{
-		id: "insight",
-		name: "感知画像",
-		panelFeatureMap: {
-			panelA: "perceptionStream",
-			panelB: "eventStream",
-			panelC: "userProfile",
-		},
-		isPanelAOpen: true,
-		isPanelBOpen: true,
-		isPanelCOpen: true,
-		panelAWidth: 0.5,
-		panelCWidth: 0.25,
 	},
 ];
