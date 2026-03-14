@@ -13,7 +13,7 @@ services:
       LIFETRACE_LLM__MODEL: ${LIFETRACE_LLM__MODEL:-qwen-plus}
       LIFETRACE_AUDIO__ASR__API_KEY: ${LIFETRACE_AUDIO__ASR__API_KEY}
       LIFETRACE_TAVILY__API_KEY: ${LIFETRACE_TAVILY__API_KEY}
-      LIFETRACE_AGNO__DEFAULT_WORKSPACE: /workspace
+      LIFETRACE_AGNO__DEFAULT_WORKSPACE: /app/workspace
       LIFETRACE_AGNO__AGENT_OS__BASE_URL: http://agent:8002
       LIFETRACE_AGNO__AGENT_OS__HOST: agent
       LIFETRACE_AGNO__AGENT_OS__PORT: 8002
@@ -22,6 +22,7 @@ services:
     command: ["python", "server.py"]
     volumes:
       - ./volume/data:/app/data
+      - ./volume/workspace:/app/workspace
     networks:
       - lifetrace-network
 
