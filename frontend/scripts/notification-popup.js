@@ -16,7 +16,9 @@ const WIDTH = 360;
 const HEIGHT = 120;
 const MARGIN = 16;
 const BACKEND_PORT = process.env.LIFETRACE_BACKEND_PORT || 8001;
-const BACKEND_URL = `http://127.0.0.1:${BACKEND_PORT}`;
+const BACKEND_URL =
+	process.env.LIFETRACE_BACKEND_URL ||
+	`http://127.0.0.1:${BACKEND_PORT}`;
 
 // 配置文件路径（由前端 API 写入）
 const CONFIG_PATH = path.join(__dirname, "..", ".notification-popup.json");
