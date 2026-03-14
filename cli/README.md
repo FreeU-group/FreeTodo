@@ -5,13 +5,13 @@ resources through the HTTP API.
 
 ## Quick Start
 
-1. Install server dependencies:
+1. Install CLI dependencies:
 
 ```bash
-uv sync --directory server
+uv sync --directory cli
 ```
 
-2. Start the backend:
+2. Start the backend (local or remote):
 
 ```bash
 uv run --directory server python server.py
@@ -20,24 +20,24 @@ uv run --directory server python server.py
 3. Run the CLI:
 
 ```bash
-uv run --directory server freetodo --help
-uv run --directory server freetodo todo list --json
+uv run --directory cli freetodo --help
+uv run --directory cli freetodo todo list --json
 ```
 
 ## Common Commands
 
 ```bash
 # Read data (JSON-first)
-uv run --directory server freetodo todo list --json
-uv run --directory server freetodo memory today --json
-uv run --directory server freetodo logs files --json
+uv run --directory cli freetodo todo list --json
+uv run --directory cli freetodo memory today --json
+uv run --directory cli freetodo logs files --json
 
 # Create or update with file input
-uv run --directory server freetodo todo create --input todo.json --json
-uv run --directory server freetodo todo update --id 42 --patch patch.json --json
+uv run --directory cli freetodo todo create --input todo.json --json
+uv run --directory cli freetodo todo update --id 42 --patch patch.json --json
 
 # Validate configuration + backend health
-uv run --directory server freetodo doctor --json
+uv run --directory cli freetodo doctor --json
 ```
 
 ## Help Language
@@ -45,8 +45,8 @@ uv run --directory server freetodo doctor --json
 Default help is English. To render Chinese or bilingual help for a topic:
 
 ```bash
-uv run --directory server freetodo help root --lang zh
-uv run --directory server freetodo help todo --lang bilingual
+uv run --directory cli freetodo help root --lang zh
+uv run --directory cli freetodo help todo --lang bilingual
 ```
 
 ## Environment Variables

@@ -17,7 +17,7 @@ from cli.commands.common import (
 )
 from cli.config import load_config
 from cli.errors import CliError
-from schemas.todo import TodoCreate, TodoReorderRequest, TodoUpdate
+from cli.schemas.todo import TodoCreate, TodoReorderRequest, TodoUpdate
 
 todo_app = typer.Typer(
     help=(

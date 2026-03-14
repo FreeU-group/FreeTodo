@@ -16,7 +16,7 @@ from cli.commands.common import (
 )
 from cli.config import load_config
 from cli.errors import CliError
-from schemas.automation import AutomationTaskCreate, AutomationTaskUpdate
+from cli.schemas.automation import AutomationTaskCreate, AutomationTaskUpdate
 
 automation_app = typer.Typer(
     help=(

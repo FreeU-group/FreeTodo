@@ -108,7 +108,7 @@ index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 extra-index-url = ["https://pypi.org/simple"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["cli", "schemas"]
+packages = ["schemas"]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -118,6 +118,3 @@ explicit = true
 # 告诉 uv，torch 相关的包去 pytorch-cpu 这个索引找
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
-
-[project.scripts]
-freetodo = "cli.main:main"
