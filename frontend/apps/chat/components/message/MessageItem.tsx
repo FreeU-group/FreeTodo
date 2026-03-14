@@ -5,6 +5,7 @@ import type { ExtractionState } from "@/apps/chat/hooks/useMessageExtraction";
 import type { ChatMessage } from "@/apps/chat/types";
 import { cn } from "@/lib/utils";
 import { MessageContent } from "./MessageContent";
+import { MessageAttachments } from "./MessageAttachments";
 import { MessageTodoExtractionPanel } from "./MessageTodoExtractionPanel";
 import {
 	removeToolCalls,
@@ -114,6 +115,11 @@ export function MessageItem({
 							message={message}
 							contentOverride={contentOverride}
 						/>
+						{message.role === "user" &&
+							message.attachments &&
+							message.attachments.length > 0 && (
+								<MessageAttachments attachments={message.attachments} />
+							)}
 					</div>
 				</div>
 			</div>
