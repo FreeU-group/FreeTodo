@@ -10,6 +10,7 @@ from freetodo_cli.client import ApiClient
 from freetodo_cli.commands.activity import activity_app
 from freetodo_cli.commands.audio import audio_app
 from freetodo_cli.commands.automation import automation_app
+from freetodo_cli.commands.chat import chat_app
 from freetodo_cli.commands.config import config_app
 from freetodo_cli.commands.cost_tracking import cost_tracking_app
 from freetodo_cli.commands.event import event_app
@@ -606,6 +607,7 @@ app.add_typer(journal_app, name="journal")
 app.add_typer(activity_app, name="activity")
 app.add_typer(event_app, name="event")
 app.add_typer(automation_app, name="automation")
+app.add_typer(chat_app, name="chat")
 app.add_typer(config_app, name="config")
 app.add_typer(memory_app, name="memory")
 app.add_typer(notification_app, name="notification")
