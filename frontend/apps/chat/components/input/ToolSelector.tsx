@@ -33,6 +33,7 @@ const FREETODO_TOOLS = [
  */
 const EXTERNAL_TOOLS = [
 	// 搜索类工具
+	{ id: "websearch", category: "search" }, // 通用网页搜索（Auto 模式）
 	{ id: "hackernews", category: "search" }, // Hacker News
 	// 本地类工具
 	{ id: "file", category: "local" }, // 文件操作（需要 workspace_path）
