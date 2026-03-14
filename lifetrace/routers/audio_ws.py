@@ -77,35 +77,75 @@ def _pcm16le_to_wav(
     )
 
 
-def _create_result_callback(
+def _is_ws_connected(websocket: WebSocket, is_connected_ref: list[bool]) -> bool:
+    """Check if the WebSocket is still connected."""
+    return (
+        is_connected_ref[0]
+        and websocket.application_state == WebSocketState.CONNECTED
+        and websocket.client_state == WebSocketState.CONNECTED
+    )
+
+
+def _create_result_callback(  # noqa: C901
     *,
     websocket: WebSocket,
     logger,
     transcription_text_ref: list[str],
     is_connected_ref: list[bool],
     task_set: set[asyncio.Task],
+    speaker_diarizer=None,
+    speaker_segments_ref: list[list] | None = None,
 ) -> Callable[[str, bool], None]:
     """Create ASR result callback.
 
     NOTE: Only commit final sentences to `transcription_text_ref` to avoid duplicates.
+    If ``speaker_diarizer`` is provided and enabled, final sentences will
+    include speaker identification results.
     """
+    _spk_enabled = speaker_diarizer is not None and speaker_diarizer.enabled
 
-    async def _send_result(text: str, is_final: bool) -> None:
+    async def _send_result(text: str, is_final: bool, speaker_info: dict | None = None) -> None:
         try:
-            if (
-                is_connected_ref[0]
-                and websocket.application_state == WebSocketState.CONNECTED
-                and websocket.client_state == WebSocketState.CONNECTED
-            ):
+            if _is_ws_connected(websocket, is_connected_ref):
+                payload: dict[str, Any] = {"result": text, "is_final": is_final}
+                if speaker_info:
+                    payload["speaker"] = speaker_info
                 await websocket.send_json(
-                    {
-                        "header": {"name": "TranscriptionResultChanged"},
-                        "payload": {"result": text, "is_final": is_final},
-                    }
+                    {"header": {"name": "TranscriptionResultChanged"}, "payload": payload}
                 )
         except Exception as e:
             is_connected_ref[0] = False
             logger.warning(f"Failed to send TranscriptionResultChanged to client: {e}")
+
+    async def _identify_speaker(text: str) -> dict | None:
+        """Run speaker identification and return speaker info dict."""
+        if speaker_diarizer is None:
+            return None
+        try:
+            match = await speaker_diarizer.identify_current_speaker()
+            if match and match.speaker_id >= 0:
+                info = {
+                    "id": match.speaker_id,
+                    "name": match.speaker_name,
+                    "confidence": round(match.confidence, 3),
+                    "is_new": match.is_new,
+                }
+                if speaker_segments_ref is not None:
+                    speaker_segments_ref[0].append(
+                        {
+                            "speaker_id": match.speaker_id,
+                            "speaker_name": match.speaker_name,
+                            "text": text,
+                        }
+                    )
+                return info
+        except Exception as e:
+            logger.warning(f"说话人识别异常: {e}")
+        return None
+
+    async def _send_final_with_speaker(text: str) -> None:
+        speaker_info = await _identify_speaker(text) if _spk_enabled else None
+        await _send_result(text, is_final=True, speaker_info=speaker_info)
 
     def on_result(text: str, is_final: bool) -> None:
         if not text or not is_connected_ref[0]:
@@ -114,15 +154,14 @@ def _create_result_callback(
         if is_final:
             committed = transcription_text_ref[0]
             needs_gap = committed and not committed.endswith("\n")
-            committed += ("\n" if needs_gap else "") + text
-            transcription_text_ref[0] = committed
+            transcription_text_ref[0] = committed + ("\n" if needs_gap else "") + text
 
+        if not _is_ws_connected(websocket, is_connected_ref):
+            return
         try:
-            if (
-                is_connected_ref[0]
-                and websocket.application_state == WebSocketState.CONNECTED
-                and websocket.client_state == WebSocketState.CONNECTED
-            ):
+            if is_final and _spk_enabled:
+                _track_task(task_set, _send_final_with_speaker(text))
+            else:
                 _track_task(task_set, _send_result(text, is_final))
         except Exception as e:
             logger.warning(f"Failed to schedule sending TranscriptionResultChanged: {e}")
@@ -285,18 +324,20 @@ def _handle_websocket_text_message(
     return False
 
 
-async def _audio_stream_generator(
+async def _audio_stream_generator(  # noqa: C901
     websocket: WebSocket,
     logger,
     audio_chunks: list[bytes],
     segment_timestamps_ref: list[list[float] | None],
     should_segment_ref: list[bool] | None = None,
+    speaker_diarizer=None,
 ):
     """Yield audio bytes from websocket until stop signal.
 
     Args:
         segment_timestamps_ref: 用于存储从客户端接收的时间戳数组的引用
         should_segment_ref: 用于标记是否需要分段（外部可以设置此标志来触发分段）
+        speaker_diarizer: 可选的说话人识别器，实时接收音频 PCM 数据
     """
     chunk_count = 0
     chunk_bytes_total = 0
@@ -314,6 +355,8 @@ async def _audio_stream_generator(
                     chunk_count += 1
                     chunk_bytes_total += len(chunk)
                     audio_chunks.append(chunk)
+                    if speaker_diarizer is not None:
+                        speaker_diarizer.feed_audio(chunk)
                     # 实时转写链路：对发送给 ASR 的音频做 AGC（不改动原始落盘数据）
                     yield _apply_agc_to_pcm(logger, chunk, log_stats=False, warn_silence=False)
                 continue

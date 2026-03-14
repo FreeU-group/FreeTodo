@@ -377,12 +377,17 @@ if __name__ == "__main__":
         server_host = str(IPv4Address(0))
         logger.info("Center 模式：绑定 %s，接受远程连接", server_host)
 
-    # 动态端口分配：如果默认端口被占用，自动尝试下一个可用端口
+    # 强制使用指定端口，不进行自动顺延
+    actual_port = server_port
+
+    # 检查端口占用情况（仅作为提示）
     try:
-        actual_port = find_available_port(server_host, server_port)
-    except RuntimeError as e:
-        logger.error(f"端口分配失败: {e}")
-        raise
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((server_host, actual_port))
+    except OSError:
+        logger.error(f"端口 {actual_port} 已被占用，服务器启动失败")
+        # 依然尝试启动，让 uvicorn 报错退出，避免多实例混淆
+        # raise RuntimeError(f"端口 {actual_port} 已被占用")
 
     logger.info(f"启动服务器: http://{server_host}:{actual_port}")
     logger.info(f"服务器模式: {args.mode}  部署角色: {args.role}")

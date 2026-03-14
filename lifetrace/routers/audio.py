@@ -298,6 +298,40 @@ async def link_extracted_items(recording_id: int, request: AudioLinkRequest):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@router.get("/speakers")
+async def get_speakers():
+    """获取所有说话人列表"""
+    try:
+        from lifetrace.services.speaker_service import VoiceprintStore  # noqa: PLC0415
+
+        store = VoiceprintStore()
+        speakers = store.get_all_speakers()
+        return JSONResponse({"speakers": speakers})
+    except Exception as e:
+        logger.error(f"获取说话人列表失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+class SpeakerRenameRequest(BaseModel):
+    name: str = Field(..., max_length=100, description="新的说话人名称")
+
+
+@router.put("/speakers/{speaker_id}")
+async def rename_speaker(speaker_id: int, request: SpeakerRenameRequest):
+    """重命名说话人"""
+    try:
+        from lifetrace.services.speaker_service import VoiceprintStore  # noqa: PLC0415
+
+        store = VoiceprintStore()
+        success = store.rename_speaker(speaker_id, request.name)
+        if not success:
+            return JSONResponse({"error": "说话人不存在"}, status_code=404)
+        return JSONResponse({"ok": True, "speaker_id": speaker_id, "name": request.name})
+    except Exception as e:
+        logger.error(f"重命名说话人失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @router.post("/extract")
 async def extract_todos(recording_id: int):
     """提取待办事项

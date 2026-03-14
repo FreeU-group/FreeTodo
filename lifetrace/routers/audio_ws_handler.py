@@ -90,6 +90,7 @@ class _RunTranscriptionStreamContext:
         self.should_segment_ref = kwargs["should_segment_ref"]
         self.on_result = kwargs["on_result"]
         self.on_error = kwargs["on_error"]
+        self.speaker_diarizer = kwargs.get("speaker_diarizer")
 
 
 async def _run_transcription_stream(*, ctx: _RunTranscriptionStreamContext) -> None:
@@ -101,6 +102,7 @@ async def _run_transcription_stream(*, ctx: _RunTranscriptionStreamContext) -> N
         audio_chunks=ctx.audio_chunks,
         segment_timestamps_ref=ctx.segment_timestamps_ref,
         should_segment_ref=ctx.should_segment_ref,
+        speaker_diarizer=ctx.speaker_diarizer,
     )
     await ctx.asr_client.transcribe_stream(
         audio_stream=audio_stream,
@@ -187,7 +189,7 @@ async def _save_final_data_internal(*, ctx: _SaveFinalDataContext) -> None:
         ctx.logger.error(f"❌ 保存最终数据失败: {e}", exc_info=True)
 
 
-async def _initialize_handlers_internal(
+async def _initialize_handlers_internal(  # noqa: PLR0913
     *,
     websocket: WebSocket,
     logger,
@@ -199,6 +201,8 @@ async def _initialize_handlers_internal(
     _parse_init_message,
     _create_result_callback,
     _create_error_callback,
+    speaker_diarizer=None,
+    speaker_segments_ref=None,
 ) -> tuple:
     """初始化处理函数和回调"""
     init_message = await websocket.receive_json()
@@ -211,6 +215,8 @@ async def _initialize_handlers_internal(
         transcription_text_ref=transcription_text_ref,
         is_connected_ref=is_connected_ref,
         task_set=task_set,
+        speaker_diarizer=speaker_diarizer,
+        speaker_segments_ref=speaker_segments_ref,
     )
 
     def on_result(text: str, is_final: bool) -> None:
@@ -278,6 +284,17 @@ def _setup_websocket_state():
     is_24x7_ref: list[bool] = [False]
     data_saved_ref: list[bool] = [False]
     task_set: set[asyncio.Task] = set()
+    speaker_segments_ref: list[list] = [[]]
+
+    speaker_diarizer = None
+    with contextlib.suppress(Exception):
+        from lifetrace.services.diart_diarizer import DiartDiarizer  # noqa: PLC0415
+
+        diarizer = DiartDiarizer()
+        diarizer.start()
+        if diarizer.enabled:
+            speaker_diarizer = diarizer
+
     return {
         "recording_started_at": recording_started_at,
         "transcription_text_ref": transcription_text_ref,
@@ -288,6 +305,8 @@ def _setup_websocket_state():
         "is_24x7_ref": is_24x7_ref,
         "data_saved_ref": data_saved_ref,
         "task_set": task_set,
+        "speaker_diarizer": speaker_diarizer,
+        "speaker_segments_ref": speaker_segments_ref,
     }
 
 
@@ -311,6 +330,7 @@ async def _run_transcription_with_handlers(
         should_segment_ref=state["should_segment_ref"],
         on_result=on_result,
         on_error=on_error,
+        speaker_diarizer=state.get("speaker_diarizer"),
     )
     await _run_transcription_stream(ctx=ctx)
 
@@ -345,6 +365,8 @@ async def _create_handlers_and_monitor(
         _parse_init_message=funcs["_parse_init_message"],
         _create_result_callback=funcs["_create_result_callback"],
         _create_error_callback=funcs["_create_error_callback"],
+        speaker_diarizer=state.get("speaker_diarizer"),
+        speaker_segments_ref=state.get("speaker_segments_ref"),
     )
     segment_ctx = _StartSegmentMonitorContext(
         is_24x7=is_24x7,
@@ -471,6 +493,9 @@ async def _cleanup_websocket(
     state["is_connected_ref"][0] = False
     cancel_realtime_nlp()
 
+    if (diarizer := state.get("speaker_diarizer")) is not None and hasattr(diarizer, "stop"):
+        diarizer.stop()
+
     try:
         await save_final_data()
     except Exception as e:
@@ -489,6 +514,9 @@ async def _handle_transcribe_ws(*, websocket: WebSocket, logger, asr_client, aud
     ws_source = websocket.query_params.get("source", "mic_pc")
     ws_node_id = websocket.query_params.get("node_id", "local")
     logger.info(f"Audio WS params: source={ws_source}, node_id={ws_node_id}")
+
+    if state.get("speaker_diarizer"):
+        logger.info("说话人识别已启用 (Speaker Diarization + Voiceprint Re-ID)")
 
     base_on_final_sentence, cancel_realtime_nlp = await _create_nlp_handler(
         websocket=websocket,
