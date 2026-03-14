@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from collections import OrderedDict
@@ -20,9 +21,17 @@ logger = get_logger()
 _NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
 _MULTI_SPACE_RE = re.compile(r"\s+")
 
+_AGNO_TOOLS_FOR_INTENT = [
+    "create_todo",
+    "list_todos",
+    "search_todos",
+    "check_schedule_conflict",
+    "parse_time",
+]
+
 
 class TodoIntentIntegrationService:
-    """Integrate extracted todo candidates into the real Todo system."""
+    """Integrate extracted todo candidates via Agno agent."""
 
     def __init__(
         self,
@@ -98,110 +107,110 @@ class TodoIntentIntegrationService:
             self._evict_overflow()
 
             match_action = candidate.memory_match.action
-            result = self._apply_memory_match(candidate, dedupe_key, match_action)
+
+            if match_action == MemoryMatchAction.LINK_EXISTING:
+                results.append(
+                    TodoIntegrationResult(
+                        action=IntegrationAction.SKIPPED,
+                        dedupe_key=dedupe_key,
+                        reason=f"link_existing:{candidate.memory_match.matched_todo_name or '?'}",
+                    )
+                )
+                continue
+
+            result = await _dispatch_to_agno(candidate, dedupe_key)
             results.append(result)
 
         return results
 
-    @staticmethod
-    def _apply_memory_match(
-        candidate: ExtractedTodoCandidate,
-        dedupe_key: str,
-        match_action: MemoryMatchAction,
-    ) -> TodoIntegrationResult:
-        """Route based on MemoryMatchAction: create, skip, or queue for review."""
-        if match_action == MemoryMatchAction.LINK_EXISTING:
-            return TodoIntegrationResult(
-                action=IntegrationAction.SKIPPED,
-                dedupe_key=dedupe_key,
-                reason=f"link_existing:{candidate.memory_match.matched_todo_name or '?'}",
-            )
 
-        if match_action == MemoryMatchAction.CANCEL_EXISTING:
-            logger.info(
-                f"Intent requests cancellation of existing todo: {candidate.memory_match.matched_todo_name}"
-            )
-            return TodoIntegrationResult(
-                action=IntegrationAction.QUEUED_REVIEW,
-                dedupe_key=dedupe_key,
-                reason=f"cancel_existing:{candidate.memory_match.matched_todo_name or '?'}",
-            )
-
-        if match_action == MemoryMatchAction.CONFLICT:
-            return TodoIntegrationResult(
-                action=IntegrationAction.QUEUED_REVIEW,
-                dedupe_key=dedupe_key,
-                reason=(
-                    f"conflict:{candidate.memory_match.matched_todo_name or '?'}"
-                    f" — {candidate.memory_match.reason or ''}"
-                ),
-            )
-
-        # NEW — actually create the todo in DB
-        return _create_todo_from_candidate(candidate, dedupe_key)
+# ---------------------------------------------------------------------------
+# Agno dispatch
+# ---------------------------------------------------------------------------
 
 
-def _build_todo_service():
-    """Build a TodoService instance outside of FastAPI dependency injection."""
-    from repositories.sql_todo_repository import SqlTodoRepository  # noqa: PLC0415
-    from services.todo_service import TodoService  # noqa: PLC0415
-    from storage.database import db_base  # noqa: PLC0415
+def _candidate_fields(candidate: ExtractedTodoCandidate) -> list[str]:
+    """Format candidate metadata fields into lines."""
+    parts: list[str] = [f"标题：{candidate.name}"]
+    if candidate.description:
+        parts.append(f"描述：{candidate.description}")
+    if candidate.start_time:
+        parts.append(f"开始时间：{candidate.start_time.isoformat()}")
+    if candidate.due:
+        parts.append(f"截止时间：{candidate.due.isoformat()}")
+    if candidate.deadline:
+        parts.append(f"最后期限：{candidate.deadline.isoformat()}")
+    if candidate.priority and candidate.priority != "none":
+        parts.append(f"优先级：{candidate.priority}")
+    clean_tags = [t for t in (candidate.tags or []) if t != "auto-detected"]
+    if clean_tags:
+        parts.append(f"标签：{', '.join(clean_tags)}")
+    if candidate.source_text:
+        parts.append(f"原文引用：「{candidate.source_text}」")
+    return parts
 
-    repo = SqlTodoRepository(db_base)
-    return TodoService(repo)
+
+def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
+    """Return an action-specific instruction based on memory_match."""
+    action = candidate.memory_match.action
+    if action == MemoryMatchAction.CONFLICT:
+        matched = candidate.memory_match.matched_todo_name or "未知"
+        reason = candidate.memory_match.reason or ""
+        return (
+            f"\n注意：该意图与已有待办「{matched}」存在时间冲突。{reason}\n"
+            "请先检查冲突情况，再决定是否创建待办，并在描述中注明冲突。"
+        )
+    if action == MemoryMatchAction.CANCEL_EXISTING:
+        matched = candidate.memory_match.matched_todo_name or "未知"
+        return f"\n用户表示不再需要已有待办「{matched}」。\n请帮用户将该待办标记为取消。"
+    return "\n请根据以上信息为用户创建待办事项。"
 
 
-_PRIORITY_MAP = {
-    "high": "high",
-    "medium": "medium",
-    "low": "low",
-}
+def _build_agno_message(candidate: ExtractedTodoCandidate) -> str:
+    """Build a message describing the detected intent for Agno to act on."""
+    lines = ["[自动意图识别] 系统从用户的感知流中检测到以下待办意图："]
+    lines.extend(_candidate_fields(candidate))
+    lines.append(_memory_match_instruction(candidate))
+    return "\n".join(lines)
 
 
-def _create_todo_from_candidate(
+def _run_agno_sync(message: str) -> str:
+    """Run Agno agent synchronously and collect the full text response."""
+    from llm.agno_agent import AgnoAgentService  # noqa: PLC0415
+
+    service = AgnoAgentService(
+        lang="zh",
+        selected_tools=list(_AGNO_TOOLS_FOR_INTENT),
+    )
+    response_parts: list[str] = []
+    for chunk in service.stream_response(message, include_tool_events=False):
+        response_parts.append(chunk)
+    return "".join(response_parts)
+
+
+async def _dispatch_to_agno(
     candidate: ExtractedTodoCandidate,
     dedupe_key: str,
 ) -> TodoIntegrationResult:
-    """Convert an ExtractedTodoCandidate to a real Todo via TodoService."""
+    """Dispatch an extracted intent to Agno agent for execution."""
     try:
-        from schemas.todo import TodoCreate, TodoPriority, TodoStatus  # noqa: PLC0415
-
-        priority_str = (candidate.priority or "none").lower()
-        priority = TodoPriority(_PRIORITY_MAP.get(priority_str, "none"))
-
-        tags = list(candidate.tags) if candidate.tags else []
-        tags.append("auto-detected")
-
-        create_data = TodoCreate.model_validate(
-            {
-                "name": candidate.name,
-                "description": candidate.description,
-                "start_time": candidate.start_time,
-                "due": candidate.due,
-                "deadline": candidate.deadline,
-                "time_zone": candidate.time_zone,
-                "priority": priority,
-                "tags": tags,
-                "status": TodoStatus.DRAFT,
-            }
-        )
-
-        service = _build_todo_service()
-        todo_resp = service.create_todo(create_data)
-
+        message = _build_agno_message(candidate)
+        response = await asyncio.to_thread(_run_agno_sync, message)
         logger.info(
-            f"Auto-created todo id={todo_resp.id} name={candidate.name!r} from intent extraction"
+            "Agno handled intent %r (action=%s): %s",
+            candidate.name,
+            candidate.memory_match.action.value,
+            response[:300],
         )
         return TodoIntegrationResult(
             action=IntegrationAction.CREATED,
-            todo_id=todo_resp.id,
             dedupe_key=dedupe_key,
-            reason="auto_created",
+            reason="dispatched_to_agno",
         )
     except Exception:
-        logger.exception(f"Failed to create todo from candidate: {candidate.name}")
+        logger.exception("Failed to dispatch intent to Agno: %s", candidate.name)
         return TodoIntegrationResult(
             action=IntegrationAction.QUEUED_REVIEW,
             dedupe_key=dedupe_key,
-            reason="create_failed_queued_review",
+            reason="agno_dispatch_failed",
         )
