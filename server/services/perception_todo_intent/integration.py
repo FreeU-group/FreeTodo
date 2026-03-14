@@ -164,7 +164,7 @@ def _create_todo_from_candidate(
 ) -> TodoIntegrationResult:
     """Convert an ExtractedTodoCandidate to a real Todo via TodoService."""
     try:
-        from schemas.todo import TodoCreate, TodoPriority  # noqa: PLC0415
+        from schemas.todo import TodoCreate, TodoPriority, TodoStatus  # noqa: PLC0415
 
         priority_str = (candidate.priority or "none").lower()
         priority = TodoPriority(_PRIORITY_MAP.get(priority_str, "none"))
@@ -182,6 +182,7 @@ def _create_todo_from_candidate(
                 "time_zone": candidate.time_zone,
                 "priority": priority,
                 "tags": tags,
+                "status": TodoStatus.DRAFT,
             }
         )
 
