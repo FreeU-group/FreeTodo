@@ -19,6 +19,7 @@ def build_envelope(
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Build a stable JSON envelope for CLI output."""
+    command = " ".join(sys.argv)
     return {
         "ok": ok,
         "data": data,
@@ -26,6 +27,9 @@ def build_envelope(
         "meta": {
             "resource": resource,
             "action": action,
+            "schema_version": 1,
+            "command": command,
+            "args": sys.argv[1:],
             "request_id": request_id or f"cli_{uuid.uuid4().hex}",
             "dry_run": dry_run,
         },
