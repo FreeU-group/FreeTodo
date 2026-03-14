@@ -6,31 +6,31 @@ from enum import StrEnum
 
 import typer
 
-from cli.client import ApiClient
-from cli.commands.activity import activity_app
-from cli.commands.audio import audio_app
-from cli.commands.automation import automation_app
-from cli.commands.config import config_app
-from cli.commands.cost_tracking import cost_tracking_app
-from cli.commands.event import event_app
-from cli.commands.health import health_app
-from cli.commands.journal import journal_app
-from cli.commands.location import location_app
-from cli.commands.logs import logs_app
-from cli.commands.memory import memory_app
-from cli.commands.notification import notification_app
-from cli.commands.plugins import plugins_app
-from cli.commands.preview import preview_app
-from cli.commands.scheduler import scheduler_app
-from cli.commands.screenshot import screenshot_app
-from cli.commands.search import search_app
-from cli.commands.system import system_app
-from cli.commands.time_allocation import time_allocation_app
-from cli.commands.todo import todo_app
-from cli.commands.vector import vector_app
-from cli.config import load_config
-from cli.errors import CliError
-from cli.output import build_envelope, emit_json
+from freetodo_cli.client import ApiClient
+from freetodo_cli.commands.activity import activity_app
+from freetodo_cli.commands.audio import audio_app
+from freetodo_cli.commands.automation import automation_app
+from freetodo_cli.commands.config import config_app
+from freetodo_cli.commands.cost_tracking import cost_tracking_app
+from freetodo_cli.commands.event import event_app
+from freetodo_cli.commands.health import health_app
+from freetodo_cli.commands.journal import journal_app
+from freetodo_cli.commands.location import location_app
+from freetodo_cli.commands.logs import logs_app
+from freetodo_cli.commands.memory import memory_app
+from freetodo_cli.commands.notification import notification_app
+from freetodo_cli.commands.plugins import plugins_app
+from freetodo_cli.commands.preview import preview_app
+from freetodo_cli.commands.scheduler import scheduler_app
+from freetodo_cli.commands.screenshot import screenshot_app
+from freetodo_cli.commands.search import search_app
+from freetodo_cli.commands.system import system_app
+from freetodo_cli.commands.time_allocation import time_allocation_app
+from freetodo_cli.commands.todo import todo_app
+from freetodo_cli.commands.vector import vector_app
+from freetodo_cli.config import load_config
+from freetodo_cli.errors import CliError
+from freetodo_cli.output import build_envelope, emit_json
 
 
 class HelpLanguage(StrEnum):

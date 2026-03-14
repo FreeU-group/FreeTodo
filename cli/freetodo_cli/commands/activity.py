@@ -6,17 +6,17 @@ from typing import Annotated, Any
 
 import typer
 
-from cli.client import ActivityApiClient
-from cli.commands.common import (
+from freetodo_cli.client import ActivityApiClient
+from freetodo_cli.commands.common import (
     emit_dry_run,
     emit_success,
     handle_cli_error,
     model_payload,
     read_json_payload,
 )
-from cli.config import load_config
-from cli.errors import CliError
-from cli.schemas.activity import ManualActivityCreateRequest
+from freetodo_cli.config import load_config
+from freetodo_cli.errors import CliError
+from freetodo_cli.schemas.activity import ManualActivityCreateRequest
 
 activity_app = typer.Typer(
     help=(

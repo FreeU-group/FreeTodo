@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from cli.errors import CliError, map_status_to_exit_code
+from freetodo_cli.errors import CliError, map_status_to_exit_code
 
 if TYPE_CHECKING:
-    from cli.config import CliConfig
+    from freetodo_cli.config import CliConfig
 
 
 NO_CONTENT_STATUS = 204

@@ -10,8 +10,8 @@ from typing import Any
 import typer
 from pydantic import ValidationError
 
-from cli.errors import CliError
-from cli.output import build_envelope, emit_json
+from freetodo_cli.errors import CliError
+from freetodo_cli.output import build_envelope, emit_json
 
 
 def read_json_payload(

@@ -6,8 +6,8 @@ from typing import Annotated, Any
 
 import typer
 
-from cli.client import TodoApiClient
-from cli.commands.common import (
+from freetodo_cli.client import TodoApiClient
+from freetodo_cli.commands.common import (
     emit_dry_run,
     emit_success,
     handle_cli_error,
@@ -15,9 +15,9 @@ from cli.commands.common import (
     read_existing_file,
     read_json_payload,
 )
-from cli.config import load_config
-from cli.errors import CliError
-from cli.schemas.todo import TodoCreate, TodoReorderRequest, TodoUpdate
+from freetodo_cli.config import load_config
+from freetodo_cli.errors import CliError
+from freetodo_cli.schemas.todo import TodoCreate, TodoReorderRequest, TodoUpdate
 
 todo_app = typer.Typer(
     help=(
