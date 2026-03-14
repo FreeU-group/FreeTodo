@@ -10,6 +10,7 @@ export function getChatAttachmentDownloadUrl(downloadUrl: string): string {
 	if (!downloadUrl) {
 		return "";
 	}
+	if (downloadUrl.startsWith("blob:") || downloadUrl.startsWith("data:")) return downloadUrl;
 	if (downloadUrl.startsWith("http://") || downloadUrl.startsWith("https://")) {
 		return downloadUrl;
 	}

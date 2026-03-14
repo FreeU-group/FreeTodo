@@ -134,6 +134,7 @@ export function ChatInputSection({
 				onCompositionEnd={onCompositionEnd}
 				enableAttachments={isAgnoMode}
 				onAddAttachments={onAddAttachments}
+				hasPendingAttachments={pendingAttachments.length > 0}
 			/>
 
 			{error && <p className="mt-2 text-sm">{error}</p>}

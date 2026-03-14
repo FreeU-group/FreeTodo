@@ -26,6 +26,8 @@ type InputBoxProps = {
 	enableAttachments?: boolean;
 	/** 新增附件 */
 	onAddAttachments?: (files: File[]) => void;
+	/** 是否有待发送附件 */
+	hasPendingAttachments?: boolean;
 };
 
 /** textarea 的最小行高（像素） */
@@ -52,9 +54,11 @@ export function InputBox({
 	maxHeight = "40vh",
 	enableAttachments = false,
 	onAddAttachments,
+	hasPendingAttachments = false,
 }: InputBoxProps) {
 	const t = useTranslations("chat");
-	const isSendDisabled = !inputValue.trim() || isStreaming;
+	const canSend = inputValue.trim().length > 0 || hasPendingAttachments;
+	const isSendDisabled = !canSend || isStreaming;
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const prevInputValueRef = useRef<string>(inputValue);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
