@@ -8,6 +8,10 @@ import type { ToolCallTrackerReturn } from "@/apps/chat/hooks/useToolCallTracker
 import type { ChatMessage, ToolCallAnchor } from "@/apps/chat/types";
 import { createId } from "@/apps/chat/utils/id";
 import {
+	createAgnoAttachmentPreviewUrl,
+	getAgnoAttachmentKind,
+} from "@/apps/chat/utils/attachments";
+import {
 	buildPayloadMessage,
 	getModeForBackend,
 } from "@/apps/chat/utils/messageBuilder";
@@ -143,7 +147,8 @@ export const useSendMessage = ({
 	const sendMessage = useCallback(
 		async (text: string, clearInput = false, attachments?: File[]) => {
 			const trimmedText = text.trim();
-			if (!trimmedText) return;
+			const hasAttachments = Boolean(attachments && attachments.length > 0);
+			if (!trimmedText && !hasAttachments) return;
 
 			// 创建请求
 			const { requestId, abortController } = streamController.createRequest();
@@ -175,11 +180,23 @@ export const useSendMessage = ({
 					crawlerResult,
 				});
 
+			const pendingAttachmentItems =
+				hasAttachments && attachments
+					? attachments.map((file) => ({
+							id: createId(),
+							fileName: file.name,
+							fileSize: file.size,
+							mimeType: file.type || undefined,
+							kind: getAgnoAttachmentKind(file) || "file",
+							downloadUrl: createAgnoAttachmentPreviewUrl(file),
+						}))
+					: undefined;
 			// 创建消息
 			const userMessage: ChatMessage = {
 				id: createId(),
 				role: "user",
 				content: trimmedText,
+				attachments: pendingAttachmentItems,
 			};
 			const assistantMessageId = createId();
 			const initialMessages: ChatMessage[] = [
