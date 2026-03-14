@@ -370,11 +370,14 @@ function pollDraftTodos() {
 
 // ─── 轮询后端检测邀约等重要通知 ──────────────────────────
 const seenNotificationIds = new Set();
-const NOTIFICATION_POLL_INTERVAL_MS = 10_000;
+const NOTIFICATION_POLL_INTERVAL_MS = 1_000;
 
 function pollNotifications() {
 	const cfg = readConfig();
-	if (!cfg.enabled) return;
+	if (!cfg.enabled) {
+		console.log("[notification-popup] Disabled by config, skipping poll");
+		return;
+	}
 
 	const url = `${BACKEND_URL}/api/notifications`;
 
@@ -388,32 +391,58 @@ function pollNotifications() {
 			response.on("end", () => {
 				try {
 					const items = JSON.parse(body);
-					if (!Array.isArray(items)) return;
+					if (!Array.isArray(items)) {
+						console.log(
+							`[notification-popup] /api/notifications returned non-array: ${typeof items}`,
+						);
+						return;
+					}
+					if (items.length > 0) {
+						console.log(
+							`[notification-popup] Got ${items.length} notification(s), seen=${seenNotificationIds.size}`,
+						);
+					}
 					for (const item of items) {
 						const id = item.id;
 						if (!id || seenNotificationIds.has(id)) continue;
 						seenNotificationIds.add(id);
 						const title = item.title || "";
+						console.log(
+							`[notification-popup] New notification: id=${id} title="${title}"`,
+						);
 						const isImportant =
 							title.includes("邀约") || title.includes("invitation");
-						if (!isImportant) continue;
+						if (!isImportant) {
+							console.log(
+								`[notification-popup] Skipped (not invitation): "${title}"`,
+							);
+							continue;
+						}
 						const content = item.content || "";
 						const snippet =
 							content.length > 80 ? `${content.slice(0, 80)}…` : content;
 						showNotification({ title, message: snippet });
 						console.log(
-							`[notification-popup] Invitation notification: ${title}`,
+							`[notification-popup] >>> POPUP TRIGGERED: ${title}`,
 						);
 					}
-				} catch {
-					// 解析失败，静默忽略
+				} catch (parseErr) {
+					console.warn(
+						`[notification-popup] Parse error: ${parseErr.message}`,
+					);
 				}
 			});
 		});
-		request.on("error", () => {});
+		request.on("error", (err) => {
+			console.warn(
+				`[notification-popup] Poll /api/notifications error: ${err.message}`,
+			);
+		});
 		request.end();
-	} catch {
-		// 请求失败，静默忽略
+	} catch (err) {
+		console.warn(
+			`[notification-popup] Request failed: ${err.message}`,
+		);
 	}
 }
 
@@ -426,6 +455,9 @@ app.whenReady().then(() => {
 	_intervalHandle = setInterval(pollDraftTodos, POLL_INTERVAL_MS);
 	setInterval(pollNotifications, NOTIFICATION_POLL_INTERVAL_MS);
 	pollNotifications();
+	console.log(
+		`[notification-popup] Backend URL: ${BACKEND_URL}`,
+	);
 	console.log(
 		`[notification-popup] Started (draft: ${POLL_INTERVAL_MS}ms, notifications: ${NOTIFICATION_POLL_INTERVAL_MS}ms, duration: ${DURATION_MS}ms, enabled: ${cfg.enabled})`,
 	);
