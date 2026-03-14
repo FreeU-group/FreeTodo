@@ -350,12 +350,3 @@ export function InputBox({
 		</div>
 	);
 }
-
-
-
-
-
-
-
-
-

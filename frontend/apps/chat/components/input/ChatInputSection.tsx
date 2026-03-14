@@ -140,6 +140,3 @@ export function ChatInputSection({
 		</div>
 	);
 }
-
-
-

@@ -511,22 +511,3 @@ export const useSendMessage = ({
 
 	return { sendMessage };
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
