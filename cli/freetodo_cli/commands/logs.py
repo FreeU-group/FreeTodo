@@ -6,10 +6,10 @@ from typing import Annotated
 
 import typer
 
-from cli.client import LogsApiClient
-from cli.commands.common import emit_success, handle_cli_error
-from cli.config import load_config
-from cli.errors import CliError
+from freetodo_cli.client import LogsApiClient
+from freetodo_cli.commands.common import emit_success, handle_cli_error
+from freetodo_cli.config import load_config
+from freetodo_cli.errors import CliError
 
 logs_app = typer.Typer(
     help=(

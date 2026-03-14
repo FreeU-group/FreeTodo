@@ -4,8 +4,8 @@ import json
 
 from typer.testing import CliRunner
 
-from cli.app import app
-from cli.errors import CliError
+from freetodo_cli.app import app
+from freetodo_cli.errors import CliError
 
 runner = CliRunner()
 

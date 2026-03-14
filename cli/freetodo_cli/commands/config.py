@@ -6,10 +6,15 @@ from typing import Annotated
 
 import typer
 
-from cli.client import ConfigApiClient
-from cli.commands.common import emit_dry_run, emit_success, handle_cli_error, read_json_payload
-from cli.config import load_config
-from cli.errors import CliError
+from freetodo_cli.client import ConfigApiClient
+from freetodo_cli.commands.common import (
+    emit_dry_run,
+    emit_success,
+    handle_cli_error,
+    read_json_payload,
+)
+from freetodo_cli.config import load_config
+from freetodo_cli.errors import CliError
 
 config_app = typer.Typer(
     help=(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from cli import exit_codes
+from freetodo_cli import exit_codes
 
 
 @dataclass(slots=True)

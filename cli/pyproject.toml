@@ -37,10 +37,10 @@ select = ["E", "W", "F", "I", "B", "C4", "SIM", "UP", "PL", "C90", "A", "ARG", "
 ignore = ["E501", "B008", "RUF001", "RUF002", "RUF003"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["cli"]
+packages = ["freetodo_cli"]
 
 [project.scripts]
-freetodo = "cli.main:main"
+freetodo = "freetodo_cli.main:main"
 
 [tool.uv]
 package = true

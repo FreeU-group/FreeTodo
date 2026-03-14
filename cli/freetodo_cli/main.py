@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cli.app import app
+from freetodo_cli.app import app
 
 
 def main() -> None:
