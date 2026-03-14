@@ -122,6 +122,11 @@ const showTauriNotification = async (notification: Notification): Promise<void> 
 	}
 };
 
+function isImportantNotification(notification: Notification): boolean {
+	const title = notification.title || "";
+	return title.includes("邀约") || title.includes("invitation");
+}
+
 function notifySystem(notification: Notification): void {
 	if (typeof window === "undefined") return;
 	if (window.electronAPI?.showNotification) {
@@ -163,14 +168,22 @@ export const useNotificationStore = create<NotificationStoreState>((set, get) =>
 		const next = sortNotifications([...filtered, ...tagged]);
 
 		const nextNotifiedIds = new Set(get().notifiedIds);
+		let hasNewImportant = false;
 		for (const notification of tagged) {
 			if (!nextNotifiedIds.has(notification.id)) {
 				notifySystem(notification);
 				nextNotifiedIds.add(notification.id);
+				if (isImportantNotification(notification)) {
+					hasNewImportant = true;
+				}
 			}
 		}
 
-		set({ notifications: next, notifiedIds: nextNotifiedIds });
+		set({
+			notifications: next,
+			notifiedIds: nextNotifiedIds,
+			...(hasNewImportant ? { isExpanded: true } : {}),
+		});
 	},
 
 	upsertNotification: (notification) => {

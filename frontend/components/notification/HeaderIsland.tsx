@@ -224,8 +224,8 @@ export function HeaderIsland() {
 				animate={{
 					width: isExpanded ? "auto" : "auto",
 					height: isExpanded ? "auto" : "auto",
-					minWidth: isExpanded ? 800 : currentNotification ? 400 : 200,
-					maxWidth: isExpanded ? 1200 : currentNotification ? 500 : 300,
+					minWidth: isExpanded ? 500 : currentNotification ? 400 : 200,
+					maxWidth: isExpanded ? 700 : currentNotification ? 500 : 300,
 				}}
 				transition={{
 					type: "spring",
@@ -349,24 +349,23 @@ export function HeaderIsland() {
 										return (
 											<div
 												key={notification.id}
-												className="flex items-center gap-3 w-full border border-border/40 rounded-2xl px-3 py-2 bg-background/80"
+												className="flex items-start gap-3 w-full border border-border/40 rounded-2xl px-3 py-2.5 bg-background/80"
 											>
-												{isLlmConfig ? (
-													<Settings className="h-4 w-4 text-amber-500 shrink-0" />
-												) : (
-													<Bell className="h-4 w-4 text-primary shrink-0" />
+											{isLlmConfig ? (
+												<Settings className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+											) : (
+												<Bell className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+											)}
+											<div className="flex-1 min-w-0">
+												<h3 className="text-sm font-semibold text-foreground truncate max-w-[500px]">
+													{notification.title || t("newNotification")}
+												</h3>
+												{notification.content && (
+													<div className="mt-1 text-sm text-muted-foreground/80 whitespace-pre-wrap break-words max-h-[300px] overflow-y-auto leading-relaxed">
+														{notification.content}
+													</div>
 												)}
-												<div className="flex-1 min-w-0 flex items-center gap-2">
-													<h3 className="text-sm font-semibold text-foreground truncate max-w-[500px]">
-														{notification.title || t("newNotification")}
-														{notification.content && (
-															<span className="text-muted-foreground/70">
-																{" "}
-																（{notification.content}）
-															</span>
-														)}
-													</h3>
-												</div>
+											</div>
 												{notification.timestamp && (
 													<span className="text-xs text-muted-foreground/70 shrink-0 whitespace-nowrap">
 														{formatTime(notification.timestamp, t)}
