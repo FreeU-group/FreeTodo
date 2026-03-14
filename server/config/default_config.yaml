@@ -194,7 +194,7 @@ agno:
   tracing:
     enabled: true # 是否启用 Agno Tracing（用于 AgentOS 调试）
     db_path: agno/traces.db # 相对 base_dir 的 Tracing 数据库路径（建议独立 DB）
-    use_setup_tracing: false # 是否调用 Agno setup_tracing 进行更细粒度配置
+    use_setup_tracing: true # 是否调用 Agno setup_tracing 进行更细粒度配置
     batch_processing: true # setup_tracing 批处理开关
     max_queue_size: 2048 # setup_tracing 队列最大长度
     schedule_delay_millis: 3000 # setup_tracing 批处理调度间隔（毫秒）
@@ -202,7 +202,7 @@ agno:
     enabled: true # 是否启用 AgentOS 入口
     host: 127.0.0.1 # AgentOS 监听地址
     port: 8002 # AgentOS 监听端口
-    debug: false # AgentOS 调试模式（独立于 server.debug）
+    debug: true # AgentOS 调试模式（独立于 server.debug）
     base_url: "" # 可选：直接指定 AgentOS 访问地址（优先级最高）
     agent_id: freetodo-agent # AgentOS 中的 Agent ID
     agent_name: FreeTodo Agent # AgentOS 中的 Agent 名称
