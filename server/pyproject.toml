@@ -20,6 +20,12 @@ dependencies = [
     "python-multipart>=0.0.6",
     "icalendar>=6.0.0",
     "torch>=2.8.0",
+    # Diart 实时说话人分离（可选，需要 HuggingFace 授权访问 pyannote 模型）
+    # 安装方法：
+    # 1. pip install diart
+    # 2. 在 HuggingFace 接受 pyannote/segmentation-3.0 和 pyannote/embedding 模型条款
+    # 3. huggingface-cli login
+    # "diart>=0.9.0",  # 注释掉，作为可选依赖
     # Audio processing
     "websockets>=16.0",
     "opuslib>=3.0.1",

@@ -223,6 +223,21 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
         await websocket.close(code=1011, reason=str(e)[:120])
         return
 
+    # Speaker diarization (optional – degrades gracefully)
+    speaker_diarizer = None
+    try:
+        from services.diart_diarizer import DiartDiarizer
+
+        diarizer = DiartDiarizer()
+        diarizer.start()
+        if diarizer.enabled:
+            speaker_diarizer = diarizer
+            logger.info("[omi-compat] 说话人分离已启用 (diart)")
+        else:
+            logger.debug("[omi-compat] 说话人分离未启用 (diart 不可用)")
+    except Exception as e:
+        logger.debug(f"[omi-compat] 说话人分离初始化失败: {e}")
+
     # Shared state
     seg_idx = 0
     session_start = time.monotonic()
@@ -232,6 +247,51 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
     audio_q: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=500)
 
     asr_cancel_event = asyncio.Event()
+
+    async def _identify_speaker_for_segment() -> dict | None:
+        """Identify current speaker using the diarizer."""
+        if speaker_diarizer is None:
+            return None
+        try:
+            return await asyncio.to_thread(speaker_diarizer.identify_current_speaker)
+        except Exception:
+            return None
+
+    def _resolve_speaker(speaker_info: dict | None) -> str:
+        """Resolve speaker info to a speaker_id string."""
+        if speaker_info is None:
+            return "SPEAKER_00"
+        name = speaker_info.get("name") or speaker_info.get("label")
+        if name:
+            return name
+        spk_id = speaker_info.get("speaker_id")
+        if spk_id is not None:
+            return f"SPEAKER_{spk_id:02d}"
+        return "SPEAKER_00"
+
+    async def _publish_final_perception(text: str) -> None:
+        """Publish final transcription to perception manager."""
+        mgr = try_get_perception_manager()
+        if mgr is None:
+            logger.warning("[omi-compat] PerceptionManager not available, skipping publish")
+            return
+        try:
+            event = PerceptionEvent(
+                timestamp=get_utc_now(),
+                source=SourceType.MIC_HARDWARE,
+                modality=Modality.AUDIO,
+                content_text=text.strip(),
+                metadata={
+                    "session_id": session_id,
+                    "uid": uid,
+                    "source_endpoint": "/v4/listen",
+                },
+                priority=2,
+            )
+            await mgr.publish_event(event)
+            logger.info(f"[omi-compat] Published perception event: {text.strip()[:50]}")
+        except Exception:
+            logger.exception("[omi-compat] Failed to publish perception event")
 
     async def _audio_generator():
         """Yield PCM chunks from the queue for ASRClient.transcribe_stream."""
@@ -251,7 +311,15 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
         if not text or not is_connected:
             return
         now = time.monotonic() - session_start
-        seg = _segment_dict(seg_idx, text, max(0, now - 2), now, is_user=True)
+
+        speaker_id = "SPEAKER_00"
+        if is_final:
+            spk_info = await _identify_speaker_for_segment()
+            speaker_id = _resolve_speaker(spk_info)
+
+        seg = _segment_dict(
+            seg_idx, text, max(0, now - 2), now, is_user=True, speaker_id=speaker_id
+        )
         if is_final:
             seg_idx += 1
         try:
@@ -264,21 +332,7 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
             logger.debug(f"Failed to send transcript event: {exc}")
 
         if is_final and text.strip():
-            mgr = try_get_perception_manager()
-            if mgr is not None:
-                event = PerceptionEvent(
-                    timestamp=get_utc_now(),
-                    source=SourceType.MIC_HARDWARE,
-                    modality=Modality.AUDIO,
-                    content_text=text.strip(),
-                    metadata={
-                        "session_id": session_id,
-                        "uid": uid,
-                        "source_endpoint": "/v4/listen",
-                    },
-                    priority=2,
-                )
-                await mgr.publish_event(event)
+            await _publish_final_perception(text)
 
     result_queue: asyncio.Queue[tuple[str, bool]] = asyncio.Queue()
 
@@ -298,6 +352,7 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
             except TimeoutError:
                 continue
             except Exception:
+                logger.exception("[omi-compat] _result_forwarder error, stopping")
                 break
 
     def _drain_audio_queue():
@@ -350,6 +405,8 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
                 data = raw.get("bytes")
                 if data:
                     pcm = decode_fn(data) if decode_fn else data
+                    if speaker_diarizer is not None:
+                        speaker_diarizer.feed_audio(pcm)
                     with contextlib.suppress(asyncio.QueueFull):
                         audio_q.put_nowait(pcm)
                 # Handle text messages (stop signal etc.)
@@ -386,6 +443,9 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
         for t in tasks:
             if not t.done():
                 t.cancel()
+
+        if speaker_diarizer is not None:
+            speaker_diarizer.stop()
 
         # Notify client that the conversation ended
         try:

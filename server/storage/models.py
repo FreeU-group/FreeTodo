@@ -448,9 +448,43 @@ class Transcription(TimestampMixin, table=True):
     segment_timestamps: str | None = Field(
         default=None, sa_column=Column(Text)
     )  # 每段文本的精确时间戳（JSON格式，单位：秒，相对于录音开始时间）
+    speaker_segments: str | None = Field(
+        default=None, sa_column=Column(Text)
+    )  # 每句话的说话人标注（JSON格式）: [{"speaker_id":1,"speaker_name":"...","text":"..."}]
 
     def __repr__(self):
         return f"<Transcription(id={self.id}, audio_recording_id={self.audio_recording_id})>"
+
+
+class SpeakerProfile(TimestampMixin, table=True):
+    """说话人档案模型"""
+
+    __tablename__: ClassVar[str] = "speaker_profiles"
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+    sample_count: int = Field(default=0)
+    is_active: bool = Field(default=True)
+
+    def __repr__(self):
+        return f"<SpeakerProfile(id={self.id}, name={self.name})>"
+
+
+class SpeakerVoiceprint(TimestampMixin, table=True):
+    """声纹特征向量模型"""
+
+    __tablename__: ClassVar[str] = "speaker_voiceprints"
+
+    id: int | None = Field(default=None, primary_key=True)
+    speaker_profile_id: int = Field(index=True)
+    embedding: str = Field(sa_column=Column(Text))
+    embedding_dim: int = Field(default=192)
+    audio_duration: float = Field(default=0.0)
+    quality_score: float = Field(default=0.0)
+
+    def __repr__(self):
+        return f"<SpeakerVoiceprint(id={self.id}, speaker_profile_id={self.speaker_profile_id})>"
 
 
 # ========== Agent 执行计划模型 ==========

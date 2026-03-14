@@ -90,6 +90,7 @@ class _RunTranscriptionStreamContext:
         self.should_segment_ref = kwargs["should_segment_ref"]
         self.on_result = kwargs["on_result"]
         self.on_error = kwargs["on_error"]
+        self.speaker_diarizer = kwargs.get("speaker_diarizer")
 
 
 async def _run_transcription_stream(*, ctx: _RunTranscriptionStreamContext) -> None:
@@ -101,6 +102,7 @@ async def _run_transcription_stream(*, ctx: _RunTranscriptionStreamContext) -> N
         audio_chunks=ctx.audio_chunks,
         segment_timestamps_ref=ctx.segment_timestamps_ref,
         should_segment_ref=ctx.should_segment_ref,
+        speaker_diarizer=ctx.speaker_diarizer,
     )
     await ctx.asr_client.transcribe_stream(
         audio_stream=audio_stream,
@@ -191,26 +193,23 @@ async def _initialize_handlers_internal(
     *,
     websocket: WebSocket,
     logger,
-    transcription_text_ref: list[str],
-    is_connected_ref: list[bool],
-    is_24x7_ref: list[bool],
-    task_set: set[asyncio.Task],
+    state: dict,
+    funcs: dict,
     on_final_sentence,
-    _parse_init_message,
-    _create_result_callback,
-    _create_error_callback,
 ) -> tuple:
     """初始化处理函数和回调"""
     init_message = await websocket.receive_json()
-    is_24x7 = _parse_init_message(logger, init_message)
-    is_24x7_ref[0] = is_24x7
+    is_24x7 = funcs["_parse_init_message"](logger, init_message)
+    state["is_24x7_ref"][0] = is_24x7
 
-    on_result_base = _create_result_callback(
+    on_result_base = funcs["_create_result_callback"](
         websocket=websocket,
         logger=logger,
-        transcription_text_ref=transcription_text_ref,
-        is_connected_ref=is_connected_ref,
-        task_set=task_set,
+        transcription_text_ref=state["transcription_text_ref"],
+        is_connected_ref=state["is_connected_ref"],
+        task_set=state["task_set"],
+        speaker_diarizer=state.get("speaker_diarizer"),
+        speaker_segments_ref=state.get("speaker_segments_ref"),
     )
 
     def on_result(text: str, is_final: bool) -> None:
@@ -218,8 +217,11 @@ async def _initialize_handlers_internal(
         if is_final:
             on_final_sentence(text)
 
-    on_error = _create_error_callback(
-        websocket=websocket, logger=logger, is_connected_ref=is_connected_ref, task_set=task_set
+    on_error = funcs["_create_error_callback"](
+        websocket=websocket,
+        logger=logger,
+        is_connected_ref=state["is_connected_ref"],
+        task_set=state["task_set"],
     )
 
     return on_result, on_error, is_24x7
@@ -278,6 +280,17 @@ def _setup_websocket_state():
     is_24x7_ref: list[bool] = [False]
     data_saved_ref: list[bool] = [False]
     task_set: set[asyncio.Task] = set()
+    speaker_segments_ref: list[list] = [[]]
+
+    speaker_diarizer = None
+    with contextlib.suppress(Exception):
+        from services.diart_diarizer import DiartDiarizer  # noqa: PLC0415
+
+        diarizer = DiartDiarizer()
+        diarizer.start()
+        if diarizer.enabled:
+            speaker_diarizer = diarizer
+
     return {
         "recording_started_at": recording_started_at,
         "transcription_text_ref": transcription_text_ref,
@@ -288,6 +301,8 @@ def _setup_websocket_state():
         "is_24x7_ref": is_24x7_ref,
         "data_saved_ref": data_saved_ref,
         "task_set": task_set,
+        "speaker_diarizer": speaker_diarizer,
+        "speaker_segments_ref": speaker_segments_ref,
     }
 
 
@@ -311,6 +326,7 @@ async def _run_transcription_with_handlers(
         should_segment_ref=state["should_segment_ref"],
         on_result=on_result,
         on_error=on_error,
+        speaker_diarizer=state.get("speaker_diarizer"),
     )
     await _run_transcription_stream(ctx=ctx)
 
@@ -337,14 +353,9 @@ async def _create_handlers_and_monitor(
     on_result, on_error, is_24x7 = await _initialize_handlers_internal(
         websocket=websocket,
         logger=logger,
-        transcription_text_ref=state["transcription_text_ref"],
-        is_connected_ref=state["is_connected_ref"],
-        is_24x7_ref=state["is_24x7_ref"],
-        task_set=state["task_set"],
+        state=state,
+        funcs=funcs,
         on_final_sentence=on_final_sentence,
-        _parse_init_message=funcs["_parse_init_message"],
-        _create_result_callback=funcs["_create_result_callback"],
-        _create_error_callback=funcs["_create_error_callback"],
     )
     segment_ctx = _StartSegmentMonitorContext(
         is_24x7=is_24x7,
@@ -471,6 +482,9 @@ async def _cleanup_websocket(
     state["is_connected_ref"][0] = False
     cancel_realtime_nlp()
 
+    if (diarizer := state.get("speaker_diarizer")) is not None and hasattr(diarizer, "stop"):
+        diarizer.stop()
+
     try:
         await save_final_data()
     except Exception as e:
@@ -485,6 +499,9 @@ async def _handle_transcribe_ws(*, websocket: WebSocket, logger, asr_client, aud
     funcs = _get_audio_ws_functions()
     state = await _setup_websocket_connection(websocket=websocket, logger=logger)
     segment_task: asyncio.Task | None = None
+
+    if state.get("speaker_diarizer"):
+        logger.info("说话人识别已启用 (Speaker Diarization + Voiceprint Re-ID)")
 
     ws_source = websocket.query_params.get("source", "mic_pc")
     ws_node_id = websocket.query_params.get("node_id", "local")

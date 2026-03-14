@@ -27,6 +27,8 @@ from storage.models import (  # noqa: F401, E402
     Message,
     OCRResult,
     Screenshot,
+    SpeakerProfile,
+    SpeakerVoiceprint,
     Tag,
     Todo,
     TodoAttachmentRelation,
