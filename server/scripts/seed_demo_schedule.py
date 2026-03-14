@@ -3,19 +3,28 @@
 Creates sample schedule events so the Agent can demonstrate
 proactive conflict detection and smart rescheduling.
 
-Usage:
-    python -m scripts.seed_demo_schedule          # uses tomorrow's date
-    python -m scripts.seed_demo_schedule 2026-03-17  # uses specific date
+Usage (from project root or server/ directory):
+    python server/scripts/seed_demo_schedule.py
+    python server/scripts/seed_demo_schedule.py 2026-03-17
+    cd server && python scripts/seed_demo_schedule.py
 """
 
 from __future__ import annotations
 
 import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
-from repositories.sql_todo_repository import SqlTodoRepository
-from storage.database import db_base
-from util.logging_config import get_logger
+# Ensure the server package root is on sys.path so that
+# `from repositories...`, `from storage...` etc. resolve correctly
+# regardless of where the script is invoked from.
+_server_dir = str(Path(__file__).resolve().parent.parent)
+if _server_dir not in sys.path:
+    sys.path.insert(0, _server_dir)
+
+from repositories.sql_todo_repository import SqlTodoRepository  # noqa: E402
+from storage.database import db_base  # noqa: E402
+from util.logging_config import get_logger  # noqa: E402
 
 logger = get_logger()
 
