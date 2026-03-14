@@ -29,6 +29,7 @@ export interface SendChatParams {
 	mode?: string;
 	selectedTools?: string[];
 	externalTools?: string[];
+	attachments?: File[];
 }
 
 /**
@@ -175,17 +176,71 @@ export async function sendChatMessageStream(
 			selected_tools: params.selectedTools,
 			external_tools: params.externalTools,
 		};
-		console.log("[sendChatMessageStream] Request body:", requestBody);
+		if (params.attachments && params.attachments.length > 0) {
+			const formData = new FormData();
+			const appendValue = (key: string, value: string | number | boolean) => {
+				formData.append(key, String(value));
+			};
 
-		response = await fetch(apiUrl, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				"Accept-Language": locale || "en",
-			},
-			body: JSON.stringify(requestBody),
-			signal,
-		});
+			appendValue("message", requestBody.message);
+			if (requestBody.user_input !== undefined) {
+				appendValue("user_input", requestBody.user_input);
+			}
+			if (requestBody.context !== undefined) {
+				appendValue("context", requestBody.context);
+			}
+			if (requestBody.system_prompt !== undefined) {
+				appendValue("system_prompt", requestBody.system_prompt);
+			}
+			if (requestBody.conversation_id !== undefined) {
+				appendValue("conversation_id", requestBody.conversation_id);
+			}
+			if (requestBody.use_rag !== undefined) {
+				appendValue("use_rag", requestBody.use_rag);
+			}
+			if (requestBody.mode !== undefined) {
+				appendValue("mode", requestBody.mode);
+			}
+			if (requestBody.selected_tools && requestBody.selected_tools.length > 0) {
+				for (const tool of requestBody.selected_tools) {
+					formData.append("selected_tools", tool);
+				}
+			}
+			if (requestBody.external_tools && requestBody.external_tools.length > 0) {
+				for (const tool of requestBody.external_tools) {
+					formData.append("external_tools", tool);
+				}
+			}
+			for (const attachment of params.attachments) {
+				formData.append("attachments", attachment, attachment.name);
+			}
+
+			console.log("[sendChatMessageStream] Sending multipart with attachments:", {
+				count: params.attachments.length,
+			});
+
+			response = await fetch(apiUrl, {
+				method: "POST",
+				headers: {
+					"Accept-Language": locale || "en",
+				},
+				body: formData,
+				signal,
+			});
+		} else {
+			console.log("[sendChatMessageStream] Request body:", requestBody);
+
+			response = await fetch(apiUrl, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"Accept-Language": locale || "en",
+				},
+				body: JSON.stringify(requestBody),
+				signal,
+			});
+		}
+
 	} catch (error) {
 		// 调试日志
 		console.error("[sendChatMessageStream] fetch error:", error);
