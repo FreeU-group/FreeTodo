@@ -35,7 +35,6 @@ import {
 	SettingsSearchAction,
 	SettingsSearchProvider,
 	SettingsSection,
-	TavilyConfigSection,
 	VersionInfoSection,
 } from "./components";
 import { useSettingsSearchMatchStats } from "./hooks/useSettingsSearchMatchStats";
@@ -154,7 +153,6 @@ export function SettingsPanel() {
 				return (
 					<>
 						<LlmConfigSection config={config} loading={loading} />
-						<TavilyConfigSection config={config} loading={loading} />
 						<GeminiConfigSection config={config} loading={loading} />
 					</>
 				);
