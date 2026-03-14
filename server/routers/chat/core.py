@@ -32,6 +32,7 @@ from .modes import (
 ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024
 ATTACHMENT_MAX_COUNT = 8
 ALLOWED_IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 ALLOWED_FILE_MIME_TYPES = {
     "text/plain",
     "text/markdown",
@@ -106,12 +107,16 @@ def _parse_list_field(values: list[str]) -> list[str] | None:
 
 
 def _get_upload_kind(upload: UploadFile) -> tuple[str | None, str]:
-    content_type = upload.content_type or ""
-    mime_type = content_type or mimetypes.guess_type(upload.filename or "")[0] or ""
+    content_type = (upload.content_type or "").lower()
+    guessed_type = (mimetypes.guess_type(upload.filename or "")[0] or "").lower()
     ext = FsPath(upload.filename or "").suffix.lower()
 
-    if mime_type in ALLOWED_IMAGE_MIME_TYPES:
-        return "image", mime_type
+    mime_type = content_type
+    if not mime_type or mime_type == "application/octet-stream":
+        mime_type = guessed_type
+
+    if mime_type in ALLOWED_IMAGE_MIME_TYPES or ext in ALLOWED_IMAGE_EXTENSIONS:
+        return "image", mime_type or "image/png"
     if mime_type.startswith("text/") or mime_type in ALLOWED_FILE_MIME_TYPES:
         return "file", mime_type or "application/octet-stream"
     if ext in ALLOWED_FILE_EXTENSIONS:
@@ -325,8 +330,16 @@ async def chat_with_llm_stream(
             raise HTTPException(status_code=400, detail="Attachments only supported in Agno mode")
 
         if uploads:
+            logger.info(
+                "[stream] 收到附件: %s",
+                ", ".join(
+                    f"{u.filename or 'unknown'}({u.content_type or 'unknown'})" for u in uploads
+                ),
+            )
             attachments = await _save_chat_attachments(session_id, uploads)
             message.attachments = attachments
+        else:
+            logger.info("[stream] 未收到附件")
 
         schedule_chat_title_update(
             chat_service=chat_service,
