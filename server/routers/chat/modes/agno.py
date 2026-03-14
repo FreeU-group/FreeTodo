@@ -60,35 +60,43 @@ def _resolve_user_id(message_user_id: str | None, session_id: str) -> str:
 
 def _parse_tool_events_for_storage(
     chunk: str,
+    base_offset: int,
 ) -> tuple[list[dict[str, Any]], str, str]:
     events: list[dict[str, Any]] = []
-    content = chunk
+    output_parts: list[str] = []
+    output_len = 0
+    cursor = 0
 
-    start_idx = content.find(TOOL_EVENT_PREFIX)
-    while start_idx != -1:
-        end_idx = content.find(TOOL_EVENT_SUFFIX, start_idx)
-        if end_idx == -1:
+    while True:
+        start_idx = chunk.find(TOOL_EVENT_PREFIX, cursor)
+        if start_idx == -1:
+            output_parts.append(chunk[cursor:])
+            output_len += len(chunk[cursor:])
             break
 
+        end_idx = chunk.find(TOOL_EVENT_SUFFIX, start_idx)
+        if end_idx == -1:
+            output_parts.append(chunk[cursor:start_idx])
+            output_len += len(chunk[cursor:start_idx])
+            pending = chunk[start_idx:]
+            return events, "".join(output_parts), pending
+
+        output_parts.append(chunk[cursor:start_idx])
+        output_len += len(chunk[cursor:start_idx])
+
         json_start = start_idx + len(TOOL_EVENT_PREFIX)
-        json_str = content[json_start:end_idx]
+        json_str = chunk[json_start:end_idx]
         try:
             event = json.loads(json_str)
             if isinstance(event, dict):
+                event["offset"] = base_offset + output_len
                 events.append(event)
         except json.JSONDecodeError:
             logger.debug("[stream][agno] Failed to parse tool event payload.")
 
-        content = content[:start_idx] + content[end_idx + len(TOOL_EVENT_SUFFIX) :]
-        start_idx = content.find(TOOL_EVENT_PREFIX)
+        cursor = end_idx + len(TOOL_EVENT_SUFFIX)
 
-    pending = ""
-    incomplete_idx = content.find(TOOL_EVENT_PREFIX)
-    if incomplete_idx != -1:
-        pending = content[incomplete_idx:]
-        content = content[:incomplete_idx]
-
-    return events, content, pending
+    return events, "".join(output_parts), ""
 
 
 def _save_and_publish(
@@ -140,6 +148,7 @@ def _build_agent_os_token_generator(
 ):
     def token_generator():
         storage_chunks: list[str] = []
+        storage_length = 0
         tool_events: list[dict[str, Any]] = []
         pending_chunk = ""
 
@@ -156,11 +165,15 @@ def _build_agent_os_token_generator(
                     continue
 
                 full_chunk = pending_chunk + chunk
-                events, content, pending_chunk = _parse_tool_events_for_storage(full_chunk)
+                events, content, pending_chunk = _parse_tool_events_for_storage(
+                    full_chunk,
+                    storage_length,
+                )
                 if events:
                     tool_events.extend(events)
                 if content:
                     storage_chunks.append(content)
+                    storage_length += len(content)
                 yield chunk
 
             _save_and_publish(storage_chunks, tool_events, chat_service, session_id)

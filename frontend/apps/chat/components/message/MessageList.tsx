@@ -342,7 +342,7 @@ export function MessageList({
 
 	return (
 		<div
-			className="flex-1 space-y-4 overflow-y-auto px-4 py-4"
+			className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 py-4"
 			ref={messageListRef}
 			onScroll={handleScroll}
 		>
