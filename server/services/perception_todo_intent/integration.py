@@ -86,6 +86,7 @@ class TodoIntentIntegrationService:
         _ = context
         _ = gate_decision
         if not candidates:
+            logger.info("[Integration] No candidates to integrate, skipping")
             return [
                 TodoIntegrationResult(
                     action=IntegrationAction.SKIPPED,
@@ -93,15 +94,37 @@ class TodoIntentIntegrationService:
                 )
             ]
 
+        logger.info(
+            "[Integration] Processing %d candidate(s)",
+            len(candidates),
+        )
         now_ts = get_utc_now().timestamp()
         self._evict_expired(now_ts)
 
         results: list[TodoIntegrationResult] = []
-        for candidate in candidates:
+        for i, candidate in enumerate(candidates):
+            logger.info(
+                "[Integration] Candidate %d/%d: name=%r intent_type=%s inviter=%s "
+                "location=%s memory_match=%s confidence=%.2f",
+                i + 1,
+                len(candidates),
+                candidate.name,
+                candidate.intent_type.value,
+                candidate.inviter,
+                candidate.location,
+                candidate.memory_match.action.value,
+                candidate.confidence,
+            )
+
             dedupe_key = self._candidate_dedupe_key(candidate)
             expires_at = self._cache.get(dedupe_key)
             if expires_at and expires_at > now_ts:
                 self._cache.move_to_end(dedupe_key, last=True)
+                logger.info(
+                    "[Integration] SKIPPED (dedupe): %r key=%s",
+                    candidate.name,
+                    dedupe_key[:12],
+                )
                 results.append(
                     TodoIntegrationResult(
                         action=IntegrationAction.SKIPPED,
@@ -118,6 +141,11 @@ class TodoIntentIntegrationService:
             match_action = candidate.memory_match.action
 
             if match_action == MemoryMatchAction.LINK_EXISTING:
+                logger.info(
+                    "[Integration] SKIPPED (link_existing): %r -> %s",
+                    candidate.name,
+                    candidate.memory_match.matched_todo_name or "?",
+                )
                 results.append(
                     TodoIntegrationResult(
                         action=IntegrationAction.SKIPPED,
@@ -127,6 +155,11 @@ class TodoIntentIntegrationService:
                 )
                 continue
 
+            logger.info(
+                "[Integration] Dispatching %r to Agno (intent_type=%s)...",
+                candidate.name,
+                candidate.intent_type.value,
+            )
             result = await _dispatch_to_agno(candidate, dedupe_key)
             results.append(result)
 
@@ -223,14 +256,18 @@ def _run_agno_sync(message: str, tools: list[str]) -> str:
     """Run Agno agent synchronously and collect the full text response."""
     from llm.agno_agent import AgnoAgentService  # noqa: PLC0415
 
+    logger.info("[Agno] Creating AgnoAgentService with tools=%s", tools)
     service = AgnoAgentService(
         lang="zh",
         selected_tools=tools,
     )
+    logger.info("[Agno] Sending message (%d chars), streaming response...", len(message))
     response_parts: list[str] = []
     for chunk in service.stream_response(message, include_tool_events=False):
         response_parts.append(chunk)
-    return "".join(response_parts)
+    full_response = "".join(response_parts)
+    logger.info("[Agno] Response complete: %d chars", len(full_response))
+    return full_response
 
 
 def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None:
@@ -241,13 +278,22 @@ def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None
     title = f"📨 邀约助手：{candidate.name}" if is_invitation else f"✅ 自动待办：{candidate.name}"
     notification_id = f"intent_{uuid4().hex[:12]}"
 
-    add_notification(
+    logger.info(
+        "[Notification] Writing notification: id=%s title=%r content_len=%d",
+        notification_id,
+        title,
+        len(response),
+    )
+    added = add_notification(
         notification_id=notification_id,
         title=title,
         content=response,
         timestamp=get_utc_now(),
     )
-    logger.info("Pushed notification %s for intent %r", notification_id, candidate.name)
+    if added:
+        logger.info("[Notification] ✓ Notification %s stored successfully", notification_id)
+    else:
+        logger.warning("[Notification] Notification %s was duplicate, not stored", notification_id)
 
 
 async def _dispatch_to_agno(
@@ -258,22 +304,34 @@ async def _dispatch_to_agno(
     try:
         message = _build_agno_message(candidate)
         tools = _select_tools(candidate)
-        response = await asyncio.to_thread(_run_agno_sync, message, tools)
         logger.info(
-            "Agno handled intent %r (type=%s, action=%s): %s",
+            "[Dispatch] Building Agno message for %r: intent_type=%s, tools=%s, msg_len=%d",
             candidate.name,
             candidate.intent_type.value,
-            candidate.memory_match.action.value,
-            response[:300],
+            tools,
+            len(message),
         )
+        logger.debug("[Dispatch] Full message:\n%s", message)
+
+        response = await asyncio.to_thread(_run_agno_sync, message, tools)
+
+        logger.info(
+            "[Dispatch] ✓ Agno completed for %r (type=%s): response=%d chars",
+            candidate.name,
+            candidate.intent_type.value,
+            len(response),
+        )
+        logger.info("[Dispatch] Response preview: %s", response[:500])
+
         _push_notification(candidate, response)
+
         return TodoIntegrationResult(
             action=IntegrationAction.CREATED,
             dedupe_key=dedupe_key,
             reason="dispatched_to_agno",
         )
     except Exception:
-        logger.exception("Failed to dispatch intent to Agno: %s", candidate.name)
+        logger.exception("[Dispatch] ✗ FAILED to dispatch intent to Agno: %s", candidate.name)
         return TodoIntegrationResult(
             action=IntegrationAction.QUEUED_REVIEW,
             dedupe_key=dedupe_key,

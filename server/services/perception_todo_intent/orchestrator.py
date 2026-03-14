@@ -260,12 +260,21 @@ class TodoIntentOrchestrator:
 
     async def process_context(self, context: TodoIntentContext) -> TodoIntentProcessingRecord:
         self._counters["contexts_total"] += 1
+        text_preview = (context.merged_text or "")[:100]
+        logger.info(
+            "[Orchestrator] ── Processing context %s (%d chars): %s...",
+            context.context_id[:16],
+            len(context.merged_text or ""),
+            text_preview,
+        )
+
         dedupe_hit = False
         dedupe_key: str | None = None
         if self._dedupe_enabled:
             dedupe_hit, dedupe_key = self._dedupe.check_and_record(context)
         if dedupe_hit:
             self._counters["dedupe_hits"] += 1
+            logger.info("[Orchestrator] DEDUPE HIT — skipping context %s", context.context_id[:16])
             return self._build_record(
                 context=context,
                 status=TodoIntentProcessingStatus.DEDUPE_HIT,
@@ -274,6 +283,11 @@ class TodoIntentOrchestrator:
             )
 
         gate_decision = await self._gate.decide(context)
+        logger.info(
+            "[Orchestrator] Gate decision: should_extract=%s reason=%r",
+            gate_decision.should_extract,
+            gate_decision.reason,
+        )
         if not gate_decision.should_extract:
             self._counters["gate_skips"] += 1
             return self._build_record(
@@ -284,6 +298,11 @@ class TodoIntentOrchestrator:
             )
 
         active_todos, user_profile = self._load_memory_context()
+        logger.info(
+            "[Orchestrator] Memory context loaded: active_todos=%d chars, user_profile=%d chars",
+            len(active_todos),
+            len(user_profile),
+        )
 
         try:
             candidates = await self._extractor.extract(
@@ -292,6 +311,7 @@ class TodoIntentOrchestrator:
                 user_profile=user_profile,
             )
         except Exception:
+            logger.warning("[Orchestrator] Extractor failed, retrying with strict_json...")
             try:
                 candidates = await self._extractor.extract(
                     context,
@@ -300,6 +320,7 @@ class TodoIntentOrchestrator:
                     user_profile=user_profile,
                 )
             except Exception as exc:
+                logger.exception("[Orchestrator] Extractor failed twice")
                 return self._build_record(
                     context=context,
                     status=TodoIntentProcessingStatus.EXTRACT_FAILED,
@@ -310,6 +331,19 @@ class TodoIntentOrchestrator:
 
         normalized = self._post_processor.normalize(candidates, context)
         self._counters["extracted_candidates"] += len(normalized)
+        logger.info(
+            "[Orchestrator] Extractor returned %d candidate(s), %d after normalization",
+            len(candidates),
+            len(normalized),
+        )
+        for c in normalized:
+            logger.info(
+                "[Orchestrator]   → %r  intent_type=%s  inviter=%s  confidence=%.2f",
+                c.name,
+                c.intent_type.value,
+                c.inviter,
+                c.confidence,
+            )
 
         results = await self._integration.integrate(
             context=context,
@@ -317,6 +351,12 @@ class TodoIntentOrchestrator:
             candidates=normalized,
         )
         self._counters["integrated_total"] += len(results)
+        for r in results:
+            logger.info(
+                "[Orchestrator]   Integration result: action=%s reason=%s",
+                r.action.value,
+                r.reason,
+            )
         return self._build_record(
             context=context,
             status=(
