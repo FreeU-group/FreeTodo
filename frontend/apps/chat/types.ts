@@ -36,6 +36,16 @@ export type ToolCallAnchor = {
 	offset: number;
 };
 
+export type ChatAttachment = {
+	id: string;
+	fileName?: string;
+	fileSize?: number;
+	mimeType?: string;
+	kind?: "image" | "file";
+	storageName?: string;
+	downloadUrl?: string;
+};
+
 /**
  * 聊天消息
  */
@@ -43,6 +53,7 @@ export type ChatMessage = {
 	id: string;
 	role: "user" | "assistant";
 	content: string;
+	attachments?: ChatAttachment[];
 	/** 工具调用步骤（仅 assistant 消息可能有） */
 	toolCallSteps?: ToolCallStep[];
 	/** 工具调用在消息内容中的锚点（仅 assistant 消息可能有） */
