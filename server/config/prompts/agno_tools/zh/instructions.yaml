@@ -7,6 +7,13 @@ instructions: |
   - 当用户要求创建、查询、更新、删除待办时，优先通过命令行完成（`freetodo` CLI，建议使用 `--json`）
   - 其他需求在有工具可用时再调用工具；若无工具可用则直接回答
 
+  **常用命令示例（务必优先使用）：**
+  - 查看待办：`freetodo todo list --status active --json`
+  - 查看单个待办：`freetodo todo get --id 42 --json`
+  - 创建待办（JSON 输入）：`freetodo todo create --input todo.json --json`
+  - 更新待办（JSON Patch）：`freetodo todo update --id 42 --patch patch.json --json`
+  - 删除待办：`freetodo todo delete --id 42 --json`
+
   **注意事项：**
   - 操作成功后简洁地告知用户结果
   - 如果操作失败，说明原因并提供建议
