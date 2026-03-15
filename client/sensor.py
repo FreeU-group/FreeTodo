@@ -75,6 +75,7 @@ _window_capture = None
 _app_router = None
 _roi_extractor = None
 _ocr_engine = None
+_ocr_backend_override: str | None = None
 
 
 def _mss_grab_in_thread() -> np.ndarray | None:
@@ -127,8 +128,9 @@ def _get_ocr_engine():
         from proactive_ocr.ocr_engine import get_ocr_engine  # noqa: PLC0415
         from util.settings import settings  # noqa: PLC0415
 
+        backend = _ocr_backend_override or settings.get("jobs.proactive_ocr.ocr_backend", "auto")
         _ocr_engine = get_ocr_engine(
-            backend=settings.get("jobs.proactive_ocr.ocr_backend", "auto"),
+            backend=backend,
             config=OcrEngineConfig(
                 det_limit_side_len=settings.get("jobs.proactive_ocr.det_limit_side_len", 960),
                 resize_max_side=settings.get("jobs.proactive_ocr.resize_max_side", 0),
@@ -652,16 +654,27 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Save debug images to sensor_debug/ folder",
     )
+    parser.add_argument(
+        "--ocr-backend",
+        choices=["auto", "rapidocr", "winrt"],
+        help="Override OCR backend for this run",
+    )
     return parser.parse_args()
 
 
 async def _run(args: argparse.Namespace) -> None:
+    global _ocr_backend_override  # noqa: PLW0603
+    _ocr_backend_override = args.ocr_backend
+
     daemon = SensorDaemon(
         center_url=args.center_url,
         node_id=args.node_id,
         debug_images=args.debug_images,
     )
-    logger.info(f"Sensor starting: node_id={args.node_id}, center={args.center_url}")
+    logger.info(
+        f"Sensor starting: node_id={args.node_id}, center={args.center_url}, "
+        f"ocr_backend={args.ocr_backend or 'config'}"
+    )
     await daemon.run(
         screenshot_interval=args.screenshot_interval,
         proactive_ocr_interval=args.proactive_ocr_interval,
