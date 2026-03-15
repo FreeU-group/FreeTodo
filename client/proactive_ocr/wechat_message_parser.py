@@ -16,7 +16,7 @@ from .priors.wechat import BUBBLE_COLORS, WeChatPrior
 
 logger = get_logger()
 
-_GROUP_SUFFIX_RE = re.compile(r"\(\d+\)\s*$")
+_GROUP_SUFFIX_RE = re.compile(r"[(\uff08]\s*\d+\s*[)\uff09]\s*$")
 
 _NICKNAME_HEIGHT_RATIO = 0.70
 _NICKNAME_GAP_RATIO = 1.5
