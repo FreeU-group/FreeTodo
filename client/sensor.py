@@ -459,6 +459,7 @@ class SensorDaemon:
             ocr_result,
             valid_lines,
             app_type,
+            debug_saver=self._save_debug_image if self._debug_images else None,
         )
         if len(text) < _MIN_TEXT_LEN:
             return
@@ -498,6 +499,8 @@ class SensorDaemon:
         ocr_result,
         valid_lines: list,
         app_type,
+        *,
+        debug_saver=None,
     ) -> tuple[str, dict]:
         """Build text and extra metadata; use structured parser for WeChat."""
         from proactive_ocr.models import AppType  # noqa: PLC0415
@@ -513,6 +516,10 @@ class SensorDaemon:
                 theme_name = theme.name if theme else "dark"
                 ctx = parse_wechat_messages(image, ocr_result, theme_name)
                 if ctx is not None and ctx.messages:
+                    if debug_saver and ctx.divider_y is not None:
+                        dy = ctx.divider_y
+                        debug_saver(image[:dy, :], "wechat_title")
+                        debug_saver(image[dy + 2 :, :], "wechat_messages")
                     structured = ctx.to_structured_text()
                     logger.info(
                         "WeChat structured OCR (%d msgs):\n%s",
