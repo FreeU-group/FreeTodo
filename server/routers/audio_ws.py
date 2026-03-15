@@ -122,10 +122,10 @@ def _create_result_callback(  # noqa: C901
 
     async def _identify_speaker(text: str) -> dict[str, Any] | None:
         """Use the diarizer to identify the current speaker."""
-        if not _spk_enabled:
+        if not _spk_enabled or speaker_diarizer is None:
             return None
         try:
-            result = await asyncio.to_thread(speaker_diarizer.identify_current_speaker)
+            result = await speaker_diarizer.identify_current_speaker()
             if result is not None:
                 if speaker_segments_ref is not None:
                     speaker_segments_ref[0].append({"text": text, "speaker": result})

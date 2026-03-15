@@ -295,8 +295,8 @@ audio:
     # CAM++ 声纹模型配置（本地 FunASR，默认方案）
     model: iic/speech_campplus_sv_zh-cn_16k-common
     device: cpu
-    min_audio_duration: 2.0 # 最小音频时长（秒），低于此不提取声纹
-    buffer_duration: 5.0 # 音频缓冲时长（秒），每次提取声纹的音频量
+    min_audio_duration: 2.5 # 最小音频时长（秒），低于此不提取声纹
+    buffer_duration: 8.0 # 音频缓冲时长（秒），每次提取声纹的音频量
     vad_enabled: true # 是否启用 FSMN-VAD 语音切分（按说话轮次切段，提高多人对话识别准确率）
     # Diart 实时说话人分离（可选，优先于 CAM++，需 pip install diart 并登录 HuggingFace）
     diart:
@@ -310,7 +310,7 @@ audio:
       embedding_model: pyannote/embedding
     # 声纹库配置（VoiceprintStore）
     embedding_dim: 192 # 声纹向量维度
-    similarity_threshold: 0.60 # 余弦相似度匹配阈值（CAM++ 同人典型 0.7-0.95，不同人 0.3-0.6）
+    similarity_threshold: 0.68 # 余弦相似度匹配阈值（CAM++ 同人典型 0.7-0.95，不同人 0.3-0.6）
     new_speaker_confirm_count: 2 # 连续未匹配次数达到此值才创建新说话人（防止短暂波动）
     max_speakers: 100 # 声纹库最大说话人数
     auto_create_speaker: true # 未匹配时是否自动创建新说话人

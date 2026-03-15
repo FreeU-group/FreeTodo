@@ -384,8 +384,7 @@ class DiartDiarizer:
         min_bytes = int(self._min_audio_duration * SAMPLE_RATE * BYTES_PER_SAMPLE)
 
         if self._completed_segments:
-            seg = self._completed_segments.pop()
-            self._completed_segments.clear()
+            seg = self._completed_segments[-1]
             return seg, "vad_segment"
 
         if len(self._current_speech_buf) >= min_bytes:
@@ -394,7 +393,6 @@ class DiartDiarizer:
             return buf, "vad_ongoing"
 
         buf = bytes(self._audio_buffer)
-        self._audio_buffer.clear()
         return buf, "raw_buffer"
 
     # ---- core identification with pending-voiceprint confirmation ----
@@ -455,7 +453,8 @@ class DiartDiarizer:
                 )
                 return new_match
 
-        # No match anywhere — stash this embedding for future confirmation
+        # No match anywhere — stash this embedding for future confirmation.
+        # Return None so the caller shows "unknown" instead of stale speaker.
         self._pending_embeddings.append((embedding, duration, now))
         if len(self._pending_embeddings) > self._max_pending:
             self._pending_embeddings.pop(0)
@@ -464,7 +463,7 @@ class DiartDiarizer:
             f"说话人识别 [{source}] {duration:.1f}s → "
             f"未匹配，等待二次确认 (pending={len(self._pending_embeddings)})"
         )
-        return self._last_match
+        return None
 
     # ---- sync / async identification ----
 
