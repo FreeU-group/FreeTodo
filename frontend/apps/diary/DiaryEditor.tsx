@@ -1,7 +1,6 @@
 "use client";
 
 import { ImageIcon, Loader2, Sparkles } from "lucide-react";
-import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { DiaryTabs, type JournalTab } from "@/apps/diary/DiaryTabs";
@@ -62,8 +61,8 @@ export function DiaryEditor({
 	}, [illustrationUrls]);
 
 	return (
-		<div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 overflow-y-auto">
-			<div className="flex flex-wrap items-center justify-between gap-3">
+		<div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-4">
+			<div className="flex flex-wrap items-center justify-between gap-3 shrink-0 mb-4">
 				<DiaryTabs activeTab={activeTab} onChange={onTabChange} />
 				<div className="flex items-center gap-2">
 					<Button
@@ -95,9 +94,9 @@ export function DiaryEditor({
 				</div>
 			</div>
 
-			<div className="flex min-h-0 flex-1 flex-col gap-3">
+			<div className="min-h-0 flex-1 overflow-y-auto">
 				{activeTab === "original" && (
-					<div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-border bg-background px-4 py-4 shadow-sm">
+					<div className="flex min-h-full flex-col rounded-2xl border border-border bg-background px-4 py-4 shadow-sm">
 						<input
 							value={draft.name}
 							onChange={(event) => onTitleChange(event.target.value)}
@@ -115,7 +114,7 @@ export function DiaryEditor({
 					</div>
 				)}
 				{activeTab === "ai" && (
-					<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+					<div className="flex flex-col gap-3">
 						{draft.contentAi && (
 							<div className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/20 px-4 py-4">
 								<p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
@@ -142,15 +141,13 @@ export function DiaryEditor({
 							illustrationUrls.map((url) => (
 								<div
 									key={url}
-									className="overflow-hidden rounded-2xl border border-border"
+									className="rounded-2xl border border-border"
 								>
-									<Image
+									{/* eslint-disable-next-line @next/next/no-img-element */}
+									<img
 										src={`${url}?v=${imgKey}`}
 										alt={t("illustrationAlt", { index: illustrationUrls.indexOf(url) + 1 })}
-										width={800}
-										height={1000}
-										className="w-full h-auto object-contain"
-										unoptimized
+										className="w-full h-auto rounded-2xl"
 									/>
 								</div>
 							))
@@ -181,7 +178,7 @@ export function DiaryEditor({
 					</div>
 				)}
 				{autoLinkMessage && (
-					<div className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
+					<div className="mt-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
 						{autoLinkMessage}
 					</div>
 				)}
