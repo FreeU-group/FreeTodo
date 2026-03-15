@@ -69,7 +69,7 @@ echo.
 
 REM Build sensor command (runs from client/ directory which is a standalone uv project)
 set "SENSOR_DIR=%REPO_ROOT%\client"
-set "SENSOR_CMD=uv run python -m sensor --center-url %CENTER_URL% --node-id %NODE_ID%"
+set "SENSOR_CMD=uv run python -m sensor --center-url %CENTER_URL% --node-id %NODE_ID% --debug-images"
 
 REM Start perception daemon
 echo [1/3] Starting perception daemon...
