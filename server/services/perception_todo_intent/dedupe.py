@@ -142,3 +142,113 @@ class PreGateDedupeCache:
             "hit_count": self._hit_count,
             "miss_count": self._miss_count,
         }
+
+
+_WECHAT_LINE_RE = re.compile(r"^\[([^\]]+)\]\s*(.+)$")
+_WECHAT_HEADER_RE = re.compile(r"^\[(私聊|群聊)\]")
+_WECHAT_NOISE_KEYWORDS = ("发送", "发送（", "发送(")
+
+
+class WeChatMessageHistory:
+    """Message-line level dedup for WeChat structured OCR text.
+
+    Maintains a sliding window of normalized message lines. On each new
+    structured text, strips out lines already seen and returns only genuinely
+    new content. Prevents re-extraction of intents from messages that have
+    already been processed in earlier sensor cycles.
+    """
+
+    def __init__(self, *, ttl_seconds: int = 1800, max_lines: int = 10000):
+        self._ttl = max(60, int(ttl_seconds))
+        self._max_lines = max(100, int(max_lines))
+        self._seen: OrderedDict[str, float] = OrderedDict()
+        self._stats_total = 0
+        self._stats_new = 0
+
+    def _evict(self, now: float) -> None:
+        while self._seen:
+            key, expires = next(iter(self._seen.items()))
+            if expires > now:
+                break
+            self._seen.popitem(last=False)
+        while len(self._seen) > self._max_lines:
+            self._seen.popitem(last=False)
+
+    @staticmethod
+    def _is_noise(text: str) -> bool:
+        stripped = text.strip()
+        if len(stripped) < 2:
+            return True
+        for kw in _WECHAT_NOISE_KEYWORDS:
+            if stripped.startswith(kw):
+                return True
+        return False
+
+    def filter_new_messages(self, structured_text: str) -> str | None:
+        """Return structured text with only unseen message lines.
+
+        Returns None if no new meaningful messages remain.
+        """
+        now = get_utc_now().timestamp()
+        self._evict(now)
+
+        lines = structured_text.strip().splitlines()
+        if not lines:
+            return None
+
+        header_line = ""
+        msg_lines: list[str] = []
+        for line in lines:
+            if _WECHAT_HEADER_RE.match(line):
+                header_line = line
+            else:
+                msg_lines.append(line)
+
+        new_lines: list[str] = []
+        for line in msg_lines:
+            m = _WECHAT_LINE_RE.match(line)
+            if not m:
+                continue
+            _speaker, content = m.group(1), m.group(2)
+            if self._is_noise(content):
+                continue
+
+            norm = _normalize_text(content)
+            self._stats_total += 1
+
+            if self._is_seen(norm, now):
+                continue
+
+            self._stats_new += 1
+            self._seen[norm] = now + self._ttl
+            self._seen.move_to_end(norm, last=True)
+            new_lines.append(line)
+
+        self._evict(now)
+
+        if not new_lines:
+            return None
+        if header_line:
+            return header_line + "\n" + "\n".join(new_lines)
+        return "\n".join(new_lines)
+
+    def _is_seen(self, norm_text: str, now: float) -> bool:
+        if norm_text in self._seen and self._seen[norm_text] > now:
+            self._seen[norm_text] = now + self._ttl
+            self._seen.move_to_end(norm_text, last=True)
+            return True
+        for existing, expires in list(self._seen.items()):
+            if expires <= now:
+                continue
+            if norm_text in existing or existing in norm_text:
+                self._seen[existing] = now + self._ttl
+                self._seen.move_to_end(existing, last=True)
+                return True
+        return False
+
+    def stats(self) -> dict[str, int]:
+        return {
+            "history_size": len(self._seen),
+            "total_lines": self._stats_total,
+            "new_lines": self._stats_new,
+        }

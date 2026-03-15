@@ -12,7 +12,7 @@ from schemas.perception_todo_intent import (
     TodoIntentProcessingRecord,
     TodoIntentProcessingStatus,
 )
-from services.perception_todo_intent.dedupe import PreGateDedupeCache
+from services.perception_todo_intent.dedupe import PreGateDedupeCache, WeChatMessageHistory
 from services.perception_todo_intent.extractor import TodoIntentExtractor
 from services.perception_todo_intent.gate import TodoIntentGate
 from services.perception_todo_intent.integration import TodoIntentIntegrationService
@@ -83,6 +83,13 @@ class TodoIntentOrchestrator:
             dedupe_window_seconds=int(
                 integration_cfg.get("post_extract_dedupe_window_seconds", 600)
             ),
+        )
+        wechat_cfg = cfg.get("wechat_history", {})
+        if not isinstance(wechat_cfg, dict):
+            wechat_cfg = {}
+        self._wechat_history = WeChatMessageHistory(
+            ttl_seconds=int(wechat_cfg.get("ttl_seconds", 1800)),
+            max_lines=int(wechat_cfg.get("max_lines", 10000)),
         )
         self._counters: Counter[str] = Counter()
 
@@ -291,6 +298,31 @@ class TodoIntentOrchestrator:
             context=context,
             status=TodoIntentProcessingStatus.RECEIVED,
         ))
+
+        is_wechat = str(context.metadata.get("app_name") or "").lower() in ("wechat", "微信")
+        if is_wechat and str(context.metadata.get("chat_type") or ""):
+            filtered = self._wechat_history.filter_new_messages(context.merged_text)
+            if filtered is None:
+                self._counters["wechat_all_seen"] += 1
+                logger.info(
+                    "[Orchestrator] WeChat history: all messages seen before — skipping %s",
+                    context.context_id[:16],
+                )
+                rec = self._build_record(
+                    record_id=rid,
+                    context=context,
+                    status=TodoIntentProcessingStatus.DEDUPE_HIT,
+                    dedupe_hit=True,
+                    dedupe_key="wechat_history_all_seen",
+                )
+                _emit(rec)
+                return rec
+            original_len = len(context.merged_text)
+            context.merged_text = filtered
+            logger.info(
+                "[Orchestrator] WeChat history: %d→%d chars (new messages only)",
+                original_len, len(filtered),
+            )
 
         dedupe_hit = False
         dedupe_key: str | None = None
