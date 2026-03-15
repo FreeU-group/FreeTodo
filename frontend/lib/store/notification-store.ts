@@ -70,56 +70,12 @@ const requestWebPermission = async (): Promise<NotificationPermission> => {
 	return webPermissionRequest;
 };
 
-const showWebNotification = async (notification: Notification): Promise<void> => {
-	if (typeof window === "undefined" || !("Notification" in window)) return;
-	let permission = Notification.permission;
-	if (permission === "default") {
-		try {
-			permission = await requestWebPermission();
-		} catch {
-			return;
-		}
-	}
-	if (permission !== "granted") return;
-	const title = notification.title || "通知";
-	try {
-		new Notification(title, {
-			body: notification.content,
-			tag: notification.id,
-		});
-	} catch {
-		// 静默处理错误，不影响应用运行
-	}
+const showWebNotification = async (_notification: Notification): Promise<void> => {
+	// 浏览器原生通知已禁用，所有通知统一由自定义悬浮窗处理
 };
 
-const showTauriNotification = async (notification: Notification): Promise<void> => {
-	const api = getTauriNotificationApi();
-	if (!api?.sendNotification) return;
-	let granted = true;
-	if (api.isPermissionGranted) {
-		try {
-			granted = await api.isPermissionGranted();
-		} catch {
-			granted = false;
-		}
-	}
-	if (!granted && api.requestPermission) {
-		try {
-			const permission = await api.requestPermission();
-			granted = permission === "granted";
-		} catch {
-			granted = false;
-		}
-	}
-	if (!granted) return;
-	try {
-		await api.sendNotification({
-			title: notification.title || "通知",
-			body: notification.content,
-		});
-	} catch {
-		// 静默处理错误，不影响应用运行
-	}
+const showTauriNotification = async (_notification: Notification): Promise<void> => {
+	// Tauri 原生通知已禁用，所有通知统一由自定义悬浮窗处理
 };
 
 function isImportantNotification(notification: Notification): boolean {
@@ -127,15 +83,18 @@ function isImportantNotification(notification: Notification): boolean {
 	return title.includes("邀约") || title.includes("invitation");
 }
 
-function notifySystem(notification: Notification): void {
+function notifySystem(_notification: Notification): void {
+	// 系统原生通知已禁用，所有通知统一由自定义悬浮窗（signal-popup）处理
+	// Electron/浏览器/Tauri 的原生通知均不再触发
+	return;
 	if (typeof window === "undefined") return;
 	if (window.electronAPI?.showNotification) {
 		window.electronAPI
 			.showNotification({
-				id: notification.id,
-				title: notification.title,
-				content: notification.content,
-				timestamp: notification.timestamp,
+				id: _notification.id,
+				title: _notification.title,
+				content: _notification.content,
+				timestamp: _notification.timestamp,
 			})
 			.catch((error) => {
 				// 静默处理错误，不影响应用运行

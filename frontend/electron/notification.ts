@@ -39,42 +39,8 @@ export async function requestNotificationPermission(): Promise<void> {
  * @param windowManager 窗口管理器（用于点击通知时聚焦窗口）
  */
 export function showSystemNotification(
-	data: NotificationData,
-	windowManager: WindowManager,
+	_data: NotificationData,
+	_windowManager: WindowManager,
 ): void {
-	if (!windowManager.hasWindow()) {
-		logger.warn("Cannot show notification - mainWindow is null");
-		return;
-	}
-
-	try {
-		const notification = new Notification({
-			title: data.title,
-			body: data.content,
-			silent: false, // 允许通知声音
-		});
-
-		// 处理通知点击事件
-		notification.on("click", () => {
-			logger.info(`Notification ${data.id} clicked - focusing window`);
-			windowManager.focus();
-		});
-
-		// 处理通知显示事件
-		notification.on("show", () => {
-			logger.info(`Notification ${data.id} shown: ${data.title}`);
-		});
-
-		// 处理通知关闭事件
-		notification.on("close", () => {
-			logger.info(`Notification ${data.id} closed`);
-		});
-
-		// 显示通知
-		notification.show();
-	} catch (error) {
-		const errorMsg = `Failed to show notification: ${error instanceof Error ? error.message : String(error)}`;
-		logger.error(errorMsg);
-		// 静默失败，不影响应用运行
-	}
+	// 系统原生通知已禁用，所有通知统一由自定义悬浮窗（signal-popup）处理
 }
