@@ -6,6 +6,7 @@ line recognition to produce structured dialogue with speaker attribution.
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 import numpy as np
 
@@ -36,6 +37,54 @@ _TIMESTAMP_RE = re.compile(
     r")(\s*\d{1,2}[:\uff1a]\d{2})?$"  # optional trailing time
 )
 _TIMESTAMP_CENTER_TOLERANCE = 0.15
+
+_WEEKDAY_MAP = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
+_TIME_HM_RE = re.compile(r"(\d{1,2})[:\uff1a](\d{2})")
+_REL_DAY_RE = re.compile(r"^(昨|前)天")
+_WEEKDAY_RE = re.compile(r"^(?:星期|周)([一二三四五六日天])")
+_ABS_DATE_RE = re.compile(
+    r"^(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})日?"
+)
+_MONTH_DAY_RE = re.compile(r"^(\d{1,2})月(\d{1,2})日?")
+
+
+def _normalize_timestamp(raw: str) -> str:
+    """Convert relative WeChat timestamp to 'YYYY-MM-DD HH:MM' format."""
+    text = raw.strip().replace("\u3000", " ").replace("\uff1a", ":")
+    now = datetime.now()
+
+    hm = _TIME_HM_RE.search(text)
+    hour = int(hm.group(1)) if hm else 0
+    minute = int(hm.group(2)) if hm else 0
+
+    m = _ABS_DATE_RE.match(text)
+    if m:
+        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d} {hour:02d}:{minute:02d}"
+
+    m = _MONTH_DAY_RE.match(text)
+    if m:
+        return f"{now.year:04d}-{int(m.group(1)):02d}-{int(m.group(2)):02d} {hour:02d}:{minute:02d}"
+
+    m = _REL_DAY_RE.match(text)
+    if m:
+        offset = 1 if m.group(1) == "昨" else 2
+        target = now - timedelta(days=offset)
+        return f"{target.year:04d}-{target.month:02d}-{target.day:02d} {hour:02d}:{minute:02d}"
+
+    m = _WEEKDAY_RE.match(text)
+    if m:
+        target_wd = _WEEKDAY_MAP.get(m.group(1), 0)
+        current_wd = now.weekday()
+        diff = (current_wd - target_wd) % 7
+        if diff == 0:
+            diff = 7
+        target = now - timedelta(days=diff)
+        return f"{target.year:04d}-{target.month:02d}-{target.day:02d} {hour:02d}:{minute:02d}"
+
+    if hm:
+        return f"{now.year:04d}-{now.month:02d}-{now.day:02d} {hour:02d}:{minute:02d}"
+
+    return raw
 
 
 @dataclass(slots=True)
@@ -238,8 +287,8 @@ def _attribute_messages(
         ln = msg_lines[i]
 
         if _is_timestamp_line(ln, ctx.roi_width):
-            current_timestamp = ln.text.strip()
-            logger.info("  [TS] %s", current_timestamp)
+            current_timestamp = _normalize_timestamp(ln.text)
+            logger.info("  [TS] %s → %s", ln.text.strip(), current_timestamp)
             i += 1
             continue
 
