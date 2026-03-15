@@ -113,7 +113,7 @@ function EventCard({ block }: { block: EventBlock }) {
 							</div>
 						);
 					}
-					return <p key={key}>{renderInlineMarkdown(trimmed)}</p>;
+					return <p key={key + "-" + lineIndex}>{renderInlineMarkdown(trimmed)}</p>;
 					})}
 				</div>
 			)}
