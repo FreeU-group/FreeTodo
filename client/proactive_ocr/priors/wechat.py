@@ -5,7 +5,8 @@ import numpy as np
 from .base import AppPrior, ROIResult, ThemeConfig
 
 _DIVIDER_SEARCH_RATIO = 0.20
-_DIVIDER_PULSE_THRESHOLD = 3.0
+_DIVIDER_PULSE_THRESHOLD = 10.0
+_DIVIDER_PULSE_WINDOW = 4
 _DIVIDER_SAMPLE_X_START = 0.40
 _DIVIDER_SAMPLE_X_END = 0.85
 _FALLBACK_TITLE_RATIO = 0.08
@@ -51,13 +52,17 @@ class WeChatPrior(AppPrior):
         row_mean = np.mean(strip.reshape(search_limit, -1).astype(np.float64), axis=1)
 
         diff = np.diff(row_mean)
-        for y in range(1, len(diff) - 1):
-            above_threshold = (
-                abs(diff[y]) > _DIVIDER_PULSE_THRESHOLD
-                and abs(diff[y + 1]) > _DIVIDER_PULSE_THRESHOLD
-            )
-            if above_threshold and diff[y] * diff[y + 1] < 0:
-                return y + 1
+        for y in range(len(diff)):
+            if abs(diff[y]) < _DIVIDER_PULSE_THRESHOLD:
+                continue
+            for offset in range(1, _DIVIDER_PULSE_WINDOW + 1):
+                y2 = y + offset
+                if y2 >= len(diff):
+                    break
+                if abs(diff[y2]) < _DIVIDER_PULSE_THRESHOLD:
+                    continue
+                if diff[y] * diff[y2] < 0:
+                    return y + 1
         return None
 
     def get_title_divider_y(self, image: np.ndarray) -> int:
