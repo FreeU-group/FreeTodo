@@ -3,6 +3,7 @@
 import os
 import shutil
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -12,7 +13,7 @@ from jobs.scheduler import get_scheduler_manager
 from llm.llm_client import LLMClient
 from services.asr_client import ASRClient
 from services.diary_illustration_service import sync_diary_illustration_job
-from util.base_paths import get_config_dir, get_user_config_dir
+from util.base_paths import get_app_root, get_config_dir, get_user_config_dir
 from util.logging_config import get_logger
 from util.settings import reload_settings, settings
 
@@ -375,6 +376,69 @@ class ConfigService:
 
         return config_dict
 
+    @staticmethod
+    def _dot_key_to_env_var(dot_key: str) -> str:
+        """将点分隔配置键转换为 LIFETRACE 环境变量名
+
+        例如: 'llm.api_key' -> 'LIFETRACE_LLM__API_KEY'
+        """
+        parts = dot_key.split(".")
+        env_suffix = "__".join(part.upper() for part in parts)
+        return f"LIFETRACE_{env_suffix}"
+
+    @staticmethod
+    def _get_env_file_path() -> Path:
+        """获取 .env 文件路径"""
+        return get_app_root() / ".env"
+
+    def _format_env_value(self, value: Any) -> str:
+        """将配置值格式化为 .env 文件中的字符串"""
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
+    def update_env_file(self, new_settings: dict[str, Any]) -> None:
+        """将变更的配置同步写回 .env 文件
+
+        仅更新 .env 中已有的环境变量，不会新增条目。
+        同时更新 os.environ，确保 Dynaconf reload 后不会用旧值覆盖。
+
+        Args:
+            new_settings: 配置字典（键可以是 snake_case 或点分隔格式）
+        """
+        env_path = self._get_env_file_path()
+        if not env_path.exists():
+            logger.debug(f".env 文件不存在，跳过同步: {env_path}")
+            return
+
+        env_updates: dict[str, str] = {}
+        for raw_key, value in new_settings.items():
+            backend_key = snake_to_dot_notation(raw_key)
+            env_var = self._dot_key_to_env_var(backend_key)
+            env_updates[env_var] = self._format_env_value(value)
+
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+        updated_lines = []
+        synced_vars = []
+
+        for line in lines:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                var_name = stripped.split("=", 1)[0].strip()
+                if var_name in env_updates:
+                    updated_lines.append(f"{var_name}={env_updates[var_name]}")
+                    os.environ[var_name] = env_updates[var_name]
+                    synced_vars.append(var_name)
+                    continue
+            updated_lines.append(line)
+
+        if synced_vars:
+            env_path.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+            for var in synced_vars:
+                logger.info(f"已同步 .env 环境变量: {var}")
+        else:
+            logger.debug("没有需要同步到 .env 的配置项")
+
     def update_config_file(self, new_settings: dict[str, Any], config_path: str) -> None:
         """更新配置文件
 
@@ -632,6 +696,9 @@ class ConfigService:
 
         # 3. 更新配置文件
         self.update_config_file(new_settings, config_path)
+
+        # 3.5. 同步写回 .env 文件（确保重启后配置不丢失）
+        self.update_env_file(new_settings)
 
         # 4. 重新加载配置并触发变更回调（config_watcher 会检测差异并通知订阅者）
         reload_success = reload_with_callbacks()
