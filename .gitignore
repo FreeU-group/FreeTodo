@@ -121,6 +121,9 @@ deploy/volume/
 .env
 deploy-*
 
+# sensor debug images
+sensor_debug/
+
 # free-todo-frontend runtime artifacts
 free-todo-frontend/.notification-popup.json
 free-todo-frontend/next-env.d.ts
