@@ -58,6 +58,13 @@ function escapeHtml(str) {
 		.replace(/\n/g, "<br>");
 }
 
+function renderSimpleMarkdown(str) {
+	return escapeHtml(str)
+		.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+		.replace(/\*(.+?)\*/g, "<em>$1</em>")
+		.replace(/`(.+?)`/g, '<code style="background:#f1f0fb;padding:1px 4px;border-radius:3px;font-size:10.5px">$1</code>');
+}
+
 function estimateHeight(data) {
 	const subtitle = data.subtitle || "";
 	const linkCount = (data.links || []).length;
@@ -91,7 +98,7 @@ function buildLinksHtml(links) {
 function getPanelHtml(data) {
 	const title = escapeHtml(data.title || "通知");
 	const subtitle = data.subtitle || "";
-	const subtitleHtml = subtitle ? escapeHtml(subtitle) : "";
+	const subtitleHtml = subtitle ? renderSimpleMarkdown(subtitle) : "";
 	const linksHtml = buildLinksHtml(data.links);
 
 	return `<!DOCTYPE html>
