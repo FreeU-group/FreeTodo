@@ -103,13 +103,7 @@ class WinRtOcrEngine:
                 text = line_data.get("text", "")
                 if not text.strip():
                     continue
-                rect = line_data.get("bounding_rect", {})
-                bbox = BBox(
-                    x=int(float(rect.get("x", 0)) / scale),
-                    y=int(float(rect.get("y", 0)) / scale),
-                    width=int(float(rect.get("width", 0)) / scale),
-                    height=int(float(rect.get("height", 0)) / scale),
-                )
+                bbox = self._aggregate_word_bboxes(line_data.get("words", []), scale)
                 word_confidences = []
                 for word in line_data.get("words", []):
                     conf = word.get("confidence", None)
@@ -129,6 +123,32 @@ class WinRtOcrEngine:
             cls_time_ms=0,
             model_version="windows-media-ocr",
             device="cpu",
+        )
+
+    @staticmethod
+    def _aggregate_word_bboxes(words: list[dict], scale: float) -> BBox:
+        """Merge per-word bounding rects into a single line-level bbox."""
+        x_min = y_min = float("inf")
+        x_max = y_max = 0.0
+        for word in words:
+            rect = word.get("bounding_rect", {})
+            wx = float(rect.get("x", 0))
+            wy = float(rect.get("y", 0))
+            ww = float(rect.get("width", 0))
+            wh = float(rect.get("height", 0))
+            if ww == 0 and wh == 0:
+                continue
+            x_min = min(x_min, wx)
+            y_min = min(y_min, wy)
+            x_max = max(x_max, wx + ww)
+            y_max = max(y_max, wy + wh)
+        if x_min == float("inf"):
+            return BBox(x=0, y=0, width=0, height=0)
+        return BBox(
+            x=int(x_min / scale),
+            y=int(y_min / scale),
+            width=int((x_max - x_min) / scale),
+            height=int((y_max - y_min) / scale),
         )
 
     def _recognize_sync(self, image_bytes: bytes, width: int, height: int) -> dict[str, Any]:
