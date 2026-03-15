@@ -110,6 +110,43 @@ uv sync --directory client
 pnpm --dir frontend install
 ```
 
+### 配置环境变量
+
+将各模块的 `.env.example` 复制为 `.env`，然后填入配置：
+
+```bash
+# Server 环境变量
+cp server/.env.example server/.env
+
+# Frontend 环境变量
+cp frontend/.env.example frontend/.env
+
+# Client 环境变量（感知客户端）
+cp client/.env.example client/.env
+```
+
+编辑 `server/.env`，填入必要的密钥：
+
+```bash
+# LLM API Key（必填 — 未配置时 AI 相关功能不可用）
+LIFETRACE_LLM__API_KEY=your-api-key
+
+# 阿里云语音识别（可选）
+LIFETRACE_AUDIO__ASR__API_KEY=your-asr-api-key
+
+# Tavily 搜索（可选）
+LIFETRACE_TAVILY__API_KEY=your-tavily-api-key
+
+# Gemini 图像生成，用于日记插画（可选）
+LIFETRACE_BANNA2__API_KEY=your-gemini-api-key
+```
+
+> **注意**：`LIFETRACE_LLM__API_KEY` 为**必填项**。默认 LLM 地址指向阿里云百炼（`qwen-plus` 模型），你也可以修改 `LIFETRACE_LLM__BASE_URL` 和 `LIFETRACE_LLM__MODEL` 切换到任何 OpenAI 兼容的服务商。
+
+Frontend 的 `.env` 默认值为 `NEXT_PUBLIC_API_URL=http://localhost:8001`，本地开发无需修改。
+
+Client 的 `.env` 用于配置中心节点地址。本地开发时默认 `CENTER_URL=http://localhost:8001` 无需修改；云端部署时改为服务器公网地址即可。如果命令行传入了 `--center-url` 参数，则优先使用命令行参数。
+
 ### 一键启动全部服务
 
 开发时可通过脚本一次性启动 **Server + AgentOS + Frontend**：
@@ -127,7 +164,27 @@ chmod +x scripts/start_all.sh
 .\scripts\start_all.ps1
 ```
 
-该脚本会打开三个终端窗口分别运行各服务。
+该脚本会在后台启动所有服务（Server + AgentOS + Frontend + Client），日志输出到 `.run-logs/` 目录。
+
+**查看服务状态：**
+
+```bash
+# macOS/Linux
+bash scripts/status_all.sh
+
+# Windows（PowerShell）
+.\scripts\status_all.ps1
+```
+
+**停止所有服务：**
+
+```bash
+# macOS/Linux
+bash scripts/stop_all.sh
+
+# Windows（PowerShell）
+.\scripts\stop_all.ps1
+```
 
 ### 分步启动服务
 
@@ -141,6 +198,10 @@ uv run --directory server python agent_os.py
 **2. 启动 Client**（感知守护进程，可选）：
 
 ```bash
+# 默认使用 client/.env 中的 CENTER_URL
+uv run --directory client python sensor.py
+
+# 也可以手动指定中心节点地址
 uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC
 ```
 
@@ -152,9 +213,14 @@ pnpm --dir frontend dev
 
 实际的前端地址和后端连接状态会在控制台显示。服务启动后，在浏览器中访问控制台显示的前端地址（通常为 `http://localhost:3001`）开始使用 FreeTodo！
 
-### Docker 部署
+### 部署文档
 
-也可以通过 Docker 部署 Server：
+详细的分步部署说明请参考：
+
+- **[本地部署指南](deploy_in_local.md)** — 在本地电脑上部署全套服务（Server + Frontend + Client），无需 Docker
+- **[云端部署指南](deploy_in_cloud.md)** — 将 Server 部署到云服务器（Docker 方式），本地连接 Frontend 和 Client
+
+快速 Docker 部署（云端）：
 
 ```bash
 # 构建 Server 镜像
@@ -250,7 +316,7 @@ Free Todo 的面板开关栏里有一些正在开发中的面板，这些面板�
 
 ### Git Hooks（Pre-commit）
 
-本仓库使用共享的 `.githooks/` 目录。运行 `free-todo-frontend` 里的 `pnpm install` 或
+本仓库使用共享的 `.githooks/` 目录。运行 `frontend` 里的 `pnpm install` 或
 一键安装脚本时会自动配置 Hooks。若你只是手动 clone 而未执行上述步骤，则每个
 clone/worktree 需要手动执行一次：
 

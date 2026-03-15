@@ -105,6 +105,43 @@ uv sync --directory client
 pnpm --dir frontend install
 ```
 
+### Configure Environment Variables
+
+Copy `.env.example` to `.env` for each module, then fill in your configuration:
+
+```bash
+# Server environment
+cp server/.env.example server/.env
+
+# Frontend environment
+cp frontend/.env.example frontend/.env
+
+# Client environment (for perception daemon)
+cp client/.env.example client/.env
+```
+
+Edit `server/.env` and fill in the required keys:
+
+```bash
+# LLM API Key (required — AI features won't work without it)
+LIFETRACE_LLM__API_KEY=your-api-key
+
+# ASR speech recognition (optional)
+LIFETRACE_AUDIO__ASR__API_KEY=your-asr-api-key
+
+# Tavily search (optional)
+LIFETRACE_TAVILY__API_KEY=your-tavily-api-key
+
+# Gemini image generation for diary illustrations (optional)
+LIFETRACE_BANNA2__API_KEY=your-gemini-api-key
+```
+
+> **Note**: `LIFETRACE_LLM__API_KEY` is **required**. By default the LLM base URL points to Alibaba Cloud DashScope (`qwen-plus`). You can switch to any OpenAI-compatible provider by changing `LIFETRACE_LLM__BASE_URL` and `LIFETRACE_LLM__MODEL`.
+
+The Frontend `.env` defaults to `NEXT_PUBLIC_API_URL=http://localhost:8001`, which works for local development with no changes needed.
+
+The Client `.env` sets the center node URL. For local development the default `CENTER_URL=http://localhost:8001` works as-is. For cloud deployment, change it to your server's public address. If `--center-url` is passed on the command line, it takes precedence over the `.env` value.
+
 ### Start All Services (One-Click)
 
 For development, you can start **Server + AgentOS + Frontend** with a single script:
@@ -122,7 +159,27 @@ chmod +x scripts/start_all.sh
 .\scripts\start_all.ps1
 ```
 
-This opens three terminal windows to run each service.
+This starts all services (Server + AgentOS + Frontend + Client) in the background, with logs written to `.run-logs/`.
+
+**Check service status:**
+
+```bash
+# macOS/Linux
+bash scripts/status_all.sh
+
+# Windows (PowerShell)
+.\scripts\status_all.ps1
+```
+
+**Stop all services:**
+
+```bash
+# macOS/Linux
+bash scripts/stop_all.sh
+
+# Windows (PowerShell)
+.\scripts\stop_all.ps1
+```
 
 ### Start Services Separately
 
@@ -136,6 +193,10 @@ uv run --directory server python agent_os.py
 **2. Start the Client** (perception daemon, optional):
 
 ```bash
+# Uses CENTER_URL from client/.env by default
+uv run --directory client python sensor.py
+
+# Or specify the center URL explicitly
 uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC
 ```
 
@@ -147,9 +208,14 @@ pnpm --dir frontend dev
 
 The actual frontend URL and backend connection status will be displayed in the console. Once both services are running, open your browser and navigate to the displayed frontend URL (typically `http://localhost:3001`) to enjoy FreeTodo!
 
-### Docker Deployment
+### Deployment Guides
 
-You can also deploy the server using Docker:
+For detailed step-by-step deployment instructions, see:
+
+- **[Local Deployment Guide](deploy_in_local.md)** — Deploy all services (Server + Frontend + Client) on your local machine, no Docker required
+- **[Cloud Deployment Guide](deploy_in_cloud.md)** — Deploy Server to a cloud server with Docker, connect Frontend & Client from local machines
+
+Quick Docker deployment (cloud):
 
 ```bash
 # Build server image
@@ -246,7 +312,7 @@ Free Todo's panel switch bar contains some panels that are currently under devel
 ### Git Hooks (Pre-commit)
 
 This repo uses a shared `.githooks/` directory. Hooks are configured automatically when you run
-`pnpm install` in `free-todo-frontend` or use the install scripts. If you cloned the repo without
+`pnpm install` in `frontend` or use the install scripts. If you cloned the repo without
 running those, run the setup script once per clone/worktree:
 
 ```bash

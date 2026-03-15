@@ -16,9 +16,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hashlib
+import os
 import platform
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -613,17 +615,33 @@ class SensorDaemon:
 # ---------------------------------------------------------------------------
 
 
+def _load_dotenv() -> None:
+    """Load .env file from the client directory into os.environ (without overriding)."""
+    env_path = Path(__file__).resolve().parent / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip())
+
+
 def parse_args() -> argparse.Namespace:
+    _load_dotenv()
+
     parser = argparse.ArgumentParser(description="FreeTodo Sensor daemon")
     parser.add_argument(
         "--center-url",
-        required=True,
-        help="Center node URL, e.g. https://xxx.cpolar.cn",
+        default=os.environ.get("CENTER_URL"),
+        help="Center node URL, e.g. https://xxx.cpolar.cn (fallback: CENTER_URL in .env)",
     )
     parser.add_argument(
         "--node-id",
-        default=platform.node(),
-        help="Node ID (defaults to hostname)",
+        default=os.environ.get("NODE_ID", platform.node()),
+        help="Node ID (fallback: NODE_ID in .env, then hostname)",
     )
     parser.add_argument(
         "--screenshot-interval",
@@ -656,6 +674,12 @@ def parse_args() -> argparse.Namespace:
 
 
 async def _run(args: argparse.Namespace) -> None:
+    if not args.center_url:
+        logger.error(
+            "Center URL is required. Provide --center-url or set CENTER_URL in client/.env"
+        )
+        raise SystemExit(1)
+
     daemon = SensorDaemon(
         center_url=args.center_url,
         node_id=args.node_id,
