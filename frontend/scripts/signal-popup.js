@@ -10,8 +10,13 @@ const path = require("node:path");
 const fs = require("node:fs");
 
 const MARGIN = 16;
-const BASE_HEIGHT = 110;
+const WIDTH = 380;
+const MIN_HEIGHT = 120;
+const MAX_HEIGHT = 520;
+const HEADER_HEIGHT = 56;
+const BUTTON_HEIGHT = 50;
 const LINK_HEIGHT = 34;
+const SUBTITLE_LINE_HEIGHT = 16;
 
 app.disableHardwareAcceleration();
 
@@ -49,7 +54,18 @@ function escapeHtml(str) {
 		.replace(/</g, "&lt;")
 		.replace(/>/g, "&gt;")
 		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&#39;");
+		.replace(/'/g, "&#39;")
+		.replace(/\n/g, "<br>");
+}
+
+function estimateHeight(data) {
+	const subtitle = data.subtitle || "";
+	const linkCount = (data.links || []).length;
+	const subtitleLines = subtitle ? subtitle.split("\n").length + Math.floor(subtitle.length / 35) : 0;
+	const subtitleHeight = Math.max(subtitleLines * SUBTITLE_LINE_HEIGHT, 0);
+	const linksHeight = linkCount * LINK_HEIGHT;
+	const raw = HEADER_HEIGHT + subtitleHeight + linksHeight + BUTTON_HEIGHT + 20;
+	return Math.max(MIN_HEIGHT, Math.min(raw, MAX_HEIGHT));
 }
 
 function buildLinksHtml(links) {
@@ -74,7 +90,8 @@ function buildLinksHtml(links) {
 
 function getPanelHtml(data) {
 	const title = escapeHtml(data.title || "通知");
-	const subtitle = escapeHtml(data.subtitle || "");
+	const subtitle = data.subtitle || "";
+	const subtitleHtml = subtitle ? escapeHtml(subtitle) : "";
 	const linksHtml = buildLinksHtml(data.links);
 
 	return `<!DOCTYPE html>
@@ -85,10 +102,10 @@ function getPanelHtml(data) {
 	*{margin:0;padding:0;box-sizing:border-box}
 	html,body{
 		background:transparent!important;
-		overflow:hidden;
 		font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
 		-webkit-font-smoothing:antialiased;
 		height:100%;
+		overflow:hidden;
 	}
 	.panel{
 		position:fixed;
@@ -116,11 +133,12 @@ function getPanelHtml(data) {
 			0 0 0 .5px rgba(0,0,0,.05);
 		overflow:hidden;
 	}
-	.content{
+	.header{
 		display:flex;
 		align-items:center;
 		gap:10px;
 		padding:14px 14px 8px;
+		flex-shrink:0;
 	}
 	.avatar{
 		width:30px;height:30px;
@@ -134,23 +152,33 @@ function getPanelHtml(data) {
 		object-fit:cover;
 		display:block;
 	}
-	.info{flex:1;min-width:0}
+	.title-wrap{flex:1;min-width:0}
 	.title{
 		font-size:13px;
 		font-weight:700;
 		color:#1e1b4b;
 		letter-spacing:-.01em;
-		margin-top:2px;
 		line-height:1.2;
 	}
+	.body{
+		flex:1;
+		min-height:0;
+		overflow-y:auto;
+		padding:0 14px 8px;
+	}
+	.body::-webkit-scrollbar{width:4px}
+	.body::-webkit-scrollbar-track{background:transparent}
+	.body::-webkit-scrollbar-thumb{background:#d4d4d8;border-radius:2px}
+	.body::-webkit-scrollbar-thumb:hover{background:#a1a1aa}
 	.subtitle{
-		font-size:10.5px;
-		color:#94a3b8;
-		margin-top:2px;
-		line-height:1.3;
+		font-size:11.5px;
+		color:#475569;
+		line-height:1.55;
+		white-space:pre-wrap;
+		word-break:break-word;
 	}
 	.links{
-		padding:0 14px 8px;
+		margin-top:8px;
 		display:flex;
 		flex-direction:column;
 		gap:5px;
@@ -194,8 +222,8 @@ function getPanelHtml(data) {
 		font-weight:500;
 	}
 	.bottom{
-		margin-top:auto;
-		padding:0 14px 10px;
+		flex-shrink:0;
+		padding:6px 14px 10px;
 	}
 	.btn{
 		width:100%;
@@ -225,16 +253,18 @@ function getPanelHtml(data) {
 <body>
 <div class="panel">
 	<div class="card">
-		<div class="content">
+		<div class="header">
 			<div class="avatar">
 				<img src="${avatarBase64}" alt="" />
 			</div>
-			<div class="info">
+			<div class="title-wrap">
 				<div class="title">${title}</div>
-				${subtitle ? `<div class="subtitle">${subtitle}</div>` : ""}
 			</div>
 		</div>
-		${linksHtml}
+		<div class="body">
+			${subtitleHtml ? `<div class="subtitle">${subtitleHtml}</div>` : ""}
+			${linksHtml}
+		</div>
 		<div class="bottom">
 			<button class="btn" id="confirmBtn">确认</button>
 		</div>
@@ -260,11 +290,7 @@ app.whenReady().then(() => {
 	loadAvatar();
 	const data = loadData();
 
-	const linkCount = (data.links || []).length;
-	const hasSubtitle = !!data.subtitle;
-	const WIDTH = 340;
-	const HEIGHT = BASE_HEIGHT + linkCount * LINK_HEIGHT + (hasSubtitle ? 16 : 0);
-
+	const HEIGHT = estimateHeight(data);
 	const workArea = screen.getPrimaryDisplay().workArea;
 	const x = workArea.x + workArea.width - WIDTH - MARGIN;
 	const y = workArea.y + workArea.height - HEIGHT - MARGIN;
