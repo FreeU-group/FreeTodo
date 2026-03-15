@@ -454,7 +454,12 @@ class SensorDaemon:
         if not valid_lines:
             return
 
-        text = "\n".join(ln.text for ln in valid_lines)
+        text, extra_metadata = self._build_ocr_text(
+            image_to_ocr,
+            ocr_result,
+            valid_lines,
+            app_type,
+        )
         if len(text) < _MIN_TEXT_LEN:
             return
 
@@ -463,18 +468,21 @@ class SensorDaemon:
             return
         self._last_proactive_hash = h
 
+        metadata = {
+            "app_name": app_type.value,
+            "window_title": window.title[:100],
+            "ocr_lines": len(valid_lines),
+            "ocr_latency_ms": round(ocr_result.latency_ms, 1),
+            "todo_relevant": True,
+            **extra_metadata,
+        }
+
         event = PerceptionEvent(
             timestamp=get_utc_now(),
             source=SourceType.OCR_PROACTIVE,
             modality=Modality.TEXT,
             content_text=text,
-            metadata={
-                "app_name": app_type.value,
-                "window_title": window.title[:100],
-                "ocr_lines": len(valid_lines),
-                "ocr_latency_ms": round(ocr_result.latency_ms, 1),
-                "todo_relevant": True,
-            },
+            metadata=metadata,
         )
         ok = await self._safe_post(event)
         if ok:
@@ -483,6 +491,34 @@ class SensorDaemon:
                 f"Proactive OCR ({app_type.value}) -> Center: "
                 f"{len(valid_lines)} lines, {len(text)} chars"
             )
+
+    @staticmethod
+    def _build_ocr_text(
+        image: np.ndarray,
+        ocr_result,
+        valid_lines: list,
+        app_type,
+    ) -> tuple[str, dict]:
+        """Build text and extra metadata; use structured parser for WeChat."""
+        from proactive_ocr.models import AppType  # noqa: PLC0415
+
+        if app_type == AppType.WECHAT:
+            try:
+                from proactive_ocr.priors.wechat import WeChatPrior  # noqa: PLC0415
+                from proactive_ocr.wechat_message_parser import (  # noqa: PLC0415
+                    parse_wechat_messages,
+                )
+
+                theme = WeChatPrior().detect_theme(image)
+                theme_name = theme.name if theme else "dark"
+                ctx = parse_wechat_messages(image, ocr_result, theme_name)
+                if ctx is not None and ctx.messages:
+                    return ctx.to_structured_text(), ctx.to_metadata_dict()
+            except Exception:
+                logger.debug("WeChat message parser failed, falling back", exc_info=True)
+
+        flat_text = "\n".join(ln.text for ln in valid_lines)
+        return flat_text, {}
 
     # ------------------------------------------------------------------
     # Internal loops

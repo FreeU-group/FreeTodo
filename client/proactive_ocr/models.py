@@ -12,6 +12,12 @@ class AppType(Enum):
     UNKNOWN = "unknown"
 
 
+class ChatType(Enum):
+    PRIVATE = "private"
+    GROUP = "group"
+    UNKNOWN = "unknown"
+
+
 @dataclass
 class BBox:
     x: int
@@ -79,3 +85,44 @@ class OcrRawResult:
     cls_time_ms: float = 0
     model_version: str = "1.0"
     device: str = "cpu"
+
+
+@dataclass
+class ChatMessage:
+    speaker: str
+    text: str
+    bbox_px: BBox
+    is_self: bool = False
+
+
+@dataclass
+class ChatContext:
+    chat_type: ChatType
+    chat_name: str
+    contact_name: str | None
+    messages: list[ChatMessage]
+    divider_y: int | None = None
+
+    def to_structured_text(self) -> str:
+        tag = "私聊" if self.chat_type == ChatType.PRIVATE else "群聊"
+        header = f"[{tag}][{self.chat_name}]"
+        lines = [header]
+        for msg in self.messages:
+            lines.append(f"[{msg.speaker}] {msg.text}")
+        return "\n".join(lines)
+
+    def to_metadata_dict(self) -> dict:
+        return {
+            "chat_type": self.chat_type.value,
+            "chat_name": self.chat_name,
+            "contact_name": self.contact_name,
+            "messages": [
+                {
+                    "speaker": m.speaker,
+                    "text": m.text,
+                    "is_self": m.is_self,
+                    "bbox": m.bbox_px.to_tuple(),
+                }
+                for m in self.messages
+            ],
+        }
