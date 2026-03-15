@@ -90,7 +90,7 @@ stop_pid() {
 }
 
 cleanup_frontend_lock() {
-  local lock_path="$repo_root/free-todo-frontend/.next/dev/lock"
+  local lock_path="$repo_root/frontend/.next/dev/lock"
   if [ -f "$lock_path" ]; then
     echo "Removing frontend dev lock: $lock_path"
     rm -f "$lock_path"

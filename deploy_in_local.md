@@ -166,15 +166,29 @@ Client 是 Python 感知客户端，负责屏幕截图采集、OCR 识别等，�
 ### 1. 安装依赖
 
 ```bash
-cd client
-uv sync
+uv sync --directory client
 ```
 
-### 2. 启动 Client
+### 2. 配置环境变量
 
 ```bash
-source .venv/bin/activate
-python sensor.py --center-url http://localhost:8001
+cp client/.env.example client/.env
+```
+
+本地部署时默认配置已指向 `localhost`，无需修改：
+
+```bash
+CENTER_URL=http://localhost:8001
+```
+
+### 3. 启动 Client
+
+```bash
+# 使用 .env 中的 CENTER_URL（推荐）
+uv run --directory client python sensor.py
+
+# 或者手动指定地址（命令行参数优先级更高）
+uv run --directory client python sensor.py --center-url http://localhost:8001
 ```
 
 ## 六、手机 APP 与硬件连接

@@ -146,14 +146,29 @@ Client 是 Python 感知客户端，负责屏幕截图采集、OCR 识别等，�
 - Python 3.12
 - uv 包管理器
 
-### 安装与启动
+### 安装与配置
 
 ```bash
 cd client
 uv sync
 
-source .venv/bin/activate
-python sensor.py --center-url http://<云服务器公网IP>:8001
+cp .env.example .env
+```
+
+编辑 `client/.env`，将 `CENTER_URL` 修改为云端 Server 的地址：
+
+```bash
+CENTER_URL=http://<云服务器公网IP>:8001
+```
+
+### 启动
+
+```bash
+# 使用 .env 中的 CENTER_URL（推荐）
+uv run python sensor.py
+
+# 或者手动指定地址（命令行参数优先级更高）
+uv run python sensor.py --center-url http://<云服务器公网IP>:8001
 ```
 
 ## 四、手机 APP 与硬件连接
