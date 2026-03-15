@@ -18,8 +18,10 @@ logger = get_logger()
 
 _GROUP_SUFFIX_RE = re.compile(r"[(\uff08]\s*\d+\s*[)\uff09]\s*$")
 
-_NICKNAME_HEIGHT_RATIO = 0.70
+_NICKNAME_HEIGHT_RATIO = 0.92
 _NICKNAME_GAP_RATIO = 1.5
+_NICKNAME_MAX_CHARS = 20
+_NICKNAME_MAX_WIDTH_RATIO = 0.35
 _MIN_OCR_SCORE = 0.5
 _SELF_LABEL = "我"
 
@@ -218,9 +220,9 @@ def _attribute_messages(
         is_self = side == "self"
 
         if ctx.chat_type == ChatType.GROUP and _is_nickname_line(
-            ln, is_self, median_h, msg_lines, i
+            ln, is_self, median_h, msg_lines, i, ctx.roi_width,
         ):
-            pending_nickname = ln.text.rstrip(":")
+            pending_nickname = ln.text.rstrip(":").rstrip("\uff1a").strip()
             i += 1
             continue
 
@@ -246,15 +248,24 @@ def _is_nickname_line(
     median_h: float,
     msg_lines: list[OcrLine],
     idx: int,
+    roi_width: int = 0,
 ) -> bool:
     if is_self:
         return False
-    if ln.bbox_px.height >= median_h * _NICKNAME_HEIGHT_RATIO:
-        return False
     if idx + 1 >= len(msg_lines):
         return False
+    text = ln.text.strip()
+    b = ln.bbox_px
+
+    is_short_text = len(text) <= _NICKNAME_MAX_CHARS
+    is_small_height = b.height < median_h * _NICKNAME_HEIGHT_RATIO
+    is_narrow = roi_width > 0 and b.width < roi_width * _NICKNAME_MAX_WIDTH_RATIO
+
+    if not (is_small_height or (is_short_text and is_narrow)):
+        return False
+
     next_ln = msg_lines[idx + 1]
-    gap = next_ln.bbox_px.y - (ln.bbox_px.y + ln.bbox_px.height)
+    gap = next_ln.bbox_px.y - (b.y + b.height)
     return gap < median_h * _NICKNAME_GAP_RATIO
 
 
