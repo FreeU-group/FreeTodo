@@ -8,8 +8,10 @@ import remarkGfm from "remark-gfm";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { Button } from "@/components/ui/button";
 import {
+	type MemoryMatchAction,
 	type TodoIntentConnectionState,
 	type TodoIntentProcessingRecord,
+	type TodoIntentType,
 	useTodoIntentStreamStore,
 } from "@/lib/store/todo-intent-stream-store";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -351,6 +353,88 @@ function CollapsibleMarkdown({
 	);
 }
 
+type PipelineStep = "received" | "dedupe" | "gate" | "extract" | "integrate";
+
+function derivePipelineReached(record: TodoIntentProcessingRecord): PipelineStep {
+	if (record.integration_results.length > 0) return "integrate";
+	if (record.candidates.length > 0) return "extract";
+	if (record.gate_decision) return "gate";
+	if (record.dedupe_hit) return "dedupe";
+	return "received";
+}
+
+const PIPELINE_STEPS: PipelineStep[] = ["received", "dedupe", "gate", "extract", "integrate"];
+const PIPELINE_STEP_KEYS: Record<PipelineStep, string> = {
+	received: "stepReceived",
+	dedupe: "stepDedupe",
+	gate: "stepGate",
+	extract: "stepExtract",
+	integrate: "stepIntegrate",
+};
+
+function pipelineStepState(
+	step: PipelineStep,
+	reached: PipelineStep,
+	record: TodoIntentProcessingRecord,
+): "done" | "stopped" | "pending" {
+	const reachedIdx = PIPELINE_STEPS.indexOf(reached);
+	const stepIdx = PIPELINE_STEPS.indexOf(step);
+	if (stepIdx < reachedIdx) return "done";
+	if (stepIdx === reachedIdx) {
+		if (record.status === "dedupe_hit" || record.status === "gate_skipped") return "stopped";
+		if (record.status === "extract_failed" || record.status === "failed") return "stopped";
+		return "done";
+	}
+	return "pending";
+}
+
+function PipelineIndicator({ record }: { record: TodoIntentProcessingRecord }) {
+	const t = useTranslations("todoIntentPanel");
+	const reached = derivePipelineReached(record);
+	return (
+		<div className="flex items-center gap-0.5">
+			{PIPELINE_STEPS.map((step, idx) => {
+				const state = pipelineStepState(step, reached, record);
+				return (
+					<div key={step} className="flex items-center">
+						<div
+							className={cn(
+								"rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight",
+								state === "done" && "bg-green-100 text-green-700",
+								state === "stopped" && "bg-amber-100 text-amber-700",
+								state === "pending" && "bg-muted text-muted-foreground/50",
+							)}
+						>
+							{t(PIPELINE_STEP_KEYS[step])}
+						</div>
+						{idx < PIPELINE_STEPS.length - 1 && (
+							<div className={cn("mx-0.5 h-px w-2", state === "done" ? "bg-green-300" : "bg-border")} />
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+function intentTypeTone(intentType?: TodoIntentType): string {
+	if (intentType === "invitation") return "bg-purple-50 text-purple-700 border-purple-200";
+	return "bg-blue-50 text-blue-700 border-blue-200";
+}
+
+function memoryMatchTone(action?: MemoryMatchAction): string {
+	switch (action) {
+		case "conflict":
+			return "bg-red-50 text-red-700 border-red-200";
+		case "cancel_existing":
+			return "bg-orange-50 text-orange-700 border-orange-200";
+		case "link_existing":
+			return "bg-sky-50 text-sky-700 border-sky-200";
+		default:
+			return "bg-emerald-50 text-emerald-700 border-emerald-200";
+	}
+}
+
 function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 	const t = useTranslations("todoIntentPanel");
 	const tPerception = useTranslations("perceptionStream");
@@ -384,6 +468,11 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 				</div>
 			</div>
 
+			{/* Pipeline steps indicator */}
+			<div className="mt-1.5">
+				<PipelineIndicator record={record} />
+			</div>
+
 			<div className="mt-2 grid grid-cols-1 gap-1 text-xs text-muted-foreground sm:grid-cols-2">
 				<div>
 					{t("app")}: {appName || "-"}
@@ -399,6 +488,9 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 				</div>
 				<div>
 					{t("timeWindow")}: {timeWindow}
+				</div>
+				<div className="font-mono">
+					{t("contextId")}: {record.context_id.slice(0, 16)}
 				</div>
 			</div>
 
@@ -449,23 +541,73 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 						{t("todos")} ({record.candidates.length})
 					</div>
 					{record.candidates.map((candidate, index) => (
-						<div key={`${record.record_id}-${index}`} className="rounded-md border p-2">
-							<div className="text-sm font-medium">{candidate.name}</div>
+						<div key={`${record.record_id}-${index}`} className="rounded-md border p-2 space-y-1.5">
+							<div className="flex items-center gap-2">
+								<div className="text-sm font-medium flex-1">{candidate.name}</div>
+								{candidate.intent_type && (
+									<span
+										className={cn(
+											"inline-flex h-5 items-center rounded border px-1.5 text-[10px] font-medium",
+											intentTypeTone(candidate.intent_type),
+										)}
+									>
+										{candidate.intent_type === "invitation"
+											? t("intentTypeInvitation")
+											: t("intentTypeTodo")}
+									</span>
+								)}
+							</div>
 							{candidate.description && (
 								<CollapsibleMarkdown
 									content={candidate.description}
 									maxCollapsedHeight={120}
-									contentClassName="mt-1 text-xs text-muted-foreground"
+									contentClassName="text-xs text-muted-foreground"
 								/>
 							)}
-							<div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
-								<span>{t("due")}: {candidate.due || "-"}</span>
+							<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+								{candidate.start_time && (
+									<span>{t("startTime")}: {formatDateTime(candidate.start_time, "MM-dd HH:mm")}</span>
+								)}
+								{candidate.due && (
+									<span>{t("due")}: {formatDateTime(candidate.due, "MM-dd HH:mm")}</span>
+								)}
+								{candidate.deadline && (
+									<span>{t("deadline")}: {formatDateTime(candidate.deadline, "MM-dd HH:mm")}</span>
+								)}
 								<span>{t("confidence")}: {candidate.confidence.toFixed(2)}</span>
 								<span>{t("priority")}: {candidate.priority || "none"}</span>
 							</div>
+							{(candidate.inviter || candidate.location) && (
+								<div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+									{candidate.inviter && <span>{t("inviter")}: {candidate.inviter}</span>}
+									{candidate.location && <span>{t("location")}: {candidate.location}</span>}
+								</div>
+							)}
+							{candidate.tags && candidate.tags.length > 0 && (
+								<div className="flex flex-wrap gap-1">
+									{candidate.tags.map((tag) => (
+										<span key={tag} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+											{tag}
+										</span>
+									))}
+								</div>
+							)}
+							{candidate.memory_match && candidate.memory_match.action !== "new" && (
+								<div className={cn("rounded-md border px-2 py-1 text-xs", memoryMatchTone(candidate.memory_match.action))}>
+									<span className="font-medium">
+										{t("memoryMatch")}: {t(`memoryAction.${candidate.memory_match.action}`)}
+									</span>
+									{candidate.memory_match.matched_todo_name && (
+										<span className="ml-1.5">&rarr; {candidate.memory_match.matched_todo_name}</span>
+									)}
+									{candidate.memory_match.reason && (
+										<div className="mt-0.5 opacity-80">{candidate.memory_match.reason}</div>
+									)}
+								</div>
+							)}
 							{candidate.source_text && (
-								<div className="mt-1">
-									<div className="text-xs text-muted-foreground">{t("sourceText")}:</div>
+								<div>
+									<div className="text-[11px] text-muted-foreground">{t("sourceText")}:</div>
 									<CollapsibleMarkdown
 										content={candidate.source_text}
 										maxCollapsedHeight={120}
@@ -484,9 +626,23 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 					{record.integration_results.map((result, index) => (
 						<div
 							key={`${record.record_id}-integration-${index}`}
-							className="text-xs text-muted-foreground"
+							className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
 						>
-							{result.action} {result.reason ? `(${result.reason})` : ""}
+							<span
+								className={cn(
+									"rounded border px-1.5 py-0.5 font-medium",
+									result.action === "created" && "bg-green-50 text-green-700 border-green-200",
+									result.action === "updated" && "bg-blue-50 text-blue-700 border-blue-200",
+									result.action === "skipped" && "bg-amber-50 text-amber-700 border-amber-200",
+									result.action === "queued_review" && "bg-orange-50 text-orange-700 border-orange-200",
+								)}
+							>
+								{result.action}
+							</span>
+							{result.reason && <span>({result.reason})</span>}
+							{result.dedupe_key && (
+								<span className="font-mono opacity-50">key:{result.dedupe_key.slice(0, 8)}</span>
+							)}
 						</div>
 					))}
 				</div>
@@ -605,32 +761,66 @@ export function TodoIntentPanel() {
 		return Array.from({ length: total }, (_, idx) => idx + 1);
 	}, [subscriberStatus]);
 
+	const renderStatsBar = () => {
+		if (!subscriberStatus) return null;
+		const { orchestrator: stats } = subscriberStatus;
+		const items = [
+			{ label: t("statsTotal"), value: stats.contexts_total, tone: "text-foreground" },
+			{ label: t("statsDeduped"), value: stats.dedupe_hits, tone: "text-amber-600" },
+			{ label: t("statsGateSkip"), value: stats.gate_skips, tone: "text-orange-600" },
+			{ label: t("statsExtracted"), value: stats.extracted_candidates, tone: "text-green-600" },
+			{ label: t("statsIntegrated"), value: stats.integrated_total, tone: "text-blue-600" },
+		];
+		return (
+			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border bg-muted/30 px-4 py-1.5 text-xs">
+				{items.map((item) => (
+					<div key={item.label} className="flex items-center gap-1">
+						<span className="text-muted-foreground">{item.label}</span>
+						<span className={cn("font-semibold tabular-nums", item.tone)}>{item.value}</span>
+					</div>
+				))}
+				<div className="ml-auto flex items-center gap-1 text-muted-foreground">
+					<span>{t("eventQueue")}</span>
+					<span className="font-mono font-semibold">
+						{subscriberStatus.queue_size}/{subscriberStatus.queue_maxsize}
+					</span>
+				</div>
+			</div>
+		);
+	};
+
 	const renderRecordsTab = () => {
 		if (records.length === 0) {
 			return (
-				<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-					{t("noRecords")}
-				</div>
+				<>
+					{renderStatsBar()}
+					<div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+						{t("noRecords")}
+					</div>
+				</>
 			);
 		}
 
 		return (
-			<div className="relative flex-1 overflow-hidden">
-				<div ref={scrollRef} className="h-full overflow-y-auto" onScroll={handleScroll}>
-					<div className="flex flex-col gap-2 p-4">
-						{records.map((record) => (
-							<RecordCard key={record.record_id} record={record} />
-						))}
+			<>
+				{renderStatsBar()}
+				<div className="relative flex-1 overflow-hidden">
+					<div ref={scrollRef} className="h-full overflow-y-auto" onScroll={handleScroll}>
+						<div className="flex flex-col gap-2 p-4">
+							{records.map((record) => (
+								<RecordCard key={record.record_id} record={record} />
+							))}
+						</div>
 					</div>
+					{!pinnedToBottom && (
+						<div className="absolute right-4 bottom-4">
+							<Button type="button" variant="outline" size="sm" onClick={jumpToLatest}>
+								{t("jumpToLatest")}
+							</Button>
+						</div>
+					)}
 				</div>
-				{!pinnedToBottom && (
-					<div className="absolute right-4 bottom-4">
-						<Button type="button" variant="outline" size="sm" onClick={jumpToLatest}>
-							{t("jumpToLatest")}
-						</Button>
-					</div>
-				)}
-			</div>
+			</>
 		);
 	};
 

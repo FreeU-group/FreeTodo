@@ -27,6 +27,20 @@ export interface TodoIntentGateDecision {
 	raw?: Record<string, unknown> | null;
 }
 
+export type TodoIntentType = "todo" | "invitation";
+
+export type MemoryMatchAction =
+	| "new"
+	| "link_existing"
+	| "conflict"
+	| "cancel_existing";
+
+export interface MemoryMatch {
+	action: MemoryMatchAction;
+	matched_todo_name?: string | null;
+	reason?: string | null;
+}
+
 export interface TodoIntentCandidate {
 	name: string;
 	description?: string | null;
@@ -39,6 +53,10 @@ export interface TodoIntentCandidate {
 	confidence: number;
 	source_text?: string | null;
 	source_event_ids: string[];
+	intent_type?: TodoIntentType;
+	inviter?: string | null;
+	location?: string | null;
+	memory_match?: MemoryMatch | null;
 }
 
 export interface TodoIntentIntegrationResult {

@@ -139,13 +139,27 @@ class TodoIntentSubscriber:
     async def on_event(self, event: PerceptionEvent) -> None:
         if not self._enabled:
             return
-        if not (event.content_text or "").strip():
+        text = (event.content_text or "").strip()
+        if not text:
             return
+        logger.info(
+            "[TodoIntent] 收到感知事件: id=%s source=%s modality=%s len=%d preview=%.60s",
+            event.event_id[:12],
+            event.source.value,
+            event.modality.value,
+            len(text),
+            text,
+        )
         try:
             self._event_queue.put_nowait(event)
             self._enqueued_total += 1
         except asyncio.QueueFull:
             self._dropped_total += 1
+            logger.warning(
+                "[TodoIntent] 事件队列已满，丢弃事件 %s (dropped_total=%d)",
+                event.event_id[:12],
+                self._dropped_total,
+            )
 
     def subscribe_records(
         self,
@@ -259,13 +273,25 @@ class TodoIntentSubscriber:
         return deduped_batch or [first_event], next_batch_seed
 
     def _enqueue_batch(self, batch: list[PerceptionEvent]) -> None:
+        sources = {e.source.value for e in batch}
+        total_chars = sum(len((e.content_text or "").strip()) for e in batch)
+        logger.info(
+            "[TodoIntent] 批次聚合完成: events=%d sources=%s total_chars=%d → 送入处理队列",
+            len(batch),
+            sources,
+            total_chars,
+        )
         try:
             self._context_queue.put_nowait(batch)
             self._contexts_enqueued_total += 1
         except asyncio.QueueFull:
-            # Processing queue is saturated: keep ingress non-blocking and drop this batch.
             self._contexts_dropped_total += 1
             self._dropped_total += len(batch)
+            logger.warning(
+                "[TodoIntent] 处理队列已满，丢弃批次 (size=%d, contexts_dropped=%d)",
+                len(batch),
+                self._contexts_dropped_total,
+            )
 
     @staticmethod
     def _resolve_error_code(exc: Exception) -> str:

@@ -276,13 +276,27 @@ class TodoIntentExtractor:
         )
         if not (result_text or "").strip():
             raise ValueError("extractor_empty_response")
+        logger.info(
+            "[Extractor] LLM响应: context_id=%s model=%s response_len=%d preview=%.200s",
+            context.context_id[:16],
+            model,
+            len(result_text),
+            result_text,
+        )
         payload = self._parse_json(result_text)
         if payload is None or (isinstance(payload, dict) and not payload):
             logger.warning(
-                "[Extractor] LLM response not parseable as JSON, treating as no candidates. "
+                "[Extractor] LLM响应无法解析为JSON, 视为无候选项. "
                 "context_id=%s, response_preview=%.200s",
                 context.context_id,
                 result_text,
             )
             return []
-        return self._to_candidates(payload)
+        candidates = self._to_candidates(payload)
+        logger.info(
+            "[Extractor] 解析完成: context_id=%s candidates=%d names=%s",
+            context.context_id[:16],
+            len(candidates),
+            [c.name for c in candidates][:5],
+        )
+        return candidates

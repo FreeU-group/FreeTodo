@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from llm.llm_client import LLMClient
@@ -12,6 +13,8 @@ from services.audio_extraction.gate import (
 from util.prompt_loader import get_prompt
 from util.settings import settings
 from util.token_usage_logger import log_token_usage
+
+logger = logging.getLogger(__name__)
 
 
 class TodoIntentGate:
@@ -44,8 +47,10 @@ class TodoIntentGate:
     async def decide(self, context: TodoIntentContext) -> IntentGateDecision:  # noqa: PLR0911
         text = (context.merged_text or "").strip()
         if not text:
+            logger.info("[Gate] 跳过: 空文本")
             return IntentGateDecision(should_extract=False, reason="empty_text")
         if len(text) < self._min_text_length:
+            logger.info("[Gate] 跳过: 文本过短 (%d < %d)", len(text), self._min_text_length)
             return IntentGateDecision(should_extract=False, reason="too_short")
 
         cfg = self._load_from_settings()
@@ -95,6 +100,7 @@ class TodoIntentGate:
             result_text = (response.choices[0].message.content or "").strip()
             parsed = parse_gate_response(result_text)
             if not isinstance(parsed, dict):
+                logger.info("[Gate] LLM响应无法解析, fallback=extract. raw=%.120s", result_text)
                 return IntentGateDecision(
                     should_extract=True,
                     reason="gate_unparseable_fallback",
@@ -102,6 +108,7 @@ class TodoIntentGate:
 
             decision = coerce_gate_decision(parsed)
             if not isinstance(decision, bool):
+                logger.info("[Gate] 未知决策格式, fallback=extract. parsed=%s", parsed)
                 return IntentGateDecision(
                     should_extract=True,
                     reason="gate_unknown_format_fallback",
@@ -109,12 +116,19 @@ class TodoIntentGate:
                 )
 
             reason = str(parsed.get("reason") or parsed.get("explanation") or "ok")
+            logger.info(
+                "[Gate] 决策: should_extract=%s reason=%s text_preview=%.60s",
+                decision,
+                reason[:80],
+                text[:60],
+            )
             return IntentGateDecision(
                 should_extract=decision,
                 reason=reason[:120],
                 raw=parsed,
             )
         except Exception:
+            logger.warning("[Gate] LLM调用异常, fallback=extract", exc_info=True)
             return IntentGateDecision(
                 should_extract=True,
                 reason="gate_error_fallback",
