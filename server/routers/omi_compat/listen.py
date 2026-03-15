@@ -15,6 +15,7 @@ import asyncio
 import contextlib
 import time
 import uuid
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -24,6 +25,9 @@ from perception.models import Modality, PerceptionEvent, SourceType
 from routers.omi_compat.auth import verify_ws_token
 from util.logging_config import get_logger
 from util.time_utils import get_utc_now
+
+if TYPE_CHECKING:
+    from services.speaker_service import SpeakerMatch
 
 logger = get_logger()
 
@@ -248,44 +252,56 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
 
     asr_cancel_event = asyncio.Event()
 
-    async def _identify_speaker_for_segment() -> dict | None:
+    async def _identify_speaker_for_segment() -> SpeakerMatch | None:
         """Identify current speaker using the diarizer."""
         if speaker_diarizer is None:
             return None
         try:
-            return await asyncio.to_thread(speaker_diarizer.identify_current_speaker)
+            return await speaker_diarizer.identify_current_speaker()
         except Exception:
             return None
 
-    def _resolve_speaker(speaker_info: dict | None) -> str:
-        """Resolve speaker info to a speaker_id string."""
-        if speaker_info is None:
-            return "SPEAKER_00"
-        name = speaker_info.get("name") or speaker_info.get("label")
-        if name:
-            return name
-        spk_id = speaker_info.get("speaker_id")
-        if spk_id is not None:
-            return f"SPEAKER_{spk_id:02d}"
-        return "SPEAKER_00"
+    def _resolve_speaker(speaker_info: SpeakerMatch | None) -> tuple[str | None, int | None]:
+        """Resolve speaker info to ``(display_tag, numeric_id)``.
 
-    async def _publish_final_perception(text: str) -> None:
+        Returns ``("me", id)`` when ``is_me``, ``(name, id)`` for known
+        speakers, and ``(None, None)`` when unidentified.
+        """
+        if speaker_info is None:
+            return None, None
+        sid = speaker_info.speaker_id
+        if speaker_info.is_me:
+            return "me", sid
+        if speaker_info.speaker_name:
+            return speaker_info.speaker_name, sid
+        return f"SPEAKER_{sid:02d}", sid
+
+    async def _publish_final_perception(
+        text: str,
+        *,
+        speaker_tag: str | None = None,
+        speaker_id: int | None = None,
+    ) -> None:
         """Publish final transcription to perception manager."""
         mgr = try_get_perception_manager()
         if mgr is None:
             logger.warning("[omi-compat] PerceptionManager not available, skipping publish")
             return
         try:
+            meta: dict = {
+                "session_id": session_id,
+                "uid": uid,
+                "source_endpoint": "/v4/listen",
+                "speaker": speaker_tag or "unknown",
+            }
+            if speaker_id is not None:
+                meta["speaker_id"] = speaker_id
             event = PerceptionEvent(
                 timestamp=get_utc_now(),
                 source=SourceType.MIC_HARDWARE,
                 modality=Modality.AUDIO,
                 content_text=text.strip(),
-                metadata={
-                    "session_id": session_id,
-                    "uid": uid,
-                    "source_endpoint": "/v4/listen",
-                },
+                metadata=meta,
                 priority=2,
             )
             await mgr.publish_event(event)
@@ -312,13 +328,19 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
             return
         now = time.monotonic() - session_start
 
-        speaker_id = "SPEAKER_00"
+        spk_tag: str | None = None
+        spk_id: int | None = None
         if is_final:
             spk_info = await _identify_speaker_for_segment()
-            speaker_id = _resolve_speaker(spk_info)
+            spk_tag, spk_id = _resolve_speaker(spk_info)
 
         seg = _segment_dict(
-            seg_idx, text, max(0, now - 2), now, is_user=True, speaker_id=speaker_id
+            seg_idx,
+            text,
+            max(0, now - 2),
+            now,
+            is_user=True,
+            speaker_id=spk_tag or "SPEAKER_00",
         )
         if is_final:
             seg_idx += 1
@@ -332,7 +354,7 @@ async def omi_listen(  # noqa: C901, PLR0913, PLR0915
             logger.debug(f"Failed to send transcript event: {exc}")
 
         if is_final and text.strip():
-            await _publish_final_perception(text)
+            await _publish_final_perception(text, speaker_tag=spk_tag, speaker_id=spk_id)
 
     result_queue: asyncio.Queue[tuple[str, bool]] = asyncio.Queue()
 
