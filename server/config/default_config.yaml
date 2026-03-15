@@ -163,6 +163,10 @@ jobs:
     enabled: false # 是否启用 DDL 提醒任务（默认关闭，需用户手动开启）
     params:
       reminder_window_minutes: 5 # 兼容保留字段，不再作为待办默认提醒
+  auto_todo_detection:
+    id: auto_todo_detection
+    name: 自动待办检测
+    enabled: true
   diary_illustration:
     id: diary_illustration
     name: 日记插画生成

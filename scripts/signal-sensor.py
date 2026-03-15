@@ -158,8 +158,6 @@ def _poll_sensor_notifications(client: httpx.Client) -> None:
                     f"[signal-sensor] 收到推送通知: {item.get('title', '')} "
                     f"(id={item.get('id', '?')})"
                 )
-                _launch_popup(item)
-                time.sleep(1)
         except Exception as exc:
             print(f"[signal-sensor] 推送通知轮询失败: {exc}")
         time.sleep(SENSOR_NOTIFY_POLL_INTERVAL)
@@ -204,8 +202,6 @@ def _poll_general_notifications(client: httpx.Client) -> None:
 
                 content = item.get("content", "")
                 print(f"[signal-sensor] 收到重要通知: {title} (id={nid})")
-                _launch_popup({"title": title, "subtitle": content})
-                time.sleep(1)
         except Exception as exc:
             print(f"[signal-sensor] 通用通知轮询失败: {exc}")
         time.sleep(GENERAL_NOTIFY_POLL_INTERVAL)
@@ -239,10 +235,6 @@ def _poll_draft_todos(client: httpx.Client) -> None:
                 if todo_id is not None and todo_id != _state.last_draft_todo_id:
                     _state.last_draft_todo_id = todo_id
                     print(f"[signal-sensor] 检测到新草稿待办: {todo_name} (id={todo_id})")
-                    _launch_popup({
-                        "title": "待办提醒",
-                        "subtitle": f"检测到：{todo_name}",
-                    })
         except Exception as exc:
             print(f"[signal-sensor] 待办草稿轮询失败: {exc}")
         time.sleep(DRAFT_TODO_POLL_INTERVAL)
