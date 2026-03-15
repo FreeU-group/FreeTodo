@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -18,6 +19,8 @@ from util.settings import settings
 
 if TYPE_CHECKING:
     from schemas.perception_todo_intent import TodoIntentContext
+
+logger = logging.getLogger(__name__)
 
 
 class TodoIntentExtractor:
@@ -271,7 +274,15 @@ class TodoIntentExtractor:
                 "has_memory_context": has_memory,
             },
         )
+        if not (result_text or "").strip():
+            raise ValueError("extractor_empty_response")
         payload = self._parse_json(result_text)
-        if not payload:
-            raise ValueError("extractor_unparseable_response")
+        if payload is None or (isinstance(payload, dict) and not payload):
+            logger.warning(
+                "[Extractor] LLM response not parseable as JSON, treating as no candidates. "
+                "context_id=%s, response_preview=%.200s",
+                context.context_id,
+                result_text,
+            )
+            return []
         return self._to_candidates(payload)

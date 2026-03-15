@@ -194,14 +194,17 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                 _state.seen_notification_ids.add(nid)
 
                 title = item.get("title", "")
-                is_important = "邀约" in title or "invitation" in title.lower()
+                title_lower = title.lower()
+                is_important = any(
+                    kw in title_lower
+                    for kw in ("邀约", "invitation", "自动待办", "待办", "intent_", "📨", "✅")
+                )
                 if not is_important:
                     continue
 
                 content = item.get("content", "")
-                snippet = f"{content[:80]}…" if len(content) > 80 else content
                 print(f"[signal-sensor] 收到重要通知: {title} (id={nid})")
-                _launch_popup({"title": title, "subtitle": snippet})
+                _launch_popup({"title": title, "subtitle": content})
                 time.sleep(1)
         except Exception as exc:
             print(f"[signal-sensor] 通用通知轮询失败: {exc}")

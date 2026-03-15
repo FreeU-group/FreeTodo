@@ -208,6 +208,12 @@ def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
     return "\n请根据以上信息为用户创建待办事项。"
 
 
+_USER_FACING_INSTRUCTION = (
+    "\n\n重要：你的回复将直接展示给用户看，请直接输出结论和建议，"
+    "不要输出你的思考过程、推理步骤或工具调用说明。用简洁友好的语气。"
+)
+
+
 def _build_agno_message(candidate: ExtractedTodoCandidate) -> str:
     """Build a message describing the detected intent for Agno to act on."""
     if candidate.intent_type == IntentType.INVITATION:
@@ -215,6 +221,7 @@ def _build_agno_message(candidate: ExtractedTodoCandidate) -> str:
     lines = ["[自动意图识别] 系统从用户的感知流中检测到以下待办意图："]
     lines.extend(_candidate_fields(candidate))
     lines.append(_memory_match_instruction(candidate))
+    lines.append(_USER_FACING_INSTRUCTION)
     return "\n".join(lines)
 
 
@@ -241,8 +248,7 @@ def _build_invitation_message(candidate: ExtractedTodoCandidate) -> str:
         lines.append("3. 如果邀约涉及餐饮，调用 search_nearby_places 搜索附近餐厅推荐。")
     lines.append("4. 综合以上信息，调用 draft_reply_message 为用户草拟一条得体的回复消息。")
     lines.append("5. 如果没有冲突，也请帮用户创建对应的待办事项。")
-    lines.append("")
-    lines.append("请用结构化的方式汇总所有分析结果。")
+    lines.append(_USER_FACING_INSTRUCTION)
     return "\n".join(lines)
 
 
@@ -252,15 +258,30 @@ def _select_tools(candidate: ExtractedTodoCandidate) -> list[str]:
     return list(_AGNO_TOOLS_FOR_TODO)
 
 
-def _run_agno_sync(message: str, tools: list[str]) -> str:
-    """Run Agno agent synchronously and collect the full text response."""
+_agno_cache: dict[tuple[str, ...], object] = {}
+_agno_cache_lock = __import__("threading").Lock()
+
+
+def _get_agno_service(tools: list[str]) -> object:
+    """Return a cached AgnoAgentService for the given tool set."""
     from llm.agno_agent import AgnoAgentService  # noqa: PLC0415
 
-    logger.info("[Agno] Creating AgnoAgentService with tools=%s", tools)
-    service = AgnoAgentService(
-        lang="zh",
-        selected_tools=tools,
-    )
+    key = tuple(sorted(tools))
+    with _agno_cache_lock:
+        service = _agno_cache.get(key)
+        if service is not None:
+            return service
+
+    logger.info("[Agno] Creating AgnoAgentService with tools=%s (first time)", tools)
+    service = AgnoAgentService(lang="zh", selected_tools=tools)
+    with _agno_cache_lock:
+        _agno_cache[key] = service
+    return service
+
+
+def _run_agno_sync(message: str, tools: list[str]) -> str:
+    """Run Agno agent synchronously and collect the full text response."""
+    service = _get_agno_service(tools)
     logger.info("[Agno] Sending message (%d chars), streaming response...", len(message))
     response_parts: list[str] = []
     for chunk in service.stream_response(message, include_tool_events=False):
@@ -270,24 +291,55 @@ def _run_agno_sync(message: str, tools: list[str]) -> str:
     return full_response
 
 
+def _build_user_facing_content(candidate: ExtractedTodoCandidate, agno_response: str) -> str:
+    """Build user-facing notification: metadata header + Agno's full analysis."""
+    is_invitation = candidate.intent_type == IntentType.INVITATION
+    header_parts: list[str] = []
+
+    if is_invitation:
+        inviter = candidate.inviter or "对方"
+        header_parts.append(f"{inviter}邀请你：{candidate.name}")
+        if candidate.start_time:
+            header_parts.append(f"时间：{candidate.start_time.strftime('%m月%d日 %H:%M')}")
+        if candidate.location:
+            header_parts.append(f"地点：{candidate.location}")
+    else:
+        if candidate.description:
+            header_parts.append(candidate.description)
+        if candidate.start_time:
+            header_parts.append(f"时间：{candidate.start_time.strftime('%m月%d日 %H:%M')}")
+        if candidate.due:
+            header_parts.append(f"截止：{candidate.due.strftime('%m月%d日 %H:%M')}")
+        prio_map = {"high": "高", "medium": "中", "low": "低"}
+        if candidate.priority and candidate.priority != "none":
+            header_parts.append(f"优先级：{prio_map.get(candidate.priority, candidate.priority)}")
+
+    header = "\n".join(header_parts) if header_parts else candidate.name
+    analysis = agno_response.strip()
+    if not analysis:
+        return header
+    return f"{header}\n\n{analysis}"
+
+
 def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None:
-    """Write Agno's response into the notification storage for frontend display."""
+    """Write user-facing notification into storage for signal-sensor popup display."""
     from storage.notification_storage import add_notification  # noqa: PLC0415
 
     is_invitation = candidate.intent_type == IntentType.INVITATION
     title = f"📨 邀约助手：{candidate.name}" if is_invitation else f"✅ 自动待办：{candidate.name}"
+    content = _build_user_facing_content(candidate, response)
     notification_id = f"intent_{uuid4().hex[:12]}"
 
     logger.info(
         "[Notification] Writing notification: id=%s title=%r content_len=%d",
         notification_id,
         title,
-        len(response),
+        len(content),
     )
     added = add_notification(
         notification_id=notification_id,
         title=title,
-        content=response,
+        content=content,
         timestamp=get_utc_now(),
     )
     if added:
