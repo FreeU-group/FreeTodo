@@ -23,7 +23,7 @@ from util.time_utils import local_today_str
 logger = get_logger()
 
 ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
-GEMINI_MODEL = "gemini-2.5-flash-image-preview"
+GEMINI_MODEL = "gemini-2.0-flash-preview-image-generation"
 DIARY_ILLUSTRATION_JOB_ID = "diary_illustration_job"
 DIARY_ILLUSTRATION_JOB_NAME = "日记插画生成"
 DEFAULT_DIARY_ILLUSTRATION_CRON = "0 22 * * *"
