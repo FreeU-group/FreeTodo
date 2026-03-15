@@ -3,8 +3,6 @@
  * 提供系统原生通知功能
  */
 
-import { Notification } from "electron";
-import { logger } from "./logger";
 import type { WindowManager } from "./window-manager";
 
 /**
