@@ -1064,10 +1064,15 @@
 			"skip": "Gate 跳过"
 		},
 		"status": {
+			"received": "已接收",
 			"dedupe_hit": "去重命中",
+			"gating": "Gate 判断中…",
 			"gate_skipped": "Gate 跳过",
+			"gate_passed": "Gate 通过",
+			"extracting": "提取中…",
 			"extracted": "已提取",
 			"extract_failed": "提取器失败",
+			"integrating": "集成中…",
 			"processed": "已处理",
 			"failed": "失败"
 		}

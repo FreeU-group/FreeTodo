@@ -1064,10 +1064,15 @@
 			"skip": "Gate skip"
 		},
 		"status": {
+			"received": "Received",
 			"dedupe_hit": "Dedupe hit",
+			"gating": "Gating…",
 			"gate_skipped": "Gate skipped",
+			"gate_passed": "Gate passed",
+			"extracting": "Extracting…",
 			"extracted": "Extracted",
 			"extract_failed": "Extractor failed",
+			"integrating": "Integrating…",
 			"processed": "Processed",
 			"failed": "Failed"
 		}

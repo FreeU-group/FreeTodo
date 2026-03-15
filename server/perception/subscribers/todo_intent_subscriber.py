@@ -370,17 +370,34 @@ class TodoIntentSubscriber:
             self._next_batch_seed = next_batch_seed
             self._enqueue_batch(batch)
 
+    def _make_progress_callback(self):
+        """Create a sync callback that schedules record publishing on the event loop."""
+        loop = asyncio.get_event_loop()
+
+        def _on_progress(record):
+            loop.call_soon_threadsafe(
+                asyncio.ensure_future,
+                self._publish_record(record),
+            )
+
+        return _on_progress
+
     async def _worker_loop(self, *, worker_id: int) -> None:
+        on_progress = self._make_progress_callback()
         while True:
             batch = await self._context_queue.get()
             event = batch[0]
             self._active_worker_ids.add(worker_id)
             try:
                 if len(batch) == 1:
-                    record = await self._orchestrator.process_event(batch[0])
+                    record = await self._orchestrator.process_event(
+                        batch[0], on_progress=on_progress,
+                    )
                 else:
                     context = self._orchestrator.build_context_from_events(batch)
-                    record = await self._orchestrator.process_context(context)
+                    record = await self._orchestrator.process_context(
+                        context, on_progress=on_progress,
+                    )
                 await self._publish_record(record)
                 self._processed_total += len(batch)
             except asyncio.CancelledError:

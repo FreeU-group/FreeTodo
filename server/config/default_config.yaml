@@ -79,7 +79,7 @@ perception:
     enabled: true
     mode: memory_preview # memory_preview | draft | active | review_queue
     disable_legacy_auto_extraction: true # 启用后跳过旧自动提取链路（audio/proactive_ocr/todo_recorder）
-    window_seconds: 20
+    window_seconds: 5
     max_context_chars: 5000
     max_todos_per_context: 5
     internal_queue_maxsize: 200
@@ -94,7 +94,7 @@ perception:
       max_cache_size: 5000
     gate:
       enabled: true
-      model: "" # 空则回退 llm.model
+      model: "qwen-turbo" # 门控只需判断 true/false，用轻量模型加速
       temperature: 0.0
       max_tokens: 160
       min_text_length: 8

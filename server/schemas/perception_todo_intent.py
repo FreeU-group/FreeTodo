@@ -34,10 +34,15 @@ class IntegrationAction(str, Enum):
 
 
 class TodoIntentProcessingStatus(str, Enum):
+    RECEIVED = "received"
     DEDUPE_HIT = "dedupe_hit"
+    GATING = "gating"
     GATE_SKIPPED = "gate_skipped"
+    GATE_PASSED = "gate_passed"
+    EXTRACTING = "extracting"
     EXTRACTED = "extracted"
     EXTRACT_FAILED = "extract_failed"
+    INTEGRATING = "integrating"
     PROCESSED = "processed"
     FAILED = "failed"
 

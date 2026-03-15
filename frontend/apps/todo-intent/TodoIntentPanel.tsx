@@ -272,6 +272,7 @@ function ConnectionStatus({
 function statusTone(status: TodoIntentProcessingRecord["status"]): string {
 	switch (status) {
 		case "extracted":
+		case "processed":
 			return "bg-green-50 text-green-700 border-green-200";
 		case "gate_skipped":
 		case "dedupe_hit":
@@ -280,6 +281,12 @@ function statusTone(status: TodoIntentProcessingRecord["status"]): string {
 			return "bg-orange-50 text-orange-700 border-orange-200";
 		case "failed":
 			return "bg-red-50 text-red-700 border-red-200";
+		case "received":
+		case "gating":
+		case "gate_passed":
+		case "extracting":
+		case "integrating":
+			return "bg-blue-50 text-blue-700 border-blue-200 animate-pulse";
 		default:
 			return "bg-muted text-muted-foreground border-border";
 	}
@@ -356,10 +363,14 @@ function CollapsibleMarkdown({
 type PipelineStep = "received" | "dedupe" | "gate" | "extract" | "integrate";
 
 function derivePipelineReached(record: TodoIntentProcessingRecord): PipelineStep {
+	const s = record.status;
+	if (s === "integrating" || s === "processed" || s === "extracted") return "integrate";
+	if (s === "extracting" || s === "extract_failed") return "extract";
+	if (s === "gating" || s === "gate_skipped" || s === "gate_passed") return "gate";
+	if (s === "dedupe_hit") return "dedupe";
 	if (record.integration_results.length > 0) return "integrate";
 	if (record.candidates.length > 0) return "extract";
 	if (record.gate_decision) return "gate";
-	if (record.dedupe_hit) return "dedupe";
 	return "received";
 }
 
@@ -372,17 +383,22 @@ const PIPELINE_STEP_KEYS: Record<PipelineStep, string> = {
 	integrate: "stepIntegrate",
 };
 
+const IN_PROGRESS_STATUSES = new Set([
+	"received", "gating", "gate_passed", "extracting", "integrating",
+]);
+
 function pipelineStepState(
 	step: PipelineStep,
 	reached: PipelineStep,
 	record: TodoIntentProcessingRecord,
-): "done" | "stopped" | "pending" {
+): "done" | "active" | "stopped" | "pending" {
 	const reachedIdx = PIPELINE_STEPS.indexOf(reached);
 	const stepIdx = PIPELINE_STEPS.indexOf(step);
 	if (stepIdx < reachedIdx) return "done";
 	if (stepIdx === reachedIdx) {
 		if (record.status === "dedupe_hit" || record.status === "gate_skipped") return "stopped";
 		if (record.status === "extract_failed" || record.status === "failed") return "stopped";
+		if (IN_PROGRESS_STATUSES.has(record.status)) return "active";
 		return "done";
 	}
 	return "pending";
@@ -401,6 +417,7 @@ function PipelineIndicator({ record }: { record: TodoIntentProcessingRecord }) {
 							className={cn(
 								"rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight",
 								state === "done" && "bg-green-100 text-green-700",
+								state === "active" && "bg-blue-100 text-blue-700 animate-pulse",
 								state === "stopped" && "bg-amber-100 text-amber-700",
 								state === "pending" && "bg-muted text-muted-foreground/50",
 							)}
@@ -408,7 +425,10 @@ function PipelineIndicator({ record }: { record: TodoIntentProcessingRecord }) {
 							{t(PIPELINE_STEP_KEYS[step])}
 						</div>
 						{idx < PIPELINE_STEPS.length - 1 && (
-							<div className={cn("mx-0.5 h-px w-2", state === "done" ? "bg-green-300" : "bg-border")} />
+							<div className={cn(
+								"mx-0.5 h-px w-2",
+								state === "done" ? "bg-green-300" : state === "active" ? "bg-blue-300" : "bg-border",
+							)} />
 						)}
 					</div>
 				);

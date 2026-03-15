@@ -8,10 +8,15 @@ export type TodoIntentConnectionState =
 	| "reconnecting";
 
 export type TodoIntentProcessingStatus =
+	| "received"
 	| "dedupe_hit"
+	| "gating"
 	| "gate_skipped"
+	| "gate_passed"
+	| "extracting"
 	| "extracted"
 	| "extract_failed"
+	| "integrating"
 	| "processed"
 	| "failed";
 
@@ -128,17 +133,24 @@ function buildWsUrl(path: string): string {
 	return `${wsBaseUrl}${path}`;
 }
 
-function appendAndDedupeRecords(
+function upsertRecords(
 	existing: TodoIntentProcessingRecord[],
 	incoming: TodoIntentProcessingRecord[],
 ): TodoIntentProcessingRecord[] {
 	if (incoming.length === 0) return existing;
-	const seen = new Set(existing.map((r) => r.record_id));
+	const indexById = new Map<string, number>();
 	const merged = [...existing];
+	for (let i = 0; i < merged.length; i++) {
+		indexById.set(merged[i].record_id, i);
+	}
 	for (const record of incoming) {
-		if (seen.has(record.record_id)) continue;
-		seen.add(record.record_id);
-		merged.push(record);
+		const existingIdx = indexById.get(record.record_id);
+		if (existingIdx !== undefined) {
+			merged[existingIdx] = record;
+		} else {
+			indexById.set(record.record_id, merged.length);
+			merged.push(record);
+		}
 	}
 	merged.sort((a, b) => {
 		const at = Date.parse(a.created_at);
@@ -177,7 +189,7 @@ async function loadRecentBestEffort(
 		const recent = await fetchRecentRecords(count);
 		if (recent.length === 0) return;
 		set((state) => ({
-			records: appendAndDedupeRecords(state.records, recent),
+			records: upsertRecords(state.records, recent),
 		}));
 	} catch {}
 }
@@ -250,7 +262,7 @@ function connectWithFallback(
 		try {
 			const record = JSON.parse(String(msg.data)) as TodoIntentProcessingRecord;
 			set((state) => ({
-				records: appendAndDedupeRecords(state.records, [record]),
+				records: upsertRecords(state.records, [record]),
 			}));
 		} catch {}
 	};
@@ -277,7 +289,7 @@ export const useTodoIntentStreamStore = create<TodoIntentStreamState>((set) => (
 	loadRecent: async (count = 50) => {
 		const recent = await fetchRecentRecords(count);
 		set((state) => ({
-			records: appendAndDedupeRecords(state.records, recent),
+			records: upsertRecords(state.records, recent),
 		}));
 	},
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -134,6 +135,7 @@ class TodoIntentOrchestrator:
     def _build_record(  # noqa: PLR0913
         self,
         *,
+        record_id: str | None = None,
         context: TodoIntentContext,
         status: TodoIntentProcessingStatus,
         dedupe_hit: bool = False,
@@ -144,7 +146,7 @@ class TodoIntentOrchestrator:
         error: str | None = None,
     ) -> TodoIntentProcessingRecord:
         return TodoIntentProcessingRecord(
-            record_id=f"tir_{uuid4().hex}",
+            record_id=record_id or f"tir_{uuid4().hex}",
             context_id=context.context_id,
             status=status,
             created_at=get_utc_now(),
@@ -233,9 +235,13 @@ class TodoIntentOrchestrator:
             metadata=metadata,
         )
 
-    async def process_event(self, event: PerceptionEvent) -> TodoIntentProcessingRecord:
+    async def process_event(
+        self,
+        event: PerceptionEvent,
+        on_progress: Callable[[TodoIntentProcessingRecord], Any] | None = None,
+    ) -> TodoIntentProcessingRecord:
         context = self.build_context_from_event(event)
-        return await self.process_context(context)
+        return await self.process_context(context, on_progress=on_progress)
 
     @staticmethod
     def _load_memory_context() -> tuple[str, str]:
@@ -258,8 +264,13 @@ class TodoIntentOrchestrator:
             logger.debug("Failed to load memory context for intent extraction", exc_info=True)
             return "", ""
 
-    async def process_context(self, context: TodoIntentContext) -> TodoIntentProcessingRecord:
+    async def process_context(
+        self,
+        context: TodoIntentContext,
+        on_progress: Callable[[TodoIntentProcessingRecord], Any] | None = None,
+    ) -> TodoIntentProcessingRecord:
         self._counters["contexts_total"] += 1
+        rid = f"tir_{uuid4().hex}"
         text_preview = (context.merged_text or "")[:100]
         logger.info(
             "[Orchestrator] ── Processing context %s (%d chars): %s...",
@@ -268,6 +279,19 @@ class TodoIntentOrchestrator:
             text_preview,
         )
 
+        def _emit(record: TodoIntentProcessingRecord) -> None:
+            if on_progress is not None:
+                try:
+                    on_progress(record)
+                except Exception:
+                    logger.debug("on_progress callback error", exc_info=True)
+
+        _emit(self._build_record(
+            record_id=rid,
+            context=context,
+            status=TodoIntentProcessingStatus.RECEIVED,
+        ))
+
         dedupe_hit = False
         dedupe_key: str | None = None
         if self._dedupe_enabled:
@@ -275,12 +299,22 @@ class TodoIntentOrchestrator:
         if dedupe_hit:
             self._counters["dedupe_hits"] += 1
             logger.info("[Orchestrator] DEDUPE HIT — skipping context %s", context.context_id[:16])
-            return self._build_record(
+            rec = self._build_record(
+                record_id=rid,
                 context=context,
                 status=TodoIntentProcessingStatus.DEDUPE_HIT,
                 dedupe_hit=True,
                 dedupe_key=dedupe_key,
             )
+            _emit(rec)
+            return rec
+
+        _emit(self._build_record(
+            record_id=rid,
+            context=context,
+            status=TodoIntentProcessingStatus.GATING,
+            dedupe_key=dedupe_key,
+        ))
 
         gate_decision = await self._gate.decide(context)
         logger.info(
@@ -290,12 +324,31 @@ class TodoIntentOrchestrator:
         )
         if not gate_decision.should_extract:
             self._counters["gate_skips"] += 1
-            return self._build_record(
+            rec = self._build_record(
+                record_id=rid,
                 context=context,
                 status=TodoIntentProcessingStatus.GATE_SKIPPED,
                 dedupe_key=dedupe_key,
                 gate_decision=gate_decision,
             )
+            _emit(rec)
+            return rec
+
+        _emit(self._build_record(
+            record_id=rid,
+            context=context,
+            status=TodoIntentProcessingStatus.GATE_PASSED,
+            dedupe_key=dedupe_key,
+            gate_decision=gate_decision,
+        ))
+
+        _emit(self._build_record(
+            record_id=rid,
+            context=context,
+            status=TodoIntentProcessingStatus.EXTRACTING,
+            dedupe_key=dedupe_key,
+            gate_decision=gate_decision,
+        ))
 
         active_todos, user_profile = self._load_memory_context()
         logger.info(
@@ -321,13 +374,16 @@ class TodoIntentOrchestrator:
                 )
             except Exception as exc:
                 logger.exception("[Orchestrator] Extractor failed twice")
-                return self._build_record(
+                rec = self._build_record(
+                    record_id=rid,
                     context=context,
                     status=TodoIntentProcessingStatus.EXTRACT_FAILED,
                     dedupe_key=dedupe_key,
                     gate_decision=gate_decision,
                     error=self._resolve_extract_error(exc),
                 )
+                _emit(rec)
+                return rec
 
         normalized = self._post_processor.normalize(candidates, context)
         self._counters["extracted_candidates"] += len(normalized)
@@ -345,6 +401,15 @@ class TodoIntentOrchestrator:
                 c.confidence,
             )
 
+        _emit(self._build_record(
+            record_id=rid,
+            context=context,
+            status=TodoIntentProcessingStatus.INTEGRATING,
+            dedupe_key=dedupe_key,
+            gate_decision=gate_decision,
+            candidates=normalized,
+        ))
+
         results = await self._integration.integrate(
             context=context,
             gate_decision=gate_decision,
@@ -357,7 +422,8 @@ class TodoIntentOrchestrator:
                 r.action.value,
                 r.reason,
             )
-        return self._build_record(
+        rec = self._build_record(
+            record_id=rid,
             context=context,
             status=(
                 TodoIntentProcessingStatus.EXTRACTED
@@ -369,6 +435,8 @@ class TodoIntentOrchestrator:
             candidates=normalized,
             integration_results=results,
         )
+        _emit(rec)
+        return rec
 
     def get_stats(self) -> TodoIntentOrchestratorStats:
         return TodoIntentOrchestratorStats(
