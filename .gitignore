@@ -38,11 +38,13 @@ venv/
 .DS_Store
 Thumbs.db
 
-# LifeTrace specific
+# LifeTrace specific (both legacy and new paths)
+lifetrace/data/
+lifetrace/config/config.yaml
 server/data/
 server/config/config.yaml
-lifetrace/data/
 lifetrace/config/
+client/config/config.yaml
 
 # Legacy submodules (not used)
 MediaCrawlerPro-Downloader/
@@ -117,5 +119,8 @@ MediaCrawlerPro-SignSrv/logs/
 
 deploy/volume/
 .env
-server/data
 deploy-*
+
+# free-todo-frontend runtime artifacts
+free-todo-frontend/.notification-popup.json
+free-todo-frontend/next-env.d.ts

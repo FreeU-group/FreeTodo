@@ -2,12 +2,14 @@
 chcp 65001 >nul 2>nul
 REM ================================================================
 REM  LifeTrace Center Node - One-click Startup
-REM  Phoenix -> AgentOS -> Backend(center) -> Frontend -> cpolar x2
+REM  Phoenix -> AgentOS -> Backend(center) -> Frontend -> cpolar
 REM ================================================================
 setlocal enabledelayedexpansion
 
 cd /d "%~dp0\.."
 set "REPO_ROOT=%cd%"
+set "SERVER_DIR=%REPO_ROOT%\server"
+set "FRONTEND_DIR=%REPO_ROOT%\frontend"
 set "LOG_DIR=%REPO_ROOT%\.run-logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
@@ -55,6 +57,22 @@ if "%CPOLAR_BACKEND_DOMAIN%"=="YOUR_BACKEND_SUBDOMAIN" (
     exit /b 1
 )
 
+REM Validate server directory
+if not exist "%SERVER_DIR%\pyproject.toml" (
+    echo [ERROR] Server directory not found: %SERVER_DIR%
+    echo         Expected pyproject.toml at %SERVER_DIR%\pyproject.toml
+    pause
+    exit /b 1
+)
+
+REM Validate frontend directory
+if not exist "%FRONTEND_DIR%\package.json" (
+    echo [ERROR] Frontend directory not found: %FRONTEND_DIR%
+    echo         Expected package.json at %FRONTEND_DIR%\package.json
+    pause
+    exit /b 1
+)
+
 echo ================================================
 echo    LifeTrace Center Node Startup
 echo ================================================
@@ -68,26 +86,28 @@ if not "%FRONTEND_PORT%"=="%FRONTEND_PORT_PREFERRED%" echo Note: frontend prefer
 echo.
 
 REM ================================================================
-REM  1. Start Phoenix (observability tracing)
+REM  1. Start Phoenix (observability tracing) - optional
+REM     Requires arize-phoenix to be installed. Skip gracefully if missing.
 REM ================================================================
-echo [1/6] Starting Phoenix (observability)...
-start "LifeTrace Phoenix" cmd /k "pushd %REPO_ROOT% && uv run phoenix serve"
+echo [1/5] Starting Phoenix (observability)...
+start /MAX "LifeTrace Phoenix" cmd /k "pushd %SERVER_DIR% && uv run phoenix serve || echo [WARN] Phoenix not available. Install with: uv add arize-phoenix && pause"
 echo Waiting for Phoenix (2s)...
 timeout /t 2 /nobreak >nul
 
 REM ================================================================
 REM  2. Start AgentOS (Agno agent framework, must start before backend)
 REM ================================================================
-echo [2/6] Starting AgentOS...
-start "LifeTrace AgentOS" cmd /k "pushd %REPO_ROOT% && uv run python -m lifetrace.agent_os"
+echo [2/5] Starting AgentOS...
+start /MAX "LifeTrace AgentOS" cmd /k "pushd %SERVER_DIR% && uv run python agent_os.py"
 echo Waiting for AgentOS (2s)...
 timeout /t 2 /nobreak >nul
 
 REM ================================================================
 REM  3. Start backend (center mode)
+REM     Role and port are set via Dynaconf env vars (LIFETRACE__ prefix).
 REM ================================================================
-echo [3/6] Starting LifeTrace Server (center mode)...
-start "LifeTrace Center Backend" cmd /k "pushd %REPO_ROOT% && uv run python -m lifetrace.server --role center --port %BACKEND_PORT%"
+echo [3/5] Starting LifeTrace Server (center mode, port %BACKEND_PORT%)...
+start /MAX "LifeTrace Center Backend" cmd /k "pushd %SERVER_DIR% && set LIFETRACE_DEPLOYMENT__ROLE=center&& set LIFETRACE_SERVER__PORT=%BACKEND_PORT%&& set LIFETRACE_SERVER__HOST=0.0.0.0&& uv run python server.py"
 echo Waiting for backend (5s)...
 timeout /t 5 /nobreak >nul
 
@@ -96,57 +116,46 @@ REM  4. Build and start frontend
 REM     NEXT_PUBLIC_API_URL = cpolar public URL (baked into client JS for streaming)
 REM     API_REWRITE_URL     = localhost (server-side Next.js rewrite, same machine)
 REM ================================================================
-echo [4/6] Building frontend (client API = %BACKEND_PUBLIC_URL%, rewrite = localhost:%BACKEND_PORT%)...
-start "LifeTrace Center Frontend" cmd /k "pushd %REPO_ROOT%\free-todo-frontend && set NEXT_PUBLIC_API_URL=%BACKEND_PUBLIC_URL%&& set API_REWRITE_URL=http://127.0.0.1:%BACKEND_PORT%&& pnpm build:frontend:web && pnpm start --port %FRONTEND_PORT% --hostname 0.0.0.0"
+echo [4/5] Building frontend (client API = %BACKEND_PUBLIC_URL%, rewrite = localhost:%BACKEND_PORT%)...
+start /MAX "LifeTrace Center Frontend" cmd /k "pushd %FRONTEND_DIR% && set NEXT_PUBLIC_API_URL=%BACKEND_PUBLIC_URL%&& set API_REWRITE_URL=http://127.0.0.1:%BACKEND_PORT%&& pnpm build:frontend:web && pnpm start --port %FRONTEND_PORT% --hostname 0.0.0.0"
 echo Waiting for frontend build (~30s)...
 timeout /t 30 /nobreak >nul
 
 REM ================================================================
-REM  5. Start cpolar backend tunnel (HTTP - for frontend/browser)
+REM  5. Start cpolar backend tunnels (HTTP + TCP)
+REM     Tunnels are defined in cpolar.yml: backend_http, backend_tcp
 REM ================================================================
-echo [5/7] Starting cpolar backend tunnel (HTTP) = %BACKEND_PUBLIC_URL%
-start "LifeTrace cpolar Backend HTTP" cmd /k "cpolar http -region=%CPOLAR_REGION% -subdomain=%CPOLAR_BACKEND_DOMAIN% %BACKEND_PORT%"
+echo [5/6] Starting cpolar backend tunnels (HTTP + TCP)...
+echo       Backend HTTP:  %BACKEND_PUBLIC_URL%
+echo       Backend TCP:   2.tcp.cpolar.cn:12691
+start /MAX "LifeTrace cpolar Backend" cmd /k "cpolar start backend_http backend_tcp"
 timeout /t 2 /nobreak >nul
 
 REM ================================================================
-REM  6. Start cpolar backend tunnel (TCP - for mobile WebSocket)
-REM     TCP tunnel does raw passthrough, no HTTP/WS protocol interference.
-REM     Configure fixed TCP address in cpolar.yml with remote_addr parameter.
-REM     Set CPOLAR_TCP_TUNNEL_NAME in local-env.bat (default: backend_tcp).
+REM  6. Start cpolar frontend tunnel (separate session)
 REM ================================================================
-if "%CPOLAR_TCP_TUNNEL_NAME%"=="" set "CPOLAR_TCP_TUNNEL_NAME=backend_tcp"
-echo [6/7] Starting cpolar backend tunnel (TCP) via named tunnel: %CPOLAR_TCP_TUNNEL_NAME%
-start "LifeTrace cpolar Backend TCP" cmd /k "cpolar start %CPOLAR_TCP_TUNNEL_NAME%"
-timeout /t 2 /nobreak >nul
-
-REM ================================================================
-REM  7. Start cpolar frontend tunnel
-REM ================================================================
-echo [7/7] Starting cpolar frontend tunnel = %FRONTEND_PUBLIC_URL%
-start "LifeTrace cpolar Frontend" cmd /k "cpolar http -region=%CPOLAR_REGION% -subdomain=%CPOLAR_FRONTEND_DOMAIN% %FRONTEND_PORT%"
+echo [6/6] Starting cpolar frontend tunnel...
+echo       Frontend HTTP: %FRONTEND_PUBLIC_URL%
+start /MAX "LifeTrace cpolar Frontend" cmd /k "cpolar start frontend_http"
 
 REM ================================================================
 REM  Done
 REM ================================================================
 echo.
 echo ================================================
-echo    Center Node Started (7 windows)
+echo    Center Node Started (6 windows)
 echo ================================================
 echo.
 echo Services:
 echo   Phoenix:      http://127.0.0.1:6006
-echo   AgentOS:      http://127.0.0.1:8200
+echo   AgentOS:      http://127.0.0.1:8002
 echo   Backend:      http://0.0.0.0:%BACKEND_PORT%
 echo   Frontend:     http://0.0.0.0:%FRONTEND_PORT%
 echo.
 echo Public access:
 echo   Frontend UI:  %FRONTEND_PUBLIC_URL%
 echo   Backend API:  %BACKEND_PUBLIC_URL% (HTTP)
-echo   Backend TCP:  Check "LifeTrace cpolar Backend TCP" window for tcp:// address
-echo.
-echo IMPORTANT: Copy the TCP tunnel address (e.g. tcp://1.tcp.cpolar.cn:20xxx)
-echo            and update phone/lib/env/lifetrace_env.dart with:
-echo            http://HOST:PORT/
+echo   Backend TCP:  2.tcp.cpolar.cn:12691
 echo.
 echo Sensor startup command (run from client/ directory):
 echo   cd client ^&^& uv run python -m sensor --center-url %BACKEND_PUBLIC_URL%

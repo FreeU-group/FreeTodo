@@ -75,26 +75,11 @@ REM Start perception daemon
 echo [1/3] Starting perception daemon...
 start "LifeTrace Sensor" cmd /k "pushd %SENSOR_DIR% && %SENSOR_CMD%"
 
-REM Start notification popup (Electron system-level toast)
-echo [2/3] Starting notification popup...
-set "POPUP_SCRIPT=%REPO_ROOT%\frontend\scripts\notification-popup.js"
-set "POPUP_DIR=%REPO_ROOT%\frontend"
-
-REM Try to find electron binary (pnpm node_modules or npx)
-set "ELECTRON_BIN="
-if exist "%POPUP_DIR%\node_modules\.bin\electron.cmd" (
-    set "ELECTRON_BIN=%POPUP_DIR%\node_modules\.bin\electron.cmd"
-)
-
-if defined ELECTRON_BIN (
-    set "LIFETRACE_BACKEND_URL=%CENTER_URL%"
-    start "LifeTrace Popup" cmd /c "pushd %POPUP_DIR% && set LIFETRACE_BACKEND_URL=%CENTER_URL% && set ELECTRON_DISABLE_SECURITY_WARNINGS=1 && "%ELECTRON_BIN%" "%POPUP_SCRIPT%""
-    echo Notification popup started (backend: %CENTER_URL%)
-) else (
-    echo [WARNING] electron not found in frontend/node_modules
-    echo Run "pnpm install" in frontend/ to enable notification popups.
-    echo Continuing without notification popup...
-)
+REM Start signal-sensor (unified notification daemon + interactive popup)
+echo [2/3] Starting signal-sensor (notification polling + popup)...
+set "SIGNAL_SCRIPT=%REPO_ROOT%\scripts\signal-sensor.py"
+start "LifeTrace Signal" cmd /k "pushd %REPO_ROOT%\client && uv run python "%SIGNAL_SCRIPT%" --center-url %CENTER_URL% --node-id %NODE_ID%"
+echo Signal sensor started (center: %CENTER_URL%, node: %NODE_ID%)
 
 REM Open browser
 echo [3/3] Opening browser...
@@ -107,10 +92,10 @@ echo    Sensor Node Started
 echo ================================================
 echo.
 echo Perception daemon: screenshot + OCR + proactive OCR = %CENTER_URL%
-echo Notification popup: system-level toast for invitations
+echo Signal sensor:     notification polling + interactive popup
 echo Browser opened:    %CENTER_FRONTEND_URL%
 echo.
-echo Tip: close the "LifeTrace Sensor" and "LifeTrace Popup" windows to stop.
+echo Tip: close the "LifeTrace Sensor" and "LifeTrace Signal" windows to stop.
 echo.
 pause
 endlocal

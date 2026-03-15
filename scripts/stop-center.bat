@@ -11,7 +11,7 @@ echo ================================================
 echo.
 
 call :kill_by_port 6006 "Phoenix"
-call :kill_by_port 8200 "AgentOS"
+call :kill_by_port 8002 "AgentOS"
 call :kill_by_port 8001 "LifeTrace Backend"
 call :kill_by_port 3001 "LifeTrace Frontend"
 call :kill_by_name "cpolar" "cpolar tunnel"
