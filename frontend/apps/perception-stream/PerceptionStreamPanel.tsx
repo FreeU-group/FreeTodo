@@ -1,8 +1,8 @@
 "use client";
 
-import { Radio } from "lucide-react";
+import { Radio, UserX } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { Button } from "@/components/ui/button";
 import { usePerceptionStreamStore } from "@/lib/store/perception-stream-store";
@@ -30,6 +30,22 @@ export function PerceptionStreamPanel({
 	const loadRecentEvents = usePerceptionStreamStore((s) => s.loadRecentEvents);
 
 	const filteredEvents = useFilteredEvents(events);
+	const [clearingSpk, setClearingSpk] = useState(false);
+
+	const handleClearSpeakers = useCallback(async () => {
+		if (!window.confirm(t("clearSpeakersConfirm"))) return;
+		setClearingSpk(true);
+		try {
+			const res = await fetch("/api/audio/speakers", { method: "DELETE" });
+			if (!res.ok) throw new Error(`${res.status}`);
+			const data = (await res.json()) as { cleared?: number };
+			window.alert(t("clearSpeakersSuccess", { count: data.cleared ?? 0 }));
+		} catch {
+			window.alert(t("clearSpeakersFailed"));
+		} finally {
+			setClearingSpk(false);
+		}
+	}, [t]);
 
 	useEffect(() => {
 		if (!autoConnect) {
@@ -64,6 +80,17 @@ export function PerceptionStreamPanel({
 							onClick={() => void loadRecentEvents(200)}
 						>
 							{t("loadMore")}
+						</Button>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-7 px-2 text-xs gap-1"
+							disabled={clearingSpk}
+							onClick={() => void handleClearSpeakers()}
+						>
+							<UserX className="h-3.5 w-3.5" />
+							{t("clearSpeakers")}
 						</Button>
 						<ConnectionStatus connectionState={connectionState} />
 					</div>
