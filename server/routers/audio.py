@@ -332,6 +332,36 @@ async def rename_speaker(speaker_id: int, request: SpeakerRenameRequest):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@router.delete("/speakers")
+async def clear_speakers():
+    """清空所有已识别的说话人及声纹数据"""
+    try:
+        from services.speaker_service import VoiceprintStore  # noqa: PLC0415
+
+        store = VoiceprintStore()
+        count = store.clear_all()
+        return JSONResponse({"ok": True, "cleared": count})
+    except Exception as e:
+        logger.error(f"清空说话人失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/speakers/{speaker_id}/set-as-me")
+async def set_speaker_as_me(speaker_id: int):
+    """将指定说话人标记为「我」"""
+    try:
+        from services.speaker_service import VoiceprintStore  # noqa: PLC0415
+
+        store = VoiceprintStore()
+        success = store.set_as_me(speaker_id)
+        if not success:
+            return JSONResponse({"error": "说话人不存在"}, status_code=404)
+        return JSONResponse({"ok": True, "speaker_id": speaker_id})
+    except Exception as e:
+        logger.error(f"设定说话人为「我」失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @router.post("/extract")
 async def extract_todos(recording_id: int):
     """提取待办事项
