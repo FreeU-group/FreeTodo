@@ -23,7 +23,8 @@ const BUILD_TYPE = process.env.NODE_ENV === "production" ? "build" : "dev";
 // NEXT_PUBLIC_API_URL is baked into client JS and used by getStreamApiBaseUrl().
 // API_REWRITE_URL is server-only and used for Next.js rewrites (can be localhost).
 const CLIENT_API_URL =
-	process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
+	process.env.NEXT_PUBLIC_API_URL ||
+	(BUILD_TYPE === "build" ? "http://127.0.0.1:8100" : "http://127.0.0.1:8001");
 const REWRITE_API_URL =
 	process.env.API_REWRITE_URL || CLIENT_API_URL;
 const apiUrl = new URL(CLIENT_API_URL);

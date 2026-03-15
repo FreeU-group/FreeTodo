@@ -6,6 +6,7 @@ falling back to the L0 raw file (``raw_L0/{date}.md``).
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 from util.logging_config import get_logger
@@ -97,9 +98,13 @@ class MemoryCompressor:
         ]
 
         try:
-            summary = self._llm.chat(
+            summary = await asyncio.to_thread(
+                self._llm.chat,
                 messages,
-                temperature=0.3,
+                0.3,
+                None,
+                None,
+                log_usage=True,
                 log_meta={
                     "endpoint": "memory_compress",
                     "feature_type": "memory_compression",

@@ -100,20 +100,20 @@ function EventCard({ block }: { block: EventBlock }) {
 			</div>
 			{block.lines.length > 0 && (
 				<div className="space-y-1 text-sm leading-relaxed text-muted-foreground">
-				{block.lines.map((line) => {
+				{block.lines.map((line, lineIndex) => {
 					const trimmed = line.replace(/^[-*]\s*/, "").trim();
 					if (!trimmed) return null;
 					const key = `${block.title}-${trimmed.slice(0, 32)}`;
 
 					if (line.match(/^[-*]\s/)) {
 						return (
-							<div key={key} className="flex gap-2">
+							<div key={key + "-" + lineIndex} className="flex gap-2">
 								<span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/40" />
 								<span>{renderInlineMarkdown(trimmed)}</span>
 							</div>
 						);
 					}
-					return <p key={key}>{renderInlineMarkdown(trimmed)}</p>;
+					return <p key={key + "-" + lineIndex}>{renderInlineMarkdown(trimmed)}</p>;
 					})}
 				</div>
 			)}
