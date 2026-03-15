@@ -1,6 +1,5 @@
 "use client";
 
-import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { PanelRegion } from "@/components/layout/PanelRegion";
@@ -9,9 +8,7 @@ import { useAutoRecording } from "@/lib/hooks/useAutoRecording";
 import { useOnboardingTour } from "@/lib/hooks/useOnboardingTour";
 import { usePanelResize } from "@/lib/hooks/usePanelResize";
 import { useWindowAdaptivePanels } from "@/lib/hooks/useWindowAdaptivePanels";
-import { useConfig, useLlmStatus } from "@/lib/query";
-import { getNotificationPoller } from "@/lib/services/notification-poller";
-import { useNotificationStore } from "@/lib/store/notification-store";
+import { useConfig } from "@/lib/query";
 import { useUiStore } from "@/lib/store/ui-store";
 
 export default function HomePageClient() {
@@ -57,47 +54,14 @@ export default function HomePageClient() {
 		setPanelAWidth,
 		setPanelCWidth,
 	} = useUiStore();
-	const { notifications, upsertNotification, removeNotificationsBySource } =
-		useNotificationStore();
 	const [isDraggingPanelA, setIsDraggingPanelA] = useState(false);
 	const [isDraggingPanelC, setIsDraggingPanelC] = useState(false);
-
-	// 国际化
-	const t = useTranslations("todoExtraction");
 
 	// 用户引导 (Onboarding Tour)
 	const { startTour, hasCompletedTour } = useOnboardingTour();
 
 	// 使用 TanStack Query 获取配置
 	const { data: config } = useConfig();
-
-	// 检查 LLM 配置状态
-	const { data: llmStatus } = useLlmStatus();
-
-	// 根据 LLM 配置状态显示或隐藏通知
-	const hasLlmConfigNotification = notifications.some(
-		(notification) => notification.source === "llm-config",
-	);
-
-	useEffect(() => {
-		if (!llmStatus) return;
-
-		if (!llmStatus.configured) {
-			// LLM 未配置，显示通知提示用户去设置
-			if (!hasLlmConfigNotification) {
-				upsertNotification({
-					id: "llm-config-missing",
-					title: t("llmConfigMissing"),
-					content: t("llmConfigMissingHint"),
-					timestamp: new Date().toISOString(),
-					source: "llm-config",
-				});
-			}
-		} else if (hasLlmConfigNotification) {
-			// LLM 已配置，清除提示通知
-			removeNotificationsBySource("llm-config");
-		}
-	}, [llmStatus, hasLlmConfigNotification, removeNotificationsBySource, t, upsertNotification]);
 
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const setGlobalResizeCursor = useCallback((enabled: boolean) => {
@@ -130,75 +94,8 @@ export default function HomePageClient() {
 		}
 	}, [hasCompletedTour, startTour]);
 
-	// 初始化并管理轮询
-	useEffect(() => {
-		const poller = getNotificationPoller();
-		const store = useNotificationStore.getState();
-
-		// 同步当前所有端点
-		const syncEndpoints = () => {
-			const allEndpoints = store.getAllEndpoints();
-
-			// 更新或注册已启用的端点
-			for (const endpoint of allEndpoints) {
-				if (endpoint.enabled) {
-					poller.updateEndpoint(endpoint);
-				} else {
-					poller.unregisterEndpoint(endpoint.id);
-				}
-			}
-		};
-
-		// 使用 TanStack Query 获取的配置初始化 draft todo 轮询
-		const autoTodoDetectionEnabled =
-			(config?.jobsAutoTodoDetectionEnabled as boolean) ?? false;
-
-		// 注册或更新 draft todo 轮询端点
-		const existingEndpoint = store.getEndpoint("draft-todos");
-		if (!existingEndpoint) {
-			store.registerEndpoint({
-				id: "draft-todos",
-				url: "/api/todos?status=draft&limit=1",
-				interval: 1000, // 1秒轮询一次，实现近实时更新
-				enabled: autoTodoDetectionEnabled,
-			});
-		} else if (existingEndpoint.enabled !== autoTodoDetectionEnabled) {
-			// 配置变化时更新端点状态
-			store.registerEndpoint({
-				...existingEndpoint,
-				enabled: autoTodoDetectionEnabled,
-			});
-		}
-
-		console.log(
-			`[DraftTodo轮询] 自动待办检测配置: ${autoTodoDetectionEnabled ? "已启用" : "已禁用"}`,
-		);
-
-		// 注册 DDL 提醒轮询端点
-		const ddlReminderEndpoint = store.getEndpoint("ddl-reminder");
-		if (!ddlReminderEndpoint) {
-			store.registerEndpoint({
-				id: "ddl-reminder",
-				url: "/api/notifications",
-				interval: 10000, // 10秒轮询一次，显著短于后端检查间隔（30秒）
-				enabled: true, // 默认启用
-			});
-			console.log("[DDL提醒轮询] 已注册，间隔: 10秒");
-		}
-
-		// 初始同步
-		syncEndpoints();
-
-		// 订阅端点变化
-		const unsubscribe = useNotificationStore.subscribe(() => {
-			syncEndpoints();
-		});
-
-		// 清理函数
-		return () => {
-			unsubscribe();
-		};
-	}, [config]);
+	// 通知轮询已迁移到系统级 signal-sensor 守护进程，浏览器端不再轮询
+	void config;
 
 	// 使用自定义 hooks 管理 Panel 调整大小
 	const { handlePanelAResizePointerDown, handlePanelCResizePointerDown } =
@@ -233,7 +130,7 @@ export default function HomePageClient() {
 						overflow: "hidden",
 					}}
 				>
-					<AppHeader hasNotifications={notifications.length > 0} />
+					<AppHeader hasNotifications={false} />
 					<div
 						className="flex-1 min-h-0 overflow-hidden"
 						style={{
