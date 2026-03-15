@@ -466,9 +466,10 @@ class SpeakerProfile(TimestampMixin, table=True):
     description: str | None = Field(default=None, max_length=500)
     sample_count: int = Field(default=0)
     is_active: bool = Field(default=True)
+    is_me: bool = Field(default=False)
 
     def __repr__(self):
-        return f"<SpeakerProfile(id={self.id}, name={self.name})>"
+        return f"<SpeakerProfile(id={self.id}, name={self.name}, is_me={self.is_me})>"
 
 
 class SpeakerVoiceprint(TimestampMixin, table=True):

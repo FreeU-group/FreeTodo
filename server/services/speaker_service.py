@@ -35,6 +35,7 @@ class SpeakerMatch:
     speaker_name: str
     confidence: float
     is_new: bool = False
+    is_me: bool = False
 
 
 def _embedding_to_base64(embedding: np.ndarray) -> str:
@@ -76,8 +77,8 @@ class VoiceprintStore:
         self._update_voiceprint: bool = bool(cfg.get("update_voiceprint", True))
         self._max_samples: int = int(cfg.get("max_samples_per_speaker", 10))
 
-        # In-memory cache: list of (speaker_id, mean_embedding)
-        self._cache: list[tuple[int, str, np.ndarray]] = []  # (id, name, mean_emb)
+        # In-memory cache: (id, name, mean_emb, is_me)
+        self._cache: list[tuple[int, str, np.ndarray, bool]] = []
         self._cache_loaded = False
 
     def _ensure_cache(self) -> None:
@@ -92,7 +93,7 @@ class VoiceprintStore:
 
     def _reload_cache_from_db(self) -> None:
         """Rebuild the in-memory cache from DB."""
-        cache: list[tuple[int, str, np.ndarray]] = []
+        cache: list[tuple[int, str, np.ndarray, bool]] = []
         try:
             with get_session() as session:
                 profiles = list(
@@ -128,7 +129,7 @@ class VoiceprintStore:
                         norm = np.linalg.norm(mean_emb)
                         if norm > 0:
                             mean_emb = mean_emb / norm
-                        cache.append((profile.id, profile.name, mean_emb))
+                        cache.append((profile.id, profile.name, mean_emb, bool(profile.is_me)))
         except Exception as e:
             logger.error(f"加载声纹缓存失败: {e}")
 
@@ -158,19 +159,22 @@ class VoiceprintStore:
         best_id = -1
         best_name = ""
         best_score = -1.0
+        best_is_me = False
 
-        for sid, sname, mean_emb in self._cache:
+        for sid, sname, mean_emb, s_is_me in self._cache:
             score = float(np.dot(query, mean_emb))
             if score > best_score:
                 best_score = score
                 best_id = sid
                 best_name = sname
+                best_is_me = s_is_me
 
         if best_score >= self._similarity_threshold:
             return SpeakerMatch(
                 speaker_id=best_id,
                 speaker_name=best_name,
                 confidence=best_score,
+                is_me=best_is_me,
             )
         return None
 
@@ -206,7 +210,7 @@ class VoiceprintStore:
             session.commit()
 
             norm_emb = embedding / (np.linalg.norm(embedding) or 1.0)
-            self._cache.append((profile.id, profile.name, norm_emb.astype(np.float32)))
+            self._cache.append((profile.id, profile.name, norm_emb.astype(np.float32), False))
 
             logger.info(f"新建说话人: id={profile.id}, name={profile.name}")
             return SpeakerMatch(
@@ -263,13 +267,13 @@ class VoiceprintStore:
         new_unit = (new_embedding / new_norm).astype(np.float32)
         alpha = self._EMA_ALPHA
 
-        for i, (sid, sname, mean_emb) in enumerate(self._cache):
+        for i, (sid, sname, mean_emb, s_is_me) in enumerate(self._cache):
             if sid == speaker_id:
                 combined = (1.0 - alpha) * mean_emb + alpha * new_unit
                 norm = np.linalg.norm(combined)
                 if norm > 0:
                     combined = combined / norm
-                self._cache[i] = (sid, sname, combined.astype(np.float32))
+                self._cache[i] = (sid, sname, combined.astype(np.float32), s_is_me)
                 return
 
     def identify_or_create(
@@ -306,10 +310,69 @@ class VoiceprintStore:
                     "name": p.name,
                     "description": p.description,
                     "sample_count": p.sample_count,
+                    "is_me": bool(p.is_me),
                     "created_at": p.created_at.isoformat() if p.created_at else None,
                 }
                 for p in profiles
             ]
+
+    def clear_all(self) -> int:
+        """Soft-delete all speakers and voiceprints; returns count of removed speakers."""
+        from util.time_utils import get_utc_now  # noqa: PLC0415
+
+        now = get_utc_now()
+        count = 0
+        with get_session() as session:
+            profiles = list(
+                session.exec(
+                    select(SpeakerProfile).where(col(SpeakerProfile.deleted_at).is_(None))
+                ).all()
+            )
+            for p in profiles:
+                p.deleted_at = now
+                p.is_active = False
+                count += 1
+            voiceprints = list(
+                session.exec(
+                    select(SpeakerVoiceprint).where(col(SpeakerVoiceprint.deleted_at).is_(None))
+                ).all()
+            )
+            for vp in voiceprints:
+                vp.deleted_at = now
+            session.commit()
+
+        with self._lock:
+            self._cache.clear()
+        logger.info(f"已清空所有说话人: {count} 位")
+        return count
+
+    def set_as_me(self, speaker_id: int) -> bool:
+        """Mark a speaker as 'me' (the user). Only one speaker can be 'me'."""
+        with get_session() as session:
+            # Clear existing 'me' flag
+            current_me = list(
+                session.exec(
+                    select(SpeakerProfile).where(
+                        col(SpeakerProfile.is_me).is_(True),
+                        col(SpeakerProfile.deleted_at).is_(None),
+                    )
+                ).all()
+            )
+            for p in current_me:
+                p.is_me = False
+
+            target = session.get(SpeakerProfile, speaker_id)
+            if not target or target.deleted_at is not None:
+                return False
+            target.is_me = True
+            session.commit()
+
+        # Update cache
+        for i, (sid, sname, mean_emb, _) in enumerate(self._cache):
+            self._cache[i] = (sid, sname, mean_emb, sid == speaker_id)
+
+        logger.info(f"已将说话人 {speaker_id} 设为「我」")
+        return True
 
     def rename_speaker(self, speaker_id: int, new_name: str) -> bool:
         """Rename a speaker profile."""
@@ -320,8 +383,8 @@ class VoiceprintStore:
             profile.name = new_name
             session.commit()
 
-        for i, (sid, _, mean_emb) in enumerate(self._cache):
+        for i, (sid, _, mean_emb, s_is_me) in enumerate(self._cache):
             if sid == speaker_id:
-                self._cache[i] = (sid, new_name, mean_emb)
+                self._cache[i] = (sid, new_name, mean_emb, s_is_me)
                 break
         return True
