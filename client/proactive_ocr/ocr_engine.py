@@ -1,7 +1,11 @@
 """OCR引擎封装模块"""
 
+import importlib
 import platform
 import re
+import site
+import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from typing import Protocol
@@ -28,14 +32,10 @@ class OcrEngineConfig:
     use_cls: bool = False
 
 
-try:
-    from rapidocr_onnxruntime import RapidOCR
-
-    RAPIDOCR_AVAILABLE = True
-except ImportError:
-    RapidOCR = None
-    RAPIDOCR_AVAILABLE = False
-    logger.error("rapidocr-onnxruntime not available")
+RapidOCR = None
+RAPIDOCR_AVAILABLE = False
+_RAPIDOCR_INSTALL_ATTEMPTED = False
+_RAPIDOCR_LAST_ERROR: str | None = None
 
 try:
     import cv2
@@ -49,9 +49,8 @@ except ImportError:
 
 class OcrEngine:
     def __init__(self, config: OcrEngineConfig | None = None):
-        if not RAPIDOCR_AVAILABLE:
-            raise ImportError("rapidocr-onnxruntime not available")
-        if RapidOCR is None:
+        rapidocr_cls = _ensure_rapidocr_available(auto_install=True)
+        if rapidocr_cls is None:
             raise ImportError("RapidOCR backend is not available")
         resolved_config = config or OcrEngineConfig()
 
@@ -63,7 +62,7 @@ class OcrEngine:
         if resolved_config.use_gpu:
             init_params["use_cuda"] = True
 
-        self.engine = RapidOCR(**init_params)
+        self.engine = rapidocr_cls(**init_params)
         self.det_limit_side_len = resolved_config.det_limit_side_len
         self.det_limit_type = resolved_config.det_limit_type
         self.rec_batch_num = resolved_config.rec_batch_num
@@ -158,6 +157,127 @@ class OcrBackend(Protocol):
 _engine_state: dict[str, OcrBackend | None] = {"instance": None}
 
 
+def _ensure_rapidocr_available(auto_install: bool) -> type | None:
+    global RapidOCR, RAPIDOCR_AVAILABLE, _RAPIDOCR_INSTALL_ATTEMPTED  # noqa: PLW0603
+
+    if RapidOCR is not None:
+        RAPIDOCR_AVAILABLE = True
+        return RapidOCR
+
+    rapidocr_cls, package_missing = _import_rapidocr_class()
+    if rapidocr_cls is not None:
+        RapidOCR = rapidocr_cls
+        RAPIDOCR_AVAILABLE = True
+        return RapidOCR
+
+    if not auto_install or _RAPIDOCR_INSTALL_ATTEMPTED or not package_missing:
+        RAPIDOCR_AVAILABLE = False
+        return None
+
+    _RAPIDOCR_INSTALL_ATTEMPTED = True
+    logger.warning("RapidOCR not installed, attempting automatic install")
+    if not _install_python_package("rapidocr-onnxruntime"):
+        RAPIDOCR_AVAILABLE = False
+        return None
+
+    _refresh_import_state()
+    rapidocr_cls, _package_missing = _import_rapidocr_class()
+    if rapidocr_cls is None:
+        logger.error(f"RapidOCR install finished but import still failed: {_RAPIDOCR_LAST_ERROR}")
+        RAPIDOCR_AVAILABLE = False
+        return None
+
+    RapidOCR = rapidocr_cls
+    RAPIDOCR_AVAILABLE = True
+    logger.info("RapidOCR installed and loaded successfully")
+    return RapidOCR
+
+
+def _import_rapidocr_class() -> tuple[type | None, bool]:
+    global _RAPIDOCR_LAST_ERROR  # noqa: PLW0603
+
+    try:
+        module = importlib.import_module("rapidocr_onnxruntime")
+    except ModuleNotFoundError as exc:
+        _RAPIDOCR_LAST_ERROR = f"{type(exc).__name__}: {exc}"
+        return None, exc.name == "rapidocr_onnxruntime"
+    except Exception as exc:
+        _RAPIDOCR_LAST_ERROR = f"{type(exc).__name__}: {exc}"
+        logger.warning(f"RapidOCR import failed: {_RAPIDOCR_LAST_ERROR}")
+        return None, False
+
+    rapidocr_cls = getattr(module, "RapidOCR", None)
+    if rapidocr_cls is None:
+        _RAPIDOCR_LAST_ERROR = "rapidocr_onnxruntime imported but RapidOCR symbol was missing"
+        return None, False
+
+    _RAPIDOCR_LAST_ERROR = None
+    return rapidocr_cls, False
+
+
+def _install_python_package(package_name: str) -> bool:
+    command = _pip_install_command(package_name)
+    try:
+        completed = subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        error_text = (exc.stderr or exc.stdout or "").strip()
+        if "No module named pip" in error_text and _bootstrap_pip():
+            try:
+                completed = subprocess.run(command, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as retry_exc:
+                error_text = (retry_exc.stderr or retry_exc.stdout or "").strip()
+                logger.error(f"Automatic install failed for {package_name}: {error_text}")
+                return False
+        else:
+            logger.error(f"Automatic install failed for {package_name}: {error_text}")
+            return False
+
+    _refresh_import_state()
+    output = (completed.stdout or completed.stderr or "").strip()
+    if output:
+        last_line = output.splitlines()[-1]
+        logger.info(f"Automatic install completed for {package_name}: {last_line}")
+    return True
+
+
+def _refresh_import_state() -> None:
+    importlib.invalidate_caches()
+    sys.path_importer_cache.clear()
+    sys.modules.pop("rapidocr_onnxruntime", None)
+    try:
+        site.main()
+    except Exception:
+        logger.debug("site.main() refresh skipped", exc_info=True)
+
+
+def _pip_install_command(package_name: str) -> list[str]:
+    return [
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--disable-pip-version-check",
+        package_name,
+    ]
+
+
+def _bootstrap_pip() -> bool:
+    logger.warning("pip is missing in the runtime environment, bootstrapping with ensurepip")
+    command = [sys.executable, "-m", "ensurepip", "--upgrade"]
+    try:
+        completed = subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        error_text = (exc.stderr or exc.stdout or "").strip()
+        logger.error(f"Failed to bootstrap pip with ensurepip: {error_text}")
+        return False
+
+    output = (completed.stdout or completed.stderr or "").strip()
+    if output:
+        last_line = output.splitlines()[-1]
+        logger.info(f"ensurepip completed: {last_line}")
+    return True
+
+
 def get_ocr_engine(
     backend: str = "auto",
     config: OcrEngineConfig | None = None,
@@ -174,8 +294,20 @@ def get_ocr_engine(
         instance = WinRtOcrEngine(lang=winrt_lang, resize_max_side=resize_max_side)
         logger.info("OCR backend: WinRT (Windows.Media.Ocr)")
     else:
-        instance = OcrEngine(config=config)
-        logger.info("OCR backend: RapidOCR (ONNX Runtime)")
+        try:
+            instance = OcrEngine(config=config)
+            logger.info("OCR backend: RapidOCR (ONNX Runtime)")
+        except ImportError as exc:
+            detail = _RAPIDOCR_LAST_ERROR or str(exc)
+            if WINOCR_AVAILABLE:
+                resize_max_side = config.resize_max_side if config is not None else 0
+                logger.warning(f"RapidOCR unavailable ({detail}), falling back to WinRT OCR")
+                instance = WinRtOcrEngine(lang=winrt_lang, resize_max_side=resize_max_side)
+                logger.info("OCR backend: WinRT (Windows.Media.Ocr)")
+            else:
+                raise ImportError(
+                    f"RapidOCR is unavailable and no WinRT fallback is available: {detail}"
+                ) from exc
 
     _engine_state["instance"] = instance
     return instance
