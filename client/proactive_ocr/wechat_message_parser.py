@@ -9,8 +9,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from util.logging_config import get_logger
+
 from .models import BBox, ChatContext, ChatMessage, ChatType, OcrLine, OcrRawResult
 from .priors.wechat import BUBBLE_COLORS, WeChatPrior
+
+logger = get_logger()
 
 _GROUP_SUFFIX_RE = re.compile(r"\(\d+\)\s*$")
 
@@ -134,19 +138,36 @@ def parse_wechat_messages(
         ChatContext with speaker-attributed messages, or None on failure.
     """
     if not ocr_result.lines:
+        logger.debug("WeChat parser: no OCR lines, skipping")
         return None
 
     prior = WeChatPrior()
+    raw_divider = prior.find_title_divider_y(image)
     divider_y = prior.get_title_divider_y(image)
-    roi_width = image.shape[1]
+    h, roi_width = image.shape[:2]
+    logger.info(
+        "WeChat parser: divider_y=%s (raw=%s), image=%dx%d, theme=%s",
+        divider_y,
+        raw_divider,
+        roi_width,
+        h,
+        theme_name,
+    )
 
     title_text = _extract_title_text(ocr_result.lines, divider_y)
     if not title_text:
+        logger.warning("WeChat parser: no title text found above divider_y=%d", divider_y)
         return None
 
     chat_type = _detect_chat_type(title_text)
     chat_name = _strip_group_suffix(title_text) if chat_type == ChatType.GROUP else title_text
     contact_name = title_text if chat_type == ChatType.PRIVATE else None
+    logger.info(
+        "WeChat parser: type=%s, name='%s', contact='%s'",
+        chat_type.value,
+        chat_name,
+        contact_name,
+    )
 
     msg_lines = [
         ln for ln in ocr_result.lines if ln.bbox_px.y >= divider_y and ln.score >= _MIN_OCR_SCORE
@@ -161,6 +182,10 @@ def parse_wechat_messages(
         contact_name=contact_name,
     )
     messages = _attribute_messages(msg_lines, ctx)
+
+    for msg in messages:
+        tag = ">>> " if msg.is_self else "<<< "
+        logger.info("  %s[%s] %s", tag, msg.speaker, msg.text)
 
     return ChatContext(
         chat_type=chat_type,

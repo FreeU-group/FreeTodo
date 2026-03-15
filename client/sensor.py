@@ -513,7 +513,14 @@ class SensorDaemon:
                 theme_name = theme.name if theme else "dark"
                 ctx = parse_wechat_messages(image, ocr_result, theme_name)
                 if ctx is not None and ctx.messages:
-                    return ctx.to_structured_text(), ctx.to_metadata_dict()
+                    structured = ctx.to_structured_text()
+                    logger.info(
+                        "WeChat structured OCR (%d msgs):\n%s",
+                        len(ctx.messages),
+                        structured,
+                    )
+                    return structured, ctx.to_metadata_dict()
+                logger.debug("WeChat parser returned empty, using flat text")
             except Exception:
                 logger.debug("WeChat message parser failed, falling back", exc_info=True)
 
