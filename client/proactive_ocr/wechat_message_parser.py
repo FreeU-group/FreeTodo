@@ -25,6 +25,18 @@ _NICKNAME_MAX_WIDTH_RATIO = 0.35
 _MIN_OCR_SCORE = 0.5
 _SELF_LABEL = "我"
 
+_TIMESTAMP_RE = re.compile(
+    r"^("
+    r"\d{1,2}:\d{2}"  # 14:30
+    r"|[昨前]天\s*\d{1,2}[:\uff1a]\d{2}"  # 昨天 23:20
+    r"|星期[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"  # 星期六 16:00
+    r"|周[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"  # 周六 16:00
+    r"|\d{4}[/\-年]\d{1,2}[/\-月]\d{1,2}日?"  # 2026/3/15 or 2026年3月15日
+    r"|\d{1,2}月\d{1,2}日"  # 3月15日
+    r")(\s*\d{1,2}[:\uff1a]\d{2})?$"  # optional trailing time
+)
+_TIMESTAMP_CENTER_TOLERANCE = 0.15
+
 
 @dataclass(slots=True)
 class _ChatParseCtx:
@@ -198,6 +210,16 @@ def parse_wechat_messages(
     )
 
 
+def _is_timestamp_line(ln: OcrLine, roi_width: int) -> bool:
+    """Centered small text matching time patterns."""
+    text = ln.text.strip().replace(" ", "")
+    if not _TIMESTAMP_RE.match(text):
+        return False
+    cx = ln.bbox_px.x + ln.bbox_px.width / 2
+    mid = roi_width / 2
+    return abs(cx - mid) / mid < _TIMESTAMP_CENTER_TOLERANCE
+
+
 def _attribute_messages(
     msg_lines: list[OcrLine],
     ctx: _ChatParseCtx,
@@ -209,10 +231,17 @@ def _attribute_messages(
     median_h = _median_line_height(msg_lines)
     messages: list[ChatMessage] = []
     pending_nickname: str | None = None
+    current_timestamp: str | None = None
     i = 0
 
     while i < len(msg_lines):
         ln = msg_lines[i]
+
+        if _is_timestamp_line(ln, ctx.roi_width):
+            current_timestamp = ln.text.strip()
+            logger.info("  [TS] %s", current_timestamp)
+            i += 1
+            continue
 
         side = _classify_side_by_color(ctx.image, ln.bbox_px, ctx.theme_name)
         if side is None:
@@ -235,6 +264,7 @@ def _attribute_messages(
                 text=ln.text,
                 bbox_px=ln.bbox_px,
                 is_self=is_self,
+                timestamp=current_timestamp,
             )
         )
         i += 1

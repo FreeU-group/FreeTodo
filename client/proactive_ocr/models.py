@@ -93,6 +93,7 @@ class ChatMessage:
     text: str
     bbox_px: BBox
     is_self: bool = False
+    timestamp: str | None = None
 
 
 @dataclass
@@ -107,7 +108,11 @@ class ChatContext:
         tag = "私聊" if self.chat_type == ChatType.PRIVATE else "群聊"
         header = f"[{tag}][{self.chat_name}]"
         lines = [header]
+        last_ts = None
         for msg in self.messages:
+            if msg.timestamp and msg.timestamp != last_ts:
+                lines.append(f"[时间] {msg.timestamp}")
+                last_ts = msg.timestamp
             lines.append(f"[{msg.speaker}] {msg.text}")
         return "\n".join(lines)
 
@@ -121,6 +126,7 @@ class ChatContext:
                     "speaker": m.speaker,
                     "text": m.text,
                     "is_self": m.is_self,
+                    "timestamp": m.timestamp,
                     "bbox": m.bbox_px.to_tuple(),
                 }
                 for m in self.messages
