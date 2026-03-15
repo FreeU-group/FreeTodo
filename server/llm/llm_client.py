@@ -50,6 +50,7 @@ class LLMClient:
 
     def _initialize_client(self):
         """内部方法：初始化或重新初始化客户端"""
+        self._configured = False
         try:
             self.api_key = settings.llm.api_key
             self.base_url = settings.llm.base_url
@@ -61,16 +62,25 @@ class LLMClient:
                 "YOUR_BASE_URL_HERE",
                 "YOUR_LLM_KEY_HERE",
             ]
-            if not self.api_key or self.api_key in invalid_values:
-                logger.warning("LLM Key未配置或为默认占位符，LLM功能可能不可用")
-            if not self.base_url or self.base_url in invalid_values:
-                logger.warning("Base URL未配置或为默认占位符，LLM功能可能不可用")
+            key_ok = bool(self.api_key) and self.api_key not in invalid_values
+            base_ok = bool(self.base_url) and self.base_url not in invalid_values
+            if not key_ok:
+                logger.warning("LLM Key未配置或为默认占位符，LLM功能不可用")
+            if not base_ok:
+                logger.warning("Base URL未配置或为默认占位符，LLM功能不可用")
+            self._configured = key_ok and base_ok
         except Exception as e:
             logger.error(f"无法从配置文件读取LLM配置: {e}")
             self.api_key = "YOUR_LLM_KEY_HERE"
             self.base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
             self.model = "qwen3-max"
             logger.warning("使用硬编码默认值初始化LLM客户端")
+            self._configured = False
+
+        if not self._configured:
+            self.client = None
+            logger.info("LLM配置未完成，LLM客户端保持不可用状态")
+            return
 
         try:
             if OpenAI is None:
@@ -101,10 +111,10 @@ class LLMClient:
 
     def is_available(self) -> bool:
         """检查LLM客户端是否可用"""
-        return self.client is not None
+        return bool(getattr(self, "_configured", False)) and self.client is not None
 
     def _get_client(self) -> OpenAI:
-        if self.client is None:
+        if not self.is_available() or self.client is None:
             raise RuntimeError("LLM客户端不可用，无法进行请求")
         return self.client
 
