@@ -4,12 +4,13 @@ import asyncio
 import hashlib
 import re
 from collections import OrderedDict
+from threading import Lock
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from schemas.perception_todo_intent import (
     ExtractedTodoCandidate,
     IntegrationAction,
-    IntentGateDecision,
     IntentType,
     MemoryMatchAction,
     TodoIntegrationResult,
@@ -18,6 +19,9 @@ from schemas.perception_todo_intent import (
 from util.logging_config import get_logger
 from util.time_utils import get_utc_now
 
+if TYPE_CHECKING:
+    from llm.agno_agent import AgnoAgentService
+
 logger = get_logger()
 
 _NON_WORD_RE = re.compile(r"[^\w\s]", re.UNICODE)
@@ -25,6 +29,9 @@ _MULTI_SPACE_RE = re.compile(r"\s+")
 
 _AGNO_TOOLS_FOR_TODO = [
     "create_todo",
+    "update_todo",
+    "delete_todo",
+    "complete_todo",
     "list_todos",
     "search_todos",
     "check_schedule_conflict",
@@ -80,11 +87,9 @@ class TodoIntentIntegrationService:
         self,
         *,
         context: TodoIntentContext,
-        gate_decision: IntentGateDecision,
         candidates: list[ExtractedTodoCandidate],
     ) -> list[TodoIntegrationResult]:
         _ = context
-        _ = gate_decision
         if not candidates:
             logger.info("[Integration] No candidates to integrate, skipping")
             return [
@@ -117,48 +122,15 @@ class TodoIntentIntegrationService:
             )
 
             dedupe_key = self._candidate_dedupe_key(candidate)
-            expires_at = self._cache.get(dedupe_key)
-            if expires_at and expires_at > now_ts:
-                self._cache.move_to_end(dedupe_key, last=True)
-                logger.info(
-                    "[Integration] SKIPPED (dedupe): %r key=%s",
-                    candidate.name,
-                    dedupe_key[:12],
-                )
-                results.append(
-                    TodoIntegrationResult(
-                        action=IntegrationAction.SKIPPED,
-                        dedupe_key=dedupe_key,
-                        reason="duplicate_in_memory_window",
-                    )
-                )
-                continue
-
             self._cache[dedupe_key] = now_ts + self._dedupe_window_seconds
             self._cache.move_to_end(dedupe_key, last=True)
             self._evict_overflow()
 
-            match_action = candidate.memory_match.action
-
-            if match_action == MemoryMatchAction.LINK_EXISTING:
-                logger.info(
-                    "[Integration] SKIPPED (link_existing): %r -> %s",
-                    candidate.name,
-                    candidate.memory_match.matched_todo_name or "?",
-                )
-                results.append(
-                    TodoIntegrationResult(
-                        action=IntegrationAction.SKIPPED,
-                        dedupe_key=dedupe_key,
-                        reason=f"link_existing:{candidate.memory_match.matched_todo_name or '?'}",
-                    )
-                )
-                continue
-
             logger.info(
-                "[Integration] Dispatching %r to Agno (intent_type=%s)...",
+                "[Integration] Dispatching %r to Agno for CRUD reconciliation (intent_type=%s, match=%s)...",
                 candidate.name,
                 candidate.intent_type.value,
+                candidate.memory_match.action.value,
             )
             result = await _dispatch_to_agno(candidate, dedupe_key)
             results.append(result)
@@ -195,17 +167,24 @@ def _candidate_fields(candidate: ExtractedTodoCandidate) -> list[str]:
 def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
     """Return an action-specific instruction based on memory_match."""
     action = candidate.memory_match.action
+    matched = candidate.memory_match.matched_todo_name or "未知"
+    reason = candidate.memory_match.reason or ""
+    if action == MemoryMatchAction.LINK_EXISTING:
+        return (
+            f"\n注意：这条意图与已有待办「{matched}」高度相关。{reason}\n"
+            "请先搜索并核对该待办；若只是同一事项，请更新或补充已有待办，不要重复创建。"
+        )
     if action == MemoryMatchAction.CONFLICT:
-        matched = candidate.memory_match.matched_todo_name or "未知"
-        reason = candidate.memory_match.reason or ""
         return (
             f"\n注意：该意图与已有待办「{matched}」存在时间冲突。{reason}\n"
-            "请先检查冲突情况，再决定是否创建待办，并在描述中注明冲突。"
+            "请先检查冲突情况，再决定是更新已有待办、创建新待办，还是仅提示用户。"
         )
     if action == MemoryMatchAction.CANCEL_EXISTING:
-        matched = candidate.memory_match.matched_todo_name or "未知"
-        return f"\n用户表示不再需要已有待办「{matched}」。\n请帮用户将该待办标记为取消。"
-    return "\n请根据以上信息为用户创建待办事项。"
+        return (
+            f"\n用户表示不再需要已有待办「{matched}」。{reason}\n"
+            "请搜索该待办，并优先将其标记为取消、完成或删除，而不是新建。"
+        )
+    return "\n请结合现有待办列表执行增删改查：新任务才创建，已有任务优先更新。"
 
 
 _USER_FACING_INSTRUCTION = (
@@ -221,6 +200,9 @@ def _build_agno_message(candidate: ExtractedTodoCandidate) -> str:
     lines = ["[自动意图识别] 系统从用户的感知流中检测到以下待办意图："]
     lines.extend(_candidate_fields(candidate))
     lines.append(_memory_match_instruction(candidate))
+    lines.append(
+        "请先调用 `search_todos` 或 `list_todos` 核对现有待办，再决定 create/update/delete/complete。"
+    )
     lines.append(_USER_FACING_INSTRUCTION)
     return "\n".join(lines)
 
@@ -240,14 +222,15 @@ def _build_invitation_message(candidate: ExtractedTodoCandidate) -> str:
 
     lines.append("")
     lines.append("请按以下步骤处理：")
-    lines.append("1. 调用 check_schedule_conflict 检查用户该时段是否有冲突。")
-    lines.append("2. 如果有冲突，调用 find_free_slots 找出当天的空闲时段。")
+    lines.append("1. 先调用 search_todos 或 list_todos 核对是否已有相关待办，并按需更新。")
+    lines.append("2. 调用 check_schedule_conflict 检查用户该时段是否有冲突。")
+    lines.append("3. 如果有冲突，调用 find_free_slots 找出当天的空闲时段。")
     if candidate.location:
-        lines.append(f"3. 调用 search_nearby_places 搜索「{candidate.location}」附近的推荐地点。")
+        lines.append(f"4. 调用 search_nearby_places 搜索「{candidate.location}」附近的推荐地点。")
     else:
-        lines.append("3. 如果邀约涉及餐饮，调用 search_nearby_places 搜索附近餐厅推荐。")
-    lines.append("4. 综合以上信息，调用 draft_reply_message 为用户草拟一条得体的回复消息。")
-    lines.append("5. 如果没有冲突，也请帮用户创建对应的待办事项。")
+        lines.append("4. 如果邀约涉及餐饮，调用 search_nearby_places 搜索附近餐厅推荐。")
+    lines.append("5. 综合以上信息，调用 draft_reply_message 为用户草拟一条得体的回复消息。")
+    lines.append("6. 如果没有冲突，也请按实际情况创建或更新对应待办事项。")
     lines.append(_USER_FACING_INSTRUCTION)
     return "\n".join(lines)
 
@@ -258,11 +241,11 @@ def _select_tools(candidate: ExtractedTodoCandidate) -> list[str]:
     return list(_AGNO_TOOLS_FOR_TODO)
 
 
-_agno_cache: dict[tuple[str, ...], object] = {}
-_agno_cache_lock = __import__("threading").Lock()
+_agno_cache: dict[tuple[str, ...], AgnoAgentService] = {}
+_agno_cache_lock = Lock()
 
 
-def _get_agno_service(tools: list[str]) -> object:
+def _get_agno_service(tools: list[str]) -> AgnoAgentService:
     """Return a cached AgnoAgentService for the given tool set."""
     from llm.agno_agent import AgnoAgentService  # noqa: PLC0415
 

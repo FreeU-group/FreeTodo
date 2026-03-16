@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -22,13 +21,15 @@ from util.settings import settings
 from util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from perception.models import PerceptionEvent
 
 logger = get_logger()
 
 
 class TodoIntentOrchestrator:
-    """Orchestrates pre-gate dedupe -> gate -> extract -> integrate."""
+    """Orchestrates receive -> extract -> integrate."""
 
     def __init__(
         self,
@@ -293,94 +294,25 @@ class TodoIntentOrchestrator:
                 except Exception:
                     logger.debug("on_progress callback error", exc_info=True)
 
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.RECEIVED,
-        ))
-
-        is_wechat = str(context.metadata.get("app_name") or "").lower() in ("wechat", "微信")
-        if is_wechat and str(context.metadata.get("chat_type") or ""):
-            filtered = self._wechat_history.filter_new_messages(context.merged_text)
-            if filtered is None:
-                self._counters["wechat_all_seen"] += 1
-                logger.info(
-                    "[Orchestrator] WeChat history: all messages seen before — skipping %s",
-                    context.context_id[:16],
-                )
-                rec = self._build_record(
-                    record_id=rid,
-                    context=context,
-                    status=TodoIntentProcessingStatus.DEDUPE_HIT,
-                    dedupe_hit=True,
-                    dedupe_key="wechat_history_all_seen",
-                )
-                _emit(rec)
-                return rec
-            original_len = len(context.merged_text)
-            context.merged_text = filtered
-            logger.info(
-                "[Orchestrator] WeChat history: %d→%d chars (new messages only)",
-                original_len, len(filtered),
-            )
-
-        dedupe_hit = False
-        dedupe_key: str | None = None
-        if self._dedupe_enabled:
-            dedupe_hit, dedupe_key = self._dedupe.check_and_record(context)
-        if dedupe_hit:
-            self._counters["dedupe_hits"] += 1
-            logger.info("[Orchestrator] DEDUPE HIT — skipping context %s", context.context_id[:16])
-            rec = self._build_record(
+        _emit(
+            self._build_record(
                 record_id=rid,
                 context=context,
-                status=TodoIntentProcessingStatus.DEDUPE_HIT,
-                dedupe_hit=True,
-                dedupe_key=dedupe_key,
+                status=TodoIntentProcessingStatus.RECEIVED,
             )
-            _emit(rec)
-            return rec
-
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.GATING,
-            dedupe_key=dedupe_key,
-        ))
-
-        gate_decision = await self._gate.decide(context)
-        logger.info(
-            "[Orchestrator] Gate decision: should_extract=%s reason=%r",
-            gate_decision.should_extract,
-            gate_decision.reason,
         )
-        if not gate_decision.should_extract:
-            self._counters["gate_skips"] += 1
-            rec = self._build_record(
+        dedupe_key: str | None = None
+        gate_decision = None
+
+        _emit(
+            self._build_record(
                 record_id=rid,
                 context=context,
-                status=TodoIntentProcessingStatus.GATE_SKIPPED,
+                status=TodoIntentProcessingStatus.EXTRACTING,
                 dedupe_key=dedupe_key,
                 gate_decision=gate_decision,
             )
-            _emit(rec)
-            return rec
-
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.GATE_PASSED,
-            dedupe_key=dedupe_key,
-            gate_decision=gate_decision,
-        ))
-
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.EXTRACTING,
-            dedupe_key=dedupe_key,
-            gate_decision=gate_decision,
-        ))
+        )
 
         active_todos, user_profile = self._load_memory_context()
         logger.info(
@@ -410,8 +342,6 @@ class TodoIntentOrchestrator:
                     record_id=rid,
                     context=context,
                     status=TodoIntentProcessingStatus.EXTRACT_FAILED,
-                    dedupe_key=dedupe_key,
-                    gate_decision=gate_decision,
                     error=self._resolve_extract_error(exc),
                 )
                 _emit(rec)
@@ -433,18 +363,28 @@ class TodoIntentOrchestrator:
                 c.confidence,
             )
 
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.INTEGRATING,
-            dedupe_key=dedupe_key,
-            gate_decision=gate_decision,
-            candidates=normalized,
-        ))
+        if not normalized:
+            rec = self._build_record(
+                record_id=rid,
+                context=context,
+                status=TodoIntentProcessingStatus.PROCESSED,
+                candidates=[],
+                integration_results=[],
+            )
+            _emit(rec)
+            return rec
+
+        _emit(
+            self._build_record(
+                record_id=rid,
+                context=context,
+                status=TodoIntentProcessingStatus.INTEGRATING,
+                candidates=normalized,
+            )
+        )
 
         results = await self._integration.integrate(
             context=context,
-            gate_decision=gate_decision,
             candidates=normalized,
         )
         self._counters["integrated_total"] += len(results)
@@ -462,8 +402,6 @@ class TodoIntentOrchestrator:
                 if normalized
                 else TodoIntentProcessingStatus.PROCESSED
             ),
-            dedupe_key=dedupe_key,
-            gate_decision=gate_decision,
             candidates=normalized,
             integration_results=results,
         )

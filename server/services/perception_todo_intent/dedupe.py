@@ -27,6 +27,32 @@ class _DedupeEntry:
     expires_at: float
     anchor: str
     canonical_text: str
+    raw_text: str
+
+
+@dataclass
+class PreGateDedupeResult:
+    hit: bool
+    dedupe_key: str
+    matched_text: str | None = None
+    reason: str | None = None
+
+
+@dataclass
+class _SeenMessage:
+    expires_at: float
+    raw_text: str
+
+
+@dataclass
+class WeChatHistoryCheckResult:
+    filtered_text: str | None
+    duplicate_lines: list[str]
+    matched_history_lines: list[str]
+
+    @property
+    def all_seen(self) -> bool:
+        return self.filtered_text is None
 
 
 class PreGateDedupeCache:
@@ -86,7 +112,41 @@ class PreGateDedupeCache:
             oldest_key, oldest_entry = self._cache.popitem(last=False)
             self._remove_from_anchor_index(oldest_entry.anchor, oldest_key)
 
-    def check_and_record(self, context: TodoIntentContext) -> tuple[bool, str]:
+    def _store_entry(
+        self,
+        *,
+        dedupe_key: str,
+        now_ts: float,
+        anchor: str,
+        canonical_text: str,
+        raw_text: str,
+    ) -> None:
+        self._cache[dedupe_key] = _DedupeEntry(
+            expires_at=now_ts + self._ttl_seconds,
+            anchor=anchor,
+            canonical_text=canonical_text,
+            raw_text=raw_text,
+        )
+        self._anchor_index.setdefault(anchor, set()).add(dedupe_key)
+        self._cache.move_to_end(dedupe_key, last=True)
+        self._evict_overflow()
+
+    def force_record(self, context: TodoIntentContext) -> str:
+        now_ts = get_utc_now().timestamp()
+        self._evict_expired(now_ts)
+        canonical_text = _normalize_text(context.merged_text)
+        anchor = self._build_anchor(context)
+        dedupe_key = self._build_key(canonical_text, anchor)
+        self._store_entry(
+            dedupe_key=dedupe_key,
+            now_ts=now_ts,
+            anchor=anchor,
+            canonical_text=canonical_text,
+            raw_text=context.merged_text,
+        )
+        return dedupe_key
+
+    def check_and_record(self, context: TodoIntentContext) -> PreGateDedupeResult:
         now_ts = get_utc_now().timestamp()
         self._evict_expired(now_ts)
 
@@ -100,7 +160,12 @@ class PreGateDedupeCache:
             entry.expires_at = now_ts + self._ttl_seconds
             self._cache[dedupe_key] = entry
             self._cache.move_to_end(dedupe_key, last=True)
-            return True, dedupe_key
+            return PreGateDedupeResult(
+                hit=True,
+                dedupe_key=dedupe_key,
+                matched_text=entry.raw_text,
+                reason="exact_key",
+            )
 
         replaced_keys: list[str] = []
         for existing_key in list(self._anchor_index.get(anchor, set())):
@@ -117,7 +182,12 @@ class PreGateDedupeCache:
                 existing_entry.expires_at = now_ts + self._ttl_seconds
                 self._cache[existing_key] = existing_entry
                 self._cache.move_to_end(existing_key, last=True)
-                return True, existing_key
+                return PreGateDedupeResult(
+                    hit=True,
+                    dedupe_key=existing_key,
+                    matched_text=existing_entry.raw_text,
+                    reason="contained_in_existing",
+                )
 
             if existing_text in canonical_text:
                 replaced_keys.append(existing_key)
@@ -126,15 +196,14 @@ class PreGateDedupeCache:
             self._remove_key(replaced_key)
 
         self._miss_count += 1
-        self._cache[dedupe_key] = _DedupeEntry(
-            expires_at=now_ts + self._ttl_seconds,
+        self._store_entry(
+            dedupe_key=dedupe_key,
+            now_ts=now_ts,
             anchor=anchor,
             canonical_text=canonical_text,
+            raw_text=context.merged_text,
         )
-        self._anchor_index.setdefault(anchor, set()).add(dedupe_key)
-        self._cache.move_to_end(dedupe_key, last=True)
-        self._evict_overflow()
-        return False, dedupe_key
+        return PreGateDedupeResult(hit=False, dedupe_key=dedupe_key, reason="new_entry")
 
     def stats(self) -> dict[str, int]:
         return {
@@ -147,6 +216,7 @@ class PreGateDedupeCache:
 _WECHAT_LINE_RE = re.compile(r"^\[([^\]]+)\]\s*(.+)$")
 _WECHAT_HEADER_RE = re.compile(r"^\[(私聊|群聊)\]")
 _WECHAT_NOISE_KEYWORDS = ("发送", "发送（", "发送(")
+_MIN_WECHAT_CONTENT_LEN = 2
 
 
 class WeChatMessageHistory:
@@ -161,40 +231,42 @@ class WeChatMessageHistory:
     def __init__(self, *, ttl_seconds: int = 1800, max_lines: int = 10000):
         self._ttl = max(60, int(ttl_seconds))
         self._max_lines = max(100, int(max_lines))
-        self._seen: OrderedDict[str, float] = OrderedDict()
+        self._seen: OrderedDict[str, _SeenMessage] = OrderedDict()
         self._stats_total = 0
         self._stats_new = 0
 
     def _evict(self, now: float) -> None:
         while self._seen:
-            key, expires = next(iter(self._seen.items()))
-            if expires > now:
+            _key, seen_message = next(iter(self._seen.items()))
+            if seen_message.expires_at > now:
                 break
             self._seen.popitem(last=False)
         while len(self._seen) > self._max_lines:
             self._seen.popitem(last=False)
 
+    def _remember(self, norm_text: str, raw_text: str, now: float) -> None:
+        self._seen[norm_text] = _SeenMessage(expires_at=now + self._ttl, raw_text=raw_text)
+        self._seen.move_to_end(norm_text, last=True)
+
     @staticmethod
     def _is_noise(text: str) -> bool:
         stripped = text.strip()
-        if len(stripped) < 2:
+        if len(stripped) < _MIN_WECHAT_CONTENT_LEN:
             return True
-        for kw in _WECHAT_NOISE_KEYWORDS:
-            if stripped.startswith(kw):
-                return True
-        return False
+        return any(stripped.startswith(kw) for kw in _WECHAT_NOISE_KEYWORDS)
 
-    def filter_new_messages(self, structured_text: str) -> str | None:
-        """Return structured text with only unseen message lines.
-
-        Returns None if no new meaningful messages remain.
-        """
+    def inspect_messages(self, structured_text: str) -> WeChatHistoryCheckResult:
+        """Return only unseen lines plus duplicate evidence for review."""
         now = get_utc_now().timestamp()
         self._evict(now)
 
         lines = structured_text.strip().splitlines()
         if not lines:
-            return None
+            return WeChatHistoryCheckResult(
+                filtered_text=None,
+                duplicate_lines=[],
+                matched_history_lines=[],
+            )
 
         header_line = ""
         msg_lines: list[str] = []
@@ -205,6 +277,8 @@ class WeChatMessageHistory:
                 msg_lines.append(line)
 
         new_lines: list[str] = []
+        duplicate_lines: list[str] = []
+        matched_history_lines: list[str] = []
         for line in msg_lines:
             m = _WECHAT_LINE_RE.match(line)
             if not m:
@@ -216,35 +290,68 @@ class WeChatMessageHistory:
             norm = _normalize_text(content)
             self._stats_total += 1
 
-            if self._is_seen(norm, now):
+            matched_text = self._match_seen(norm, now)
+            if matched_text is not None:
+                duplicate_lines.append(line)
+                matched_history_lines.append(matched_text)
                 continue
 
             self._stats_new += 1
-            self._seen[norm] = now + self._ttl
-            self._seen.move_to_end(norm, last=True)
+            self._remember(norm, content, now)
             new_lines.append(line)
 
         self._evict(now)
 
         if not new_lines:
-            return None
+            return WeChatHistoryCheckResult(
+                filtered_text=None,
+                duplicate_lines=duplicate_lines,
+                matched_history_lines=matched_history_lines,
+            )
         if header_line:
-            return header_line + "\n" + "\n".join(new_lines)
-        return "\n".join(new_lines)
+            filtered_text = header_line + "\n" + "\n".join(new_lines)
+        else:
+            filtered_text = "\n".join(new_lines)
+        return WeChatHistoryCheckResult(
+            filtered_text=filtered_text,
+            duplicate_lines=duplicate_lines,
+            matched_history_lines=matched_history_lines,
+        )
 
-    def _is_seen(self, norm_text: str, now: float) -> bool:
-        if norm_text in self._seen and self._seen[norm_text] > now:
-            self._seen[norm_text] = now + self._ttl
+    def filter_new_messages(self, structured_text: str) -> str | None:
+        result = self.inspect_messages(structured_text)
+        return result.filtered_text
+
+    def force_record_messages(self, structured_text: str) -> None:
+        now = get_utc_now().timestamp()
+        self._evict(now)
+        for line in structured_text.strip().splitlines():
+            match = _WECHAT_LINE_RE.match(line)
+            if not match:
+                continue
+            content = match.group(2)
+            if self._is_noise(content):
+                continue
+            norm = _normalize_text(content)
+            if not norm:
+                continue
+            self._remember(norm, content, now)
+        self._evict(now)
+
+    def _match_seen(self, norm_text: str, now: float) -> str | None:
+        seen_message = self._seen.get(norm_text)
+        if seen_message and seen_message.expires_at > now:
+            seen_message.expires_at = now + self._ttl
             self._seen.move_to_end(norm_text, last=True)
-            return True
-        for existing, expires in list(self._seen.items()):
-            if expires <= now:
+            return seen_message.raw_text
+        for existing, seen in list(self._seen.items()):
+            if seen.expires_at <= now:
                 continue
             if norm_text in existing or existing in norm_text:
-                self._seen[existing] = now + self._ttl
+                seen.expires_at = now + self._ttl
                 self._seen.move_to_end(existing, last=True)
-                return True
-        return False
+                return seen.raw_text
+        return None
 
     def stats(self) -> dict[str, int]:
         return {

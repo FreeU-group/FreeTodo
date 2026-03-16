@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from llm.agno_agent import AgnoAgentService
 from llm.llm_client import LLMClient
 from schemas.perception_todo_intent import (
     ExtractedTodoCandidate,
@@ -24,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 class TodoIntentExtractor:
-    """Todo intent extractor powered by LLM text generation.
+    """Todo intent extractor powered by Agno agent.
 
-    When Memory context (active_todos / user_profile) is provided, the LLM also
+    When Memory context (active_todos / user_profile) is provided, the agent also
     performs Memory Match to classify each candidate as new / link_existing /
     conflict / cancel_existing relative to the existing todo list.
     """
@@ -37,16 +38,40 @@ class TodoIntentExtractor:
         self,
         *,
         llm_client: LLMClient | None = None,
+        agno_service: AgnoAgentService | None = None,
         model: str | None = None,
         temperature: float = 0.2,
         max_tokens: int = 800,
         prompt_category: str = "perception_todo_intent_extraction",
     ):
         self._llm_client = llm_client or LLMClient()
+        self._agno_service = agno_service
         self._model = (model or "").strip()
         self._temperature = float(temperature)
         self._max_tokens = max(64, int(max_tokens))
         self._prompt_category = prompt_category
+
+    def _run_agno_sync(self, message: str, model: str | None) -> str:
+        service = self._agno_service or AgnoAgentService(
+            lang="zh",
+            selected_tools=[],
+            model=model or None,
+            agent_name="TodoIntentExtractor",
+        )
+        response_parts: list[str] = []
+        for chunk in service.stream_response(message, include_tool_events=False):
+            response_parts.append(chunk)
+        return "".join(response_parts)
+
+    @staticmethod
+    def _compose_agno_message(system_prompt: str, user_prompt: str) -> str:
+        return (
+            "[系统任务]\n"
+            f"{system_prompt.strip()}\n\n"
+            "[用户输入]\n"
+            f"{user_prompt.strip()}\n\n"
+            "请严格只返回 JSON，不要输出额外解释。"
+        )
 
     @staticmethod
     def _load_from_settings() -> dict:
@@ -256,28 +281,13 @@ class TodoIntentExtractor:
         if not system_prompt or not user_prompt:
             raise ValueError("missing_extractor_prompt")
 
-        result_text = await asyncio.to_thread(
-            llm_client.chat,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=temperature,
-            model=model,
-            max_tokens=max_tokens,
-            log_meta={
-                "endpoint": "perception_todo_intent_extract",
-                "feature_type": "perception",
-                "response_type": "extract",
-                "user_query": merged_text,
-                "context_id": context.context_id,
-                "has_memory_context": has_memory,
-            },
-        )
+        agno_message = self._compose_agno_message(system_prompt, user_prompt)
+        _ = (temperature, max_tokens)
+        result_text = await asyncio.to_thread(self._run_agno_sync, agno_message, model)
         if not (result_text or "").strip():
             raise ValueError("extractor_empty_response")
         logger.info(
-            "[Extractor] LLM响应: context_id=%s model=%s response_len=%d preview=%.200s",
+            "[Extractor] Agno响应: context_id=%s model=%s response_len=%d preview=%.200s",
             context.context_id[:16],
             model,
             len(result_text),
@@ -286,7 +296,7 @@ class TodoIntentExtractor:
         payload = self._parse_json(result_text)
         if payload is None or (isinstance(payload, dict) and not payload):
             logger.warning(
-                "[Extractor] LLM响应无法解析为JSON, 视为无候选项. "
+                "[Extractor] Agno响应无法解析为JSON, 视为无候选项. "
                 "context_id=%s, response_preview=%.200s",
                 context.context_id,
                 result_text,
