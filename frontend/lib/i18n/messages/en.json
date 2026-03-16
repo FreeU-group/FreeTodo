@@ -980,6 +980,7 @@
 		"ai_output": "AI Output",
 		"gps_mobile": "Mobile GPS",
 		"speaker": "Speaker",
+		"realtimeTranscription": "Live",
 		"newSpeaker": "New speaker?",
 		"me": "Me",
 		"setAsMe": "It's me",

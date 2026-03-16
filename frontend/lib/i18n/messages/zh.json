@@ -980,6 +980,7 @@
 		"ai_output": "AI输出",
 		"gps_mobile": "移动GPS",
 		"speaker": "说话人",
+		"realtimeTranscription": "实时转录",
 		"newSpeaker": "新说话人?",
 		"me": "我",
 		"setAsMe": "这是我",

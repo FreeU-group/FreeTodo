@@ -316,6 +316,18 @@ audio:
     auto_create_speaker: true # 未匹配时是否自动创建新说话人
     update_voiceprint: true # 匹配后是否追加新的声纹样本
     max_samples_per_speaker: 10 # 每个说话人最多保存的声纹样本数
+  # 二次处理（离线 ASR + 说话人分离），对实时转录结果进行精修
+  second_pass:
+    enabled: true # 启用后对 /v4/listen 的音频进行离线二次转录
+    model: paraformer-v2 # 离线 ASR 模型
+    debounce_seconds: 3 # 检测到句子结束后等待的去抖时间（秒），避免连续说话时频繁触发
+    interval_seconds: 30 # 最大等待间隔（秒），持续说话时也会按此间隔触发
+    diarization_enabled: true # 是否启用说话人分离
+    speaker_count: 0 # 说话人数量提示（0=自动检测）
+    language_hints: ["zh", "en"] # 待识别语种
+    disfluency_removal_enabled: false # 是否过滤语气词
+    temp_audio_dir: second_pass_audio/ # 临时音频文件目录（相对 base_dir）
+    temp_audio_max_age_hours: 24 # 临时音频文件保留时长（小时）
   storage:
     audio_dir: audio/ # 音频文件存储目录
     temp_audio_dir: temp_audio/ # 临时音频文件目录

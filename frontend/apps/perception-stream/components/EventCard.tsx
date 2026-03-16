@@ -48,9 +48,14 @@ export function EventCard({ event }: { event: PerceptionEvent }) {
 	const Icon = style.icon;
 	const time = formatDateTime(event.timestamp, "HH:mm:ss");
 
+	const isRealtime = useMemo(() => {
+		return event.metadata?.is_realtime === true;
+	}, [event.metadata]);
+
 	const speaker = useMemo(() => {
 		const raw = event.metadata?.speaker;
 		if (typeof raw !== "string" || raw.length === 0) return null;
+		if (raw === "realtime") return "realtime";
 		if (raw === "me") return "me";
 		if (raw === "unknown") return "unknown";
 		return raw;
@@ -66,6 +71,7 @@ export function EventCard({ event }: { event: PerceptionEvent }) {
 		speaker !== null &&
 		speaker !== "me" &&
 		speaker !== "unknown" &&
+		speaker !== "realtime" &&
 		speakerId !== null;
 
 	const handleSetAsMe = useCallback(async () => {
@@ -85,7 +91,7 @@ export function EventCard({ event }: { event: PerceptionEvent }) {
 	}, [speakerId, t]);
 
 	const metadataEntries = useMemo(() => {
-		const hidden = new Set(["speaker", "speakerId", "speaker_id"]);
+		const hidden = new Set(["speaker", "speakerId", "speaker_id", "is_realtime"]);
 		const entries = Object.entries(event.metadata ?? {}).filter(
 			([k, v]) => v !== null && v !== undefined && !hidden.has(k),
 		);
@@ -108,13 +114,19 @@ export function EventCard({ event }: { event: PerceptionEvent }) {
 					<span className={cn("text-sm font-medium", style.accentClassName)}>
 						{t(event.source)}
 					</span>
-				{speaker === "me" && (
-					<span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-300 dark:bg-sky-900/40 dark:text-sky-300 dark:ring-sky-600">
-						<Fingerprint className="h-3 w-3" />
-						{t("me")}
-					</span>
-				)}
-				{speaker && speaker !== "me" && speaker !== "unknown" && (
+			{(speaker === "realtime" || isRealtime) && (
+				<span className="inline-flex items-center gap-1 rounded-full border border-dashed border-orange-400 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-600 dark:border-orange-500/50 dark:bg-orange-900/20 dark:text-orange-400">
+					<Mic className="h-3 w-3" />
+					{t("realtimeTranscription")}
+				</span>
+			)}
+			{speaker === "me" && (
+				<span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-300 dark:bg-sky-900/40 dark:text-sky-300 dark:ring-sky-600">
+					<Fingerprint className="h-3 w-3" />
+					{t("me")}
+				</span>
+			)}
+			{speaker && speaker !== "me" && speaker !== "unknown" && speaker !== "realtime" && (
 					<>
 						<span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
 							<User className="h-3 w-3" />
