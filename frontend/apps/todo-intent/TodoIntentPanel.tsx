@@ -274,18 +274,18 @@ function statusTone(status: TodoIntentProcessingRecord["status"]): string {
 		case "extracted":
 		case "processed":
 			return "bg-green-50 text-green-700 border-green-200";
-		case "gate_skipped":
 		case "dedupe_hit":
+		case "gate_skipped":
 			return "bg-amber-50 text-amber-700 border-amber-200";
 		case "extract_failed":
 			return "bg-orange-50 text-orange-700 border-orange-200";
 		case "failed":
 			return "bg-red-50 text-red-700 border-red-200";
 		case "received":
-		case "gating":
-		case "gate_passed":
 		case "extracting":
 		case "integrating":
+		case "gating":
+		case "gate_passed":
 			return "bg-blue-50 text-blue-700 border-blue-200 animate-pulse";
 		default:
 			return "bg-muted text-muted-foreground border-border";
@@ -360,32 +360,33 @@ function CollapsibleMarkdown({
 	);
 }
 
-type PipelineStep = "received" | "dedupe" | "gate" | "extract" | "integrate";
+type PipelineStep = "received" | "extract" | "integrate";
 
 function derivePipelineReached(record: TodoIntentProcessingRecord): PipelineStep {
 	const s = record.status;
 	if (s === "integrating" || s === "processed" || s === "extracted") return "integrate";
-	if (s === "extracting" || s === "extract_failed") return "extract";
-	if (s === "gating" || s === "gate_skipped" || s === "gate_passed") return "gate";
-	if (s === "dedupe_hit") return "dedupe";
+	if (
+		s === "extracting" ||
+		s === "extract_failed" ||
+		s === "gating" ||
+		s === "gate_skipped" ||
+		s === "gate_passed" ||
+		s === "dedupe_hit"
+	)
+		return "extract";
 	if (record.integration_results.length > 0) return "integrate";
 	if (record.candidates.length > 0) return "extract";
-	if (record.gate_decision) return "gate";
 	return "received";
 }
 
-const PIPELINE_STEPS: PipelineStep[] = ["received", "dedupe", "gate", "extract", "integrate"];
+const PIPELINE_STEPS: PipelineStep[] = ["received", "extract", "integrate"];
 const PIPELINE_STEP_KEYS: Record<PipelineStep, string> = {
 	received: "stepReceived",
-	dedupe: "stepDedupe",
-	gate: "stepGate",
 	extract: "stepExtract",
 	integrate: "stepIntegrate",
 };
 
-const IN_PROGRESS_STATUSES = new Set([
-	"received", "gating", "gate_passed", "extracting", "integrating",
-]);
+const IN_PROGRESS_STATUSES = new Set(["received", "extracting", "integrating"]);
 
 function pipelineStepState(
 	step: PipelineStep,
@@ -396,8 +397,13 @@ function pipelineStepState(
 	const stepIdx = PIPELINE_STEPS.indexOf(step);
 	if (stepIdx < reachedIdx) return "done";
 	if (stepIdx === reachedIdx) {
-		if (record.status === "dedupe_hit" || record.status === "gate_skipped") return "stopped";
-		if (record.status === "extract_failed" || record.status === "failed") return "stopped";
+		if (
+			record.status === "dedupe_hit" ||
+			record.status === "gate_skipped" ||
+			record.status === "extract_failed" ||
+			record.status === "failed"
+		)
+			return "stopped";
 		if (IN_PROGRESS_STATUSES.has(record.status)) return "active";
 		return "done";
 	}
@@ -786,8 +792,6 @@ export function TodoIntentPanel() {
 		const { orchestrator: stats } = subscriberStatus;
 		const items = [
 			{ label: t("statsTotal"), value: stats.contexts_total, tone: "text-foreground" },
-			{ label: t("statsDeduped"), value: stats.dedupe_hits, tone: "text-amber-600" },
-			{ label: t("statsGateSkip"), value: stats.gate_skips, tone: "text-orange-600" },
 			{ label: t("statsExtracted"), value: stats.extracted_candidates, tone: "text-green-600" },
 			{ label: t("statsIntegrated"), value: stats.integrated_total, tone: "text-blue-600" },
 		];
