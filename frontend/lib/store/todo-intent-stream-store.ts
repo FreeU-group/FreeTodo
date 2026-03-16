@@ -1,4 +1,6 @@
 import { create, type StateCreator } from "zustand";
+import { broadcastQueryInvalidation } from "@/components/common/ui/QuerySync";
+import { queryKeys } from "@/lib/query/keys";
 import type { PerceptionSource } from "./perception-stream-store";
 
 export type TodoIntentConnectionState =
@@ -115,6 +117,17 @@ let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let shouldReconnect = false;
 let activeWsPath: (typeof WS_PATH_CANDIDATES)[number] | null = null;
+const notifiedIntegrationRecords = new Set<string>();
+
+function shouldInvalidateTodoQueries(record: TodoIntentProcessingRecord): boolean {
+	if (notifiedIntegrationRecords.has(record.record_id)) return false;
+	const changedTodo = record.integration_results.some(
+		(result) => result.action === "created" || result.action === "updated",
+	);
+	if (!changedTodo) return false;
+	notifiedIntegrationRecords.add(record.record_id);
+	return true;
+}
 
 function getApiBaseUrl(): string {
 	return (
@@ -261,6 +274,9 @@ function connectWithFallback(
 	socket.onmessage = (msg) => {
 		try {
 			const record = JSON.parse(String(msg.data)) as TodoIntentProcessingRecord;
+			if (shouldInvalidateTodoQueries(record)) {
+				broadcastQueryInvalidation(queryKeys.todos.all);
+			}
 			set((state) => ({
 				records: upsertRecords(state.records, [record]),
 			}));

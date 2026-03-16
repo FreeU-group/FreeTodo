@@ -1,6 +1,8 @@
+import { broadcastQueryInvalidation } from "@/components/common/ui/QuerySync";
 import { unwrapApiData } from "@/lib/api/fetcher";
 import { getNotificationApiNotificationsGet } from "@/lib/generated/notifications/notifications";
 import { listTodosApiTodosGet } from "@/lib/generated/todos/todos";
+import { queryKeys } from "@/lib/query/keys";
 import type {
 	Notification,
 	PollingEndpoint,
@@ -21,6 +23,16 @@ class NotificationPoller {
 	private timers: Map<string, NodeJS.Timeout> = new Map();
 	private endpointConfigs: Map<string, string> = new Map();
 	private isPageVisible: boolean = true;
+
+	private shouldRefreshTodos(notification: Notification): boolean {
+		const title = notification.title || "";
+		return (
+			title.includes("自动待办") ||
+			title.includes("邀约助手") ||
+			title.toLowerCase().includes("auto todo") ||
+			title.toLowerCase().includes("invitation")
+		);
+	}
 
 	constructor() {
 		// 监听页面可见性变化
@@ -119,6 +131,9 @@ class NotificationPoller {
 			for (const n of notifications) {
 				if (!store.notifiedIds.has(n.id)) {
 					this.triggerElectronPopupIfNeeded(n);
+					if (this.shouldRefreshTodos(n)) {
+						broadcastQueryInvalidation(queryKeys.todos.all);
+					}
 				}
 			}
 

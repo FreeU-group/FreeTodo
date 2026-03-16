@@ -132,7 +132,7 @@ class TodoIntentIntegrationService:
                 candidate.intent_type.value,
                 candidate.memory_match.action.value,
             )
-            result = await _dispatch_to_agno(candidate, dedupe_key)
+            result = await _dispatch_to_agno(context, candidate, dedupe_key)
             results.append(result)
 
         return results
@@ -164,6 +164,103 @@ def _candidate_fields(candidate: ExtractedTodoCandidate) -> list[str]:
     return parts
 
 
+def _format_when(candidate: ExtractedTodoCandidate, context: TodoIntentContext) -> str:
+    time_parts: list[str] = []
+    if candidate.start_time:
+        time_parts.append(f"开始：{candidate.start_time.isoformat()}")
+    if candidate.due:
+        time_parts.append(f"截止：{candidate.due.isoformat()}")
+    if candidate.deadline:
+        time_parts.append(f"最后期限：{candidate.deadline.isoformat()}")
+    if time_parts:
+        return "；".join(time_parts)
+    return (
+        f"上下文时间窗：{context.time_window_start.isoformat()} ~ "
+        f"{context.time_window_end.isoformat()}"
+    )
+
+
+def _format_who(candidate: ExtractedTodoCandidate, context: TodoIntentContext) -> str:
+    who_parts = ["执行人：用户本人"]
+    speaker = str(context.metadata.get("speaker") or "").strip()
+    if candidate.inviter:
+        who_parts.append(f"相关人：{candidate.inviter}")
+    elif speaker:
+        who_parts.append(f"相关人：{speaker}")
+    app_name = str(context.metadata.get("app_name") or "").strip()
+    if app_name:
+        who_parts.append(f"来源应用：{app_name}")
+    return "；".join(who_parts)
+
+
+def _format_why(candidate: ExtractedTodoCandidate) -> str:
+    if candidate.description:
+        return candidate.description
+    if candidate.intent_type == IntentType.INVITATION:
+        return "因为感知流识别到一条需要回应或安排的邀约，需要进一步跟进。"
+    if candidate.source_text:
+        return f"因为原始消息中出现了明确待办信号：{candidate.source_text}"
+    return "因为感知流自动识别到一条需要跟进的待办意图。"
+
+
+def _build_message_sources(
+    candidate: ExtractedTodoCandidate, context: TodoIntentContext
+) -> list[str]:
+    metadata = context.metadata if isinstance(context.metadata, dict) else {}
+    sources: list[str] = []
+    app_name = str(metadata.get("app_name") or "").strip()
+    if app_name:
+        sources.append(f"- 应用：{app_name}")
+    window_title = str(metadata.get("window_title") or "").strip()
+    if window_title:
+        sources.append(f"- 窗口：{window_title}")
+    speaker = str(metadata.get("speaker") or "").strip()
+    if speaker:
+        sources.append(f"- 说话人：{speaker}")
+    chat_type = str(metadata.get("chat_type") or "").strip()
+    if chat_type:
+        sources.append(f"- 聊天类型：{chat_type}")
+    if candidate.source_text:
+        sources.append(f"- 证据原文：{candidate.source_text}")
+    if candidate.source_event_ids:
+        sources.append(f"- 事件ID：{', '.join(candidate.source_event_ids)}")
+
+    event_refs = metadata.get("event_refs")
+    if isinstance(event_refs, list):
+        for ref in event_refs[:5]:
+            if not isinstance(ref, dict):
+                continue
+            source = str(ref.get("source") or "unknown")
+            timestamp = str(ref.get("timestamp") or "")
+            event_id = str(ref.get("event_id") or "")
+            sources.append(f"- 事件来源：{source} | 时间：{timestamp} | ID：{event_id}")
+    return sources or ["- 暂无来源信息，请保留原始消息作为后续补充依据"]
+
+
+def _build_background_markdown(
+    candidate: ExtractedTodoCandidate, context: TodoIntentContext
+) -> str:
+    what = candidate.description or candidate.source_text or candidate.name
+    sections = [
+        "## When",
+        _format_when(candidate, context),
+        "",
+        "## Who",
+        _format_who(candidate, context),
+        "",
+        "## What",
+        f"任务：{candidate.name}",
+        what if what != candidate.name else "请根据原始消息继续补充更细的动作描述。",
+        "",
+        "## Why",
+        _format_why(candidate),
+        "",
+        "## Message Sources",
+        *(_build_message_sources(candidate, context)),
+    ]
+    return "\n".join(sections).strip()
+
+
 def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
     """Return an action-specific instruction based on memory_match."""
     action = candidate.memory_match.action
@@ -193,22 +290,32 @@ _USER_FACING_INSTRUCTION = (
 )
 
 
-def _build_agno_message(candidate: ExtractedTodoCandidate) -> str:
+def _build_agno_message(candidate: ExtractedTodoCandidate, context: TodoIntentContext) -> str:
     """Build a message describing the detected intent for Agno to act on."""
     if candidate.intent_type == IntentType.INVITATION:
-        return _build_invitation_message(candidate)
+        return _build_invitation_message(candidate, context)
+    background_markdown = _build_background_markdown(candidate, context)
     lines = ["[自动意图识别] 系统从用户的感知流中检测到以下待办意图："]
     lines.extend(_candidate_fields(candidate))
     lines.append(_memory_match_instruction(candidate))
     lines.append(
         "请先调用 `search_todos` 或 `list_todos` 核对现有待办，再决定 create/update/delete/complete。"
     )
+    lines.append(
+        "无论是创建还是更新，最终待办的 `description` 必须完整保留下列 5 个小节：When、Who、What、Why、Message Sources。"
+    )
+    lines.append("建议写入 description 的背景模板：")
+    lines.append(background_markdown)
     lines.append(_USER_FACING_INSTRUCTION)
     return "\n".join(lines)
 
 
-def _build_invitation_message(candidate: ExtractedTodoCandidate) -> str:
+def _build_invitation_message(
+    candidate: ExtractedTodoCandidate,
+    context: TodoIntentContext,
+) -> str:
     """Build a scheduling-coordination prompt for invitation intents."""
+    background_markdown = _build_background_markdown(candidate, context)
     lines = [
         "[自动意图识别 — 邀约] 系统从用户的感知流中检测到一条邀约：",
         "",
@@ -231,6 +338,11 @@ def _build_invitation_message(candidate: ExtractedTodoCandidate) -> str:
         lines.append("4. 如果邀约涉及餐饮，调用 search_nearby_places 搜索附近餐厅推荐。")
     lines.append("5. 综合以上信息，调用 draft_reply_message 为用户草拟一条得体的回复消息。")
     lines.append("6. 如果没有冲突，也请按实际情况创建或更新对应待办事项。")
+    lines.append(
+        "7. 无论创建还是更新，description 中必须完整写入 When、Who、What、Why、Message Sources 五个小节。"
+    )
+    lines.append("建议写入 description 的背景模板：")
+    lines.append(background_markdown)
     lines.append(_USER_FACING_INSTRUCTION)
     return "\n".join(lines)
 
@@ -332,12 +444,13 @@ def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None
 
 
 async def _dispatch_to_agno(
+    context: TodoIntentContext,
     candidate: ExtractedTodoCandidate,
     dedupe_key: str,
 ) -> TodoIntegrationResult:
     """Dispatch an extracted intent to Agno agent for execution."""
     try:
-        message = _build_agno_message(candidate)
+        message = _build_agno_message(candidate, context)
         tools = _select_tools(candidate)
         logger.info(
             "[Dispatch] Building Agno message for %r: intent_type=%s, tools=%s, msg_len=%d",
