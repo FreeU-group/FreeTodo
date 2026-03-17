@@ -27,8 +27,10 @@ def _require_service():
 
 
 @router.post("/generate")
-async def generate_illustration(date: str | None = None):
+async def generate_illustration(date: str | None = None, async_mode: bool = False):
     service = _require_service()
+    if async_mode:
+        return await service.start_generation(date)
     result = await service.generate_for_date(date)
     if not result["ok"]:
         raise HTTPException(status_code=500, detail=result.get("error", "generation failed"))
@@ -58,13 +60,11 @@ async def list_illustration_images(date_str: str):
 @router.get("/status/{date_str}")
 async def get_illustration_status(date_str: str):
     service = _require_service()
-    paths = service.get_illustration_paths(date_str)
-    return {"date": date_str, "exists": len(paths) > 0, "count": len(paths)}
+    return service.get_generation_status(date_str)
 
 
 @router.get("/today")
 async def get_today_status():
     today = local_today_str()
     service = _require_service()
-    paths = service.get_illustration_paths(today)
-    return {"date": today, "exists": len(paths) > 0, "count": len(paths)}
+    return service.get_generation_status(today)
