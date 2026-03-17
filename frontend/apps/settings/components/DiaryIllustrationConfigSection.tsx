@@ -27,6 +27,9 @@ export function DiaryIllustrationConfigSection({
 	const [enabled, setEnabled] = useState(
 		(config?.jobsDiaryIllustrationEnabled as boolean) ?? false,
 	);
+	const [provider, setProvider] = useState(
+		(config?.jobsDiaryIllustrationProvider as string) ?? "volcengine",
+	);
 	const [cron, setCron] = useState(
 		(config?.jobsDiaryIllustrationCron as string) ?? "0 22 * * *",
 	);
@@ -40,6 +43,9 @@ export function DiaryIllustrationConfigSection({
 		}
 		if (config.jobsDiaryIllustrationEnabled !== undefined) {
 			setEnabled(Boolean(config.jobsDiaryIllustrationEnabled));
+		}
+		if (config.jobsDiaryIllustrationProvider !== undefined) {
+			setProvider((config.jobsDiaryIllustrationProvider as string) ?? "volcengine");
 		}
 		if (config.jobsDiaryIllustrationCron !== undefined) {
 			setCron((config.jobsDiaryIllustrationCron as string) ?? "0 22 * * *");
@@ -85,7 +91,7 @@ export function DiaryIllustrationConfigSection({
 		<SettingsSection
 			title={t("title")}
 			description={t("description")}
-			searchKeywords={["diary", "illustration", "comic", "gemini", "manga"]}
+			searchKeywords={["diary", "illustration", "comic", "volcengine", "gemini"]}
 		>
 			<div className="space-y-5">
 				<div className="flex items-center justify-between">
@@ -109,6 +115,30 @@ export function DiaryIllustrationConfigSection({
 
 				<div className="space-y-1.5">
 					<label
+						htmlFor="diary-illustration-provider"
+						className="text-sm font-medium text-foreground"
+					>
+						{t("providerLabel")}
+					</label>
+					<select
+						id="diary-illustration-provider"
+						value={provider}
+						onChange={(event) => {
+							const nextProvider = event.target.value;
+							setProvider(nextProvider);
+							void handleSave({ jobsDiaryIllustrationProvider: nextProvider });
+						}}
+						disabled={isLoading}
+						className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
+					>
+						<option value="volcengine">{t("providerVolcengine")}</option>
+						<option value="gemini">{t("providerGemini")}</option>
+					</select>
+					<p className="text-xs text-muted-foreground">{t("providerHint")}</p>
+				</div>
+
+				<div className="space-y-1.5">
+					<label
 						htmlFor={refImageInputId}
 						className="flex items-center gap-2 text-sm font-medium text-foreground"
 					>
@@ -127,7 +157,9 @@ export function DiaryIllustrationConfigSection({
 						disabled={isLoading}
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
 					/>
-					<p className="text-xs text-muted-foreground">{t("refImageHint")}</p>
+					<p className="text-xs text-muted-foreground">
+						{provider === "gemini" ? t("refImageGeminiHint") : t("refImageHint")}
+					</p>
 				</div>
 
 				<div className="space-y-1.5">

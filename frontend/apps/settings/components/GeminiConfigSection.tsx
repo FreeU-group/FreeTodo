@@ -50,7 +50,7 @@ export function GeminiConfigSection({
 		<SettingsSection
 			title={t("geminiTitle")}
 			description={t("geminiDescription")}
-			searchKeywords={["gemini", "google", "image", "illustration", "api key"]}
+			searchKeywords={["gemini", "google", "image", "illustration", "fallback"]}
 		>
 			<div className="space-y-3">
 				<div className="space-y-1.5">

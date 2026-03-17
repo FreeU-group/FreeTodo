@@ -160,6 +160,11 @@ settings = Dynaconf(
         Validator("tavily.exclude_domains", default=[]),
         Validator("banna2.api_key", default="YOUR_GOOGLE_GEMINI_API_KEY_HERE"),
         Validator("banna2.ref_image_path", default=""),
+        Validator("volcengine.api_key", default=""),
+        Validator("volcengine.base_url", default="https://ark.cn-beijing.volces.com/api/v3"),
+        Validator("volcengine.image_model", default=""),
+        Validator("volcengine.image_size", default="1024x1024"),
+        Validator("jobs.diary_illustration.provider", default="volcengine"),
         # 音频配置
         Validator("audio.is_24x7", default=False, is_type_of=bool),
         Validator("audio.asr.api_key", default="YOUR_LLM_KEY_HERE"),
