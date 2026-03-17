@@ -49,6 +49,10 @@ export interface MemoryMatch {
 export interface TodoIntentCandidate {
 	name: string;
 	description?: string | null;
+	who_founder?: string | null;
+	who_executor?: string | null;
+	when?: string | null;
+	where?: string | null;
 	start_time?: string | null;
 	due?: string | null;
 	deadline?: string | null;
@@ -60,7 +64,6 @@ export interface TodoIntentCandidate {
 	source_event_ids: string[];
 	intent_type?: TodoIntentType;
 	inviter?: string | null;
-	location?: string | null;
 	memory_match?: MemoryMatch | null;
 }
 

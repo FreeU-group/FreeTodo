@@ -584,6 +584,12 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 									contentClassName="text-xs text-muted-foreground"
 								/>
 							)}
+							{(candidate.who_founder || candidate.who_executor) && (
+								<div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+									{candidate.who_founder && <span>{t("whoFounder")}: {candidate.who_founder}</span>}
+									{candidate.who_executor && <span>{t("whoExecutor")}: {candidate.who_executor}</span>}
+								</div>
+							)}
 							<div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
 								{candidate.start_time && (
 									<span>{t("startTime")}: {formatDateTime(candidate.start_time, "MM-dd HH:mm")}</span>
@@ -594,13 +600,14 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 								{candidate.deadline && (
 									<span>{t("deadline")}: {formatDateTime(candidate.deadline, "MM-dd HH:mm")}</span>
 								)}
+								{candidate.when && <span>{t("when")}: {candidate.when}</span>}
 								<span>{t("confidence")}: {candidate.confidence.toFixed(2)}</span>
 								<span>{t("priority")}: {candidate.priority || "none"}</span>
 							</div>
-							{(candidate.inviter || candidate.location) && (
+							{(candidate.inviter || candidate.where) && (
 								<div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
 									{candidate.inviter && <span>{t("inviter")}: {candidate.inviter}</span>}
-									{candidate.location && <span>{t("location")}: {candidate.location}</span>}
+									{candidate.where && <span>{t("where")}: {candidate.where}</span>}
 								</div>
 							)}
 							{candidate.tags && candidate.tags.length > 0 && (
