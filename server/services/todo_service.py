@@ -116,6 +116,8 @@ class TodoService:
                 "summary": summary,
                 "description": data.description,
                 "user_notes": data.user_notes,
+                "who_founder": (data.who_founder or "").strip() or None,
+                "who_executor": (data.who_executor or "").strip() or None,
                 "parent_todo_id": data.parent_todo_id,
                 "item_type": item_type,
                 "location": data.location,

@@ -104,14 +104,16 @@ class TodoIntentIntegrationService:
         results: list[TodoIntegrationResult] = []
         for i, candidate in enumerate(candidates):
             logger.info(
-                "[Integration] Candidate %d/%d: name=%r intent_type=%s inviter=%s "
-                "location=%s memory_match=%s confidence=%.2f",
+                "[Integration] Candidate %d/%d: name=%r founder=%s executor=%s "
+                "intent_type=%s inviter=%s where=%s memory_match=%s confidence=%.2f",
                 i + 1,
                 len(candidates),
                 candidate.name,
+                candidate.who_founder or "-",
+                candidate.who_executor or "-",
                 candidate.intent_type.value,
                 candidate.inviter,
-                candidate.location,
+                candidate.where,
                 candidate.memory_match.action.value,
                 candidate.confidence,
             )
@@ -174,8 +176,14 @@ class TodoIntentIntegrationService:
 def _candidate_fields(candidate: ExtractedTodoCandidate) -> list[str]:
     """Format candidate metadata fields into lines."""
     parts: list[str] = [f"标题：{candidate.name}"]
-    if candidate.description:
-        parts.append(f"描述：{candidate.description}")
+
+    def add_opt(val: str | None, label: str) -> None:
+        if val:
+            parts.append(f"{label}：{val}")
+
+    add_opt(candidate.who_founder, "发起人")
+    add_opt(candidate.who_executor, "执行者")
+    add_opt(candidate.description, "描述")
     if candidate.start_time:
         parts.append(f"开始时间：{candidate.start_time.isoformat()}")
     if candidate.due:
@@ -184,6 +192,7 @@ def _candidate_fields(candidate: ExtractedTodoCandidate) -> list[str]:
         parts.append(f"最后期限：{candidate.deadline.isoformat()}")
     if candidate.priority and candidate.priority != "none":
         parts.append(f"优先级：{candidate.priority}")
+    add_opt(candidate.where, "地点")
     clean_tags = [t for t in (candidate.tags or []) if t != "auto-detected"]
     if clean_tags:
         parts.append(f"标签：{', '.join(clean_tags)}")
@@ -200,12 +209,15 @@ def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
         reason = candidate.memory_match.reason or ""
         return (
             f"\n注意：该意图与已有待办「{matched}」存在时间冲突。{reason}\n"
-            "请先检查冲突情况，再决定是否创建待办，并在描述中注明冲突。"
+            "请先检查冲突情况，再决定是否创建待办，并在描述或 user_notes 中注明冲突。"
         )
     if action == MemoryMatchAction.CANCEL_EXISTING:
         matched = candidate.memory_match.matched_todo_name or "未知"
         return f"\n用户表示不再需要已有待办「{matched}」。\n请帮用户将该待办标记为取消。"
-    return "\n请根据以上信息为用户创建待办事项。"
+    return (
+        "\n请根据以上信息为用户创建待办事项。"
+        "\n若有发起人/执行者，请使用 create_todo 的 who_founder 和 who_executor 参数传入。"
+    )
 
 
 _USER_FACING_INSTRUCTION = (
@@ -235,15 +247,15 @@ def _build_invitation_message(candidate: ExtractedTodoCandidate) -> str:
 
     if candidate.inviter:
         lines.append(f"邀请人：{candidate.inviter}")
-    if candidate.location:
-        lines.append(f"地点：{candidate.location}")
+    if candidate.where:
+        lines.append(f"地点：{candidate.where}")
 
     lines.append("")
     lines.append("请按以下步骤处理：")
     lines.append("1. 调用 check_schedule_conflict 检查用户该时段是否有冲突。")
     lines.append("2. 如果有冲突，调用 find_free_slots 找出当天的空闲时段。")
-    if candidate.location:
-        lines.append(f"3. 调用 search_nearby_places 搜索「{candidate.location}」附近的推荐地点。")
+    if candidate.where:
+        lines.append(f"3. 调用 search_nearby_places 搜索「{candidate.where}」附近的推荐地点。")
     else:
         lines.append("3. 如果邀约涉及餐饮，调用 search_nearby_places 搜索附近餐厅推荐。")
     lines.append("4. 综合以上信息，调用 draft_reply_message 为用户草拟一条得体的回复消息。")
@@ -291,34 +303,47 @@ def _run_agno_sync(message: str, tools: list[str]) -> str:
     return full_response
 
 
+def _build_invitation_header(candidate: ExtractedTodoCandidate) -> list[str]:
+    """Build header parts for invitation intent."""
+    inviter = candidate.inviter or "对方"
+    parts = [f"{inviter}邀请你：{candidate.name}"]
+    if candidate.who_executor:
+        parts.append(f"执行者：{candidate.who_executor}")
+    if candidate.start_time:
+        parts.append(f"时间：{candidate.start_time.strftime('%m月%d日 %H:%M')}")
+    if candidate.where:
+        parts.append(f"地点：{candidate.where}")
+    return parts
+
+
+def _build_todo_header(candidate: ExtractedTodoCandidate) -> list[str]:
+    """Build header parts for todo intent."""
+    parts: list[str] = []
+    if candidate.who_founder:
+        parts.append(f"发起人：{candidate.who_founder}")
+    if candidate.who_executor:
+        parts.append(f"执行者：{candidate.who_executor}")
+    if candidate.description:
+        parts.append(candidate.description)
+    if candidate.start_time:
+        parts.append(f"时间：{candidate.start_time.strftime('%m月%d日 %H:%M')}")
+    if candidate.due:
+        parts.append(f"截止：{candidate.due.strftime('%m月%d日 %H:%M')}")
+    prio_map = {"high": "高", "medium": "中", "low": "低"}
+    if candidate.priority and candidate.priority != "none":
+        parts.append(f"优先级：{prio_map.get(candidate.priority, candidate.priority)}")
+    return parts
+
+
 def _build_user_facing_content(candidate: ExtractedTodoCandidate, agno_response: str) -> str:
     """Build user-facing notification: metadata header + Agno's full analysis."""
-    is_invitation = candidate.intent_type == IntentType.INVITATION
-    header_parts: list[str] = []
-
-    if is_invitation:
-        inviter = candidate.inviter or "对方"
-        header_parts.append(f"{inviter}邀请你：{candidate.name}")
-        if candidate.start_time:
-            header_parts.append(f"时间：{candidate.start_time.strftime('%m月%d日 %H:%M')}")
-        if candidate.location:
-            header_parts.append(f"地点：{candidate.location}")
+    if candidate.intent_type == IntentType.INVITATION:
+        header_parts = _build_invitation_header(candidate)
     else:
-        if candidate.description:
-            header_parts.append(candidate.description)
-        if candidate.start_time:
-            header_parts.append(f"时间：{candidate.start_time.strftime('%m月%d日 %H:%M')}")
-        if candidate.due:
-            header_parts.append(f"截止：{candidate.due.strftime('%m月%d日 %H:%M')}")
-        prio_map = {"high": "高", "medium": "中", "low": "低"}
-        if candidate.priority and candidate.priority != "none":
-            header_parts.append(f"优先级：{prio_map.get(candidate.priority, candidate.priority)}")
-
+        header_parts = _build_todo_header(candidate)
     header = "\n".join(header_parts) if header_parts else candidate.name
     analysis = agno_response.strip()
-    if not analysis:
-        return header
-    return f"{header}\n\n{analysis}"
+    return header if not analysis else f"{header}\n\n{analysis}"
 
 
 def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None:

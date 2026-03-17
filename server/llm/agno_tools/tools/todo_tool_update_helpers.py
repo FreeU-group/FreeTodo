@@ -96,6 +96,8 @@ class UpdateTodoPayload:
     summary: str | None = None
     description: str | None = None
     user_notes: str | None = None
+    who_founder: str | None = None
+    who_executor: str | None = None
     parent_todo_id: int | str | None = None
     item_type: str | None = None
     location: str | None = None
@@ -169,6 +171,8 @@ def _apply_update_text_fields(
         "summary": payload.summary,
         "description": payload.description,
         "user_notes": payload.user_notes,
+        "who_founder": (payload.who_founder or "").strip() or None,
+        "who_executor": (payload.who_executor or "").strip() or None,
         "location": payload.location,
         "categories": payload.categories,
         "classification": payload.classification,

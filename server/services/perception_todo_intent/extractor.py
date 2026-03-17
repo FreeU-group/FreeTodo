@@ -171,8 +171,17 @@ class TodoIntentExtractor:
             inviter_raw = item.get("inviter")
             inviter = str(inviter_raw).strip() if inviter_raw else None
 
-            location_raw = item.get("location")
-            location = str(location_raw).strip() if location_raw else None
+            who_founder_raw = item.get("who_founder")
+            who_founder = str(who_founder_raw).strip() if who_founder_raw else None
+
+            who_executor_raw = item.get("who_executor")
+            who_executor = str(who_executor_raw).strip() if who_executor_raw else None
+
+            when_raw = item.get("when")
+            when = str(when_raw).strip() if when_raw else None
+
+            where_raw = item.get("where") or item.get("location")  # 兼容旧 prompt 的 location
+            where = str(where_raw).strip() if where_raw else None
 
             out.append(
                 ExtractedTodoCandidate(
@@ -180,6 +189,10 @@ class TodoIntentExtractor:
                     description=str(item.get("description")).strip()
                     if item.get("description") is not None
                     else None,
+                    who_founder=who_founder,
+                    who_executor=who_executor,
+                    when=when,
+                    where=where,
                     start_time=self._to_datetime(item.get("start_time")),
                     due=self._to_datetime(item.get("due")),
                     deadline=self._to_datetime(item.get("deadline")),
@@ -195,7 +208,6 @@ class TodoIntentExtractor:
                     memory_match=self._parse_memory_match(item.get("memory_match")),
                     intent_type=intent_type,
                     inviter=inviter,
-                    location=location,
                 )
             )
         return out

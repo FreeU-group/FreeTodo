@@ -90,7 +90,8 @@ perception_todo_intent_extraction:
 
     你的任务：
     1. 严格按照 **4W 原则** 提取待办：必须明确 Who（谁）+ What（做什么），才能算一条有效待办。
-       - **Who**：明确的执行者（用户自己 [我]、具名的对方、或指定的人）。"大家"、"有人"等模糊主体不算。
+       - **Who**（主语）：明确的发起者（用户自己 [我]、具名的对方、或指定的人）。"大家"、"有人"等模糊主体不算。
+       - **Who**（宾语）：明确的执行者（用户自己 [我]、具名的对方、或指定的人）。"大家"、"有人"等模糊主体不算。
        - **What**：具体的动作或任务。纯回复（"好的"、"ok"、"收到"、表情）、闲聊、感叹不算。
        - **When**（可选）：如果提到时间，提取出来；没有不影响是否提取。
        - **Where**（可选）：如果提到地点，提取出来；没有不影响是否提取。
@@ -141,6 +142,7 @@ perception_todo_intent_extraction:
     2. 对方明确要求/请求用户做的事
     3. 用户需要回应的邀约（对方发起，用户是参与者）
     4. 对方告知的与用户共同参与的日程安排
+    5. 用户要求对方做的事情（[我] 说的含动作的内容）。
     不要提取仅与对方自己相关、与用户无关的事。
 
     Memory Match 规则：
@@ -155,7 +157,7 @@ perception_todo_intent_extraction:
     3. 若只是闲聊、教程、示例、广播号召，不要误提取。
     4. 时间字段尽量输出 ISO 8601（例如 2026-02-20T15:00:00+08:00），无法确定可为 null。
     5. source_text 尽量保留原文片段，便于前端展示证据。
-    6. 当 intent_type 为 "invitation" 时，必须尽量填写 inviter（邀请人）和 location（地点）。
+    6. 当 intent_type 为 "invitation" 时，必须尽量填写 inviter（邀请人）和 where（地点）。
 
   system_assistant_no_memory: |
     你是一个待办提取助手。你的输入是多来源聚合文本（音频/OCR/用户输入），请严格按照 **4W 原则** 提取待办：
@@ -179,7 +181,7 @@ perception_todo_intent_extraction:
     - 纯回复（"好的"、"ok"、"收到"）和与用户无关的事 → 不提取
 
     **音频数据注意：** 音频来源（mic_pc/mic_hardware）的文本混合了用户和周围人的声音，
-    尚未做声纹区分，不能假定全部是用户说的。优先信任 OCR 的说话人标注，音频作为补充参考。
+    做简单的声纹区分（请参考输入的说话人为“我”，或者具体说话人ID），可以作为基本参考，但是会存在不当断句、识别错误等问题。优先信任 OCR 的说话人标注，音频作为补充参考。
 
     要求：
     1. 输出必须是 JSON，且只能输出 JSON，不要解释，不要 markdown。
@@ -187,7 +189,9 @@ perception_todo_intent_extraction:
     3. 若只是闲聊、教程、示例、广播号召，不要误提取。
     4. 时间字段尽量输出 ISO 8601（例如 2026-02-20T15:00:00+08:00），无法确定可为 null。
     5. source_text 尽量保留原文片段，便于前端展示证据。
-    6. 当 intent_type 为 "invitation" 时，必须尽量填写 inviter 和 location。
+    6. 当 intent_type 为 "invitation" 时，必须尽量填写 inviter 和 where。
+    7. 需要区分下面的情况：如果是一个用户立刻能做并马上做完的事情，就不需要填写todo；如果是一个用户立刻能做但需要别人帮忙的事情，就需要填写todo。
+    8. 需要识别下面的情况：如果是用户的社交辞令，就不需要填写todo。
 
   user_prompt: |
     请从以下文本中提取待办，并与已有待办列表做 Memory Match，返回 JSON：
@@ -216,9 +220,12 @@ perception_todo_intent_extraction:
         {{
           "name": "待办标题（必填）",
           "description": "描述（可选）",
+          "who_founder": "主语（谁发起）（可选）或 null",
+          "who_executor": "宾语（谁去做）（必填）",
+          "when": "时间描述（ISO 8601 或自然语言如明天下午3点，可选）或 null",
+          "where": "地点描述（invitation 或普通待办有则填写，否则 null）",
           "intent_type": "todo 或 invitation",
           "inviter": "邀请人名称（invitation 时填写，否则 null）",
-          "location": "地点（invitation 时填写，否则 null）",
           "start_time": "ISO 时间或 null",
           "due": "ISO 时间或 null",
           "deadline": "ISO 时间或 null",

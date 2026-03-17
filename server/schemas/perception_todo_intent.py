@@ -73,6 +73,10 @@ class IntentType(str, Enum):
 class ExtractedTodoCandidate(BaseModel):
     name: str
     description: str | None = None
+    who_founder: str | None = None  # 谁发起（主语）
+    who_executor: str | None = None  # 谁去做（宾语/执行者）
+    when: str | None = None  # 时间描述（自然语言或 ISO）
+    where: str | None = None  # 地点描述
     start_time: datetime | None = None
     due: datetime | None = None
     deadline: datetime | None = None
@@ -85,7 +89,6 @@ class ExtractedTodoCandidate(BaseModel):
     memory_match: MemoryMatch = Field(default_factory=MemoryMatch)
     intent_type: IntentType = IntentType.TODO
     inviter: str | None = None
-    location: str | None = None
 
 
 class TodoIntegrationResult(BaseModel):

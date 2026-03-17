@@ -109,6 +109,8 @@ class CreateTodoPayload:
     summary: str | None = None
     description: str | None = None
     user_notes: str | None = None
+    who_founder: str | None = None
+    who_executor: str | None = None
     parent_todo_id: int | str | None = None
     item_type: str | None = None
     location: str | None = None
@@ -243,6 +245,8 @@ def build_create_kwargs(payload: CreateTodoPayload) -> dict[str, Any]:
         "summary": payload.summary,
         "description": payload.description,
         "user_notes": payload.user_notes,
+        "who_founder": (payload.who_founder or "").strip() or None,
+        "who_executor": (payload.who_executor or "").strip() or None,
         "parent_todo_id": parsed_parent_id,
         "item_type": parsed_item_type,
         "location": payload.location,

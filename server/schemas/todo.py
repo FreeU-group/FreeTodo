@@ -57,6 +57,8 @@ class TodoCreate(BaseModel):
     summary: str | None = Field(None, description="iCalendar SUMMARY")
     description: str | None = Field(None, description="描述")
     user_notes: str | None = Field(None, description="用户笔记")
+    who_founder: str | None = Field(None, max_length=100, description="谁发起（意图识别）")
+    who_executor: str | None = Field(None, max_length=100, description="谁去做（意图识别）")
     parent_todo_id: int | None = Field(None, description="父级待办ID")
     item_type: TodoItemType | None = Field(None, description="iCalendar 条目类型")
     location: str | None = Field(None, description="iCalendar LOCATION")
@@ -102,6 +104,12 @@ class TodoUpdate(BaseModel):
     summary: str | None = Field(None, description="iCalendar SUMMARY")
     description: str | None = Field(None, description="描述")
     user_notes: str | None = Field(None, description="用户笔记")
+    who_founder: str | None = Field(
+        None, max_length=100, description="谁发起（显式传 null 可清空）"
+    )
+    who_executor: str | None = Field(
+        None, max_length=100, description="谁去做（显式传 null 可清空）"
+    )
     parent_todo_id: int | None = Field(None, description="父级待办ID（显式传 null 可清空）")
     item_type: TodoItemType | None = Field(None, description="iCalendar 条目类型")
     location: str | None = Field(None, description="iCalendar LOCATION")
@@ -159,6 +167,8 @@ class TodoResponse(BaseModel):
     summary: str | None = Field(None, description="iCalendar SUMMARY")
     description: str | None = Field(None, description="描述")
     user_notes: str | None = Field(None, description="用户笔记")
+    who_founder: str | None = Field(None, description="谁发起")
+    who_executor: str | None = Field(None, description="谁去做")
     parent_todo_id: int | None = Field(None, description="父级待办ID")
     item_type: str | None = Field(None, description="iCalendar 条目类型")
     location: str | None = Field(None, description="iCalendar LOCATION")
