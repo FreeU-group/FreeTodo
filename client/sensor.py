@@ -437,6 +437,34 @@ class SensorDaemon:
         Image.fromarray(image).save(path)
         logger.debug(f"Debug image saved: {path}")
 
+    @staticmethod
+    def _build_wechat_title_debug_image(
+        image: np.ndarray,
+        ocr_lines: list,
+        divider_y: int,
+    ) -> np.ndarray:
+        """Render a title-region debug image with divider and OCR boxes."""
+        from PIL import Image, ImageDraw  # noqa: PLC0415
+
+        h, w = image.shape[:2]
+        pad_bottom = max(12, min(32, h // 40))
+        crop_bottom = min(h, divider_y + pad_bottom)
+        canvas = Image.fromarray(image[:crop_bottom, :].copy())
+        draw = ImageDraw.Draw(canvas)
+
+        line_y = max(0, min(divider_y - 1, crop_bottom - 1))
+        draw.line((0, line_y, w - 1, line_y), fill=(255, 80, 80), width=2)
+
+        title_lines = [ln for ln in ocr_lines if ln.bbox_px.y + ln.bbox_px.height <= divider_y]
+        for ln in title_lines:
+            x1 = max(0, ln.bbox_px.x)
+            y1 = max(0, ln.bbox_px.y)
+            x2 = min(w - 1, ln.bbox_px.x + ln.bbox_px.width)
+            y2 = min(crop_bottom - 1, ln.bbox_px.y + ln.bbox_px.height)
+            draw.rectangle((x1, y1, x2, y2), outline=(80, 220, 120), width=2)
+
+        return np.array(canvas)
+
     async def run_proactive_ocr_cycle(self) -> None:
         if not self._proactive_ocr_enabled:
             return
@@ -520,7 +548,12 @@ class SensorDaemon:
                 if ctx is not None and ctx.messages:
                     if debug_saver and ctx.divider_y is not None:
                         dy = ctx.divider_y
-                        debug_saver(image[:dy, :], "wechat_title")
+                        title_debug = SensorDaemon._build_wechat_title_debug_image(
+                            image,
+                            ocr_result.lines,
+                            dy,
+                        )
+                        debug_saver(title_debug, "wechat_title")
                         debug_saver(image[dy + 2 :, :], "wechat_messages")
                     structured = ctx.to_structured_text()
                     logger.info(

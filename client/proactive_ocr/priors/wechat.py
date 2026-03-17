@@ -20,6 +20,8 @@ _VERTICAL_DIVIDER_MIN_WINDOW = 4
 _VERTICAL_DIVIDER_MAX_WINDOW = 12
 _VERTICAL_DIVIDER_SMOOTH_WINDOW = 9
 _VERTICAL_DIVIDER_MIN_SCORE = 12.0
+_VERTICAL_DIVIDER_RELATIVE_THRESHOLD = 0.7
+_VERTICAL_DIVIDER_MIN_RUN = 3
 _VERTICAL_DIVIDER_LEFT_PADDING = 12
 _MIN_IMAGE_HEIGHT = 40
 _MIN_IMAGE_WIDTH = 80
@@ -88,8 +90,10 @@ class WeChatPrior(AppPrior):
             return y
         return int(image.shape[0] * _FALLBACK_TITLE_RATIO)
 
-    def find_chat_divider_x(self, image: np.ndarray) -> int | None:
-        """Detect the sidebar/chat vertical divider using persistent column contrast."""
+    def _get_divider_scan_bounds(
+        self,
+        image: np.ndarray,
+    ) -> tuple[int, int, int] | None:
         h, w = image.shape[:2]
         if h < _MIN_IMAGE_HEIGHT or w < _MIN_IMAGE_WIDTH:
             return None
@@ -99,11 +103,10 @@ class WeChatPrior(AppPrior):
         y_end = min(int(h * _VERTICAL_DIVIDER_BOTTOM_RATIO), h - 1)
         if y_end - y_start < _MIN_DIVIDER_SCAN_HEIGHT:
             return None
+        return y_start, y_end, w
 
-        sample = image[y_start:y_end:_VERTICAL_DIVIDER_SAMPLE_STEP, :, :].astype(np.float64)
-        if sample.size == 0:
-            return None
-
+    @staticmethod
+    def _get_divider_window_and_range(w: int) -> tuple[int, int, int] | None:
         window = int(w * _VERTICAL_DIVIDER_WINDOW_RATIO)
         window = max(_VERTICAL_DIVIDER_MIN_WINDOW, window)
         window = min(_VERTICAL_DIVIDER_MAX_WINDOW, window)
@@ -112,6 +115,71 @@ class WeChatPrior(AppPrior):
         x_end = min(w - window, int(w * _VERTICAL_DIVIDER_SEARCH_END))
         if x_end <= x_start:
             return None
+        return window, x_start, x_end
+
+    @staticmethod
+    def _smooth_divider_scores(scores: np.ndarray, x_start: int, x_end: int) -> np.ndarray:
+        smooth_window = min(_VERTICAL_DIVIDER_SMOOTH_WINDOW, x_end - x_start)
+        if smooth_window < _MIN_SMOOTH_WINDOW:
+            return scores
+        if smooth_window % 2 == 0:
+            smooth_window -= 1
+        kernel = np.ones(smooth_window, dtype=np.float64) / smooth_window
+        return np.convolve(scores, kernel, mode="same")
+
+    @staticmethod
+    def _choose_divider_from_scores(scores: np.ndarray, x_start: int, x_end: int) -> int | None:
+        best_x = int(np.argmax(scores[x_start:x_end]) + x_start)
+        best_score = float(scores[best_x])
+        if best_score < _VERTICAL_DIVIDER_MIN_SCORE:
+            return None
+
+        candidate_threshold = max(
+            _VERTICAL_DIVIDER_MIN_SCORE,
+            best_score * _VERTICAL_DIVIDER_RELATIVE_THRESHOLD,
+        )
+        candidates = np.where(scores[x_start:x_end] >= candidate_threshold)[0] + x_start
+        first_run_mid = WeChatPrior._first_candidate_run_midpoint(candidates)
+        if first_run_mid is not None:
+            return first_run_mid
+        return best_x
+
+    @staticmethod
+    def _first_candidate_run_midpoint(candidates: np.ndarray) -> int | None:
+        if len(candidates) == 0:
+            return None
+
+        run_start = int(candidates[0])
+        run_end = run_start
+        for candidate in candidates[1:]:
+            candidate_x = int(candidate)
+            if candidate_x == run_end + 1:
+                run_end = candidate_x
+                continue
+            if run_end - run_start + 1 >= _VERTICAL_DIVIDER_MIN_RUN:
+                return (run_start + run_end) // 2
+            run_start = candidate_x
+            run_end = candidate_x
+
+        if run_end - run_start + 1 >= _VERTICAL_DIVIDER_MIN_RUN:
+            return (run_start + run_end) // 2
+        return None
+
+    def find_chat_divider_x(self, image: np.ndarray) -> int | None:
+        """Detect the sidebar/chat vertical divider using persistent column contrast."""
+        bounds = self._get_divider_scan_bounds(image)
+        if bounds is None:
+            return None
+        y_start, y_end, w = bounds
+
+        sample = image[y_start:y_end:_VERTICAL_DIVIDER_SAMPLE_STEP, :, :].astype(np.float64)
+        if sample.size == 0:
+            return None
+
+        scan_range = self._get_divider_window_and_range(w)
+        if scan_range is None:
+            return None
+        window, x_start, x_end = scan_range
 
         scores = np.zeros(w, dtype=np.float64)
         for x in range(x_start, x_end):
@@ -120,17 +188,8 @@ class WeChatPrior(AppPrior):
             row_scores = np.linalg.norm(right_band - left_band, axis=1)
             scores[x] = float(np.median(row_scores))
 
-        smooth_window = min(_VERTICAL_DIVIDER_SMOOTH_WINDOW, x_end - x_start)
-        if smooth_window >= _MIN_SMOOTH_WINDOW:
-            if smooth_window % 2 == 0:
-                smooth_window -= 1
-            kernel = np.ones(smooth_window, dtype=np.float64) / smooth_window
-            scores = np.convolve(scores, kernel, mode="same")
-
-        best_x = int(np.argmax(scores[x_start:x_end]) + x_start)
-        if scores[best_x] < _VERTICAL_DIVIDER_MIN_SCORE:
-            return None
-        return best_x
+        scores = self._smooth_divider_scores(scores, x_start, x_end)
+        return self._choose_divider_from_scores(scores, x_start, x_end)
 
     def extract_chat_roi(self, image: np.ndarray) -> ROIResult:
         h, w = image.shape[:2]
