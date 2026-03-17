@@ -32,3 +32,4 @@ export {
 export { TavilyConfigSection } from "./TavilyConfigSection";
 export { ToggleSwitch } from "./ToggleSwitch";
 export { VersionInfoSection } from "./VersionInfoSection";
+export { VolcengineConfigSection } from "./VolcengineConfigSection";

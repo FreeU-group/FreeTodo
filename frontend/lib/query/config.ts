@@ -36,7 +36,7 @@ export function useLlmStatus() {
 // 类型定义
 // ============================================================================
 
-export interface AppConfig {
+	export interface AppConfig {
 	// 现有配置
 	jobsAutoTodoDetectionEnabled?: boolean;
 	// 自动待办检测白名单配置
@@ -49,11 +49,16 @@ export interface AppConfig {
 	llmMaxTokens?: number;
 	banna2ApiKey?: string;
 	banna2RefImagePath?: string;
+	volcengineApiKey?: string;
+	volcengineBaseUrl?: string;
+	volcengineImageModel?: string;
+	volcengineImageSize?: string;
 	// 录制配置
 	jobsRecorderEnabled?: boolean;
 	jobsRecorderInterval?: number;
 	jobsDiaryIllustrationEnabled?: boolean;
 	jobsDiaryIllustrationCron?: string;
+	jobsDiaryIllustrationProvider?: string;
 	jobsRecorderParamsBlacklistEnabled?: boolean;
 	jobsRecorderParamsBlacklistApps?: string[];
 	[key: string]: unknown;
