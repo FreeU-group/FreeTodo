@@ -11,7 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Response, UploadFile
 from fastapi.responses import FileResponse
 
-from lifetrace.core.dependencies import get_todo_service
+from lifetrace.core.dependencies import get_db_session, get_todo_service
 from lifetrace.schemas.todo import (
     TodoAttachmentResponse,
     TodoCreate,
@@ -24,10 +24,22 @@ from lifetrace.services.icalendar_service import ICalendarService
 from lifetrace.util.path_utils import get_attachments_dir
 
 if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
     from lifetrace.services.todo_service import TodoService
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
+tags_router = APIRouter(prefix="/api/tags", tags=["tags"])
 MAX_ATTACHMENT_SIZE = 50 * 1024 * 1024  # 50MB
+
+
+@tags_router.get("")
+async def list_tags(db: "Session" = Depends(get_db_session)):
+    """获取所有标签"""
+    from lifetrace.storage.models import Tag  # noqa: PLC0415
+
+    tags = db.query(Tag).filter(Tag.deleted_at.is_(None)).order_by(Tag.tag_name).all()
+    return {"tags": [{"id": t.id, "name": t.tag_name} for t in tags]}
 
 
 def _sanitize_filename(name: str) -> str:
@@ -39,10 +51,18 @@ async def list_todos(
     limit: int = Query(200, ge=1, le=2000, description="返回数量限制"),
     offset: int = Query(0, ge=0, description="偏移量"),
     status: str | None = Query(None, description="状态筛选：active/completed/canceled"),
+    page: int | None = Query(None, ge=1, description="页码（从1开始）"),
+    page_size: int | None = Query(None, ge=1, le=200, description="每页数量（最大200）"),
     service: TodoService = Depends(get_todo_service),
 ):
     """获取待办列表"""
-    return service.list_todos(limit, offset, status)
+    if page is not None and page_size is not None:
+        actual_limit = page_size
+        actual_offset = (page - 1) * page_size
+    else:
+        actual_limit = limit
+        actual_offset = offset
+    return service.list_todos(actual_limit, actual_offset, status)
 
 
 @router.get("/{todo_id}", response_model=TodoResponse)

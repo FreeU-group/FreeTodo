@@ -96,7 +96,7 @@ def get_cors_origins() -> list[str]:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -127,6 +127,11 @@ def _register_priority_modules(app: FastAPI) -> None:
 
     registered = register_modules(app, priority_ids, states=states)
     app.state.registered_modules = set(registered)
+    
+    # 注册 tags router
+    from lifetrace.routers.todo import tags_router
+    app.include_router(tags_router)
+    logger.info("Registered /api/tags endpoint")
     app.state.deferred_modules = [
         mid for mid in deferred_ids if mid not in app.state.registered_modules
     ]

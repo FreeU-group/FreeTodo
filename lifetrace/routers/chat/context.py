@@ -65,7 +65,7 @@ async def chat_with_context_stream(
             "X-Session-Id": session_id,  # 返回 session_id 供前端使用
         }
         return StreamingResponse(
-            token_generator, media_type="text/plain; charset=utf-8", headers=headers
+            token_generator, media_type="text/event-stream", headers=headers
         )
 
     except Exception as e:
