@@ -26,6 +26,7 @@ logger = get_logger()
 ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
 GEMINI_MODEL = "gemini-3-pro-image-preview"
 DEFAULT_VOLCENGINE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
+DEFAULT_VOLCENGINE_IMAGE_MODEL = "doubao-seedream-5.0-lite"
 DEFAULT_VOLCENGINE_IMAGE_SIZE = "1024x1024"
 DEFAULT_DIARY_PROVIDER = "volcengine"
 SUPPORTED_DIARY_PROVIDERS = {"volcengine", "gemini"}
@@ -237,14 +238,11 @@ class DiaryIllustrationService:
         cfg = _get_volcengine_config()
         api_key = str(cfg.get("api_key", "")).strip()
         base_url = str(cfg.get("base_url", DEFAULT_VOLCENGINE_BASE_URL)).strip()
-        model = str(cfg.get("image_model", "")).strip()
+        model = str(cfg.get("image_model", DEFAULT_VOLCENGINE_IMAGE_MODEL)).strip()
         size = str(cfg.get("image_size", DEFAULT_VOLCENGINE_IMAGE_SIZE)).strip()
 
         if not api_key:
             raise ValueError("volcengine.api_key is not configured")
-        if not model:
-            raise ValueError("volcengine.image_model is not configured")
-
         return await asyncio.to_thread(
             self._volcengine_request, base_url, api_key, model, prompt, size
         )

@@ -162,7 +162,7 @@ settings = Dynaconf(
         Validator("banna2.ref_image_path", default=""),
         Validator("volcengine.api_key", default=""),
         Validator("volcengine.base_url", default="https://ark.cn-beijing.volces.com/api/v3"),
-        Validator("volcengine.image_model", default=""),
+        Validator("volcengine.image_model", default="doubao-seedream-5.0-lite"),
         Validator("volcengine.image_size", default="1024x1024"),
         Validator("jobs.diary_illustration.provider", default="volcengine"),
         # 音频配置
