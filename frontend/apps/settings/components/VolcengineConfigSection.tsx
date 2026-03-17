@@ -23,10 +23,10 @@ export function VolcengineConfigSection({
 		(config?.volcengineBaseUrl as string) ?? "https://ark.cn-beijing.volces.com/api/v3",
 	);
 	const [imageModel, setImageModel] = useState(
-		(config?.volcengineImageModel as string) ?? "",
+		(config?.volcengineImageModel as string) ?? "doubao-seedream-5-0-260128",
 	);
 	const [imageSize, setImageSize] = useState(
-		(config?.volcengineImageSize as string) ?? "1024x1024",
+		(config?.volcengineImageSize as string) ?? "1920x1920",
 	);
 	const [saved, setSaved] = useState(false);
 	const isLoading = loading || saveConfigMutation.isPending;
@@ -42,10 +42,12 @@ export function VolcengineConfigSection({
 			);
 		}
 		if (config.volcengineImageModel !== undefined) {
-			setImageModel((config.volcengineImageModel as string) ?? "");
+			setImageModel(
+				(config.volcengineImageModel as string) ?? "doubao-seedream-5-0-260128",
+			);
 		}
 		if (config.volcengineImageSize !== undefined) {
-			setImageSize((config.volcengineImageSize as string) ?? "1024x1024");
+			setImageSize((config.volcengineImageSize as string) ?? "1920x1920");
 		}
 	}, [config]);
 
@@ -55,7 +57,8 @@ export function VolcengineConfigSection({
 				data: {
 					volcengineApiKey: apiKey.trim(),
 					volcengineBaseUrl: baseUrl.trim() || "https://ark.cn-beijing.volces.com/api/v3",
-					volcengineImageModel: imageModel.trim(),
+					volcengineImageModel:
+						imageModel.trim() || "doubao-seedream-5-0-260128",
 					volcengineImageSize: imageSize,
 				},
 			});
@@ -147,6 +150,7 @@ export function VolcengineConfigSection({
 						disabled={isLoading}
 						className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm"
 					>
+						<option value="1920x1920">1920x1920</option>
 						<option value="1024x1024">1024x1024</option>
 						<option value="1536x1024">1536x1024</option>
 						<option value="1024x1536">1024x1536</option>
