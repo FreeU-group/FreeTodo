@@ -26,6 +26,8 @@ export interface Todo {
 	summary?: string;
 	description?: string;
 	userNotes?: string;
+	whoFounder?: string;
+	whoExecutor?: string;
 	parentTodoId?: number | null;
 	itemType?: string;
 	location?: string;
@@ -70,6 +72,8 @@ export interface CreateTodoInput {
 	summary?: string;
 	description?: string;
 	userNotes?: string;
+	whoFounder?: string;
+	whoExecutor?: string;
 	parentTodoId?: number | null;
 	itemType?: string;
 	location?: string;
@@ -111,6 +115,8 @@ export interface UpdateTodoInput {
 	summary?: string;
 	description?: string;
 	userNotes?: string;
+	whoFounder?: string;
+	whoExecutor?: string;
 	status?: TodoStatus;
 	priority?: TodoPriority;
 	itemType?: string;

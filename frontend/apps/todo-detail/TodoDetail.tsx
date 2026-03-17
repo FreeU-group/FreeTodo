@@ -20,6 +20,7 @@ import { DetailHeader } from "./components/DetailHeader";
 import { DetailTitle } from "./components/DetailTitle";
 import { MetaSection } from "./components/MetaSection";
 import { NotesEditor } from "./components/NotesEditor";
+import { WhoWhereSection } from "./components/WhoWhereSection";
 
 const collectChildIds = (parentId: number, allTodos: Todo[]): number[] => {
 	const childIds: number[] = [];
@@ -353,6 +354,8 @@ export function TodoDetail() {
 							}
 							onScheduleChange={(input) => updateTodo(todo.id, input)}
 						/>
+
+						<WhoWhereSection todo={todo} />
 
 						<BackgroundSection
 							description={todo.description}
