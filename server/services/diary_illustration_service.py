@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 
 import httpx
 from apscheduler.triggers.cron import CronTrigger
-from openai import OpenAI
+from openai import NotFoundError, OpenAI
 
 from jobs.job_manager import get_job_manager
 from llm.llm_client import LLMClient
@@ -26,7 +26,7 @@ logger = get_logger()
 ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
 GEMINI_MODEL = "gemini-3-pro-image-preview"
 DEFAULT_VOLCENGINE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
-DEFAULT_VOLCENGINE_IMAGE_MODEL = "doubao-seedream-5.0-lite"
+DEFAULT_VOLCENGINE_IMAGE_MODEL = "doubao-seedream-5-0-260128"
 DEFAULT_VOLCENGINE_IMAGE_SIZE = "1024x1024"
 DEFAULT_DIARY_PROVIDER = "volcengine"
 SUPPORTED_DIARY_PROVIDERS = {"volcengine", "gemini"}
@@ -54,6 +54,7 @@ DIARY_ILLUSTRATION_JOB_ID = "diary_illustration_job"
 DIARY_ILLUSTRATION_JOB_NAME = "日记插画生成"
 DEFAULT_DIARY_ILLUSTRATION_CRON = "0 22 * * *"
 CRON_FIELD_COUNT = 5
+MAX_PARALLEL_PANEL_GENERATIONS = 3
 
 PROMPT_SYSTEM = (
     "You are a comic storyboard artist. Split the user's day into 2 to 5 key scenes, "
@@ -83,68 +84,204 @@ class DiaryIllustrationService:
         self._memory_reader = MemoryReader(get_user_data_dir() / "memory")
         self._illustrations_dir = get_user_data_dir() / ILLUSTRATIONS_DIR_NAME
         self._illustrations_dir.mkdir(parents=True, exist_ok=True)
+        self._generation_status: dict[str, dict[str, Any]] = {}
+        self._generation_tasks: dict[str, asyncio.Task[dict[str, Any]]] = {}
+
+    async def start_generation(self, date_str: str | None = None) -> dict[str, Any]:
+        date_str = date_str or local_today_str()
+        existing_task = self._generation_tasks.get(date_str)
+        if existing_task is not None and not existing_task.done():
+            return self.get_generation_status(date_str)
+
+        task = asyncio.create_task(self._run_generation_task(date_str))
+        self._generation_tasks[date_str] = task
+        await asyncio.sleep(0)
+        return self.get_generation_status(date_str)
+
+    async def _run_generation_task(self, date_str: str) -> dict[str, Any]:
+        try:
+            return await self.generate_for_date(date_str)
+        finally:
+            self._generation_tasks.pop(date_str, None)
+
+    def get_generation_status(self, date_str: str | None = None) -> dict[str, Any]:
+        date_str = date_str or local_today_str()
+        paths = self.get_illustration_paths(date_str)
+        status = dict(self._generation_status.get(date_str, {}))
+        state = str(status.get("state", "idle"))
+        is_generating = bool(status.get("is_generating", False))
+        completed_panels = int(status.get("completed_panels", len(paths)) or 0)
+        total_panels = int(status.get("total_panels", max(completed_panels, len(paths))) or 0)
+        return {
+            "date": date_str,
+            "exists": len(paths) > 0,
+            "count": len(paths),
+            "state": state,
+            "message": status.get("message"),
+            "is_generating": is_generating,
+            "completed_panels": completed_panels,
+            "total_panels": total_panels,
+            "error": status.get("error"),
+            "started_at": status.get("started_at"),
+            "updated_at": status.get("updated_at"),
+        }
+
+    def _update_generation_status(self, date_str: str, **patch: Any) -> None:
+        now = time.time()
+        current = dict(self._generation_status.get(date_str, {}))
+        current.update(patch)
+        current["updated_at"] = now
+        current.setdefault("started_at", now)
+        self._generation_status[date_str] = current
 
     async def generate_for_date(self, date_str: str | None = None) -> dict[str, Any]:
         date_str = date_str or local_today_str()
+        self._update_generation_status(
+            date_str,
+            state="preparing",
+            message="Loading diary events",
+            is_generating=True,
+            error=None,
+            total_panels=0,
+            completed_panels=0,
+            started_at=time.time(),
+        )
         self._clean_date_images(date_str)
 
         events_content = self._memory_reader.read_by_date(date_str)
         if not events_content or not events_content.strip():
-            return {
+            result = {
                 "ok": False,
                 "date": date_str,
                 "count": 0,
                 "paths": [],
                 "error": f"No events for {date_str}",
             }
+            self._update_generation_status(
+                date_str,
+                state="failed",
+                message="No diary events found",
+                is_generating=False,
+                error=result["error"],
+            )
+            return result
 
         try:
+            self._update_generation_status(
+                date_str,
+                state="storyboarding",
+                message="Generating comic storyboard",
+            )
             scenes = await self._build_scene_prompts(events_content)
         except Exception as exc:
             logger.exception("DiaryIllustration: scene prompt generation failed")
-            return {
+            result = {
                 "ok": False,
                 "date": date_str,
                 "count": 0,
                 "paths": [],
                 "error": str(exc),
             }
+            self._update_generation_status(
+                date_str,
+                state="failed",
+                message="Comic storyboard generation failed",
+                is_generating=False,
+                error=result["error"],
+            )
+            return result
 
         if not scenes:
-            return {
+            result = {
                 "ok": False,
                 "date": date_str,
                 "count": 0,
                 "paths": [],
                 "error": "LLM returned no scenes",
             }
+            self._update_generation_status(
+                date_str,
+                state="failed",
+                message="No comic scenes generated",
+                is_generating=False,
+                error=result["error"],
+            )
+            return result
 
-        saved_paths: list[str] = []
-        for idx, scene in enumerate(scenes):
-            prompt = str(scene.get("prompt", "")).strip()
-            if not prompt:
-                continue
-            try:
-                image_bytes = await self._call_image_provider(prompt)
-                out_path = self._illustrations_dir / f"{date_str}_{idx + 1}.png"
-                out_path.write_bytes(image_bytes)
-                saved_paths.append(str(out_path))
-                logger.info(
-                    "DiaryIllustration: saved panel %d/%d to %s",
-                    idx + 1,
-                    len(scenes),
-                    out_path,
-                )
-            except Exception:
-                logger.exception("DiaryIllustration: panel %d generation failed", idx + 1)
+        scene_prompts = [
+            (idx, str(scene.get("prompt", "")).strip())
+            for idx, scene in enumerate(scenes)
+            if str(scene.get("prompt", "")).strip()
+        ]
+        total_panels = len(scene_prompts)
+        self._update_generation_status(
+            date_str,
+            state="rendering",
+            message="Rendering comic panels",
+            total_panels=total_panels,
+            completed_panels=0,
+            error=None,
+        )
 
-        return {
+        saved_paths_by_index: dict[int, str] = {}
+        completed_panels = 0
+        last_error: str | None = None
+        semaphore = asyncio.Semaphore(MAX_PARALLEL_PANEL_GENERATIONS)
+
+        async def _render_panel(idx: int, prompt: str) -> tuple[int, str | None, str | None]:
+            async with semaphore:
+                try:
+                    image_bytes = await self._call_image_provider(prompt)
+                    out_path = self._illustrations_dir / f"{date_str}_{idx + 1}.png"
+                    await asyncio.to_thread(out_path.write_bytes, image_bytes)
+                    logger.info(
+                        "DiaryIllustration: saved panel %d/%d to %s",
+                        idx + 1,
+                        total_panels,
+                        out_path,
+                    )
+                    return idx, str(out_path), None
+                except Exception as exc:
+                    logger.exception("DiaryIllustration: panel %d generation failed", idx + 1)
+                    return idx, None, str(exc)
+
+        tasks = [asyncio.create_task(_render_panel(idx, prompt)) for idx, prompt in scene_prompts]
+
+        for task in asyncio.as_completed(tasks):
+            idx, saved_path, panel_error = await task
+            completed_panels += 1
+            if saved_path:
+                saved_paths_by_index[idx] = saved_path
+            if panel_error:
+                last_error = panel_error
+            self._update_generation_status(
+                date_str,
+                state="rendering",
+                message="Rendering comic panels",
+                completed_panels=completed_panels,
+                total_panels=total_panels,
+                error=last_error,
+            )
+
+        saved_paths = [saved_paths_by_index[idx] for idx in sorted(saved_paths_by_index)]
+
+        result = {
             "ok": len(saved_paths) > 0,
             "date": date_str,
             "count": len(saved_paths),
             "paths": saved_paths,
-            "error": None if saved_paths else "No images were generated",
+            "error": None if saved_paths else (last_error or "No images were generated"),
         }
+        self._update_generation_status(
+            date_str,
+            state="completed" if result["ok"] else "failed",
+            message="Comic panels ready" if result["ok"] else "Comic panel generation failed",
+            is_generating=False,
+            completed_panels=completed_panels,
+            total_panels=total_panels,
+            error=result["error"],
+        )
+        return result
 
     def get_illustration_paths(self, date_str: str | None = None) -> list[Path]:
         date_str = date_str or local_today_str()
@@ -277,12 +414,18 @@ class DiaryIllustrationService:
         normalized_size = (
             size if size in SUPPORTED_VOLCENGINE_IMAGE_SIZES else DEFAULT_VOLCENGINE_IMAGE_SIZE
         )
-        response = client.images.generate(
-            model=model,
-            prompt=prompt,
-            size=cast("VolcengineImageSize", normalized_size),
-            response_format="b64_json",
-        )
+        try:
+            response = client.images.generate(
+                model=model,
+                prompt=prompt,
+                size=cast("VolcengineImageSize", normalized_size),
+                response_format="b64_json",
+            )
+        except NotFoundError as exc:
+            raise ValueError(
+                f"Volcengine model or endpoint '{model}' was not found or is not accessible. "
+                "Please check the image model / endpoint setting and your Ark access permissions."
+            ) from exc
 
         if not response.data:
             raise ValueError("Volcengine returned no image data")

@@ -13,6 +13,40 @@ interface DiaryIllustrationConfigSectionProps {
 	loading?: boolean;
 }
 
+type GenerationStatus = {
+	date: string;
+	exists: boolean;
+	count: number;
+	state: string;
+	message?: string | null;
+	isGenerating: boolean;
+	completedPanels: number;
+	totalPanels: number;
+	error?: string | null;
+	startedAt?: number | null;
+	updatedAt?: number | null;
+};
+
+const POLL_INTERVAL_MS = 1500;
+
+function normalizeGenerationStatus(payload: Record<string, unknown>): GenerationStatus {
+	return {
+		date: String(payload.date ?? ""),
+		exists: Boolean(payload.exists),
+		count: Number(payload.count ?? 0),
+		state: String(payload.state ?? "idle"),
+		message: payload.message ? String(payload.message) : null,
+		isGenerating: Boolean(payload.is_generating),
+		completedPanels: Number(payload.completed_panels ?? 0),
+		totalPanels: Number(payload.total_panels ?? 0),
+		error: payload.error ? String(payload.error) : null,
+		startedAt:
+			typeof payload.started_at === "number" ? payload.started_at : null,
+		updatedAt:
+			typeof payload.updated_at === "number" ? payload.updated_at : null,
+	};
+}
+
 export function DiaryIllustrationConfigSection({
 	config,
 	loading = false,
@@ -34,6 +68,8 @@ export function DiaryIllustrationConfigSection({
 		(config?.jobsDiaryIllustrationCron as string) ?? "0 22 * * *",
 	);
 	const [generating, setGenerating] = useState(false);
+	const [generationStatus, setGenerationStatus] = useState<GenerationStatus | null>(null);
+	const [elapsedSeconds, setElapsedSeconds] = useState(0);
 	const isLoading = loading || saveConfigMutation.isPending;
 
 	useEffect(() => {
@@ -52,6 +88,67 @@ export function DiaryIllustrationConfigSection({
 		}
 	}, [config]);
 
+	useEffect(() => {
+		if (!generating || !generationStatus?.date) return;
+
+		let cancelled = false;
+
+		const pollStatus = async () => {
+			try {
+				const response = await fetch(
+					`/api/diary-illustration/status/${encodeURIComponent(generationStatus.date)}`,
+				);
+				if (!response.ok) return;
+				const payload = (await response.json()) as Record<string, unknown>;
+				if (cancelled) return;
+				const nextStatus = normalizeGenerationStatus(payload);
+				setGenerationStatus(nextStatus);
+
+				if (!nextStatus.isGenerating) {
+					setGenerating(false);
+					if (nextStatus.state === "completed") {
+						toastSuccess(t("generateSuccess"));
+					} else if (nextStatus.error) {
+						toastError(
+							t("generateFailed", {
+								error: nextStatus.error,
+							}),
+						);
+					}
+				}
+			} catch {
+				// Keep polling silently while generation is in progress.
+			}
+		};
+
+		void pollStatus();
+		const timer = window.setInterval(() => {
+			void pollStatus();
+		}, POLL_INTERVAL_MS);
+
+		return () => {
+			cancelled = true;
+			window.clearInterval(timer);
+		};
+	}, [generationStatus?.date, generating, t]);
+
+	useEffect(() => {
+		if (!generating) {
+			setElapsedSeconds(0);
+			return;
+		}
+
+		const updateElapsed = () => {
+			const startedAt = generationStatus?.startedAt;
+			if (!startedAt) return;
+			setElapsedSeconds(Math.max(0, Math.floor(Date.now() / 1000 - startedAt)));
+		};
+
+		updateElapsed();
+		const timer = window.setInterval(updateElapsed, 1000);
+		return () => window.clearInterval(timer);
+	}, [generationStatus?.startedAt, generating]);
+
 	const handleSave = async (patch: Record<string, unknown>) => {
 		try {
 			await saveConfigMutation.mutateAsync({ data: patch });
@@ -68,24 +165,39 @@ export function DiaryIllustrationConfigSection({
 	const handleGenerateNow = async () => {
 		try {
 			setGenerating(true);
-			const response = await fetch("/api/diary-illustration/generate", {
+			setGenerationStatus(null);
+			const response = await fetch("/api/diary-illustration/generate?async_mode=true", {
 				method: "POST",
 			});
 			if (!response.ok) {
 				const error = await response.json().catch(() => ({}));
 				throw new Error(error.detail ?? `HTTP ${response.status}`);
 			}
-			toastSuccess(t("generateSuccess"));
+			const payload = (await response.json()) as Record<string, unknown>;
+			setGenerationStatus(normalizeGenerationStatus(payload));
 		} catch (error) {
+			setGenerating(false);
 			toastError(
 				t("generateFailed", {
 					error: error instanceof Error ? error.message : String(error),
 				}),
 			);
-		} finally {
-			setGenerating(false);
 		}
 	};
+
+	const stageLabel = generationStatus
+		? generationStatus.state === "preparing"
+			? t("progressPreparing")
+			: generationStatus.state === "storyboarding"
+				? t("progressStoryboarding")
+				: generationStatus.state === "rendering"
+					? t("progressRendering")
+					: generationStatus.state === "completed"
+						? t("progressCompleted")
+						: generationStatus.state === "failed"
+							? t("progressFailed")
+							: t("generating")
+		: t("generating");
 
 	return (
 		<SettingsSection
@@ -199,6 +311,33 @@ export function DiaryIllustrationConfigSection({
 					)}
 					{generating ? t("generating") : t("generateNow")}
 				</button>
+
+				{generating && generationStatus ? (
+					<div className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
+						<div className="flex items-center justify-between gap-3">
+							<div>
+								<p className="font-medium text-foreground">{stageLabel}</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									{generationStatus.message ?? t("progressWaiting")}
+								</p>
+							</div>
+							<p className="shrink-0 text-xs text-muted-foreground">
+								{t("progressElapsed", { seconds: elapsedSeconds })}
+							</p>
+						</div>
+						{generationStatus.totalPanels > 0 ? (
+							<p className="mt-2 text-xs text-muted-foreground">
+								{t("progressPanels", {
+									completed: generationStatus.completedPanels,
+									total: generationStatus.totalPanels,
+								})}
+							</p>
+						) : null}
+						<p className="mt-2 text-xs text-muted-foreground">
+							{t("progressHint")}
+						</p>
+					</div>
+				) : null}
 			</div>
 		</SettingsSection>
 	);

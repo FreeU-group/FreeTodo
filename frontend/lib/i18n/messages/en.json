@@ -170,8 +170,8 @@
 			"volcengineBaseUrlLabel": "Base URL",
 			"volcengineBaseUrlHint": "Defaults to the Ark OpenAI-compatible endpoint.",
 			"volcengineImageModelLabel": "Image model / endpoint",
-			"volcengineImageModelPlaceholder": "Defaults to doubao-seedream-5.0-lite",
-			"volcengineImageModelHint": "Defaults to doubao-seedream-5.0-lite, but you can replace it with your own image model or Ark endpoint ID.",
+			"volcengineImageModelPlaceholder": "Defaults to doubao-seedream-5-0-260128",
+			"volcengineImageModelHint": "Defaults to doubao-seedream-5-0-260128, but you can replace it with your own image model or Ark endpoint ID.",
 			"volcengineImageSizeLabel": "Default image size",
 			"volcengineImageSizeHint": "Used when generating images through Volcengine.",
 			"save": "Save",
@@ -443,7 +443,16 @@
 		"generateNow": "Generate for today",
 		"generating": "Generating...",
 		"generateSuccess": "Illustration generated",
-		"generateFailed": "Generation failed: {error}"
+		"generateFailed": "Generation failed: {error}",
+		"progressPreparing": "Loading today's diary",
+		"progressStoryboarding": "Generating comic storyboard",
+		"progressRendering": "Rendering panels in parallel",
+		"progressCompleted": "Illustration ready",
+		"progressFailed": "Illustration failed",
+		"progressWaiting": "The task has started. Please wait a moment.",
+		"progressPanels": "Completed {completed} / {total} panels",
+		"progressElapsed": "Waiting {seconds}s",
+		"progressHint": "Storyboard generation and image rendering can take a while; this panel will keep updating the progress."
 	},
 	"bottomDock": {
 		"calendar": "Calendar",
