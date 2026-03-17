@@ -173,7 +173,7 @@
 			"volcengineImageModelPlaceholder": "默认 doubao-seedream-5-0-260128",
 			"volcengineImageModelHint": "默认使用 doubao-seedream-5-0-260128，也可改成你自己的图片模型名或推理接入点 ID。",
 			"volcengineImageSizeLabel": "默认出图尺寸",
-			"volcengineImageSizeHint": "用于火山引擎生成图片时的默认尺寸。",
+			"volcengineImageSizeHint": "默认使用 1920x1920；`doubao-seedream-5-0-260128` 需要至少 3686400 像素。",
 			"save": "保存",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",

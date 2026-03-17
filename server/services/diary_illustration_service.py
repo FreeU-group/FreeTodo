@@ -7,11 +7,11 @@ import base64
 import json
 import time
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import httpx
 from apscheduler.triggers.cron import CronTrigger
-from openai import NotFoundError, OpenAI
+from openai import BadRequestError, NotFoundError, OpenAI
 
 from jobs.job_manager import get_job_manager
 from llm.llm_client import LLMClient
@@ -27,7 +27,9 @@ ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
 GEMINI_MODEL = "gemini-3-pro-image-preview"
 DEFAULT_VOLCENGINE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 DEFAULT_VOLCENGINE_IMAGE_MODEL = "doubao-seedream-5-0-260128"
-DEFAULT_VOLCENGINE_IMAGE_SIZE = "1024x1024"
+DEFAULT_VOLCENGINE_IMAGE_SIZE = "1920x1920"
+DEFAULT_MIN_PIXEL_IMAGE_SIZE = "1920x1920"
+DOUBAO_SEEDREAM_MIN_PIXELS = 3_686_400
 DEFAULT_DIARY_PROVIDER = "volcengine"
 SUPPORTED_DIARY_PROVIDERS = {"volcengine", "gemini"}
 SUPPORTED_VOLCENGINE_IMAGE_SIZES = {
@@ -39,17 +41,8 @@ SUPPORTED_VOLCENGINE_IMAGE_SIZES = {
     "1024x1536",
     "1792x1024",
     "1024x1792",
+    "1920x1920",
 }
-VolcengineImageSize = Literal[
-    "auto",
-    "256x256",
-    "512x512",
-    "1024x1024",
-    "1536x1024",
-    "1024x1536",
-    "1792x1024",
-    "1024x1792",
-]
 DIARY_ILLUSTRATION_JOB_ID = "diary_illustration_job"
 DIARY_ILLUSTRATION_JOB_NAME = "日记插画生成"
 DEFAULT_DIARY_ILLUSTRATION_CRON = "0 22 * * *"
@@ -411,14 +404,12 @@ class DiaryIllustrationService:
         size: str,
     ) -> bytes:
         client = OpenAI(api_key=api_key, base_url=base_url.rstrip("/"))
-        normalized_size = (
-            size if size in SUPPORTED_VOLCENGINE_IMAGE_SIZES else DEFAULT_VOLCENGINE_IMAGE_SIZE
-        )
+        normalized_size = _normalize_volcengine_image_size(model, size)
         try:
             response = client.images.generate(
                 model=model,
                 prompt=prompt,
-                size=cast("VolcengineImageSize", normalized_size),
+                size=cast("Any", normalized_size),
                 response_format="b64_json",
             )
         except NotFoundError as exc:
@@ -426,6 +417,14 @@ class DiaryIllustrationService:
                 f"Volcengine model or endpoint '{model}' was not found or is not accessible. "
                 "Please check the image model / endpoint setting and your Ark access permissions."
             ) from exc
+        except BadRequestError as exc:
+            message = str(exc)
+            if "image size must be at least" in message:
+                raise ValueError(
+                    f"Volcengine model '{model}' requires a larger image size. "
+                    f"Please use at least {DEFAULT_MIN_PIXEL_IMAGE_SIZE}."
+                ) from exc
+            raise
 
         if not response.data:
             raise ValueError("Volcengine returned no image data")
@@ -461,6 +460,27 @@ def _get_diary_provider() -> str:
     if provider in SUPPORTED_DIARY_PROVIDERS:
         return provider
     return DEFAULT_DIARY_PROVIDER
+
+
+def _normalize_volcengine_image_size(model: str, size: str) -> str:
+    normalized = size if size in SUPPORTED_VOLCENGINE_IMAGE_SIZES else DEFAULT_VOLCENGINE_IMAGE_SIZE
+    if normalized == "auto":
+        return DEFAULT_VOLCENGINE_IMAGE_SIZE
+
+    if model == DEFAULT_VOLCENGINE_IMAGE_MODEL:
+        width, height = _parse_image_size(normalized)
+        if width * height < DOUBAO_SEEDREAM_MIN_PIXELS:
+            return DEFAULT_MIN_PIXEL_IMAGE_SIZE
+
+    return normalized
+
+
+def _parse_image_size(size: str) -> tuple[int, int]:
+    try:
+        width_text, height_text = size.lower().split("x", maxsplit=1)
+        return int(width_text), int(height_text)
+    except (AttributeError, ValueError):
+        return 0, 0
 
 
 _SERVICE_HOLDER: dict[str, DiaryIllustrationService | None] = {"service": None}

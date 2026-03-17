@@ -173,7 +173,7 @@
 			"volcengineImageModelPlaceholder": "Defaults to doubao-seedream-5-0-260128",
 			"volcengineImageModelHint": "Defaults to doubao-seedream-5-0-260128, but you can replace it with your own image model or Ark endpoint ID.",
 			"volcengineImageSizeLabel": "Default image size",
-			"volcengineImageSizeHint": "Used when generating images through Volcengine.",
+			"volcengineImageSizeHint": "Defaults to 1920x1920; `doubao-seedream-5-0-260128` requires at least 3,686,400 pixels.",
 			"save": "Save",
 			"apiKey": "API Key",
 			"baseUrl": "Base URL",
