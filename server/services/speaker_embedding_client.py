@@ -85,7 +85,13 @@ class SpeakerEmbeddingClient:
             from funasr import AutoModel  # noqa: PLC0415  # type: ignore[import-not-found]
 
             logger.info(f"正在加载 CAM++ 说话人模型: {self._model_name} (device={self._device})")
-            self._model = AutoModel(model=self._model_name, device=self._device)
+            self._model = AutoModel(
+                model=self._model_name,
+                device=self._device,
+                disable_pbar=True,
+                disable_log=True,
+                disable_update=True,
+            )
             logger.info("CAM++ 说话人模型加载完成")
             return self._model
 

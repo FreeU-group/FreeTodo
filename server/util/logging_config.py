@@ -84,6 +84,7 @@ class LoggerManager:
         file_level = config.get("file_level", level)
         log_path = config["log_path"]
         quiet_modules = config.get("quiet_modules", [])
+        speaker_log_path = config.get("speaker_log_path", "").strip()
         log_filter = self._build_filter(quiet_modules)
 
         # 控制台格式（使用本地时间）
@@ -129,6 +130,34 @@ class LoggerManager:
                 retention=30,
                 encoding="utf-8",
                 filter=log_filter,
+            )
+
+        # 声纹/CAM++ 相关日志单独输出（可选）
+        if speaker_log_path:
+            spk_dir = speaker_log_path.rstrip(os.sep).rstrip("/")
+            os.makedirs(spk_dir, exist_ok=True)
+            spk_log_path = _generate_log_file_path(spk_dir, ".speaker")
+            _speaker_modules = (
+                "speaker_embedding_client",
+                "diart_diarizer",
+                "speaker_service",
+                "second_pass_asr",
+            )
+
+            def _speaker_filter(record):
+                name = str(record.get("name", "")).lower()
+                if not any(m in name for m in _speaker_modules):
+                    return False
+                return log_filter is None or log_filter(record)
+
+            logger.add(
+                spk_log_path,
+                level=file_level,
+                format=file_format,
+                rotation=None,
+                retention=7,
+                encoding="utf-8",
+                filter=_speaker_filter,
             )
 
     def get_logger(self):

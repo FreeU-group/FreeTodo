@@ -122,6 +122,8 @@ logging:
   file_level: INFO
   quiet_modules: [] # 示例: ["activity_service", "event_service"]
   log_path: logs/
+  # 声纹/CAM++ 相关日志单独输出到此目录，留空则与主日志合并
+  speaker_log_path: "" # 例如: logs/speaker/
 
 # 调度器配置
 scheduler:

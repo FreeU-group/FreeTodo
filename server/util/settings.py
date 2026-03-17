@@ -105,6 +105,7 @@ settings = Dynaconf(
         Validator("logging.console_level", default="INFO"),
         Validator("logging.file_level", default="INFO"),
         Validator("logging.quiet_modules", default=[], is_type_of=list),
+        Validator("logging.speaker_log_path", default=""),
         # 调度器配置
         Validator("scheduler.enabled", default=True, is_type_of=bool),
         Validator("scheduler.database_path", default="scheduler.db"),
