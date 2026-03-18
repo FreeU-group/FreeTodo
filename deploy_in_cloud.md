@@ -48,6 +48,8 @@
 ```bash
 git clone https://github.com/freeu-group/FreeTodo.git
 cd FreeTodo
+
+git checkout vc
 ```
 
 ### 2.3 构建镜像
@@ -59,6 +61,8 @@ make build-server
 该命令在 `server/` 目录下执行 `docker build`，生成镜像 `freeu/lifetrace-server:latest`。
 
 ### 2.4 配置环境变量
+
+> 请注意，如果你不是开发者，这一步可以完全跳过，在界面上可以直接配置 API KEY。
 
 ```bash
 cp deploy/.env.example deploy/.env
@@ -74,21 +78,19 @@ LIFETRACE_SERVER__PORT=8001
 LIFETRACE_AGNO__AGENT_OS__PORT=8002
 
 # LLM 配置（必填）
-LIFETRACE_LLM__API_KEY=your-api-key
+LIFETRACE_LLM__API_KEY=your-api-key(required)
 LIFETRACE_LLM__BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 LIFETRACE_LLM__MODEL=qwen-plus
 
 # 语音识别（可选）
-LIFETRACE_AUDIO__ASR__API_KEY=your-asr-api-key
+LIFETRACE_AUDIO__ASR__API_KEY=your-asr-api-key(optional)
 
 # Tavily 搜索（可选）
-LIFETRACE_TAVILY__API_KEY=your-tavily-api-key
+LIFETRACE_TAVILY__API_KEY=your-tavily-api-key(optional)
 
 # Gemini 日记插画（可选，用于生成日记漫画插画）
-LIFETRACE_BANNA2__API_KEY=your-gemini-api-key
+LIFETRACE_BANNA2__API_KEY=your-gemini-api-key(optional)
 ```
-
-> **注意**：`LIFETRACE_LLM__API_KEY` 为必填项，未配置时 AI 相关功能不可用。
 
 ### 2.5 启动服务
 
@@ -185,7 +187,7 @@ Omi 硬件 ──蓝牙──► 手机 APP ──网络──► 云端 Server 
 
 1. 在手机上安装 FreeTodo APP（Flutter 应用）
 2. 打开 APP，进入 **设置** 页面
-3. 在 **中心节点地址** 中输入云端 Server 的地址：
+3. 在 **TCP 隧道 和 HTTP 隧道** 中输入云端 Server 的地址：
 
    ```text
    http://<云服务器公网IP>:8001
@@ -318,7 +320,7 @@ Server 容器将 `./volume/data` 挂载到容器内的 `/app/data`，该目录�
 ### 10.3 手机 APP 无法连接
 
 1. 确认手机网络可以访问云服务器公网 IP
-2. 确认 APP 中输入的中心节点地址格式正确：`http://<公网IP>:8001`
+2. 确认 APP 中输入的 TCP 隧道和 HTTP 隧道地址格式正确：`http://<公网IP>:8001`
 3. 如使用域名，确认 DNS 解析正常
 
 ### 10.4 Client 上报数据失败

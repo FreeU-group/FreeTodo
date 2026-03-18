@@ -47,6 +47,8 @@
 ```bash
 git clone https://github.com/freeu-group/FreeTodo.git
 cd FreeTodo
+
+git checkout vc
 ```
 
 ## 4. Server 部署
@@ -63,6 +65,8 @@ source .venv/bin/activate
 ```
 
 ### 4.2 配置文件
+
+> 请注意，如果你不是开发者，这一步可以完全跳过，在界面上可以直接配置 API KEY。
 
 首次启动时，Server 会自动从 `server/config/default_config.yaml` 生成 `server/config/config.yaml`。你也可以提前手动复制并修改：
 
@@ -102,10 +106,11 @@ cp server/.env.example server/.env
 编辑 `server/.env`，按需填入：
 
 ```bash
-LIFETRACE_BANNA2__API_KEY=your-gemini-api-key
+LIFETRACE_LLM__API_KEY=your-llm-api-key(required)
+LIFETRACE_AUDIO__ASR__API_KEY=your-asr-api-key(optional)
+LIFETRACE_TAVILY__API_KEY=your-tavily-api-key(optional)
+LIFETRACE_BANNA2__API_KEY=your-gemini-api-key(optional)
 ```
-
-> **注意**：`llm.api_key` 为必填项，未配置时 AI 相关功能不可用。
 
 ### 4.3 启动 Server
 
@@ -124,7 +129,9 @@ curl http://localhost:8001/api/health
 AgentOS 提供 Agno Agent 工具调度能力，如不需要可跳过：
 
 ```bash
+# 新开一个命令行窗口
 cd server
+
 python agent_os.py
 ```
 
@@ -135,7 +142,9 @@ Frontend 运行在本地，连接本地 Server。
 ### 5.1 安装依赖
 
 ```bash
+# 新开一个命令行窗口
 cd frontend
+
 pnpm install
 ```
 
@@ -166,6 +175,7 @@ Client 是 Python 感知客户端，负责屏幕截图采集、OCR 识别等，�
 ### 6.1 安装依赖
 
 ```bash
+# 新开一个命令行窗口
 uv sync --directory client
 ```
 
@@ -222,7 +232,7 @@ ipconfig | findstr "IPv4"
 
 1. 在手机上安装 FreeTodo APP（Flutter 应用）
 2. 打开 APP，进入 **设置** 页面
-3. 在 **中心节点地址** 中输入本地 Server 的局域网地址：
+3. 在 **TCP 隧道 和 HTTP 隧道** 中输入本地 Server 的局域网地址：
 
    ```text
    http://192.168.1.100:8001
