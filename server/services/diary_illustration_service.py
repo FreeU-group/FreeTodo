@@ -68,6 +68,21 @@ PROMPT_USER_TEMPLATE = """Daily event summary:
 
 Split it into multiple comic scenes and return JSON only."""
 
+DIARY_TEXT_SYSTEM_PROMPT = (
+    "你是一个温暖且高效的个人日记助手。"
+    "根据用户今天的事件流，生成一段结构化的日记文本。\n"
+    "格式要求（严格遵守）：\n"
+    "1. 先用一段自然流畅的话描述今天做了什么（不超过 200 字）\n"
+    "2. 然后列出接下来可能需要做的 next action（2-5 条，用「📋 接下来可以做：」开头）\n"
+    "3. 最后用一句温暖的话鼓励用户（用「💪」开头）\n\n"
+    "注意：语言简洁温暖，使用中文，不要冗长，不要加标题。"
+)
+
+DIARY_TEXT_USER_TEMPLATE = """今天的事件流：
+{events}
+
+请根据以上事件流生成日记文本。"""
+
 
 class DiaryIllustrationService:
     """Generate and serve diary illustration panels."""
@@ -275,6 +290,35 @@ class DiaryIllustrationService:
             error=result["error"],
         )
         return result
+
+    async def generate_diary_text(self, date_str: str | None = None) -> dict[str, Any]:
+        """Generate diary text (summary + next actions + encouragement) from L2 events."""
+        date_str = date_str or local_today_str()
+        events_content = self._memory_reader.read_by_date(date_str)
+        if not events_content or not events_content.strip():
+            return {"ok": False, "date": date_str, "text": "", "error": f"No events for {date_str}"}
+
+        messages = [
+            {"role": "system", "content": DIARY_TEXT_SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": DIARY_TEXT_USER_TEMPLATE.format(events=events_content[:4000]),
+            },
+        ]
+        try:
+            text = await asyncio.to_thread(
+                self._llm.chat,
+                messages,
+                0.5,
+                None,
+                600,
+                log_usage=True,
+                log_meta={"endpoint": "diary_text_generation", "feature_type": "diary_text"},
+            )
+            return {"ok": True, "date": date_str, "text": text.strip()}
+        except Exception as exc:
+            logger.exception("DiaryIllustration: diary text generation failed")
+            return {"ok": False, "date": date_str, "text": "", "error": str(exc)}
 
     def get_illustration_paths(self, date_str: str | None = None) -> list[Path]:
         date_str = date_str or local_today_str()
@@ -537,6 +581,37 @@ def _get_diary_scheduler(wait_for_scheduler: bool = False):
     return None, None
 
 
+async def _run_daily_diary_job() -> None:
+    """Cron callback: generate diary text + illustration for today."""
+    service = get_diary_illustration_service()
+    if service is None:
+        logger.warning("DiaryIllustration: service not available for daily job")
+        return
+
+    try:
+        text_result = await service.generate_diary_text()
+        if text_result["ok"]:
+            logger.info("DiaryIllustration: daily diary text generated")
+        else:
+            logger.warning("DiaryIllustration: diary text failed: %s", text_result.get("error"))
+    except Exception:
+        logger.exception("DiaryIllustration: diary text error")
+
+    try:
+        result = await service.generate_for_date()
+        if result["ok"]:
+            logger.info("DiaryIllustration: daily job completed, generated=%s", result["count"])
+        else:
+            logger.warning("DiaryIllustration: daily job failed: %s", result.get("error"))
+    except Exception:
+        logger.exception("DiaryIllustration: daily job error")
+
+
+def _remove_job_if_exists(scheduler_manager: Any, job_id: str) -> None:
+    if scheduler_manager.get_job(job_id):
+        scheduler_manager.remove_job(job_id)
+
+
 def sync_diary_illustration_job(wait_for_scheduler: bool = False) -> bool:
     scheduler_manager, scheduler = _get_diary_scheduler(wait_for_scheduler=wait_for_scheduler)
     if scheduler_manager is None or scheduler is None:
@@ -547,38 +622,20 @@ def sync_diary_illustration_job(wait_for_scheduler: bool = False) -> bool:
     enabled = bool(job_cfg.get("enabled", False))
 
     if not enabled:
-        if scheduler_manager.get_job(DIARY_ILLUSTRATION_JOB_ID):
-            scheduler_manager.remove_job(DIARY_ILLUSTRATION_JOB_ID)
-            logger.info("DiaryIllustration: scheduled job removed because feature is disabled")
+        _remove_job_if_exists(scheduler_manager, DIARY_ILLUSTRATION_JOB_ID)
+        logger.info("DiaryIllustration: scheduled job removed because feature is disabled")
         return True
 
     service = ensure_diary_illustration_service()
     if service is None:
-        if scheduler_manager.get_job(DIARY_ILLUSTRATION_JOB_ID):
-            scheduler_manager.remove_job(DIARY_ILLUSTRATION_JOB_ID)
+        _remove_job_if_exists(scheduler_manager, DIARY_ILLUSTRATION_JOB_ID)
         return False
 
     minute, hour, day, month, day_of_week = _parse_diary_cron_expr(job_cfg.get("cron"))
     cron_expr = f"{minute} {hour} {day} {month} {day_of_week}"
 
-    async def _run_daily_illustration() -> None:
-        try:
-            result = await service.generate_for_date()
-            if result["ok"]:
-                logger.info(
-                    "DiaryIllustration: daily job completed, generated=%s",
-                    result["count"],
-                )
-            else:
-                logger.warning(
-                    "DiaryIllustration: daily job failed: %s",
-                    result.get("error"),
-                )
-        except Exception:
-            logger.exception("DiaryIllustration: daily job error")
-
     scheduler.add_job(
-        _run_daily_illustration,
+        _run_daily_diary_job,
         trigger=CronTrigger(
             minute=minute,
             hour=hour,

@@ -37,6 +37,16 @@ async def generate_illustration(date: str | None = None, async_mode: bool = Fals
     return result
 
 
+@router.post("/generate-text")
+async def generate_diary_text(date: str | None = None):
+    """基于 L2 事件流生成日记文本（今日总结 + 下一步行动 + 鼓励）"""
+    service = _require_service()
+    result = await service.generate_diary_text(date)
+    if not result["ok"]:
+        raise HTTPException(status_code=500, detail=result.get("error", "generation failed"))
+    return result
+
+
 @router.get("/image/{date_str}/{index}")
 async def get_illustration_image(date_str: str, index: int):
     service = _require_service()

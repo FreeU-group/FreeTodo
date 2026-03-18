@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageIcon, Loader2, Sparkles } from "lucide-react";
+import { Bot, ImageIcon, Loader2, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { DiaryTabs, type JournalTab } from "@/apps/diary/DiaryTabs";
@@ -11,47 +11,48 @@ import { cn } from "@/lib/utils";
 interface DiaryEditorProps {
 	draft: JournalDraft;
 	activeTab: JournalTab;
-	selectedDateStr: string;
 	onTabChange: (tab: JournalTab) => void;
 	onTitleChange: (value: string) => void;
 	onTitleBlur: (value: string) => void;
 	onUserNotesChange: (value: string) => void;
 	onUserNotesBlur: (value: string) => void;
-	onGenerateAi: () => void;
+	onContentAiChange: (value: string) => void;
+	onContentAiBlur: (value: string) => void;
+	onGenerateManga: () => void;
+	onGenerateDiaryText: () => void;
 	onAutoLink: () => void;
-	onCopyToOriginal: (content: string) => void;
 	autoLinkMessage: string | null;
-	isGeneratingAi: boolean;
+	isGeneratingManga: boolean;
+	isGeneratingDiaryText: boolean;
 	isAutoLinking: boolean;
 	hasJournalId: boolean;
 	illustrationUrls: string[];
 	illustrationLoading: boolean;
-	illustrationGenerating: boolean;
 }
 
 export function DiaryEditor({
 	draft,
 	activeTab,
-	selectedDateStr: _selectedDateStr,
 	onTabChange,
 	onTitleChange,
 	onTitleBlur,
 	onUserNotesChange,
 	onUserNotesBlur,
-	onGenerateAi,
+	onContentAiChange,
+	onContentAiBlur,
+	onGenerateManga,
+	onGenerateDiaryText,
 	onAutoLink,
-	onCopyToOriginal,
 	autoLinkMessage,
-	isGeneratingAi,
+	isGeneratingManga,
+	isGeneratingDiaryText,
 	isAutoLinking,
 	hasJournalId,
 	illustrationUrls,
 	illustrationLoading,
-	illustrationGenerating,
 }: DiaryEditorProps) {
 	const t = useTranslations("journalPanel");
 	const [imgKey, setImgKey] = useState(0);
-	const isGeneratingIllustration = isGeneratingAi || illustrationGenerating;
 	const hasExistingIllustrations = illustrationUrls.length > 0;
 
 	useEffect(() => {
@@ -65,71 +66,101 @@ export function DiaryEditor({
 			<div className="flex flex-wrap items-center justify-between gap-3 shrink-0 mb-4">
 				<DiaryTabs activeTab={activeTab} onChange={onTabChange} />
 				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={onGenerateAi}
-						disabled={isGeneratingIllustration}
-						className="gap-1.5"
-					>
-						{isGeneratingIllustration ? (
-							<Loader2 className="h-3.5 w-3.5 animate-spin" />
-						) : (
-							<Sparkles className="h-3.5 w-3.5" />
-						)}
-						{isGeneratingIllustration
-							? t("generatingAi")
-							: hasExistingIllustrations
-								? t("regenerateAi")
-								: t("generateAi")}
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onAutoLink}
-						disabled={!hasJournalId || isAutoLinking}
-					>
-						{isAutoLinking ? t("autoLinking") : t("autoLink")}
-					</Button>
+					{activeTab === "original" && (
+						<>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={onGenerateDiaryText}
+								disabled={isGeneratingDiaryText}
+								className="gap-1.5"
+							>
+								{isGeneratingDiaryText ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<Bot className="h-3.5 w-3.5" />
+								)}
+								{isGeneratingDiaryText
+									? t("generatingDiaryText")
+									: t("generateDiaryText")}
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								onClick={onAutoLink}
+								disabled={!hasJournalId || isAutoLinking}
+							>
+								{isAutoLinking ? t("autoLinking") : t("autoLink")}
+							</Button>
+						</>
+					)}
+					{activeTab === "ai" && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={onGenerateManga}
+							disabled={isGeneratingManga}
+							className="gap-1.5"
+						>
+							{isGeneratingManga ? (
+								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+							) : (
+								<Sparkles className="h-3.5 w-3.5" />
+							)}
+							{isGeneratingManga
+								? t("generatingAi")
+								: hasExistingIllustrations
+									? t("regenerateAi")
+									: t("generateAi")}
+						</Button>
+					)}
 				</div>
 			</div>
 
 			<div className="min-h-0 flex-1 overflow-y-auto">
 				{activeTab === "original" && (
-					<div className="flex min-h-full flex-col rounded-2xl border border-border bg-background px-4 py-4 shadow-sm">
-						<input
-							value={draft.name}
-							onChange={(event) => onTitleChange(event.target.value)}
-							onBlur={(event) => onTitleBlur(event.currentTarget.value)}
-							placeholder={t("titlePlaceholder")}
-							className="text-2xl font-semibold leading-tight text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none md:text-3xl"
-						/>
-						<textarea
-							value={draft.userNotes}
-							onChange={(event) => onUserNotesChange(event.target.value)}
-							onBlur={(event) => onUserNotesBlur(event.currentTarget.value)}
-							placeholder={t("contentPlaceholder")}
-							className="mt-3 min-h-[240px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none"
-						/>
+					<div className="flex flex-col gap-3">
+						<div className="flex min-h-0 flex-col rounded-2xl border border-border bg-background px-4 py-4 shadow-sm">
+							<input
+								value={draft.name}
+								onChange={(event) => onTitleChange(event.target.value)}
+								onBlur={(event) => onTitleBlur(event.currentTarget.value)}
+								placeholder={t("titlePlaceholder")}
+								className="text-2xl font-semibold leading-tight text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none md:text-3xl"
+							/>
+							<textarea
+								value={draft.userNotes}
+								onChange={(event) => onUserNotesChange(event.target.value)}
+								onBlur={(event) =>
+									onUserNotesBlur(event.currentTarget.value)
+								}
+								placeholder={t("contentPlaceholder")}
+								className="mt-3 min-h-[160px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none"
+							/>
+						</div>
+
+						<div className="flex flex-col rounded-2xl border border-border bg-muted/10 px-4 py-4 shadow-sm">
+							<div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+								<Bot className="h-3.5 w-3.5" />
+								<span>{t("diaryAiTitle")}</span>
+							</div>
+							<textarea
+								value={draft.contentAi}
+								onChange={(event) =>
+									onContentAiChange(event.target.value)
+								}
+								onBlur={(event) =>
+									onContentAiBlur(event.currentTarget.value)
+								}
+								placeholder={t("diaryAiPlaceholder")}
+								className="min-h-[120px] flex-1 resize-none bg-transparent text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none"
+							/>
+						</div>
 					</div>
 				)}
+
 				{activeTab === "ai" && (
 					<div className="flex flex-col gap-3">
-						{draft.contentAi && (
-							<div className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/20 px-4 py-4">
-								<p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-									{draft.contentAi}
-								</p>
-								<Button
-									variant="outline"
-									size="sm"
-									className="self-start"
-									onClick={() => onCopyToOriginal(draft.contentAi)}
-								>
-									{t("copyToOriginal")}
-								</Button>
-							</div>
-						)}
 						{illustrationLoading && illustrationUrls.length === 0 ? (
 							<div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-4 py-12 text-center">
 								<Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -146,7 +177,11 @@ export function DiaryEditor({
 									{/* eslint-disable-next-line @next/next/no-img-element */}
 									<img
 										src={`${url}?v=${imgKey}`}
-										alt={t("illustrationAlt", { index: illustrationUrls.indexOf(url) + 1 })}
+										alt={t("illustrationAlt", {
+											index:
+												illustrationUrls.indexOf(url) +
+												1,
+										})}
 										className="w-full h-auto rounded-2xl"
 									/>
 								</div>
@@ -155,10 +190,10 @@ export function DiaryEditor({
 							<div
 								className={cn(
 									"flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-4 py-12 text-center",
-									isGeneratingIllustration && "animate-pulse",
+									isGeneratingManga && "animate-pulse",
 								)}
 							>
-								{isGeneratingIllustration ? (
+								{isGeneratingManga ? (
 									<>
 										<Loader2 className="h-8 w-8 animate-spin text-primary" />
 										<p className="text-sm text-muted-foreground">
@@ -177,6 +212,7 @@ export function DiaryEditor({
 						)}
 					</div>
 				)}
+
 				{autoLinkMessage && (
 					<div className="mt-3 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground">
 						{autoLinkMessage}
