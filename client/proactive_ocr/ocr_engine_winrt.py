@@ -33,6 +33,95 @@ except Exception:
     WinOcrEngine = None
 
 
+_CJK_PUNCT = set(
+    "\uff0c\u3002\uff01\uff1f\u3001\uff1a\uff1b"
+    "\u201c\u201d\u2018\u2019\uff08\uff09\u3010\u3011\u300a\u300b"
+    "\u2026\u2014\uff5e\u00b7\u300c\u300d\u300e\u300f"
+    "\u3008\u3009\u3014\u3015\u3016\u3017"
+)
+
+_SPACE_COLLAPSE_RATIO = 0.7
+_CHAR_RATIO_HIGH = 0.95
+_CHAR_RATIO_MED = 0.8
+_CHAR_RATIO_LOW = 0.6
+_MIN_BBOX_WIDTH = 20
+_SPARSE_DENSITY = 1.0
+_LOW_DENSITY = 2.0
+
+
+def _normalize_winrt_spacing(text: str) -> str:
+    """Collapse per-character spacing inserted by WinRT CJK OCR.
+
+    WinRT OCR inserts a space between every CJK character, producing
+    "你 好 世 界" instead of "你好世界".  This function detects that
+    pattern (space count ≈ char count - 1) and collapses all spaces.
+    English text like "hello world" is left untouched because its
+    space-to-char ratio is much lower.
+    """
+    non_space = text.replace(" ", "")
+    if len(non_space) <= 1:
+        return text
+    space_count = text.count(" ")
+    expected = len(non_space) - 1
+    if expected <= 0:
+        return text
+    if space_count / expected >= _SPACE_COLLAPSE_RATIO:
+        return non_space
+    return text
+
+
+def _is_expected_char(ch: str) -> bool:
+    """Return True if the character is commonly expected in CJK chat text."""
+    return (
+        "\u4e00" <= ch <= "\u9fff"
+        or "\u3400" <= ch <= "\u4dbf"
+        or ch.isascii()
+        or ch in _CJK_PUNCT
+        or "\uff00" <= ch <= "\uffef"
+        or "\u3000" <= ch <= "\u303f"
+        or "\U00020000" <= ch <= "\U0002a6df"
+    )
+
+
+def _estimate_line_confidence(text: str, bbox: BBox) -> float:
+    """Heuristic confidence when the engine provides no native score.
+
+    Signals used:
+    - Character quality ratio: what fraction of chars are "expected" in chat
+      (CJK, ASCII, digits, common punctuation).
+    - Text density: chars per pixel-width (image-region OCR tends to be sparse).
+    - Short garbage penalty: single unusual char is almost certainly noise.
+    """
+    stripped = text.strip()
+    n = len(stripped)
+    if n == 0:
+        return 0.1
+
+    normal = sum(1 for ch in stripped if _is_expected_char(ch))
+    char_ratio = normal / n
+
+    if char_ratio >= _CHAR_RATIO_HIGH:
+        score = 0.92
+    elif char_ratio >= _CHAR_RATIO_MED:
+        score = 0.78
+    elif char_ratio >= _CHAR_RATIO_LOW:
+        score = 0.60
+    else:
+        score = 0.35
+
+    if n == 1 and char_ratio < 1.0:
+        score -= 0.2
+
+    if bbox.width > _MIN_BBOX_WIDTH and n > 0:
+        chars_per_100px = (n / bbox.width) * 100
+        if chars_per_100px < _SPARSE_DENSITY:
+            score -= 0.15
+        elif chars_per_100px < _LOW_DENSITY:
+            score -= 0.05
+
+    return max(0.1, min(0.99, round(score, 2)))
+
+
 class WinRtOcrEngine:
     def __init__(self, lang: str = "zh-Hans-CN", resize_max_side: int = 0):
         if not WINOCR_AVAILABLE:
@@ -100,19 +189,21 @@ class WinRtOcrEngine:
         lines = []
         if result and "lines" in result:
             for line_data in result["lines"]:
-                text = line_data.get("text", "")
-                if not text.strip():
+                raw_text = line_data.get("text", "")
+                if not raw_text.strip():
                     continue
+                text = _normalize_winrt_spacing(raw_text)
                 bbox = self._aggregate_word_bboxes(line_data.get("words", []), scale)
                 word_confidences = []
                 for word in line_data.get("words", []):
                     conf = word.get("confidence", None)
                     if conf is not None:
                         word_confidences.append(float(conf))
-                avg_confidence = (
-                    sum(word_confidences) / len(word_confidences) if word_confidences else 0.95
-                )
-                lines.append(OcrLine(text=text, score=avg_confidence, bbox_px=bbox))
+                if word_confidences:
+                    confidence = sum(word_confidences) / len(word_confidences)
+                else:
+                    confidence = _estimate_line_confidence(text, bbox)
+                lines.append(OcrLine(text=text, score=confidence, bbox_px=bbox))
 
         return OcrRawResult(
             lines=lines,
