@@ -41,6 +41,7 @@ _PREFERENCES_SPLIT_RE = re.compile(r"(^|\n)(## 偏好与习惯\s*\n)", re.MULTIL
 # ---------------------------------------------------------------------------
 
 PROFILE_MAX_CHARS = 2000
+PREFERENCES_MAX_ITEMS = 15
 
 PROFILE_SYSTEM_PROMPT = (
     "你是一个用户画像维护助手。你的目标是维护一份**简洁、精炼**的用户画像。\n\n"
@@ -250,16 +251,20 @@ class ProfileBuilder:
     async def consolidate(self) -> bool:
         """Public API: force-consolidate the current profile.
 
+        Preferences are stripped before consolidation and re-attached after,
+        so they are never altered by the LLM.
         Returns True if the profile was actually rewritten.
         """
         current = self.read_profile()
         if not current:
             return False
-        consolidated = await self._consolidate(current)
-        if consolidated != current:
-            self._profile_file.write_text(consolidated, encoding="utf-8")
-            return True
-        return False
+        body, saved_prefs = _split_preferences(current)
+        consolidated_body = await self._consolidate(body)
+        if consolidated_body == body:
+            return False
+        full = _merge_preferences(consolidated_body, saved_prefs)
+        self._profile_file.write_text(full, encoding="utf-8")
+        return True
 
     async def _consolidate(self, content: str) -> str:
         """Ask LLM to compress *content* into a leaner profile."""
@@ -303,6 +308,7 @@ class ProfileBuilder:
     def update_preferences(self, new_items: list[str]) -> bool:
         """Merge new preference bullets into the 偏好与习惯 section.
 
+        Keeps at most PREFERENCES_MAX_ITEMS bullets (oldest dropped first).
         Returns True if the profile was changed.
         """
         if not new_items:
@@ -313,23 +319,30 @@ class ProfileBuilder:
             profile = DEFAULT_PROFILE.format(date=today)
 
         body, prefs = _split_preferences(profile)
-        existing = {line.strip() for line in prefs.splitlines() if line.strip().startswith("- ")}
+        existing_lines = [ln.strip() for ln in prefs.splitlines() if ln.strip().startswith("- ")]
+        existing_set = set(existing_lines)
         added = []
         for item in new_items:
             bullet = item.strip()
             if not bullet.startswith("- "):
                 bullet = f"- {bullet}"
-            if bullet not in existing:
+            if bullet not in existing_set:
                 added.append(bullet)
-                existing.add(bullet)
+                existing_set.add(bullet)
         if not added:
             return False
 
-        new_prefs = prefs.rstrip("\n") + "\n" + "\n".join(added) + "\n"
+        all_bullets = existing_lines + added
+        if len(all_bullets) > PREFERENCES_MAX_ITEMS:
+            all_bullets = all_bullets[-PREFERENCES_MAX_ITEMS:]
+
+        new_prefs = "\n".join(all_bullets) + "\n"
         merged = _merge_preferences(body, new_prefs)
         merged = self._ensure_header(merged)
         self._profile_file.write_text(merged, encoding="utf-8")
-        logger.info("ProfileBuilder: added %d preference(s)", len(added))
+        logger.info(
+            "ProfileBuilder: added %d preference(s), total %d", len(added), len(all_bullets)
+        )
         return True
 
     # ------------------------------------------------------------------
