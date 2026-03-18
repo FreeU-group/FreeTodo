@@ -55,7 +55,13 @@ def _load_vad_model() -> Any | None:
             from funasr import AutoModel as FunASRAutoModel  # noqa: PLC0415
 
             logger.info("正在加载 FSMN-VAD 语音活动检测模型 ...")
-            _vad_model_singleton = FunASRAutoModel(model="fsmn-vad", disable_update=True)
+            _vad_model_singleton = FunASRAutoModel(
+                model="fsmn-vad",
+                disable_update=True,
+                disable_pbar=True,
+                disable_log=True,
+                log_level="ERROR",
+            )
             logger.info("FSMN-VAD 模型加载完成")
         except Exception as e:
             logger.warning(f"FSMN-VAD 加载失败，将使用原始缓冲: {e}")

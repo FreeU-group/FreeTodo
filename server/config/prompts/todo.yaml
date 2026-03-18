@@ -150,6 +150,12 @@ perception_todo_intent_extraction:
     - "link_existing"：与已有某条待办是同一件事（去重），填写 matched_todo_name。
     - "conflict"：与已有某条待办在时间或资源上冲突，填写 matched_todo_name 和 reason。
     - "cancel_existing"：用户明确表示取消/放弃已有某条待办，填写 matched_todo_name。
+    - "update_existing"：已有待办的信息需要**修改**（时间、执行者、描述、地点、优先级等）。
+      包括：①用户明确表示要改（如"改成下午4点"）；②你从上下文推断出变更（如对方回复"那就4点吧"对应之前的会议邀约）。
+      填写 matched_todo_name，并在本条的 name/description/due/start_time/who_executor/where/priority 等字段中填写**新值**。
+    - "complete_existing"：已有待办**已完成**。
+      包括：①用户明确表示完成（如"搞定了"、"做完了"、"提交了"）；②你从上下文推断出已完成（如[我]说"已经发给你了"对应"发送需求文档"待办、会议纪要显示任务已落实）。
+      填写 matched_todo_name。
 
     输出要求：
     1. 输出必须是 JSON，且只能输出 JSON，不要解释，不要 markdown。
@@ -235,7 +241,7 @@ perception_todo_intent_extraction:
           "confidence": 0.0,
           "source_text": "证据原文片段",
           "memory_match": {{
-            "action": "new|link_existing|conflict|cancel_existing",
+            "action": "new|link_existing|conflict|cancel_existing|update_existing|complete_existing",
             "matched_todo_name": "已有待办名称或 null",
             "reason": "匹配原因或 null"
           }}

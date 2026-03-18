@@ -322,6 +322,7 @@ audio:
   second_pass:
     enabled: true # 启用后对 /v4/listen 的音频进行离线二次转录
     model: paraformer-v2 # 离线 ASR 模型
+    min_duration_seconds: 0.5 # 最短音频时长（秒），低于此跳过二次处理（原 1.0s 易漏短句）
     debounce_seconds: 3 # 检测到句子结束后等待的去抖时间（秒），避免连续说话时频繁触发
     interval_seconds: 30 # 最大等待间隔（秒），持续说话时也会按此间隔触发
     diarization_enabled: true # 是否启用说话人分离

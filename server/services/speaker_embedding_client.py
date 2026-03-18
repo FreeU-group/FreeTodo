@@ -91,6 +91,7 @@ class SpeakerEmbeddingClient:
                 disable_pbar=True,
                 disable_log=True,
                 disable_update=True,
+                log_level="ERROR",
             )
             logger.info("CAM++ 说话人模型加载完成")
             return self._model
