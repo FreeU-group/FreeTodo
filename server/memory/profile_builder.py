@@ -12,11 +12,14 @@ Design principles:
   and recent status are *replaced* each cycle.
 - **Bounded size**: a hard character budget triggers automatic consolidation
   so the profile never balloons out of control.
+- **Preferences are independent**: the "偏好与习惯" section is managed
+  separately (e.g. from chat) and does NOT count towards the character budget.
 """
 
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import TYPE_CHECKING
 
 from util.logging_config import get_logger
@@ -29,6 +32,9 @@ if TYPE_CHECKING:
     from llm.llm_client import LLMClient
 
 logger = get_logger()
+
+PREFERENCES_HEADING = "## 偏好与习惯"
+_PREFERENCES_SPLIT_RE = re.compile(r"(^|\n)(## 偏好与习惯\s*\n)", re.MULTILINE)
 
 # ---------------------------------------------------------------------------
 # Prompt constants
@@ -66,14 +72,14 @@ PROFILE_USER_TEMPLATE = """\
 2. **淘汰过时内容**：旧信息已被新事实取代时，删除旧版本
 3. **控制篇幅**：每个分区 3-5 个 bullet，总字数 ≤ 1000 字
 4. **全部使用 bullet point**（`- `开头），禁止写长段落
-5. **分区规范**（所有分区均使用 ## 二级标题，共 5 个分区）：
+5. **分区规范**（所有分区均使用 ## 二级标题，共 4 个分区）：
    - **身份与角色**：身份是什么、目前在做什么领域的事，末尾附一句当前阶段状态（稳定，融合了近期状态）
    - **工作模式**：工作时间规律 + 常用工具/平台（较稳定，不要展开细节）
    - **当前重点**：正在推进的 3-5 件核心事项（动态，每次重写）
    - **社交网络**：关键人际关系及其角色（较稳定）
-   - **偏好与习惯**：行为偏好、思维方式（稳定）
-6. **不要**有「近期状态」分区，近期状态已融入「身份与角色」末尾
-7. **禁止**：不要使用"新增""更新""变更"等前缀；不要输出 `> 状态：...` 行
+6. **不要**输出「偏好与习惯」分区（该分区由独立通路维护，会自动拼接）
+7. **不要**有「近期状态」分区，近期状态已融入「身份与角色」末尾
+8. **禁止**：不要使用"新增""更新""变更"等前缀；不要输出 `> 状态：...` 行
 
 如果无需更新，输出 NO_UPDATE。
 """
@@ -92,9 +98,10 @@ CONSOLIDATE_USER_TEMPLATE = """\
 2. 合并重复或高度相关的条目
 3. 删除一次性事件细节（如具体时间点、物流问题）
 4. 保留能体现用户长期特征的信息
-5. 仅保留 5 个分区：身份与角色、工作模式、当前重点、社交网络、偏好与习惯
-6. 不要有「近期状态」分区，近期状态融入「身份与角色」末尾一句
-7. 不使用"新增"前缀，不输出 changelog
+5. 仅保留 4 个分区：身份与角色、工作模式、当前重点、社交网络
+6. 不要输出「偏好与习惯」分区（由独立通路维护）
+7. 不要有「近期状态」分区，近期状态融入「身份与角色」末尾一句
+8. 不使用"新增"前缀，不输出 changelog
 
 当前画像：
 {current_profile}
@@ -170,13 +177,15 @@ class ProfileBuilder:
             current_profile = DEFAULT_PROFILE.format(date=today)
             self._profile_file.write_text(current_profile, encoding="utf-8")
 
-        # If profile is already over budget before we even add new events,
-        # consolidate first so the update prompt stays within context limits.
-        if len(current_profile) > PROFILE_MAX_CHARS:
+        # Strip preferences before LLM sees the profile (managed independently)
+        body, saved_prefs = _split_preferences(current_profile)
+
+        if len(body) > PROFILE_MAX_CHARS:
             logger.info(
-                f"ProfileBuilder: profile too long ({len(current_profile)} chars), consolidating before update"
+                "ProfileBuilder: body too long (%d chars), consolidating before update",
+                len(body),
             )
-            current_profile = await self._consolidate(current_profile)
+            body = await self._consolidate(body)
 
         recent = self._collect_recent_events()
         if not recent.strip():
@@ -187,7 +196,7 @@ class ProfileBuilder:
         time_range = self._time_range_label()
 
         prompt = PROFILE_USER_TEMPLATE.format(
-            current_profile=current_profile,
+            current_profile=body,
             recent_events=recent,
             time_range=time_range,
         )
@@ -217,19 +226,21 @@ class ProfileBuilder:
             logger.debug("ProfileBuilder: LLM said no update needed")
             return False
 
-        updated = self._ensure_header(resp.strip())
+        updated_body = self._ensure_header(resp.strip())
 
-        # Post-update consolidation guard
-        if len(updated) > PROFILE_MAX_CHARS:
+        if len(updated_body) > PROFILE_MAX_CHARS:
             logger.info(
-                f"ProfileBuilder: post-update profile too long ({len(updated)} chars), consolidating"
+                "ProfileBuilder: post-update body too long (%d chars), consolidating",
+                len(updated_body),
             )
-            updated = await self._consolidate(updated)
+            updated_body = await self._consolidate(updated_body)
 
-        self._profile_file.write_text(updated, encoding="utf-8")
+        # Re-attach preserved preferences section
+        full = _merge_preferences(updated_body, saved_prefs)
+        self._profile_file.write_text(full, encoding="utf-8")
         self._last_update = get_local_now()
         self._stats["updates"] += 1
-        logger.info(f"ProfileBuilder: profile updated ({len(updated)} chars)")
+        logger.info("ProfileBuilder: profile updated (%d chars body + prefs)", len(updated_body))
         return True
 
     # ------------------------------------------------------------------
@@ -286,6 +297,42 @@ class ProfileBuilder:
         return self._ensure_header(resp.strip())
 
     # ------------------------------------------------------------------
+    # Preferences — managed independently from chat
+    # ------------------------------------------------------------------
+
+    def update_preferences(self, new_items: list[str]) -> bool:
+        """Merge new preference bullets into the 偏好与习惯 section.
+
+        Returns True if the profile was changed.
+        """
+        if not new_items:
+            return False
+        profile = self.read_profile()
+        if not profile:
+            today = local_today_str()
+            profile = DEFAULT_PROFILE.format(date=today)
+
+        body, prefs = _split_preferences(profile)
+        existing = {line.strip() for line in prefs.splitlines() if line.strip().startswith("- ")}
+        added = []
+        for item in new_items:
+            bullet = item.strip()
+            if not bullet.startswith("- "):
+                bullet = f"- {bullet}"
+            if bullet not in existing:
+                added.append(bullet)
+                existing.add(bullet)
+        if not added:
+            return False
+
+        new_prefs = prefs.rstrip("\n") + "\n" + "\n".join(added) + "\n"
+        merged = _merge_preferences(body, new_prefs)
+        merged = self._ensure_header(merged)
+        self._profile_file.write_text(merged, encoding="utf-8")
+        logger.info("ProfileBuilder: added %d preference(s)", len(added))
+        return True
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
@@ -318,8 +365,6 @@ class ProfileBuilder:
     @staticmethod
     def _ensure_header(content: str) -> str:
         """Make sure the profile starts with an H1 and has an update timestamp."""
-        import re  # noqa: PLC0415
-
         now_str = get_local_now().strftime("%Y-%m-%d %H:%M")
 
         if not content.startswith("# "):
@@ -341,3 +386,33 @@ class ProfileBuilder:
                 count=1,
             )
         return content
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers for preference section splitting / merging
+# ---------------------------------------------------------------------------
+
+
+def _split_preferences(profile: str) -> tuple[str, str]:
+    """Split profile into (body_without_prefs, prefs_section_content).
+
+    If the preferences section doesn't exist, returns (profile, "").
+    """
+    m = _PREFERENCES_SPLIT_RE.search(profile)
+    if not m:
+        return profile, ""
+    start = m.start()
+    after_heading = m.end()
+    next_section = re.search(r"\n## ", profile[after_heading:])
+    end = after_heading + next_section.start() if next_section else len(profile)
+    prefs_content = profile[after_heading:end]
+    body = profile[:start] + profile[end:]
+    return body, prefs_content
+
+
+def _merge_preferences(body: str, prefs: str) -> str:
+    """Append the preferences section at the end of the profile body."""
+    body = body.rstrip("\n")
+    if not prefs.strip():
+        return body + "\n"
+    return f"{body}\n\n{PREFERENCES_HEADING}\n{prefs.strip()}\n"
