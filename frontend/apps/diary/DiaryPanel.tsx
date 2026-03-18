@@ -372,31 +372,26 @@ export function DiaryPanel() {
 			setIllustrationGenerating(false);
 		}
 	};
-	const handleGenerateMangaClick = async () => {
-		setActiveTab("ai");
-		await generateIllustrationForDate(selectedDate);
-	};
-	const handleGenerateDiaryTextClick = async () => {
+	const handleGenerateAllClick = async () => {
 		setDiaryTextGenerating(true);
-		try {
-			const resp = await fetch(
-				`/api/diary-illustration/generate-text?date=${selectedDateStr}`,
-				{ method: "POST" },
-			);
-			if (resp.ok) {
-				const data = await resp.json();
-				if (data.text) {
-					setDraft((prev) => ({ ...prev, contentAi: data.text }));
-					handleAutoSave({ draftOverride: { contentAi: data.text } });
+		const textPromise = fetch(
+			`/api/diary-illustration/generate-text?date=${selectedDateStr}`,
+			{ method: "POST" },
+		)
+			.then(async (resp) => {
+				if (resp.ok) {
+					const data = await resp.json();
+					if (data.text) {
+						setDraft((prev) => ({ ...prev, contentAi: data.text }));
+						handleAutoSave({ draftOverride: { contentAi: data.text } });
+					}
 				}
-			} else {
-				setAutoLinkMessage(t("generateFailed"));
-			}
-		} catch {
-			setAutoLinkMessage(t("generateFailed"));
-		} finally {
-			setDiaryTextGenerating(false);
-		}
+			})
+			.catch(() => {})
+			.finally(() => setDiaryTextGenerating(false));
+
+		const mangaPromise = generateIllustrationForDate(selectedDate).catch(() => {});
+		await Promise.allSettled([textPromise, mangaPromise]);
 	};
 	const handleAutoLinkClick = async () => {
 		if (!draft.id || isAutoLinking) return;
@@ -473,12 +468,10 @@ export function DiaryPanel() {
 					onContentAiBlur={(value) =>
 						handleAutoSave({ draftOverride: { contentAi: value } })
 					}
-					onGenerateManga={handleGenerateMangaClick}
-					onGenerateDiaryText={handleGenerateDiaryTextClick}
+					onGenerateAll={handleGenerateAllClick}
 					onAutoLink={handleAutoLinkClick}
 					autoLinkMessage={autoLinkMessage}
-					isGeneratingManga={illustrationGenerating}
-					isGeneratingDiaryText={diaryTextGenerating}
+					isGenerating={diaryTextGenerating || illustrationGenerating}
 					isAutoLinking={isAutoLinking}
 					hasJournalId={Boolean(draft.id)}
 					illustrationUrls={illustrationUrls}

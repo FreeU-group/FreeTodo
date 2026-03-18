@@ -18,12 +18,10 @@ interface DiaryEditorProps {
 	onUserNotesBlur: (value: string) => void;
 	onContentAiChange: (value: string) => void;
 	onContentAiBlur: (value: string) => void;
-	onGenerateManga: () => void;
-	onGenerateDiaryText: () => void;
+	onGenerateAll: () => void;
 	onAutoLink: () => void;
 	autoLinkMessage: string | null;
-	isGeneratingManga: boolean;
-	isGeneratingDiaryText: boolean;
+	isGenerating: boolean;
 	isAutoLinking: boolean;
 	hasJournalId: boolean;
 	illustrationUrls: string[];
@@ -40,12 +38,10 @@ export function DiaryEditor({
 	onUserNotesBlur,
 	onContentAiChange,
 	onContentAiBlur,
-	onGenerateManga,
-	onGenerateDiaryText,
+	onGenerateAll,
 	onAutoLink,
 	autoLinkMessage,
-	isGeneratingManga,
-	isGeneratingDiaryText,
+	isGenerating,
 	isAutoLinking,
 	hasJournalId,
 	illustrationUrls,
@@ -66,52 +62,32 @@ export function DiaryEditor({
 			<div className="flex flex-wrap items-center justify-between gap-3 shrink-0 mb-4">
 				<DiaryTabs activeTab={activeTab} onChange={onTabChange} />
 				<div className="flex items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={onGenerateAll}
+						disabled={isGenerating}
+						className="gap-1.5"
+					>
+						{isGenerating ? (
+							<Loader2 className="h-3.5 w-3.5 animate-spin" />
+						) : (
+							<Sparkles className="h-3.5 w-3.5" />
+						)}
+						{isGenerating
+							? t("generatingAi")
+							: hasExistingIllustrations || draft.contentAi
+								? t("regenerateAi")
+								: t("generateAi")}
+					</Button>
 					{activeTab === "original" && (
-						<>
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={onGenerateDiaryText}
-								disabled={isGeneratingDiaryText}
-								className="gap-1.5"
-							>
-								{isGeneratingDiaryText ? (
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
-								) : (
-									<Bot className="h-3.5 w-3.5" />
-								)}
-								{isGeneratingDiaryText
-									? t("generatingDiaryText")
-									: t("generateDiaryText")}
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								onClick={onAutoLink}
-								disabled={!hasJournalId || isAutoLinking}
-							>
-								{isAutoLinking ? t("autoLinking") : t("autoLink")}
-							</Button>
-						</>
-					)}
-					{activeTab === "ai" && (
 						<Button
-							variant="outline"
+							variant="ghost"
 							size="sm"
-							onClick={onGenerateManga}
-							disabled={isGeneratingManga}
-							className="gap-1.5"
+							onClick={onAutoLink}
+							disabled={!hasJournalId || isAutoLinking}
 						>
-							{isGeneratingManga ? (
-								<Loader2 className="h-3.5 w-3.5 animate-spin" />
-							) : (
-								<Sparkles className="h-3.5 w-3.5" />
-							)}
-							{isGeneratingManga
-								? t("generatingAi")
-								: hasExistingIllustrations
-									? t("regenerateAi")
-									: t("generateAi")}
+							{isAutoLinking ? t("autoLinking") : t("autoLink")}
 						</Button>
 					)}
 				</div>
@@ -190,10 +166,10 @@ export function DiaryEditor({
 							<div
 								className={cn(
 									"flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border px-4 py-12 text-center",
-									isGeneratingManga && "animate-pulse",
+									isGenerating && "animate-pulse",
 								)}
 							>
-								{isGeneratingManga ? (
+								{isGenerating ? (
 									<>
 										<Loader2 className="h-8 w-8 animate-spin text-primary" />
 										<p className="text-sm text-muted-foreground">

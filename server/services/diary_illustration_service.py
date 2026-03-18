@@ -27,9 +27,9 @@ ILLUSTRATIONS_DIR_NAME = "diary_illustrations"
 GEMINI_MODEL = "gemini-3-pro-image-preview"
 DEFAULT_VOLCENGINE_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 DEFAULT_VOLCENGINE_IMAGE_MODEL = "doubao-seedream-5-0-260128"
-DEFAULT_VOLCENGINE_IMAGE_SIZE = "1920x1920"
-DEFAULT_MIN_PIXEL_IMAGE_SIZE = "1920x1920"
-DOUBAO_SEEDREAM_MIN_PIXELS = 3_686_400
+DEFAULT_VOLCENGINE_IMAGE_SIZE = "1024x1024"
+DEFAULT_MIN_PIXEL_IMAGE_SIZE = "1024x1024"
+DOUBAO_SEEDREAM_MIN_PIXELS = 1_048_576
 DEFAULT_DIARY_PROVIDER = "volcengine"
 SUPPORTED_DIARY_PROVIDERS = {"volcengine", "gemini"}
 SUPPORTED_VOLCENGINE_IMAGE_SIZES = {
@@ -50,23 +50,26 @@ CRON_FIELD_COUNT = 5
 MAX_PARALLEL_PANEL_GENERATIONS = 3
 
 PROMPT_SYSTEM = (
-    "You are a comic storyboard artist. Split the user's day into 2 to 5 key scenes, "
-    "then write one standalone English image prompt for each scene.\n"
+    "You are a manga page artist. Given events from the user's day, create 1 to 3 manga PAGE prompts.\n"
+    "Each page should be a FULL manga page layout containing 2 to 4 panels with panel borders.\n\n"
     "Requirements:\n"
-    "- Each scene should represent a distinct important moment in chronological order.\n"
-    "- Each prompt should be 90 to 140 words and describe a single comic panel.\n"
-    "- Keep the same protagonist appearance across all panels.\n"
-    "- Include action, expression, environment, lighting, composition, and dialogue bubble text.\n"
-    "- End every prompt with: manga panel, warm anime style, detailed background, "
-    "speech bubbles with text, soft lighting, consistent character.\n"
+    "- Each prompt describes ONE full manga page with multiple panels arranged in a comic grid layout.\n"
+    "- Describe the panel layout explicitly (e.g. 'Top half: wide establishing shot of... "
+    "Bottom-left panel: close-up of... Bottom-right panel: ...').\n"
+    "- Keep the same protagonist appearance across all pages.\n"
+    "- Include short dialogue or thought bubbles with text in each panel.\n"
+    "- Vary panel sizes: mix wide shots, close-ups, and medium shots.\n"
+    "- Each prompt should be 120 to 200 words.\n"
+    "- End every prompt with: manga page layout, panel borders, speech bubbles with text, "
+    "warm anime style, varied panel sizes, soft lighting, consistent character design.\n\n"
     "Return strict JSON only:\n"
-    '[{"scene":"title","prompt":"english prompt"}, ...]'
+    '[{"page":"page title","prompt":"english prompt describing full manga page layout"}, ...]'
 )
 
 PROMPT_USER_TEMPLATE = """Daily event summary:
 {events}
 
-Split it into multiple comic scenes and return JSON only."""
+Create manga page prompts (each page has multiple panels). Return JSON only."""
 
 DIARY_TEXT_SYSTEM_PROMPT = (
     "你是一个温暖且高效的个人日记助手。"
@@ -364,7 +367,7 @@ class DiaryIllustrationService:
         scenes = json.loads(text[start : end + 1])
         if not isinstance(scenes, list):
             raise ValueError("LLM returned non-list JSON")
-        return scenes[:6]
+        return scenes[:3]
 
     async def _call_image_provider(self, prompt: str) -> bytes:
         provider = _get_diary_provider()
