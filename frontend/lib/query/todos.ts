@@ -127,7 +127,8 @@ export function useTodos(params?: UseTodosParams) {
 		{
 			query: {
 				queryKey: queryKeys.todos.list(params),
-				staleTime: 30 * 1000, // 30 秒内数据被认为是新鲜的
+				staleTime: 5 * 1000,
+				refetchInterval: 1000,
 				select: (data: unknown) => {
 					// Data is now auto-converted to camelCase by the fetcher
 					const response = data as TodoListResponse;
