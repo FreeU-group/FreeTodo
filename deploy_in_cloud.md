@@ -68,6 +68,8 @@ make build-server
 cp deploy/.env.example deploy/.env
 ```
 
+云端 Docker 部署通常通过 `deploy/.env` 注入配置；如果镜像内存在默认 `config.yaml`，环境变量的优先级更高。
+
 编辑 `deploy/.env`，填入必要的配置：
 
 ```bash
@@ -126,18 +128,34 @@ Frontend 运行在本地电脑上，通过网络连接云端 Server。
 - Node.js 22+
 - pnpm
 
-### 3.2 启动开发服务器
+### 3.2 安装依赖
 
 ```bash
-cd frontend
-
-cp .env.example .env
-# 修改 .env 中的 NEXT_PUBLIC_API_URL 为云端 Server 的地址
-NEXT_PUBLIC_API_URL=http://<云服务器公网IP>:8001
+# 新开一个命令行窗口
+cd FreeTodo/frontend
 
 pnpm install
+```
+
+### 3.3 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+编辑 `frontend/.env`，将 `NEXT_PUBLIC_API_URL` 修改为云端 Server 的地址：
+
+```bash
+NEXT_PUBLIC_API_URL=http://<云服务器公网IP>:8001
+```
+
+### 3.4 启动开发服务器
+
+```bash
 pnpm dev
 ```
+
+启动后访问 <http://localhost:3001> 即可打开前端页面。
 
 ## 4. 本地 Client 部署
 
@@ -148,13 +166,19 @@ Client 是 Python 感知客户端，负责屏幕截图采集、OCR 识别等，�
 - Python 3.12
 - uv 包管理器
 
-### 4.2 安装与配置
+### 4.2 安装依赖
 
 ```bash
-cd client
-uv sync
+# 新开一个命令行窗口
+cd FreeTodo
 
-cp .env.example .env
+uv sync --directory client
+```
+
+### 4.3 配置环境变量
+
+```bash
+cp client/.env.example client/.env
 ```
 
 编辑 `client/.env`，将 `CENTER_URL` 修改为云端 Server 的地址：
@@ -163,14 +187,14 @@ cp .env.example .env
 CENTER_URL=http://<云服务器公网IP>:8001
 ```
 
-### 4.3 启动
+### 4.4 启动 Client
 
 ```bash
 # 使用 .env 中的 CENTER_URL（推荐）
-uv run python sensor.py
+uv run --directory client python sensor.py
 
 # 或者手动指定地址（命令行参数优先级更高）
-uv run python sensor.py --center-url http://<云服务器公网IP>:8001
+uv run --directory client python sensor.py --center-url http://<云服务器公网IP>:8001
 ```
 
 ## 5. 手机 APP 与硬件连接
