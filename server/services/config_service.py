@@ -18,6 +18,45 @@ from util.settings import reload_settings, settings
 
 logger = get_logger()
 
+# Sentinel value for masked API keys returned to frontend (write-only)
+API_KEY_MASK = "sk-**********************************"
+
+# Backend config keys that contain sensitive API keys
+SENSITIVE_CONFIG_KEYS = frozenset(
+    {
+        "llm.api_key",
+        "dify.api_key",
+        "tavily.api_key",
+        "audio.asr.api_key",
+        "banna2.api_key",
+    }
+)
+
+# Values considered as unconfigured / placeholder API keys
+_INVALID_API_KEY_VALUES = frozenset(
+    {
+        "",
+        "xxx",
+        "YOUR_API_KEY_HERE",
+        "YOUR_BASE_URL_HERE",
+        "YOUR_LLM_KEY_HERE",
+        "YOUR_TAVILY_API_KEY_HERE",
+        "YOUR_GOOGLE_GEMINI_API_KEY_HERE",
+    }
+)
+
+
+def mask_api_key(value: Any) -> str:
+    """Return masked placeholder if key is configured, else empty string."""
+    if not value or not isinstance(value, str) or value in _INVALID_API_KEY_VALUES:
+        return ""
+    return API_KEY_MASK
+
+
+def is_masked_api_key(value: Any) -> bool:
+    """Check whether a value is the masked API key sentinel."""
+    return isinstance(value, str) and value == API_KEY_MASK
+
 
 # LLM 相关配置键（支持两种格式，用于判断是否需要重新初始化 LLM）
 LLM_RELATED_BACKEND_KEYS = [
@@ -365,11 +404,11 @@ class ConfigService:
         for backend_key in backend_config_keys:
             try:
                 value = settings.get(backend_key)
-                # 将点分隔格式转换为 snake_case 格式，以便前端 fetcher 能正确转换为 camelCase
                 frontend_key = dot_to_snake_notation(backend_key)
+                if backend_key in SENSITIVE_CONFIG_KEYS:
+                    value = mask_api_key(value)
                 config_dict[frontend_key] = value
             except KeyError:
-                # 配置项不存在，跳过或使用默认值
                 logger.debug(f"配置项 {backend_key} 不存在，跳过")
                 continue
 
@@ -607,6 +646,7 @@ class ConfigService:
         Returns:
             操作结果字典
         """
+        new_settings = {k: v for k, v in new_settings.items() if not is_masked_api_key(v)}
         config_path = self._config_path
 
         # 如果配置文件不存在，从默认配置复制
