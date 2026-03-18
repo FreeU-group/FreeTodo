@@ -35,18 +35,20 @@ async def _try_extract_and_save_preferences(
 
 
 def _schedule_preference_extraction(user_query: str, ai_response: str) -> None:
-    """Schedule preference extraction from a synchronous context (generator thread)."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.run_coroutine_threadsafe(
-                _try_extract_and_save_preferences(user_query, ai_response),
-                loop,
-            )
-        else:
-            loop.run_until_complete(_try_extract_and_save_preferences(user_query, ai_response))
-    except Exception:
-        logger.debug("Failed to schedule preference extraction", exc_info=True)
+    """Schedule preference extraction from a synchronous context (generator thread).
+
+    Uses ``threading`` + ``asyncio.run`` so it works reliably from any thread
+    without depending on ``get_event_loop()`` (deprecated in 3.10+).
+    """
+    import threading  # noqa: PLC0415
+
+    def _bg() -> None:
+        try:
+            asyncio.run(_try_extract_and_save_preferences(user_query, ai_response))
+        except Exception:
+            logger.debug("Preference extraction background thread failed", exc_info=True)
+
+    threading.Thread(target=_bg, daemon=True, name="pref-extract").start()
 
 
 def publish_ai_output_to_perception(

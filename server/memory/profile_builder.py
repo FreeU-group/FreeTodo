@@ -229,6 +229,10 @@ class ProfileBuilder:
 
         updated_body = self._ensure_header(resp.strip())
 
+        # Guard: strip any preference section the LLM may have output
+        # despite being told not to, to avoid duplication on re-attach.
+        updated_body, _ = _split_preferences(updated_body)
+
         if len(updated_body) > PROFILE_MAX_CHARS:
             logger.info(
                 "ProfileBuilder: post-update body too long (%d chars), consolidating",
