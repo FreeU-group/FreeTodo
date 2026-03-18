@@ -276,9 +276,17 @@ class ConfigService:
         for raw_key, new_value in new_settings.items():
             # 将 snake_case 格式转换为点分隔格式
             backend_key = snake_to_dot_notation(raw_key)
+            logger.info(f"[compare] 键转换: {raw_key} -> {backend_key}")
             try:
-                # 获取当前配置值
+                # 获取当前配置值（Dynaconf 合并 config.yaml + .env 后的值）
                 old_value = settings.get(backend_key)
+                logger.info(
+                    f"[compare] {backend_key}: old_type={type(old_value).__name__}, "
+                    f"new_type={type(new_value).__name__}, "
+                    f"old={str(old_value)[:20] if 'api_key' in backend_key.lower() else old_value}, "
+                    f"new={str(new_value)[:20] if 'api_key' in backend_key.lower() else new_value}, "
+                    f"equal={old_value == new_value}"
+                )
 
                 # 比对新旧值
                 if old_value != new_value:
@@ -293,11 +301,15 @@ class ConfigService:
             except KeyError:
                 # 配置项不存在，视为新增配置
                 config_changed = True
+                logger.info(f"[compare] {backend_key}: 配置项不存在（KeyError），视为新增")
                 if "api_key" in backend_key.lower():
                     changed_items.append(f"{backend_key}: (新增) {str(new_value)[:10]}...")
                 else:
                     changed_items.append(f"{backend_key}: (新增) {new_value}")
 
+        logger.info(
+            f"[compare] 比对结果: config_changed={config_changed}, 变更项数={len(changed_items)}"
+        )
         return config_changed, changed_items
 
     def get_llm_config(self) -> dict[str, Any]:
@@ -446,8 +458,9 @@ class ConfigService:
             new_settings: 配置字典（键可以是 snake_case 或点分隔格式）
         """
         env_path = self._get_env_file_path()
+        logger.info(f"[update_env] .env 路径: {env_path}, 存在: {env_path.exists()}")
         if not env_path.exists():
-            logger.debug(f".env 文件不存在，跳过同步: {env_path}")
+            logger.info(f"[update_env] .env 文件不存在，跳过同步: {env_path}")
             return
 
         env_updates: dict[str, str] = {}
@@ -455,8 +468,12 @@ class ConfigService:
             backend_key = snake_to_dot_notation(raw_key)
             env_var = self._dot_key_to_env_var(backend_key)
             env_updates[env_var] = self._format_env_value(value)
+            logger.info(f"[update_env] 映射: {raw_key} -> {backend_key} -> {env_var}")
 
         lines = env_path.read_text(encoding="utf-8").splitlines()
+        logger.info(
+            f"[update_env] .env 文件共 {len(lines)} 行，待匹配环境变量: {list(env_updates.keys())}"
+        )
         updated_lines = []
         synced_vars = []
 
@@ -468,15 +485,16 @@ class ConfigService:
                     updated_lines.append(f"{var_name}={env_updates[var_name]}")
                     os.environ[var_name] = env_updates[var_name]
                     synced_vars.append(var_name)
+                    logger.info(f"[update_env] 匹配到 .env 变量: {var_name}，已更新")
                     continue
             updated_lines.append(line)
 
         if synced_vars:
             env_path.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
             for var in synced_vars:
-                logger.info(f"已同步 .env 环境变量: {var}")
+                logger.info(f"[update_env] 已同步 .env 环境变量: {var}")
         else:
-            logger.debug("没有需要同步到 .env 的配置项")
+            logger.info("[update_env] 没有需要同步到 .env 的配置项（.env 中无匹配变量）")
 
     def update_config_file(self, new_settings: dict[str, Any], config_path: str) -> None:
         """更新配置文件
@@ -489,26 +507,39 @@ class ConfigService:
         with open(config_path, encoding="utf-8") as f:
             current_config = yaml.safe_load(f) or {}
 
+        logger.info(f"[update_yaml] 读取到 config.yaml 顶层键: {list(current_config.keys())}")
+
         # 更新配置
         for raw_key, value in new_settings.items():
             # 将 snake_case 格式转换为点分隔格式
             backend_key = snake_to_dot_notation(raw_key)
-            logger.info(f"更新配置: {raw_key} -> {backend_key} = {value}")
+            display_val = (
+                f"{str(value)[:15]}..." if "api_key" in backend_key.lower() and value else value
+            )
+            logger.info(f"[update_yaml] 更新: {raw_key} -> {backend_key} = {display_val}")
 
             # 处理嵌套配置键
             keys = backend_key.split(".")
             current = current_config
             for key in keys[:-1]:
                 if key not in current:
+                    logger.info(f"[update_yaml]   创建嵌套键: {key}（父路径中不存在）")
                     current[key] = {}
                 current = current[key]
+
+            old_yaml_val = current.get(keys[-1], "<不存在>")
+            if "api_key" in backend_key.lower():
+                old_yaml_val = (
+                    f"{str(old_yaml_val)[:15]}..." if old_yaml_val != "<不存在>" else old_yaml_val
+                )
+            logger.info(f"[update_yaml]   yaml 旧值: {old_yaml_val} -> 新值: {display_val}")
             current[keys[-1]] = value
 
         # 保存配置文件
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(current_config, f, allow_unicode=True, sort_keys=False)
 
-        logger.info(f"配置已保存到: {config_path}")
+        logger.info(f"[update_yaml] 配置已保存到: {config_path}")
 
     def _collect_jobs_to_sync(
         self, job_config_keys: list[str], new_settings: dict[str, Any]
@@ -710,8 +741,22 @@ class ConfigService:
         Returns:
             操作结果字典
         """
+        logger.info(
+            f"[save_config] 收到前端配置，共 {len(new_settings)} 项，原始键: {list(new_settings.keys())}"
+        )
+        for k, v in new_settings.items():
+            display_v = f"{str(v)[:15]}..." if "api_key" in k.lower() and v else v
+            logger.info(
+                f"[save_config]   原始 -> {k} = {display_v} (masked={is_masked_api_key(v)})"
+            )
+
         new_settings = {k: v for k, v in new_settings.items() if not is_masked_api_key(v)}
+        logger.info(
+            f"[save_config] 过滤掩码后剩余 {len(new_settings)} 项，键: {list(new_settings.keys())}"
+        )
+
         config_path = self._config_path
+        logger.info(f"[save_config] 配置文件路径: {config_path}")
 
         # 如果配置文件不存在，从默认配置复制
         if not os.path.exists(config_path):
@@ -722,11 +767,11 @@ class ConfigService:
 
         # 如果配置没有发生变化，直接返回
         if not config_changed:
-            logger.info("配置未发生变化，跳过保存和重载")
+            logger.info("[save_config] 配置未发生变化，跳过保存和重载")
             return {"success": True, "message": "配置未发生变化"}
 
         # 记录变更信息
-        logger.info(f"检测到配置变更，共 {len(changed_items)} 项:")
+        logger.info(f"[save_config] 检测到配置变更，共 {len(changed_items)} 项:")
         for item in changed_items:
             logger.info(f"  - {item}")
 
@@ -735,10 +780,14 @@ class ConfigService:
         old_asr_config = self.get_asr_config()
 
         # 3. 更新配置文件
+        logger.info(f"[save_config] 开始写入 config.yaml: {config_path}")
         self.update_config_file(new_settings, config_path)
+        logger.info("[save_config] config.yaml 写入完成")
 
         # 3.5. 同步写回 .env 文件（确保重启后配置不丢失）
+        logger.info("[save_config] 开始同步 .env 文件")
         self.update_env_file(new_settings)
+        logger.info("[save_config] .env 同步完成")
 
         # 4. 重新加载配置并触发变更回调（config_watcher 会检测差异并通知订阅者）
         reload_success = reload_with_callbacks()

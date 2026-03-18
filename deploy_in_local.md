@@ -18,7 +18,7 @@
 │   ▼       ▼                       ▼                      │
 │ ┌────────┐ ┌────────┐    ┌──────────────┐               │
 │ │Frontend│ │ Client │    │  手机 APP     │◄── 局域网     │
-│ │ :3000  │ │ (本地) │    │ + Omi 硬件   │               │
+│ │ :3001  │ │ (本地) │    │ + Omi 硬件   │               │
 │ └────────┘ └────────┘    └──────────────┘               │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -27,7 +27,7 @@
 | ---- | -------- | ---- |
 | **Server** | 本地 :8001 | FastAPI 主服务，处理业务 API、LLM 调用、数据存储 |
 | **AgentOS** | 本地 :8002 | AgentOS 服务，提供 Agno Agent 工具调度 |
-| **Frontend** | 本地 :3000 | Next.js 前端，连接本地 Server API |
+| **Frontend** | 本地 :3001 | Next.js 前端，连接本地 Server API |
 | **Client** | 本地 | Python 感知客户端，采集屏幕截图、OCR 等数据上报到本地 Server |
 | **手机 APP** | 手机（局域网） | Flutter APP，连接 Omi 硬件并通过局域网上报数据到本地 Server |
 
@@ -62,6 +62,9 @@ cd server
 
 uv sync
 source .venv/bin/activate
+
+#Windows应该执行：
+.venv\Scripts\Activate.ps1
 ```
 
 ### 4.2 配置文件
@@ -71,7 +74,7 @@ source .venv/bin/activate
 首次启动时，Server 会自动从 `server/config/default_config.yaml` 生成 `server/config/config.yaml`。你也可以提前手动复制并修改：
 
 ```bash
-cp server/config/default_config.yaml server/config/config.yaml
+cp config/default_config.yaml config/config.yaml
 ```
 
 编辑 `server/config/config.yaml`，至少配置 LLM 密钥：
@@ -100,7 +103,7 @@ banna2:
 也可以通过 `server/.env` 环境变量配置（优先级高于 `config.yaml`）：
 
 ```bash
-cp server/.env.example server/.env
+cp .env.example .env
 ```
 
 编辑 `server/.env`，按需填入：
@@ -130,7 +133,7 @@ AgentOS 提供 Agno Agent 工具调度能力，如不需要可跳过：
 
 ```bash
 # 新开一个命令行窗口
-cd server
+cd FreeTodo/server
 
 python agent_os.py
 ```
@@ -143,7 +146,7 @@ Frontend 运行在本地，连接本地 Server。
 
 ```bash
 # 新开一个命令行窗口
-cd frontend
+cd FreeTodo/frontend
 
 pnpm install
 ```
@@ -151,7 +154,7 @@ pnpm install
 ### 5.2 配置环境变量
 
 ```bash
-cp frontend/.env.example frontend/.env
+cp .env.example .env
 ```
 
 本地部署时，默认配置已指向 `localhost`，无需修改：
@@ -166,7 +169,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8001
 pnpm dev
 ```
 
-启动后访问 <http://localhost:3000> 即可打开前端页面。
+启动后访问 <http://localhost:3001> 即可打开前端页面。
 
 ## 6. Client 部署
 
@@ -176,6 +179,7 @@ Client 是 Python 感知客户端，负责屏幕截图采集、OCR 识别等，�
 
 ```bash
 # 新开一个命令行窗口
+cd FreeTodo
 uv sync --directory client
 ```
 

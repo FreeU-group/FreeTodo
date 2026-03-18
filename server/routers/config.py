@@ -541,6 +541,8 @@ async def save_and_init_llm(config_data: dict[str, str]):
 async def save_config(settings: dict[str, Any]):
     """保存配置到config.yaml文件"""
     try:
+        logger.info(f"[/save-config] 收到请求，键: {list(settings.keys())}")
+
         # 定义更新 LLM 配置状态的回调函数（配置状态已通过 config.is_configured() 实时获取）
         def update_llm_configured_status():
             # 配置状态现在通过 config.is_configured() 实时获取
@@ -548,10 +550,11 @@ async def save_config(settings: dict[str, Any]):
 
         # 调用配置服务保存配置
         result = config_service.save_config(settings, update_llm_configured_status)
+        logger.info(f"[/save-config] 保存结果: {result}")
         return result
 
     except Exception as e:
-        logger.error(f"保存配置失败: {e}")
+        logger.error(f"保存配置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"保存配置失败: {e!s}") from e
 
 
