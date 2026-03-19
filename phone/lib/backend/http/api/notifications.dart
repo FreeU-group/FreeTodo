@@ -4,6 +4,17 @@ import 'package:freeu/backend/http/shared.dart';
 import 'package:freeu/env/env.dart';
 import 'package:freeu/utils/logger.dart';
 
+/// Notification type constants for differentiated display.
+class NotificationType {
+  static const String autoTodo = 'auto_todo';
+  static const String invitation = 'invitation';
+  static const String conflict = 'conflict';
+  static const String update = 'update';
+  static const String complete = 'complete';
+  static const String cancel = 'cancel';
+  static const String reminder = 'reminder';
+}
+
 /// 通知数据模型
 class AppNotification {
   final String id;
@@ -14,6 +25,10 @@ class AppNotification {
   final String? source;
   final String? aiSuggestion;
 
+  /// Notification type for differentiated UI display.
+  /// Values: auto_todo, invitation, conflict, update, complete, cancel, reminder.
+  final String? type;
+
   AppNotification({
     required this.id,
     required this.title,
@@ -22,6 +37,7 @@ class AppNotification {
     this.todoId,
     this.source,
     this.aiSuggestion,
+    this.type,
   });
 
   factory AppNotification.fromJson(Map<String, dynamic> json) {
@@ -33,8 +49,15 @@ class AppNotification {
       todoId: json['todo_id'] as String?,
       source: json['source'] as String?,
       aiSuggestion: json['ai_suggestion'] as String?,
+      type: json['type'] as String?,
     );
   }
+
+  bool get isConflict => type == NotificationType.conflict;
+  bool get isUpdate => type == NotificationType.update;
+  bool get isComplete => type == NotificationType.complete;
+  bool get isCancel => type == NotificationType.cancel;
+  bool get isInvitation => type == NotificationType.invitation;
 
   Map<String, dynamic> toJson() {
     return {
@@ -45,6 +68,7 @@ class AppNotification {
       if (todoId != null) 'todo_id': todoId,
       if (source != null) 'source': source,
       if (aiSuggestion != null) 'ai_suggestion': aiSuggestion,
+      if (type != null) 'type': type,
     };
   }
 }

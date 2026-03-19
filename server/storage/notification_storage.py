@@ -39,6 +39,7 @@ def add_notification(  # noqa: PLR0913
     deadline: datetime | None = None,
     reminder_at: datetime | None = None,
     reminder_offset: int | None = None,
+    notification_type: str | None = None,
 ) -> bool:
     """
     添加通知到存储
@@ -53,6 +54,8 @@ def add_notification(  # noqa: PLR0913
         deadline: 待办截止时间（旧字段，兼容旧调用）
         reminder_at: 提醒触发时间（可选，用于去重和取消）
         reminder_offset: 提醒偏移分钟数（可选）
+        notification_type: 通知类型（可选），如 "auto_todo", "invitation", "conflict",
+            "update", "complete", "cancel", "reminder"
 
     Returns:
         bool: 如果通知已存在（去重），返回 False；否则返回 True
@@ -67,6 +70,9 @@ def add_notification(  # noqa: PLR0913
         "content": content,
         "timestamp": timestamp.isoformat(),
     }
+
+    if notification_type is not None:
+        notification["type"] = notification_type
 
     if todo_id is not None:
         notification["todo_id"] = todo_id

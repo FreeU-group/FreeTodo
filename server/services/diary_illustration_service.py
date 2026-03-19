@@ -43,6 +43,7 @@ SUPPORTED_VOLCENGINE_IMAGE_SIZES = {
     "1024x1792",
     "1920x1920",
 }
+PROMPT_LOG_PREVIEW_LEN = 80
 DIARY_ILLUSTRATION_JOB_ID = "diary_illustration_job"
 DIARY_ILLUSTRATION_JOB_NAME = "日记插画生成"
 DEFAULT_DIARY_ILLUSTRATION_CRON = "0 22 * * *"
@@ -147,6 +148,7 @@ class DiaryIllustrationService:
 
     async def generate_for_date(self, date_str: str | None = None) -> dict[str, Any]:
         date_str = date_str or local_today_str()
+        logger.info("DiaryIllustration: start generate_for_date date=%s", date_str)
         self._update_generation_status(
             date_str,
             state="preparing",
@@ -161,6 +163,7 @@ class DiaryIllustrationService:
 
         events_content = self._memory_reader.read_by_date(date_str)
         if not events_content or not events_content.strip():
+            logger.warning("DiaryIllustration: no events for date=%s", date_str)
             result = {
                 "ok": False,
                 "date": date_str,
@@ -183,9 +186,19 @@ class DiaryIllustrationService:
                 state="storyboarding",
                 message="Generating comic storyboard",
             )
+
+        logger.info(
+            "DiaryIllustration: loaded events for %s, length=%d chars",
+            date_str,
+            len(events_content),
+        )
+        try:
             scenes = await self._build_scene_prompts(events_content)
         except Exception as exc:
-            logger.exception("DiaryIllustration: scene prompt generation failed")
+            logger.exception(
+                "DiaryIllustration: scene prompt generation failed, error=%s",
+                exc,
+            )
             result = {
                 "ok": False,
                 "date": date_str,
@@ -203,81 +216,67 @@ class DiaryIllustrationService:
             return result
 
         if not scenes:
-            result = {
+            logger.warning("DiaryIllustration: LLM returned no scenes for date=%s", date_str)
+            return {
                 "ok": False,
                 "date": date_str,
                 "count": 0,
                 "paths": [],
                 "error": "LLM returned no scenes",
             }
-            self._update_generation_status(
-                date_str,
-                state="failed",
-                message="No comic scenes generated",
-                is_generating=False,
-                error=result["error"],
-            )
-            return result
 
-        scene_prompts = [
-            (idx, str(scene.get("prompt", "")).strip())
-            for idx, scene in enumerate(scenes)
-            if str(scene.get("prompt", "")).strip()
-        ]
-        total_panels = len(scene_prompts)
-        self._update_generation_status(
-            date_str,
-            state="rendering",
-            message="Rendering comic panels",
-            total_panels=total_panels,
-            completed_panels=0,
-            error=None,
+        logger.info(
+            "DiaryIllustration: got %d scenes, starting image generation",
+            len(scenes),
         )
+        saved_paths: list[str] = []
+        for idx, scene in enumerate(scenes):
+            prompt = str(scene.get("prompt", "")).strip()
+            scene_title = scene.get("scene", "?")
+            if not prompt:
+                logger.warning(
+                    "DiaryIllustration: skip panel %d, empty prompt (scene=%s)",
+                    idx + 1,
+                    scene_title,
+                )
+                continue
+            try:
+                logger.info(
+                    "DiaryIllustration: generating panel %d/%d scene=%s prompt_len=%d",
+                    idx + 1,
+                    len(scenes),
+                    scene_title,
+                    len(prompt),
+                )
+                image_bytes = await self._call_gemini(prompt)
+                out_path = self._illustrations_dir / f"{date_str}_{idx + 1}.png"
+                out_path.write_bytes(image_bytes)
+                saved_paths.append(str(out_path))
+                logger.info(
+                    "DiaryIllustration: saved panel %d/%d to %s size=%d bytes",
+                    idx + 1,
+                    len(scenes),
+                    out_path,
+                    len(image_bytes),
+                )
+            except Exception as exc:
+                logger.exception(
+                    "DiaryIllustration: panel %d generation failed scene=%s error=%s",
+                    idx + 1,
+                    scene_title,
+                    exc,
+                )
 
-        saved_paths_by_index: dict[int, str] = {}
-        completed_panels = 0
-        last_error: str | None = None
-        semaphore = asyncio.Semaphore(MAX_PARALLEL_PANEL_GENERATIONS)
-
-        async def _render_panel(idx: int, prompt: str) -> tuple[int, str | None, str | None]:
-            async with semaphore:
-                try:
-                    image_bytes = await self._call_image_provider(prompt)
-                    out_path = self._illustrations_dir / f"{date_str}_{idx + 1}.png"
-                    await asyncio.to_thread(out_path.write_bytes, image_bytes)
-                    logger.info(
-                        "DiaryIllustration: saved panel %d/%d to %s",
-                        idx + 1,
-                        total_panels,
-                        out_path,
-                    )
-                    return idx, str(out_path), None
-                except Exception as exc:
-                    logger.exception("DiaryIllustration: panel %d generation failed", idx + 1)
-                    return idx, None, str(exc)
-
-        tasks = [asyncio.create_task(_render_panel(idx, prompt)) for idx, prompt in scene_prompts]
-
-        for task in asyncio.as_completed(tasks):
-            idx, saved_path, panel_error = await task
-            completed_panels += 1
-            if saved_path:
-                saved_paths_by_index[idx] = saved_path
-            if panel_error:
-                last_error = panel_error
-            self._update_generation_status(
-                date_str,
-                state="rendering",
-                message="Rendering comic panels",
-                completed_panels=completed_panels,
-                total_panels=total_panels,
-                error=last_error,
-            )
-
-        saved_paths = [saved_paths_by_index[idx] for idx in sorted(saved_paths_by_index)]
-
-        result = {
-            "ok": len(saved_paths) > 0,
+        ok = len(saved_paths) > 0
+        logger.info(
+            "DiaryIllustration: generate_for_date done date=%s ok=%s count=%d/%d",
+            date_str,
+            ok,
+            len(saved_paths),
+            len(scenes),
+        )
+        return {
+            "ok": ok,
             "date": date_str,
             "count": len(saved_paths),
             "paths": saved_paths,
@@ -336,11 +335,16 @@ class DiaryIllustrationService:
             path.unlink(missing_ok=True)
 
     async def _build_scene_prompts(self, events_content: str) -> list[dict[str, Any]]:
+        events_truncated = events_content[:4000]
+        logger.info(
+            "DiaryIllustration: calling LLM for scene prompts, events_len=%d",
+            len(events_truncated),
+        )
         messages = [
             {"role": "system", "content": PROMPT_SYSTEM},
             {
                 "role": "user",
-                "content": PROMPT_USER_TEMPLATE.format(events=events_content[:4000]),
+                "content": PROMPT_USER_TEMPLATE.format(events=events_truncated),
             },
         ]
         response = await asyncio.to_thread(
@@ -357,16 +361,31 @@ class DiaryIllustrationService:
         )
         text = response.strip()
         if not text:
+            logger.error("DiaryIllustration: LLM returned empty response")
             raise ValueError("LLM returned empty response")
 
         start = text.find("[")
         end = text.rfind("]")
         if start == -1 or end == -1:
+            logger.error(
+                "DiaryIllustration: LLM response is not JSON array, preview=%s",
+                repr(text[:300]),
+            )
             raise ValueError(f"LLM response is not a JSON array: {text[:200]}")
 
-        scenes = json.loads(text[start : end + 1])
+        try:
+            scenes = json.loads(text[start : end + 1])
+        except json.JSONDecodeError as e:
+            logger.exception(
+                "DiaryIllustration: JSON parse failed at pos %d, preview=%s",
+                e.pos,
+                repr(text[max(0, e.pos - 50) : e.pos + 50]),
+            )
+            raise
         if not isinstance(scenes, list):
+            logger.error("DiaryIllustration: LLM returned non-list JSON type=%s", type(scenes))
             raise ValueError("LLM returned non-list JSON")
+        logger.info("DiaryIllustration: parsed %d scenes from LLM", len(scenes))
         return scenes[:3]
 
     async def _call_image_provider(self, prompt: str) -> bytes:
@@ -383,6 +402,7 @@ class DiaryIllustrationService:
         ref_image_path = str(cfg.get("ref_image_path", "")).strip()
 
         if not api_key:
+            logger.error("DiaryIllustration: banna2.api_key is not configured")
             raise ValueError("banna2.api_key is not configured")
 
         url = (
@@ -393,6 +413,11 @@ class DiaryIllustrationService:
         parts: list[dict[str, Any]] = []
         ref_path = Path(ref_image_path) if ref_image_path else None
         if ref_path and ref_path.exists():
+            logger.info(
+                "DiaryIllustration: using ref_image ref=%s prompt_len=%d",
+                ref_path,
+                len(prompt),
+            )
             suffix = ref_path.suffix.lower()
             mime_type = (
                 "image/jpeg" if suffix in {".jpg", ".jpeg"} else f"image/{suffix.lstrip('.')}"
@@ -403,6 +428,13 @@ class DiaryIllustrationService:
                 {"text": (f"Use the person in the reference image as the main character. {prompt}")}
             )
         else:
+            logger.debug(
+                "DiaryIllustration: text-only prompt model=%s prompt_preview=%s",
+                GEMINI_MODEL,
+                prompt[:PROMPT_LOG_PREVIEW_LEN] + "..."
+                if len(prompt) > PROMPT_LOG_PREVIEW_LEN
+                else prompt,
+            )
             parts.append({"text": prompt})
 
         payload = {
@@ -426,20 +458,47 @@ class DiaryIllustrationService:
 
     @staticmethod
     def _gemini_request(url: str, payload: dict[str, Any]) -> bytes:
+        # Mask API key in logs: only log model and base URL
+        log_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key=***"
+        logger.info("DiaryIllustration: Gemini API request model=%s", GEMINI_MODEL)
         with httpx.Client(timeout=180) as client:
             response = client.post(url, json=payload, headers={"Content-Type": "application/json"})
-            response.raise_for_status()
+            if not response.is_success:
+                body_preview = response.text[:500] if response.text else ""
+                logger.error(
+                    "DiaryIllustration: Gemini API HTTP error status=%d url=%s body=%s",
+                    response.status_code,
+                    log_url,
+                    body_preview,
+                )
+                response.raise_for_status()
             data = response.json()
 
         candidates = data.get("candidates", [])
         if not candidates:
+            err_msg = data.get("error", {}) or data
+            logger.error(
+                "DiaryIllustration: Gemini returned no candidates response=%s",
+                json.dumps(err_msg)[:400],
+            )
             raise ValueError(f"Gemini returned no candidates: {json.dumps(data)[:300]}")
 
-        for part in candidates[0].get("content", {}).get("parts", []):
+        parts = candidates[0].get("content", {}).get("parts", [])
+        for part in parts:
             inline = part.get("inlineData") or part.get("inline_data")
             if inline and inline.get("data"):
+                img_len = len(inline.get("data", ""))
+                logger.info(
+                    "DiaryIllustration: Gemini returned image data_len=%d",
+                    img_len,
+                )
                 return base64.b64decode(inline["data"])
 
+        logger.error(
+            "DiaryIllustration: Gemini response has no image data parts_count=%d response_preview=%s",
+            len(parts),
+            json.dumps(data)[:400],
+        )
         raise ValueError(f"Gemini response contained no image data: {json.dumps(data)[:300]}")
 
     @staticmethod

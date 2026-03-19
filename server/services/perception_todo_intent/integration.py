@@ -295,9 +295,15 @@ async def _apply_direct_update(
                 todo_id,
                 action_label,
             )
+            type_map = {
+                "completed": "complete",
+                "canceled": "cancel",
+                "updated": "update",
+            }
             _push_notification(
                 candidate,
                 f"已{action_label}待办：{matched_name or candidate.name}",
+                notification_type=type_map.get(action_label, "update"),
             )
             return TodoIntegrationResult(
                 action=IntegrationAction.UPDATED,
@@ -503,18 +509,42 @@ def _build_user_facing_content(candidate: ExtractedTodoCandidate, agno_response:
     return header if not analysis else f"{header}\n\n{analysis}"
 
 
-def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None:
+_NOTIFICATION_TYPE_META: dict[str, tuple[str, str]] = {
+    "auto_todo": ("自动待办", "auto_todo"),
+    "invitation": ("邀约助手", "invitation"),
+    "conflict": ("日程冲突", "conflict"),
+    "update": ("待办调整", "update"),
+    "complete": ("待办完成", "complete"),
+    "cancel": ("待办取消", "cancel"),
+}
+
+
+def _push_notification(
+    candidate: ExtractedTodoCandidate,
+    response: str,
+    *,
+    notification_type: str | None = None,
+) -> None:
     """Write user-facing notification into storage for signal-sensor popup display."""
     from storage.notification_storage import add_notification  # noqa: PLC0415
 
-    is_invitation = candidate.intent_type == IntentType.INVITATION
-    title = f"📨 邀约助手：{candidate.name}" if is_invitation else f"✅ 自动待办：{candidate.name}"
+    if notification_type is None:
+        if candidate.intent_type == IntentType.INVITATION:
+            notification_type = "invitation"
+        elif candidate.memory_match.action == MemoryMatchAction.CONFLICT:
+            notification_type = "conflict"
+        else:
+            notification_type = "auto_todo"
+
+    label, ntype = _NOTIFICATION_TYPE_META.get(notification_type, ("自动待办", "auto_todo"))
+    title = f"{label}：{candidate.name}"
     content = _build_user_facing_content(candidate, response)
     notification_id = f"intent_{uuid4().hex[:12]}"
 
     logger.info(
-        "[Notification] Writing notification: id=%s title=%r content_len=%d",
+        "[Notification] Writing notification: id=%s type=%s title=%r content_len=%d",
         notification_id,
+        ntype,
         title,
         len(content),
     )
@@ -523,9 +553,10 @@ def _push_notification(candidate: ExtractedTodoCandidate, response: str) -> None
         title=title,
         content=content,
         timestamp=get_utc_now(),
+        notification_type=ntype,
     )
     if added:
-        logger.info("[Notification] ✓ Notification %s stored successfully", notification_id)
+        logger.info("[Notification] Notification %s stored successfully", notification_id)
     else:
         logger.warning("[Notification] Notification %s was duplicate, not stored", notification_id)
 
