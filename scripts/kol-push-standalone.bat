@@ -5,8 +5,8 @@ REM  独立 KOL 推送弹窗（不依赖 signal-sensor）
 REM  直接启动 Electron 弹窗展示 KOL 信息
 REM ================================================================
 
-cd /d "%~dp0\.."
-set "REPO_ROOT=%cd%"
+for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
+cd /d "%REPO_ROOT%"
 set "FRONTEND_DIR=%REPO_ROOT%\frontend"
 set "POPUP_SCRIPT=%FRONTEND_DIR%\scripts\signal-popup.js"
 set "KOL_DATA=%REPO_ROOT%\scripts\kol_push_data.json"
