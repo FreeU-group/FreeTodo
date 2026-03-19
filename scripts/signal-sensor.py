@@ -368,6 +368,17 @@ try:
             return {"status": "ok", "message": "弹窗已触发"}
         return {"status": "busy", "message": "当前已有弹窗显示中，请等待关闭后重试"}
 
+    @_app.get("/demo/{scene_id}")
+    async def demo_trigger(scene_id: str):
+        """远程触发 demo 弹窗，浏览器访问 /demo/11 即可。"""
+        data = _load_demo_data(scene_id)
+        if data is None:
+            return {"status": "error", "message": f"未找到 demo/{scene_id}.json"}
+        ok = _launch_popup(data)
+        if ok:
+            return {"status": "ok", "scene": scene_id}
+        return {"status": "busy", "message": "当前已有弹窗显示中"}
+
     @_app.get("/health")
     async def health():
         busy = _state.popup_proc is not None and _state.popup_proc.poll() is None
@@ -394,7 +405,7 @@ def main() -> None:
     parser.add_argument(
         "--port", type=int, default=9876, help="本地 API 端口（需 fastapi）"
     )
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument(
         "--center-url",
         default="",
