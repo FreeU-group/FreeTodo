@@ -6,6 +6,15 @@
 # 如果 config.yaml 存在，系统会自动验证完整性，如果不完整，系统会自动提示并退出
 # 当此提示出现在 config.yaml 中时，请忽略
 
+# 初始化向导配置
+setup:
+  completed: false
+  user_name: ""
+  agent_name: "Free U"
+  scan_directories: []
+  allowed_apps:
+    - 微信
+
 # 部署角色配置
 deployment:
   role: standalone # standalone（单机） | center（中心节点，接受远程感知数据）
@@ -21,6 +30,7 @@ backend_modules:
   enabled:
     - health
     - config
+    - setup
     - system
     - logs
     - chat
