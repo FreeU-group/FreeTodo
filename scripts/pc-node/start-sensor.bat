@@ -6,8 +6,8 @@ REM  Start perception daemon + open browser to Center
 REM ================================================================
 setlocal enabledelayedexpansion
 
-cd /d "%~dp0\.."
-set "REPO_ROOT=%cd%"
+for %%I in ("%~dp0..\..") do set "REPO_ROOT=%%~fI"
+cd /d "%REPO_ROOT%"
 
 REM ================================================================
 REM  Load local config (if exists)

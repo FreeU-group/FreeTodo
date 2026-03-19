@@ -6,8 +6,8 @@ REM  Phoenix -> AgentOS -> Backend(center) -> Frontend -> cpolar
 REM ================================================================
 setlocal enabledelayedexpansion
 
-cd /d "%~dp0\.."
-set "REPO_ROOT=%cd%"
+for %%I in ("%~dp0..\..") do set "REPO_ROOT=%%~fI"
+cd /d "%REPO_ROOT%"
 set "SERVER_DIR=%REPO_ROOT%\server"
 set "FRONTEND_DIR=%REPO_ROOT%\frontend"
 set "LOG_DIR=%REPO_ROOT%\.run-logs"
