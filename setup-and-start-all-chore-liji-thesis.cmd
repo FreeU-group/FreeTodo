@@ -70,6 +70,36 @@ function Test-PythonAvailable {
     return (Test-Command "python") -or (Test-Command "py")
 }
 
+function Find-RunningProcessByCommandLine {
+    param(
+        [string[]]$Patterns,
+        [string]$ProcessName = ""
+    )
+
+    $filter = if ([string]::IsNullOrWhiteSpace($ProcessName)) { $null } else { "Name='$ProcessName'" }
+    $processes = Get-CimInstance Win32_Process -Filter $filter -ErrorAction SilentlyContinue
+    foreach ($process in $processes) {
+        $commandLine = $process.CommandLine
+        if ([string]::IsNullOrWhiteSpace($commandLine)) {
+            continue
+        }
+
+        $matchedAll = $true
+        foreach ($pattern in $Patterns) {
+            if ($commandLine -notmatch $pattern) {
+                $matchedAll = $false
+                break
+            }
+        }
+
+        if ($matchedAll) {
+            return [int]$process.ProcessId
+        }
+    }
+
+    return $null
+}
+
 function Get-DefaultBranchForScriptName {
     param([string]$ScriptBaseName)
 
@@ -446,6 +476,9 @@ Set-StrictMode -Version Latest
 `$ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Set-Location $repoRootQuoted
+Remove-Item Env:VIRTUAL_ENV -ErrorAction SilentlyContinue
+Remove-Item Env:CONDA_PREFIX -ErrorAction SilentlyContinue
+Remove-Item Env:CONDA_DEFAULT_ENV -ErrorAction SilentlyContinue
 `$Host.UI.RawUI.WindowTitle = $titleQuoted
 Write-Host 'FreeTodo service window: $Title'
 Write-Host 'Log file: $logFile'
@@ -561,14 +594,18 @@ try {
 
     if ($repoLayout -eq "split") {
         $serverVenvMarker = Join-Path $repoRoot "server\.venv\Scripts\python.exe"
+        $clientVenvMarker = Join-Path $repoRoot "client\.venv\Scripts\python.exe"
         $frontendNodeModulesMarker = Join-Path $repoRoot "frontend\node_modules"
         $frontendDirName = "frontend"
         $serverProjectDir = Join-Path $repoRoot "server"
+        $clientProjectDir = Join-Path $repoRoot "client"
     } else {
         $serverVenvMarker = Join-Path $repoRoot ".venv\Scripts\python.exe"
+        $clientVenvMarker = $null
         $frontendNodeModulesMarker = Join-Path $repoRoot "free-todo-frontend\node_modules"
         $frontendDirName = "free-todo-frontend"
         $serverProjectDir = $repoRoot
+        $clientProjectDir = $null
     }
     $frontendProjectDir = Join-Path $repoRoot $frontendDirName
 
@@ -583,6 +620,9 @@ try {
     if ($repoLayout -eq "split") {
         Ensure-InstallStep -Name "server dependencies" -MarkerPath $serverVenvMarker -Action {
             & uv sync --directory $serverProjectDir
+        }
+        Ensure-InstallStep -Name "sensor dependencies" -MarkerPath $clientVenvMarker -Action {
+            & uv sync --directory $clientProjectDir
         }
     } else {
         Ensure-InstallStep -Name "server dependencies" -MarkerPath $serverVenvMarker -Action {
@@ -600,6 +640,22 @@ try {
     $backendPid = Get-LivePid -PidFile (Join-Path $runStateDir "backend.pid")
     $agentosPid = Get-LivePid -PidFile (Join-Path $runStateDir "agentos.pid")
     $frontendPid = Get-LivePid -PidFile (Join-Path $runStateDir "frontend.pid")
+    $sensorPid = Get-LivePid -PidFile (Join-Path $runStateDir "sensor.pid")
+
+    if ($repoLayout -eq "split" -and -not $sensorPid) {
+        $sensorPid = Find-RunningProcessByCommandLine -ProcessName "python.exe" -Patterns @(
+            [Regex]::Escape((Join-Path $repoRoot "client\sensor.py")),
+            "--center-url",
+            "127\.0\.0\.1"
+        )
+        if (-not $sensorPid) {
+            $sensorPid = Find-RunningProcessByCommandLine -ProcessName "python.exe" -Patterns @(
+                [Regex]::Escape((Join-Path $repoRoot "client\sensor.py")),
+                "--center-url",
+                "localhost"
+            )
+        }
+    }
 
     $backendPort = 0
     if ($storedPorts -and $storedPorts.backend -and (Test-FreeTodoBackend -Port ([int]$storedPorts.backend))) {
@@ -633,6 +689,8 @@ try {
     if (-not $frontendPid) {
         $frontendPort = Resolve-Port -PreferredPort $frontendPort -FallbackPort 3001 -ExcludedPorts @($backendPort, $agentosPort)
     }
+
+    $sensorNodeId = if ($env:COMPUTERNAME) { $env:COMPUTERNAME } else { "MY-PC" }
 
     Write-JsonFile -Path $portsPath -Data @{
         backend = $backendPort
@@ -689,6 +747,16 @@ Invoke-LoggedCommand { pnpm --dir $frontendDirName dev }
 
     Wait-HttpReady -Url "http://127.0.0.1:$frontendPort" -TimeoutSeconds 180 -Name "Frontend" | Out-Null
 
+    if ($repoLayout -eq "split" -and -not $sensorPid) {
+        $sensorBody = @"
+Invoke-LoggedCommand { uv run --directory client python sensor.py --center-url http://127.0.0.1:$backendPort --node-id $sensorNodeId }
+"@
+        $sensorPid = Start-ServiceWindow -Name "sensor" -Title "FreeTodo Sensor" -Body $sensorBody -RepoRoot $repoRoot -RunStateDir $runStateDir
+        Start-Sleep -Seconds 3
+    } elseif ($repoLayout -eq "split") {
+        Write-Ok "Sensor is already running (PID $sensorPid)."
+    }
+
     Write-Host ""
     Write-Host "FreeTodo is ready." -ForegroundColor Green
     Write-Host "Repository : $repoRoot"
@@ -696,6 +764,7 @@ Invoke-LoggedCommand { pnpm --dir $frontendDirName dev }
     Write-Host "Backend    : http://127.0.0.1:$backendPort"
     if ($repoLayout -eq "split") {
         Write-Host "AgentOS    : http://127.0.0.1:$agentosPort"
+        Write-Host "Sensor     : local node '$sensorNodeId'"
     }
     Write-Host "Frontend   : http://127.0.0.1:$frontendPort"
 
