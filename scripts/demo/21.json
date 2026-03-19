@@ -1,0 +1,9 @@
+{
+  "title": "📎 Free U · 文件检索结果",
+  "width": 440,
+  "height": 480,
+  "buttons": [
+    {"label": "📋 复制文件路径", "action": "copy", "copyText": "~/Documents/会议资料/2026-03-12_产品方向讨论.pptx", "style": "primary"},
+    {"label": "忽略", "action": "close", "style": "secondary"}
+  ]
+}

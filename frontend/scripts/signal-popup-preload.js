@@ -7,3 +7,7 @@ contextBridge.exposeInMainWorld("__electronConfirm", () => {
 contextBridge.exposeInMainWorld("__openExternal", (url) => {
 	ipcRenderer.send("open-external", url);
 });
+
+contextBridge.exposeInMainWorld("__copyToClipboard", (text) => {
+	ipcRenderer.send("copy-to-clipboard", text);
+});

@@ -1,0 +1,9 @@
+{
+  "title": "🔔 Free U · 日程冲突提醒 — 详情",
+  "width": 440,
+  "height": 640,
+  "buttons": [
+    {"label": "📋 复制改约消息", "action": "copy", "copyText": "华泽！明天下午我有篮球比赛😂\n比赛完 6 点一起吃晚饭怎么样？\n球馆旁边有家海底捞！\n我请你🎉", "style": "primary"},
+    {"label": "忽略", "action": "close", "style": "secondary"}
+  ]
+}

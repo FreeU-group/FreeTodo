@@ -1,0 +1,9 @@
+{
+  "title": "🔔 Free U · 日程冲突提醒",
+  "width": 400,
+  "height": 300,
+  "buttons": [
+    {"label": "查看详情", "action": "close", "style": "primary"},
+    {"label": "忽略", "action": "close", "style": "secondary"}
+  ]
+}

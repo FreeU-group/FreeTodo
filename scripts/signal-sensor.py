@@ -262,49 +262,71 @@ def _poll_draft_todos(client: httpx.Client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 通知源 4：本地文件触发（kol_push_trigger.txt → 1 时弹窗推送 KOL 信息）
+# 通知源 4：本地文件触发（demo_trigger.txt → 非零值时弹窗）
 # ---------------------------------------------------------------------------
 
-KOL_TRIGGER_FILE = REPO_ROOT / "scripts" / "kol_push_trigger.txt"
+DEMO_TRIGGER_FILE = REPO_ROOT / "scripts" / "demo_trigger.txt"
+DEMO_DATA_DIR = REPO_ROOT / "scripts" / "demo"
 KOL_DATA_FILE = REPO_ROOT / "scripts" / "kol_push_data.json"
+
+_KOL_FALLBACK = {
+    "title": "📣 团队 KOL 资料已就绪",
+    "subtitle": "已为您整理好相关资料，点击即可查看主页：",
+    "links": [
+        {
+            "name": "陈翔宇（糖果果的陈同学）",
+            "url": "https://b23.tv/nh3n1UK",
+            "platform": "B站",
+        },
+        {
+            "name": "胡可儿Keer",
+            "url": "https://xhslink.com/m/9ubIvmSXUEE",
+            "platform": "小红书",
+        },
+    ],
+}
+
+
+def _load_demo_data(trigger_value: str) -> dict | None:
+    """Load popup data for a given trigger value.
+
+    Resolution order:
+      1. scripts/demo/<value>.json  (+ optional <value>.html merged as bodyHtml)
+      2. For value "1": scripts/kol_push_data.json → fallback KOL data
+    """
+    demo_json = DEMO_DATA_DIR / f"{trigger_value}.json"
+    demo_html = DEMO_DATA_DIR / f"{trigger_value}.html"
+    if demo_json.exists():
+        data = json.loads(demo_json.read_text(encoding="utf-8"))
+        if demo_html.exists():
+            data["bodyHtml"] = demo_html.read_text(encoding="utf-8")
+        return data
+    if trigger_value == "1":
+        if KOL_DATA_FILE.exists():
+            return json.loads(KOL_DATA_FILE.read_text(encoding="utf-8"))
+        return dict(_KOL_FALLBACK)
+    return None
 
 
 def _poll_local_trigger() -> None:
-    """后台线程：定时检查本地触发文件，值为 1 时弹窗推送 KOL 信息并重置为 0。"""
+    """后台线程：定时检查触发文件，非零值时加载对应 demo JSON 并弹窗。"""
     print(
         f"[signal-sensor] 本地文件触发轮询已启动 "
-        f"(file={KOL_TRIGGER_FILE}, interval={LOCAL_FILE_POLL_INTERVAL}s)"
+        f"(file={DEMO_TRIGGER_FILE}, interval={LOCAL_FILE_POLL_INTERVAL}s)"
     )
 
     while True:
         try:
-            if KOL_TRIGGER_FILE.exists():
-                value = KOL_TRIGGER_FILE.read_text(encoding="utf-8").strip()
-                if value == "1":
-                    print("[signal-sensor] 检测到本地触发文件=1，准备推送 KOL 信息")
-                    KOL_TRIGGER_FILE.write_text("0", encoding="utf-8")
-
-                    if KOL_DATA_FILE.exists():
-                        data = json.loads(KOL_DATA_FILE.read_text(encoding="utf-8"))
+            if DEMO_TRIGGER_FILE.exists():
+                value = DEMO_TRIGGER_FILE.read_text(encoding="utf-8").strip()
+                if value and value != "0":
+                    print(f"[signal-sensor] 检测到触发值={value}")
+                    DEMO_TRIGGER_FILE.write_text("0", encoding="utf-8")
+                    data = _load_demo_data(value)
+                    if data:
+                        _launch_popup(data)
                     else:
-                        data = {
-                            "title": "📣 团队 KOL 资料已就绪",
-                            "subtitle": "已为您整理好相关资料，点击即可查看主页：",
-                            "links": [
-                                {
-                                    "name": "陈翔宇（糖果果的陈同学）",
-                                    "url": "https://b23.tv/nh3n1UK",
-                                    "platform": "B站",
-                                },
-                                {
-                                    "name": "胡可儿Keer",
-                                    "url": "https://xhslink.com/m/9ubIvmSXUEE",
-                                    "platform": "小红书",
-                                },
-                            ],
-                        }
-
-                    _launch_popup(data)
+                        print(f"[signal-sensor] 未找到 demo/{value}.json，跳过")
         except Exception as exc:
             print(f"[signal-sensor] 本地文件触发轮询失败: {exc}")
         time.sleep(LOCAL_FILE_POLL_INTERVAL)
@@ -412,7 +434,7 @@ def main() -> None:
         f"    [3] 待办草稿  /api/todos?status=draft      (每 {DRAFT_TODO_POLL_INTERVAL}s)"
     )
     print(
-        f"    [4] 本地触发  {KOL_TRIGGER_FILE.name}        (每 {LOCAL_FILE_POLL_INTERVAL}s)"
+        f"    [4] 本地触发  {DEMO_TRIGGER_FILE.name}       (每 {LOCAL_FILE_POLL_INTERVAL}s)"
     )
     print()
 
