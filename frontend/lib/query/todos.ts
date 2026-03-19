@@ -60,8 +60,6 @@ function normalizeTodo(raw: Record<string, unknown>): Todo {
 		summary: (raw.summary as string) ?? undefined,
 		description: (raw.description as string) ?? undefined,
 		userNotes: (raw.userNotes as string) ?? undefined,
-		whoFounder: (raw.whoFounder as string) ?? undefined,
-		whoExecutor: (raw.whoExecutor as string) ?? undefined,
 		status: normalizeStatus(raw.status),
 		priority: normalizePriority(raw.priority),
 		itemType: (raw.itemType as string) ?? undefined,
@@ -129,7 +127,8 @@ export function useTodos(params?: UseTodosParams) {
 		{
 			query: {
 				queryKey: queryKeys.todos.list(params),
-				staleTime: 30 * 1000, // 30 秒内数据被认为是新鲜的
+				staleTime: 5 * 1000,
+				refetchInterval: 1000,
 				select: (data: unknown) => {
 					// Data is now auto-converted to camelCase by the fetcher
 					const response = data as TodoListResponse;
@@ -166,8 +165,6 @@ export function useCreateTodo() {
 				summary: input.summary,
 				description: input.description,
 				userNotes: input.userNotes,
-				whoFounder: input.whoFounder,
-				whoExecutor: input.whoExecutor,
 				parentTodoId: input.parentTodoId ?? null,
 				itemType: input.itemType,
 				location: input.location,

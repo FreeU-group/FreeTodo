@@ -6,7 +6,7 @@ from typing import Any
 from fastapi.responses import StreamingResponse
 
 from llm.agno_agent import TOOL_EVENT_PREFIX, TOOL_EVENT_SUFFIX, AgnoAgentService
-from routers.chat.base import publish_ai_output_to_perception
+from routers.chat.base import _schedule_preference_extraction, publish_ai_output_to_perception
 from schemas.chat import ChatMessage
 from services.chat_service import ChatService
 from util.logging_config import get_logger
@@ -190,6 +190,10 @@ def _build_agent_os_token_generator(
                 yield chunk
 
             _save_and_publish(storage_chunks, tool_events, chat_service, session_id)
+            user_query = (message.message or "").strip()
+            storage_text = "".join(storage_chunks).strip()
+            if user_query and storage_text:
+                _schedule_preference_extraction(user_query, storage_text)
         except Exception as e:
             logger.exception(f"[stream][agno] 生成失败: {e}")
             yield f"Agno Agent 处理失败: {e!s}"

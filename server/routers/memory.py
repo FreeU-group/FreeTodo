@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from memory.manager import try_get_memory_manager
 from util.time_utils import local_today_str
@@ -169,6 +170,22 @@ async def trigger_profile_consolidate():
         "stats": mgr.profile_builder.get_stats(),
         "content": mgr.reader.get_user_profile(),
     }
+
+
+class PreferencesUpdateRequest(BaseModel):
+    items: list[str]
+
+
+@router.post("/profile/update-preferences")
+async def update_profile_preferences(body: PreferencesUpdateRequest):
+    """Merge new preference items into the 偏好与习惯 section."""
+    mgr = _require_manager()
+    if mgr.profile_builder is None:
+        raise HTTPException(
+            status_code=503, detail="ProfileBuilder not available (LLM not configured)"
+        )
+    changed = mgr.profile_builder.update_preferences(body.items)
+    return {"updated": changed, "count": len(body.items)}
 
 
 @router.get("/profile-stats")
