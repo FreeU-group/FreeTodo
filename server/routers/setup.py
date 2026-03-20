@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile
 from pydantic import BaseModel
 
 from services.config_service import ConfigService
@@ -123,6 +123,19 @@ async def complete_setup(req: CompleteRequest):
     _config_service.save_config(config_updates)
     logger.info(f"初始化向导完成: user={req.user_name}, agent={req.agent_name}")
     return {"success": True}
+
+
+@router.post("/save-voiceprint")
+async def save_voiceprint(file: UploadFile):
+    """接收录制的声纹音频文件并保存到本地。"""
+    voiceprint_dir = get_user_data_dir() / "voiceprint"
+    voiceprint_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    dest = voiceprint_dir / f"voiceprint_{timestamp}.webm"
+    content = await file.read()
+    dest.write_bytes(content)
+    logger.info(f"声纹音频已保存: {dest} ({len(content)} bytes)")
+    return {"success": True, "path": str(dest), "size": len(content)}
 
 
 @router.post("/reset")
