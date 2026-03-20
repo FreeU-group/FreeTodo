@@ -13,7 +13,14 @@ import numpy as np
 from util.logging_config import get_logger
 
 from .models import BBox, ChatContext, ChatMessage, ChatType, OcrLine, OcrRawResult
-from .priors.wechat import BUBBLE_COLORS, WeChatPrior
+from .priors.wechat import (
+    BUBBLE_COLORS,
+    GREEN_HUE_MAX,
+    GREEN_HUE_MIN,
+    GREEN_SAT_MIN,
+    GREEN_VAL_MIN,
+    WeChatPrior,
+)
 
 logger = get_logger()
 
@@ -23,35 +30,38 @@ _NICKNAME_HEIGHT_RATIO = 0.92
 _NICKNAME_GAP_RATIO = 1.5
 _NICKNAME_MAX_CHARS = 20
 _NICKNAME_MAX_WIDTH_RATIO = 0.35
-_MIN_OCR_SCORE = 0.5
+_MIN_OCR_SCORE = 0.75
 _SELF_LABEL = "我"
+_SEND_BUTTON_TEXTS = {"发送"}
+_SEND_BUTTON_BOTTOM_RATIO = 0.12
+_SEND_BUTTON_RIGHT_RATIO = 0.75
 
 _TIMESTAMP_RE = re.compile(
     r"^("
-    r"\d{1,2}:\d{2}"  # 14:30
-    r"|[昨前]天\s*\d{1,2}[:\uff1a]\d{2}"  # 昨天 23:20
-    r"|星期[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"  # 星期六 16:00
-    r"|周[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"  # 周六 16:00
-    r"|\d{4}[/\-年]\d{1,2}[/\-月]\d{1,2}日?"  # 2026/3/15 or 2026年3月15日
-    r"|\d{1,2}月\d{1,2}日"  # 3月15日
-    r")(\s*\d{1,2}[:\uff1a]\d{2})?$"  # optional trailing time
+    r"\d{1,2}:\d{2}"
+    r"|[昨前]天\s*\d{1,2}[:\uff1a]\d{2}"
+    r"|星期[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"
+    r"|周[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"
+    r"|\d{4}[/\-年]\d{1,2}[/\-月]\d{1,2}日?"
+    r"|\d{1,2}月\d{1,2}日"
+    r")(\s*\d{1,2}[:\uff1a]\d{2})?$"
 )
-_TIMESTAMP_CENTER_TOLERANCE = 0.15
+_TIMESTAMP_CENTER_TOLERANCE = 0.30
 
 _WEEKDAY_MAP = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
 _TIME_HM_RE = re.compile(r"(\d{1,2})[:\uff1a](\d{2})")
 _REL_DAY_RE = re.compile(r"^(昨|前)天")
 _WEEKDAY_RE = re.compile(r"^(?:星期|周)([一二三四五六日天])")
-_ABS_DATE_RE = re.compile(
-    r"^(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})日?"
-)
+_ABS_DATE_RE = re.compile(r"^(\d{4})[/\-年](\d{1,2})[/\-月](\d{1,2})日?")
 _MONTH_DAY_RE = re.compile(r"^(\d{1,2})月(\d{1,2})日?")
+
+_TITLE_UPPER_RATIO = 0.15
 
 
 def _normalize_timestamp(raw: str) -> str:
     """Convert relative WeChat timestamp to 'YYYY-MM-DD HH:MM' format."""
-    text = raw.strip().replace("\u3000", " ").replace("\uff1a", ":")
-    now = datetime.now()
+    text = raw.strip().replace(" ", "").replace("\u3000", "").replace("\uff1a", ":")
+    now = datetime.now()  # noqa: DTZ005  # noqa: DTZ005
 
     hm = _TIME_HM_RE.search(text)
     hour = int(hm.group(1)) if hm else 0
@@ -59,7 +69,8 @@ def _normalize_timestamp(raw: str) -> str:
 
     m = _ABS_DATE_RE.match(text)
     if m:
-        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d} {hour:02d}:{minute:02d}"
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        return f"{y:04d}-{mo:02d}-{d:02d} {hour:02d}:{minute:02d}"
 
     m = _MONTH_DAY_RE.match(text)
     if m:
@@ -102,26 +113,58 @@ def _color_distance(pixel: np.ndarray, target: tuple[int, int, int]) -> float:
     )
 
 
-def _sample_bubble_color(
+def _is_green_hsv(pixel_rgb: np.ndarray) -> bool:
+    """Check if an RGB pixel falls in the green hue range (WeChat self-bubble)."""
+    r, g, b = float(pixel_rgb[0]), float(pixel_rgb[1]), float(pixel_rgb[2])
+    max_c = max(r, g, b)
+    min_c = min(r, g, b)
+    diff = max_c - min_c
+
+    if max_c < GREEN_VAL_MIN or diff < 1:
+        return False
+
+    sat = (diff / max_c) * 255.0
+    if sat < GREEN_SAT_MIN:
+        return False
+
+    if max_c == g:
+        hue = 30.0 * ((b - r) / diff + 2)
+    elif max_c == r:
+        hue = 30.0 * (((g - b) / diff) % 6)
+    else:
+        hue = 30.0 * ((r - g) / diff + 4)
+
+    if hue < 0:
+        hue += 180.0
+
+    return GREEN_HUE_MIN <= hue <= GREEN_HUE_MAX
+
+
+def _sample_bubble_pixels(
     image: np.ndarray,
     bbox: BBox,
     is_right: bool,
-) -> np.ndarray | None:
-    """Sample a few pixels just outside the bbox on the bubble side."""
+) -> list[np.ndarray]:
+    """Sample multiple pixels at varying distances outside the bbox."""
     h, w = image.shape[:2]
     cy = bbox.y + bbox.height // 2
     if cy < 0 or cy >= h:
-        return None
+        return []
 
-    sx = bbox.x + bbox.width + 5 if is_right else bbox.x - 5
+    x_offsets = [5, 12, 20]
+    y_offsets = [-3, 0, 3]
+    samples: list[np.ndarray] = []
 
-    sx = max(0, min(sx, w - 1))
-    offsets = [-2, 0, 2]
-    pixels = []
-    for dy in offsets:
-        y = max(0, min(cy + dy, h - 1))
-        pixels.append(image[y, sx].astype(np.float64))
-    return np.mean(pixels, axis=0)
+    for xoff in x_offsets:
+        sx = (bbox.x + bbox.width + xoff) if is_right else (bbox.x - xoff)
+        sx = max(0, min(sx, w - 1))
+        pixels = []
+        for dy in y_offsets:
+            y = max(0, min(cy + dy, h - 1))
+            pixels.append(image[y, sx].astype(np.float64))
+        samples.append(np.mean(pixels, axis=0))
+
+    return samples
 
 
 def _classify_side_by_color(
@@ -129,19 +172,28 @@ def _classify_side_by_color(
     bbox: BBox,
     theme_name: str,
 ) -> str | None:
-    """Return 'self' / 'other' / None based on bubble color near the bbox."""
-    colors = BUBBLE_COLORS.get(theme_name)
-    if colors is None:
-        return None
-    tolerance = colors["tolerance"]
+    """Return 'self' / 'other' / None using HSV green detection with RGB fallback."""
+    right_samples = _sample_bubble_pixels(image, bbox, is_right=True)
+    left_samples = _sample_bubble_pixels(image, bbox, is_right=False)
 
-    for is_right, label in [(True, "self"), (False, "other")]:
-        sample = _sample_bubble_color(image, bbox, is_right)
-        if sample is None:
-            continue
-        target = colors["green"] if label == "self" else colors["gray"]
-        if _color_distance(sample, target) < tolerance:
-            return label
+    right_green = any(_is_green_hsv(s) for s in right_samples)
+    left_green = any(_is_green_hsv(s) for s in left_samples)
+
+    if right_green and not left_green:
+        return "self"
+    if left_green and not right_green:
+        return "other"
+
+    colors = BUBBLE_COLORS.get(theme_name)
+    if colors:
+        tolerance = colors["tolerance"]
+        for sample in right_samples:
+            if _color_distance(sample, colors["green"]) < tolerance:
+                return "self"
+        for sample in left_samples:
+            if _color_distance(sample, colors["gray"]) < tolerance:
+                return "other"
+
     return None
 
 
@@ -171,6 +223,32 @@ def _extract_title_text(
         if ln.bbox_px.y + ln.bbox_px.height <= divider_y:
             title_parts.append(ln.text)
     return " ".join(title_parts).strip()
+
+
+def _is_send_button(ln: OcrLine, image_h: int, image_w: int) -> bool:
+    """Discard the '发送' button in the bottom-right corner."""
+    if ln.text.strip() not in _SEND_BUTTON_TEXTS:
+        return False
+    b = ln.bbox_px
+    return (
+        b.y + b.height > image_h * (1 - _SEND_BUTTON_BOTTOM_RATIO)
+        and b.x > image_w * _SEND_BUTTON_RIGHT_RATIO
+    )
+
+
+def _find_topmost_title_line(
+    ocr_lines: list[OcrLine],
+    image_height: int,
+) -> OcrLine | None:
+    """Find the topmost OCR line in the upper portion as a title fallback."""
+    upper_limit = int(image_height * _TITLE_UPPER_RATIO)
+    candidates = [
+        ln for ln in ocr_lines if ln.bbox_px.y < upper_limit and ln.score >= _MIN_OCR_SCORE
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda ln: ln.bbox_px.y)
+    return candidates[0]
 
 
 def _strip_group_suffix(title: str) -> str:
@@ -218,6 +296,18 @@ def parse_wechat_messages(
     )
 
     title_text = _extract_title_text(ocr_result.lines, divider_y)
+
+    if not title_text and raw_divider is None:
+        topmost = _find_topmost_title_line(ocr_result.lines, h)
+        if topmost:
+            title_text = topmost.text.strip()
+            divider_y = topmost.bbox_px.y + topmost.bbox_px.height + 2
+            logger.info(
+                "WeChat parser: fallback to topmost OCR line as title: '%s' (divider_y=%d)",
+                title_text,
+                divider_y,
+            )
+
     if not title_text:
         logger.warning("WeChat parser: no title text found above divider_y=%d", divider_y)
         return None
@@ -233,7 +323,11 @@ def parse_wechat_messages(
     )
 
     msg_lines = [
-        ln for ln in ocr_result.lines if ln.bbox_px.y >= divider_y and ln.score >= _MIN_OCR_SCORE
+        ln
+        for ln in ocr_result.lines
+        if ln.bbox_px.y >= divider_y
+        and ln.score >= _MIN_OCR_SCORE
+        and not _is_send_button(ln, h, roi_width)
     ]
     msg_lines.sort(key=lambda ln: ln.bbox_px.y)
 
@@ -266,6 +360,8 @@ def _is_timestamp_line(ln: OcrLine, roi_width: int) -> bool:
         return False
     cx = ln.bbox_px.x + ln.bbox_px.width / 2
     mid = roi_width / 2
+    if mid <= 0:
+        return False
     return abs(cx - mid) / mid < _TIMESTAMP_CENTER_TOLERANCE
 
 
@@ -298,7 +394,12 @@ def _attribute_messages(
         is_self = side == "self"
 
         if ctx.chat_type == ChatType.GROUP and _is_nickname_line(
-            ln, is_self, median_h, msg_lines, i, ctx.roi_width,
+            ln,
+            is_self,
+            median_h,
+            msg_lines,
+            i,
+            ctx.roi_width,
         ):
             pending_nickname = ln.text.rstrip(":").rstrip("\uff1a").strip()
             i += 1
@@ -321,7 +422,7 @@ def _attribute_messages(
     return messages
 
 
-def _is_nickname_line(
+def _is_nickname_line(  # noqa: PLR0913
     ln: OcrLine,
     is_self: bool,
     median_h: float,

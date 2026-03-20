@@ -437,6 +437,56 @@ class SensorDaemon:
         Image.fromarray(image).save(path)
         logger.debug(f"Debug image saved: {path}")
 
+    @staticmethod
+    def _build_ocr_annotated_image(
+        image: np.ndarray,
+        ocr_lines: list,
+    ) -> np.ndarray:
+        """Render all OCR bounding boxes with confidence scores on the image.
+
+        Color coding: green (>=0.8), orange (>=0.6), red (<0.6).
+        """
+        from PIL import Image, ImageDraw, ImageFont  # noqa: PLC0415
+
+        canvas = Image.fromarray(image.copy())
+        draw = ImageDraw.Draw(canvas)
+
+        label_font = ImageFont.load_default()
+        for name in ("msyh.ttc", "msyhl.ttc", "simhei.ttf", "arial.ttf"):
+            try:
+                label_font = ImageFont.truetype(name, 14)
+                break
+            except OSError:
+                continue
+
+        _high, _med = 0.8, 0.6
+        img_w = image.shape[1]
+        for ln in ocr_lines:
+            score = ln.score
+            if score >= _high:
+                color = (80, 220, 80)
+            elif score >= _med:
+                color = (255, 180, 40)
+            else:
+                color = (255, 60, 60)
+
+            b = ln.bbox_px
+            x1, y1 = max(0, b.x), max(0, b.y)
+            x2, y2 = b.x + b.width, b.y + b.height
+            draw.rectangle((x1, y1, x2, y2), outline=color, width=2)
+
+            label = f"{score:.2f} {ln.text}"
+            try:
+                tw = draw.textlength(label, font=label_font)
+            except (AttributeError, TypeError):
+                tw = len(label) * 9
+            ty = max(0, y1 - 18)
+            bg_x2 = min(int(x1 + tw + 6), img_w)
+            draw.rectangle((x1, ty, bg_x2, ty + 17), fill=(30, 30, 30))
+            draw.text((x1 + 3, ty + 1), label, fill=color, font=label_font)
+
+        return np.array(canvas)
+
     async def run_proactive_ocr_cycle(self) -> None:
         if not self._proactive_ocr_enabled:
             return
@@ -451,6 +501,13 @@ class SensorDaemon:
 
         engine = _get_ocr_engine()
         ocr_result = await asyncio.to_thread(engine.ocr, image_to_ocr)
+
+        if self._debug_images and ocr_result.lines:
+            try:
+                annotated = self._build_ocr_annotated_image(image_to_ocr, ocr_result.lines)
+                self._save_debug_image(annotated, f"proactive_{app_type.value}_ocr")
+            except Exception:
+                logger.debug("Failed to build OCR annotated debug image", exc_info=True)
 
         valid_lines = [ln for ln in ocr_result.lines if ln.score >= _MIN_OCR_CONFIDENCE]
         if not valid_lines:
