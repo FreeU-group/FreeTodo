@@ -20,9 +20,16 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	const animRef = useRef<number>(0);
 	const phaseRef = useRef(phase);
 	phaseRef.current = phase;
+	const mediaRef = useRef<MediaStream | null>(null);
+	const analyserRef = useRef<AnalyserNode | null>(null);
 
 	const cleanup = useCallback(() => {
 		if (animRef.current) cancelAnimationFrame(animRef.current);
+		if (mediaRef.current) {
+			for (const t of mediaRef.current.getTracks()) t.stop();
+			mediaRef.current = null;
+		}
+		analyserRef.current = null;
 	}, []);
 
 	useEffect(() => () => cleanup(), [cleanup]);
@@ -38,6 +45,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	const startRecording = async () => {
 		setErrorMsg("");
 
+		// 1. Start backend recording (actual audio capture + save)
 		try {
 			const res = await fetch("/api/audio/local-mic/start", {
 				method: "POST",
@@ -45,16 +53,32 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 				body: JSON.stringify({ device: null, is_24x7: false }),
 			});
 			const data = await res.json();
-
 			if (!res.ok || (data.status !== "started" && data.status !== "already_running")) {
 				setPhase("error");
-				setErrorMsg("无法启动麦克风录音，请检查后端服务");
+				setErrorMsg("无法启动后端麦克风录音，请检查服务");
 				return;
 			}
 		} catch {
 			setPhase("error");
 			setErrorMsg("无法连接后端服务");
 			return;
+		}
+
+		// 2. Open browser mic ONLY for real-time waveform visualization
+		let analyser: AnalyserNode | null = null;
+		let freqData: Uint8Array<ArrayBuffer> | null = null;
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			mediaRef.current = stream;
+			const audioCtx = new AudioContext();
+			const source = audioCtx.createMediaStreamSource(stream);
+			analyser = audioCtx.createAnalyser();
+			analyser.fftSize = 128;
+			source.connect(analyser);
+			analyserRef.current = analyser;
+			freqData = new Uint8Array(analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+		} catch {
+			// If browser mic fails (e.g. LAN IP), fall back to simulated waveform
 		}
 
 		setPhase("recording");
@@ -71,13 +95,28 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 			const sec = (now - startTime) / 1000;
 			setElapsed(Math.min(sec, RECORD_SECONDS));
 
-			const newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
-				const wave = Math.sin(now / barSpeeds[i] + barPhases[i]) * 0.5 + 0.5;
-				const noise = Math.random() * 0.35;
-				const center = Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
-				const envelope = 1 - center * 0.4;
-				return Math.min(1, (wave * 0.55 + noise) * envelope);
-			});
+			let newBars: number[];
+
+			if (analyser && freqData) {
+				// Real mic frequency data for visualization
+				analyser.getByteFrequencyData(freqData);
+				const binCount = analyser.frequencyBinCount;
+				const step = Math.max(1, Math.floor(binCount / BAR_COUNT));
+				newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
+					const idx = Math.min(i * step, binCount - 1);
+					return freqData![idx] / 255;
+				});
+			} else {
+				// Fallback: simulated waveform
+				newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
+					const wave = Math.sin(now / barSpeeds[i] + barPhases[i]) * 0.5 + 0.5;
+					const noise = Math.random() * 0.35;
+					const center = Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
+					const envelope = 1 - center * 0.4;
+					return Math.min(1, (wave * 0.55 + noise) * envelope);
+				});
+			}
+
 			setBars(newBars);
 
 			if (sec >= RECORD_SECONDS) {
@@ -150,7 +189,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 					<div className="space-y-1">
 						<div className="flex items-center justify-center gap-2">
 							<span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-							<span className="text-sm font-medium text-red-400">录音中（后端采集）</span>
+							<span className="text-sm font-medium text-red-400">录音中</span>
 						</div>
 						<div className="text-xs text-white/40">
 							{elapsed.toFixed(1)}s / {RECORD_SECONDS}s
