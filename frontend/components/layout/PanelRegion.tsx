@@ -254,7 +254,7 @@ export function PanelRegion({
 			<div
 				ref={containerRef}
 				className={cn(
-					"relative bg-primary-foreground dark:bg-accent flex min-h-0 overflow-hidden px-3 pb-3",
+					"relative bg-primary-foreground dark:bg-accent flex min-h-0 overflow-clip px-3",
 					panelsContainerHeight ? "" : "flex-1" // 如果有固定高度，不使用 flex-1；否则使用 flex-1（兼容完整页面模式）
 				)}
 				style={{
