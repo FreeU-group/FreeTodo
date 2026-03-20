@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { KeyRound } from "lucide-react";
 import { useSetupStore } from "@/lib/store/setup-store";
 import { useSaveConfig } from "@/lib/query";
 import { useSaveAndInitLlmApiSaveAndInitLlmPost } from "@/lib/generated/config/config";
@@ -64,7 +65,11 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 	return (
 		<div className="flex w-full max-w-md flex-col gap-5">
 			<div className="text-center">
-				<div className="mb-2 text-3xl">🔑</div>
+				<div className="mb-4 flex justify-center">
+					<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/20 text-primary">
+						<KeyRound className="h-6 w-6" />
+					</div>
+				</div>
 				<h2 className="text-xl font-bold text-white">配置 AI 服务</h2>
 				<p className="mt-1 text-sm text-white/60">
 					填入你的大语言模型 API Key，用于驱动 Agent 的核心能力

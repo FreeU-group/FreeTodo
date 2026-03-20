@@ -28,6 +28,7 @@ class ScanRequest(BaseModel):
 
 
 class ScanResult(BaseModel):
+    valid: bool = True
     directory: str
     file_count: int
     files: list[dict[str, Any]]
@@ -57,7 +58,9 @@ async def scan_directory(req: ScanRequest) -> ScanResult:
     """扫描指定目录下最近修改的文件名（不读取文件内容）。"""
     target = Path(req.directory).expanduser().resolve()
     if not target.exists() or not target.is_dir():
-        return ScanResult(directory=str(target), file_count=0, files=[], scan_time_ms=0)
+        return ScanResult(
+            valid=False, directory=str(target), file_count=0, files=[], scan_time_ms=0
+        )
 
     t0 = time.perf_counter()
     entries: list[dict[str, Any]] = []

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Cpu } from "lucide-react";
 
 const STAGES = [
 	{ label: "初始化核心引擎", duration: 600 },
@@ -51,7 +52,7 @@ export function StartupStep({ onComplete }: StartupStepProps) {
 			<div className="relative flex h-24 w-24 items-center justify-center">
 				<div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-primary" style={{ animationDuration: "2s" }} />
 				<div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent border-b-primary/50" style={{ animationDuration: "3s", animationDirection: "reverse" }} />
-				<span className="text-3xl">🚀</span>
+				<Cpu className="h-10 w-10 text-primary" />
 			</div>
 
 			<div className="w-full max-w-xs space-y-3">

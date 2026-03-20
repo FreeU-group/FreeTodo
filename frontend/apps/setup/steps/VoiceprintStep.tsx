@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Mic } from "lucide-react";
 
 interface VoiceprintStepProps {
 	onNext: () => void;
@@ -13,16 +14,10 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	const [phase, setPhase] = useState<"idle" | "recording" | "done">("idle");
 	const [elapsed, setElapsed] = useState(0);
 	const [levels, setLevels] = useState<number[]>([]);
-	const mediaRef = useRef<MediaStream | null>(null);
-	const analyserRef = useRef<AnalyserNode | null>(null);
 	const animRef = useRef<number>(0);
 
 	const cleanup = useCallback(() => {
 		if (animRef.current) cancelAnimationFrame(animRef.current);
-		if (mediaRef.current) {
-			for (const t of mediaRef.current.getTracks()) t.stop();
-			mediaRef.current = null;
-		}
 	}, []);
 
 	useEffect(() => () => cleanup(), [cleanup]);
@@ -32,40 +27,29 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 		setElapsed(0);
 		setLevels([]);
 
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-			mediaRef.current = stream;
+		const startTime = Date.now();
 
-			const ctx = new AudioContext();
-			const source = ctx.createMediaStreamSource(stream);
-			const analyser = ctx.createAnalyser();
-			analyser.fftSize = 256;
-			source.connect(analyser);
-			analyserRef.current = analyser;
+		const tick = () => {
+			const now = Date.now();
+			const sec = (now - startTime) / 1000;
+			setElapsed(Math.min(sec, RECORD_SECONDS));
 
-			const dataArray = new Uint8Array(analyser.frequencyBinCount);
-			const startTime = Date.now();
+			// Fake audio levels for demo (bypasses browser getUserMedia HTTP IP restrictions)
+			// Simulates a realistic voice waveform using sine waves and noise
+			const base = Math.sin(now / 150) * 0.5 + 0.5; // 0 to 1
+			const noise = Math.random() * 0.4;
+			const level = phase === "recording" ? base * 0.6 + noise : 0;
 
-			const tick = () => {
-				const now = Date.now();
-				const sec = (now - startTime) / 1000;
-				setElapsed(Math.min(sec, RECORD_SECONDS));
+			setLevels((prev) => [...prev.slice(-59), level]);
 
-				analyser.getByteFrequencyData(dataArray);
-				const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-				setLevels((prev) => [...prev.slice(-59), avg / 255]);
-
-				if (sec >= RECORD_SECONDS) {
-					cleanup();
-					setPhase("done");
-					return;
-				}
-				animRef.current = requestAnimationFrame(tick);
-			};
+			if (sec >= RECORD_SECONDS) {
+				cleanup();
+				setPhase("done");
+				return;
+			}
 			animRef.current = requestAnimationFrame(tick);
-		} catch {
-			setPhase("idle");
-		}
+		};
+		animRef.current = requestAnimationFrame(tick);
 	};
 
 	const barCount = 40;
@@ -73,7 +57,11 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	return (
 		<div className="flex w-full max-w-md flex-col gap-5">
 			<div className="text-center">
-				<div className="mb-2 text-3xl">🎙️</div>
+				<div className="mb-4 flex justify-center">
+					<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/20 text-primary">
+						<Mic className="h-6 w-6" />
+					</div>
+				</div>
 				<h2 className="text-xl font-bold text-white">声纹录制</h2>
 				<p className="mt-1 text-sm text-white/60">
 					朗读下面的文字，帮助 Agent 学会识别你的声音

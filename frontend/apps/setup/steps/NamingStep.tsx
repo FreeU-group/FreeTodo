@@ -1,5 +1,6 @@
 "use client";
 
+import { UserCircle } from "lucide-react";
 import { useSetupStore } from "@/lib/store/setup-store";
 
 interface NamingStepProps {
@@ -13,7 +14,11 @@ export function NamingStep({ onNext, onBack }: NamingStepProps) {
 	return (
 		<div className="flex w-full max-w-md flex-col gap-5">
 			<div className="text-center">
-				<div className="mb-2 text-3xl">👋</div>
+				<div className="mb-4 flex justify-center">
+					<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/20 text-primary">
+						<UserCircle className="h-6 w-6" />
+					</div>
+				</div>
 				<h2 className="text-xl font-bold text-white">互相认识一下</h2>
 				<p className="mt-1 text-sm text-white/60">
 					告诉 Agent 你的名字，也给它起一个你喜欢的称呼
@@ -76,7 +81,8 @@ export function NamingStep({ onNext, onBack }: NamingStepProps) {
 				<button
 					type="button"
 					onClick={onNext}
-					className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110"
+					disabled={!userName.trim()}
+					className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110 disabled:opacity-40"
 				>
 					下一步
 				</button>

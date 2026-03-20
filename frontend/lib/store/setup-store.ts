@@ -29,7 +29,7 @@ export const useSetupStore = create<SetupState>()((set) => ({
 	apiBaseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 	apiModel: "qwen-plus",
 	scanDirectory: "",
-	userName: "",
+	userName: "Master",
 	agentName: "Free U",
 
 	setStep: (step) => set({ currentStep: step }),

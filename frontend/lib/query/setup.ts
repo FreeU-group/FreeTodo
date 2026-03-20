@@ -26,6 +26,7 @@ export function useScanDirectory() {
 	return useMutation({
 		mutationFn: (args: { directory: string; maxFiles?: number }) =>
 			fetchJson<{
+				valid: boolean;
 				directory: string;
 				file_count: number;
 				files: Array<{ name: string; path: string; size: number; modified: number; ext: string }>;
