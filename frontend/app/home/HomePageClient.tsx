@@ -42,7 +42,7 @@ export default function HomePageClient() {
 		};
 	}, []);
 
-	// 初始化默认布局（确保只有A和B打开，且宽度比例为 1:2）
+	// 初始化默认布局（确保只有A和B打开，且宽度比例为 1:2，A为待办，B为聊天）
 	useEffect(() => {
 		const state = useUiStore.getState();
 		const next: Partial<typeof state> = {};
@@ -54,6 +54,23 @@ export default function HomePageClient() {
 
 		// 确保宽度比例为 1/3 (Panel A 占 1/3，剩下的 2/3 给 Panel B)
 		if (state.panelAWidth !== 1/3) next.panelAWidth = 1/3;
+
+		// 确保功能分配正确：A为待办，B为聊天
+		let featureMapChanged = false;
+		const newFeatureMap = { ...state.panelFeatureMap };
+
+		if (newFeatureMap.panelA !== "todos") {
+			newFeatureMap.panelA = "todos";
+			featureMapChanged = true;
+		}
+		if (newFeatureMap.panelB !== "chat") {
+			newFeatureMap.panelB = "chat";
+			featureMapChanged = true;
+		}
+
+		if (featureMapChanged) {
+			next.panelFeatureMap = newFeatureMap;
+		}
 
 		if (Object.keys(next).length > 0) {
 			useUiStore.setState(next);
