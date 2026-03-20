@@ -27,6 +27,7 @@ import {
 	PanelSwitchesSection,
 	PERCEPTION_JOB_IDS,
 	RecorderConfigSection,
+	ResetSetupSection,
 	SchedulerSection,
 	SensorNodesSection,
 	type SettingsCategory,
@@ -205,6 +206,7 @@ export function SettingsPanel() {
 				return (
 					<>
 						<OnboardingSection loading={loading} />
+						<ResetSetupSection loading={loading} />
 						<SettingsSection
 							title={tSettings("aboutTitle")}
 							description={tSettings("aboutDescription")}

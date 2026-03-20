@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from services.config_service import ConfigService
+from util.base_paths import get_user_data_dir
 from util.logging_config import get_logger
 from util.settings import settings
 
@@ -111,4 +112,27 @@ async def complete_setup(req: CompleteRequest):
     }
     _config_service.save_config(config_updates)
     logger.info(f"初始化向导完成: user={req.user_name}, agent={req.agent_name}")
+    return {"success": True}
+
+
+@router.post("/reset")
+async def reset_setup():
+    """重置初始化向导，并将 memory 文件夹重命名为 backup。"""
+    # 1. 设置 setup.completed = False
+    config_updates: dict[str, Any] = {
+        "setup.completed": False,
+    }
+    _config_service.save_config(config_updates)
+
+    # 2. 备份 memory 文件夹
+    memory_dir = get_user_data_dir() / "memory"
+    if memory_dir.exists() and memory_dir.is_dir():
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        backup_dir = get_user_data_dir() / f"memory_backup_{timestamp}"
+        try:
+            os.rename(memory_dir, backup_dir)
+            logger.info(f"已将 memory 文件夹备份为: {backup_dir}")
+        except Exception as e:
+            logger.error(f"备份 memory 文件夹失败: {e}")
+
     return {"success": True}

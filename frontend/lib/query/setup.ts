@@ -63,3 +63,16 @@ export function useCompleteSetup() {
 		},
 	});
 }
+
+export function useResetSetup() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: () =>
+			fetchJson<{ success: boolean }>("/api/setup/reset", {
+				method: "POST",
+			}),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["setup-status"] });
+		},
+	});
+}
