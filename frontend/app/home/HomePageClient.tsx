@@ -166,7 +166,7 @@ export default function HomePageClient() {
 				>
 					<AppHeader hasNotifications={false} />
 					<div
-						className="flex-1 min-h-0 overflow-hidden"
+						className="flex-1 min-h-0 overflow-hidden pr-3"
 						style={{
 							backgroundColor: "oklch(var(--background))",
 							background: "oklch(var(--background))",
