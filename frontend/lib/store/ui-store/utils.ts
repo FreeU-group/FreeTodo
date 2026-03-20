@@ -41,9 +41,9 @@ export function getPositionByFeature(
 export const DEFAULT_PANEL_STATE = {
 	isPanelAOpen: true,
 	isPanelBOpen: true,
-	isPanelCOpen: true,
-	panelAWidth: 1 / 3, // panelA 占左边 1/4，panelC 占右边 1/4，所以 panelA 占剩余空间的 1/3 (即 0.25/0.75)
-	panelCWidth: 0.25, // panelC 占右边 1/4
+	isPanelCOpen: false,
+	panelAWidth: 1 / 3, // panelA 占左边 1/3
+	panelCWidth: 0.25, // panelC 占右边 1/4 (虽然默认关闭)
 	// 默认关闭的功能：开发中的面板（用户可在设置中手动开启）
 	disabledFeatures: DEV_IN_PROGRESS_FEATURES as PanelFeature[],
 	backendDisabledFeatures: [] as PanelFeature[],
