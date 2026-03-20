@@ -38,7 +38,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 			// Simulates a realistic voice waveform using sine waves and noise
 			const base = Math.sin(now / 150) * 0.5 + 0.5; // 0 to 1
 			const noise = Math.random() * 0.4;
-			const level = phase === "recording" ? base * 0.6 + noise : 0;
+			const level = base * 0.6 + noise;
 
 			setLevels((prev) => [...prev.slice(-59), level]);
 

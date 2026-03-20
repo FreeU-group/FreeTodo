@@ -117,7 +117,7 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 				<div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
 					<div className="flex items-center justify-between text-sm">
 						<span className="text-white/70">
-							找到 <strong className="text-white">{scanMutation.data.file_count}</strong> 个文件
+							目前工作区已有 <strong className="text-white">{scanMutation.data.file_count}</strong> 个文件
 						</span>
 						<span className="text-xs text-white/40">
 							耗时 {scanMutation.data.scan_time_ms}ms
