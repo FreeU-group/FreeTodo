@@ -26,7 +26,7 @@ const INITIAL_APPS = [
 				/>
 			</svg>
 		),
-		desc: "监测微信消息，识别邀约和待办",
+		desc: "关注微信消息，识别邀约和待办",
 		enabled: true,
 	},
 	{
