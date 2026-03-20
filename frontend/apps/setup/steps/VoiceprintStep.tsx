@@ -9,12 +9,15 @@ interface VoiceprintStepProps {
 }
 
 const RECORD_SECONDS = 5;
+const BAR_COUNT = 40;
 
 export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	const [phase, setPhase] = useState<"idle" | "recording" | "done">("idle");
 	const [elapsed, setElapsed] = useState(0);
-	const [levels, setLevels] = useState<number[]>([]);
+	const [bars, setBars] = useState<number[]>(new Array(BAR_COUNT).fill(0));
 	const animRef = useRef<number>(0);
+	const phaseRef = useRef(phase);
+	phaseRef.current = phase;
 
 	const cleanup = useCallback(() => {
 		if (animRef.current) cancelAnimationFrame(animRef.current);
@@ -22,37 +25,41 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 
 	useEffect(() => () => cleanup(), [cleanup]);
 
-	const startRecording = async () => {
+	const startRecording = () => {
 		setPhase("recording");
 		setElapsed(0);
-		setLevels([]);
 
 		const startTime = Date.now();
+		const barSpeeds = Array.from({ length: BAR_COUNT }, () => 80 + Math.random() * 200);
+		const barPhases = Array.from({ length: BAR_COUNT }, () => Math.random() * Math.PI * 2);
 
 		const tick = () => {
+			if (phaseRef.current !== "recording") return;
+
 			const now = Date.now();
 			const sec = (now - startTime) / 1000;
 			setElapsed(Math.min(sec, RECORD_SECONDS));
 
-			// Fake audio levels for demo (bypasses browser getUserMedia HTTP IP restrictions)
-			// Simulates a realistic voice waveform using sine waves and noise
-			const base = Math.sin(now / 150) * 0.5 + 0.5; // 0 to 1
-			const noise = Math.random() * 0.4;
-			const level = base * 0.6 + noise;
+			const newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
+				const wave = Math.sin(now / barSpeeds[i] + barPhases[i]) * 0.5 + 0.5;
+				const noise = Math.random() * 0.35;
+				const center = Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
+				const envelope = 1 - center * 0.4;
+				return Math.min(1, (wave * 0.55 + noise) * envelope);
+			});
 
-			setLevels((prev) => [...prev.slice(-59), level]);
+			setBars(newBars);
 
 			if (sec >= RECORD_SECONDS) {
 				cleanup();
 				setPhase("done");
+				setBars(new Array(BAR_COUNT).fill(0));
 				return;
 			}
 			animRef.current = requestAnimationFrame(tick);
 		};
 		animRef.current = requestAnimationFrame(tick);
 	};
-
-	const barCount = 40;
 
 	return (
 		<div className="flex w-full max-w-md flex-col gap-5">
@@ -75,21 +82,21 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 				</p>
 			</div>
 
-			{/* Waveform visualizer */}
-			<div className="flex h-16 items-end justify-center gap-[2px] rounded-xl border border-white/10 bg-black/20 px-4">
-				{Array.from({ length: barCount }).map((_, i) => {
-					const level = levels[levels.length - barCount + i] ?? 0;
-					const h = Math.max(4, level * 56);
+			{/* Waveform visualizer — all bars update simultaneously every frame */}
+			<div className="flex h-16 items-center justify-center gap-[2px] rounded-xl border border-white/10 bg-black/20 px-4">
+				{bars.map((level, i) => {
+					const h = phase === "recording" ? Math.max(4, level * 56) : 4;
 					return (
 						<div
 							key={i}
-							className="w-1.5 rounded-full transition-all duration-75"
+							className="w-1.5 rounded-full"
 							style={{
 								height: `${h}px`,
+								transition: "height 60ms ease-out",
 								background:
 									phase === "recording"
-										? `linear-gradient(to top, oklch(var(--primary)), oklch(var(--primary) / 0.5))`
-										: "rgba(255,255,255,0.15)",
+										? `linear-gradient(to top, oklch(var(--primary)), oklch(var(--primary) / 0.4))`
+										: "rgba(255,255,255,0.12)",
 							}}
 						/>
 					);
@@ -135,7 +142,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 							type="button"
 							onClick={() => {
 								setPhase("idle");
-								setLevels([]);
+								setBars(new Array(BAR_COUNT).fill(0));
 							}}
 							className="text-xs text-white/40 hover:text-white/60"
 						>
