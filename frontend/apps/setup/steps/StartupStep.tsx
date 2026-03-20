@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { Cpu } from "lucide-react";
 
 const STAGES = [
-	{ label: "初始化核心引擎", duration: 600 },
-	{ label: "加载配置模块", duration: 400 },
-	{ label: "启动感知服务", duration: 500 },
-	{ label: "初始化记忆模块", duration: 450 },
-	{ label: "就绪", duration: 300 },
+	{ label: "初始化核心引擎", duration: 1200 },
+	{ label: "加载配置模块", duration: 1000 },
+	{ label: "启动感知服务", duration: 1400 },
+	{ label: "初始化记忆模块", duration: 1200 },
+	{ label: "就绪", duration: 800 },
 ];
 
 interface StartupStepProps {
