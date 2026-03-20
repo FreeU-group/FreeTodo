@@ -12,113 +12,84 @@ const RECORD_SECONDS = 5;
 const BAR_COUNT = 40;
 
 export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
-	const [phase, setPhase] = useState<"idle" | "recording" | "uploading" | "done" | "error">("idle");
+	const [phase, setPhase] = useState<"idle" | "recording" | "stopping" | "done" | "error">("idle");
 	const [elapsed, setElapsed] = useState(0);
 	const [bars, setBars] = useState<number[]>(new Array(BAR_COUNT).fill(0));
 	const [errorMsg, setErrorMsg] = useState("");
 
 	const animRef = useRef<number>(0);
-	const mediaRef = useRef<MediaStream | null>(null);
-	const recorderRef = useRef<MediaRecorder | null>(null);
-	const analyserRef = useRef<AnalyserNode | null>(null);
-	const chunksRef = useRef<Blob[]>([]);
+	const phaseRef = useRef(phase);
+	phaseRef.current = phase;
 
 	const cleanup = useCallback(() => {
 		if (animRef.current) cancelAnimationFrame(animRef.current);
-		if (mediaRef.current) {
-			for (const t of mediaRef.current.getTracks()) t.stop();
-			mediaRef.current = null;
-		}
-		analyserRef.current = null;
 	}, []);
 
 	useEffect(() => () => cleanup(), [cleanup]);
 
-	const uploadAudio = async (blob: Blob) => {
-		setPhase("uploading");
+	const stopBackendRecording = async () => {
 		try {
-			const formData = new FormData();
-			formData.append("file", blob, "voiceprint.webm");
-			const res = await fetch("/api/setup/save-voiceprint", {
-				method: "POST",
-				body: formData,
-			});
-			const data = await res.json();
-			if (data.success) {
-				setPhase("done");
-			} else {
-				setPhase("error");
-				setErrorMsg("保存失败");
-			}
+			await fetch("/api/audio/local-mic/stop", { method: "POST" });
 		} catch {
-			setPhase("error");
-			setErrorMsg("上传失败，请重试");
+			// best effort
 		}
 	};
 
 	const startRecording = async () => {
 		setErrorMsg("");
+
 		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-			mediaRef.current = stream;
+			const res = await fetch("/api/audio/local-mic/start", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ device: null, is_24x7: false }),
+			});
+			const data = await res.json();
 
-			const audioCtx = new AudioContext();
-			const source = audioCtx.createMediaStreamSource(stream);
-			const analyser = audioCtx.createAnalyser();
-			analyser.fftSize = 128;
-			source.connect(analyser);
-			analyserRef.current = analyser;
-
-			const recorder = new MediaRecorder(stream);
-			recorderRef.current = recorder;
-			chunksRef.current = [];
-
-			recorder.ondataavailable = (e) => {
-				if (e.data.size > 0) chunksRef.current.push(e.data);
-			};
-
-			recorder.onstop = () => {
-				const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-				uploadAudio(blob);
-			};
-
-			recorder.start();
-			setPhase("recording");
-			setElapsed(0);
-
-			const startTime = Date.now();
-			const freqData = new Uint8Array(analyser.frequencyBinCount);
-			const binCount = analyser.frequencyBinCount;
-
-			const tick = () => {
-				const now = Date.now();
-				const sec = (now - startTime) / 1000;
-				setElapsed(Math.min(sec, RECORD_SECONDS));
-
-				if (analyserRef.current) {
-					analyserRef.current.getByteFrequencyData(freqData);
-					const step = Math.max(1, Math.floor(binCount / BAR_COUNT));
-					const newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
-						const idx = Math.min(i * step, binCount - 1);
-						return freqData[idx] / 255;
-					});
-					setBars(newBars);
-				}
-
-				if (sec >= RECORD_SECONDS) {
-					cleanup();
-					if (recorderRef.current?.state === "recording") {
-						recorderRef.current.stop();
-					}
-					return;
-				}
-				animRef.current = requestAnimationFrame(tick);
-			};
-			animRef.current = requestAnimationFrame(tick);
+			if (!res.ok || (data.status !== "started" && data.status !== "already_running")) {
+				setPhase("error");
+				setErrorMsg("无法启动麦克风录音，请检查后端服务");
+				return;
+			}
 		} catch {
 			setPhase("error");
-			setErrorMsg("无法访问麦克风，请检查浏览器权限设置");
+			setErrorMsg("无法连接后端服务");
+			return;
 		}
+
+		setPhase("recording");
+		setElapsed(0);
+
+		const startTime = Date.now();
+		const barSpeeds = Array.from({ length: BAR_COUNT }, () => 80 + Math.random() * 200);
+		const barPhases = Array.from({ length: BAR_COUNT }, () => Math.random() * Math.PI * 2);
+
+		const tick = () => {
+			if (phaseRef.current !== "recording") return;
+
+			const now = Date.now();
+			const sec = (now - startTime) / 1000;
+			setElapsed(Math.min(sec, RECORD_SECONDS));
+
+			const newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
+				const wave = Math.sin(now / barSpeeds[i] + barPhases[i]) * 0.5 + 0.5;
+				const noise = Math.random() * 0.35;
+				const center = Math.abs(i - BAR_COUNT / 2) / (BAR_COUNT / 2);
+				const envelope = 1 - center * 0.4;
+				return Math.min(1, (wave * 0.55 + noise) * envelope);
+			});
+			setBars(newBars);
+
+			if (sec >= RECORD_SECONDS) {
+				cleanup();
+				setPhase("stopping");
+				setBars(new Array(BAR_COUNT).fill(0));
+				stopBackendRecording().then(() => setPhase("done"));
+				return;
+			}
+			animRef.current = requestAnimationFrame(tick);
+		};
+		animRef.current = requestAnimationFrame(tick);
 	};
 
 	return (
@@ -142,7 +113,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 				</p>
 			</div>
 
-			{/* Waveform visualizer — real-time frequency data from microphone */}
+			{/* Waveform visualizer */}
 			<div className="flex h-16 items-center justify-center gap-[2px] rounded-xl border border-white/10 bg-black/20 px-4">
 				{bars.map((level, i) => {
 					const isActive = phase === "recording";
@@ -179,7 +150,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 					<div className="space-y-1">
 						<div className="flex items-center justify-center gap-2">
 							<span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-							<span className="text-sm font-medium text-red-400">录音中</span>
+							<span className="text-sm font-medium text-red-400">录音中（后端采集）</span>
 						</div>
 						<div className="text-xs text-white/40">
 							{elapsed.toFixed(1)}s / {RECORD_SECONDS}s
@@ -192,7 +163,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 						</div>
 					</div>
 				)}
-				{phase === "uploading" && (
+				{phase === "stopping" && (
 					<div className="flex items-center justify-center gap-2">
 						<div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-primary" />
 						<span className="text-sm text-white/60">正在保存声纹…</span>
