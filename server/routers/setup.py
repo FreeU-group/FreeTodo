@@ -113,6 +113,13 @@ async def complete_setup(req: CompleteRequest):
         "setup.scan_directories": req.scan_directories,
         "setup.allowed_apps": req.allowed_apps,
     }
+
+    # 将第一个扫描目录设为 Agno Agent 的默认工作区
+    if req.scan_directories:
+        workspace = req.scan_directories[0]
+        config_updates["agno.default_workspace"] = workspace
+        logger.info(f"设置 Agno 默认工作区: {workspace}")
+
     _config_service.save_config(config_updates)
     logger.info(f"初始化向导完成: user={req.user_name}, agent={req.agent_name}")
     return {"success": True}
