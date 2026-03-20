@@ -180,12 +180,11 @@ class DiaryIllustrationService:
             )
             return result
 
-        try:
-            self._update_generation_status(
-                date_str,
-                state="storyboarding",
-                message="Generating comic storyboard",
-            )
+        self._update_generation_status(
+            date_str,
+            state="storyboarding",
+            message="Generating comic storyboard",
+        )
 
         logger.info(
             "DiaryIllustration: loaded events for %s, length=%d chars",
@@ -275,20 +274,20 @@ class DiaryIllustrationService:
             len(saved_paths),
             len(scenes),
         )
-        return {
+        result = {
             "ok": ok,
             "date": date_str,
             "count": len(saved_paths),
             "paths": saved_paths,
-            "error": None if saved_paths else (last_error or "No images were generated"),
+            "error": None if saved_paths else "No images were generated",
         }
         self._update_generation_status(
             date_str,
             state="completed" if result["ok"] else "failed",
             message="Comic panels ready" if result["ok"] else "Comic panel generation failed",
             is_generating=False,
-            completed_panels=completed_panels,
-            total_panels=total_panels,
+            completed_panels=len(saved_paths),
+            total_panels=len(scenes),
             error=result["error"],
         )
         return result

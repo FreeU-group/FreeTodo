@@ -500,7 +500,14 @@ class SensorDaemon:
         self._save_debug_image(image_to_ocr, f"proactive_{app_type.value}_roi")
 
         engine = _get_ocr_engine()
-        ocr_result = await asyncio.to_thread(engine.ocr, image_to_ocr)
+        try:
+            ocr_result = await asyncio.to_thread(engine.ocr, image_to_ocr)
+        except Exception as ocr_exc:
+            logger.error(
+                f"OCR engine.ocr() raised {type(ocr_exc).__name__}: {ocr_exc}",
+                exc_info=True,
+            )
+            return
 
         if self._debug_images and ocr_result.lines:
             try:

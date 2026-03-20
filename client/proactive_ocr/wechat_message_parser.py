@@ -61,7 +61,7 @@ _TITLE_UPPER_RATIO = 0.15
 def _normalize_timestamp(raw: str) -> str:
     """Convert relative WeChat timestamp to 'YYYY-MM-DD HH:MM' format."""
     text = raw.strip().replace(" ", "").replace("\u3000", "").replace("\uff1a", ":")
-    now = datetime.now()  # noqa: DTZ005  # noqa: DTZ005
+    now = datetime.now()  # noqa: DTZ005
 
     hm = _TIME_HM_RE.search(text)
     hour = int(hm.group(1)) if hm else 0
@@ -117,8 +117,7 @@ def _is_green_hsv(pixel_rgb: np.ndarray) -> bool:
     """Check if an RGB pixel falls in the green hue range (WeChat self-bubble)."""
     r, g, b = float(pixel_rgb[0]), float(pixel_rgb[1]), float(pixel_rgb[2])
     max_c = max(r, g, b)
-    min_c = min(r, g, b)
-    diff = max_c - min_c
+    diff = max_c - min(r, g, b)
 
     if max_c < GREEN_VAL_MIN or diff < 1:
         return False

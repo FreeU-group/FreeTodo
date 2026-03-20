@@ -168,16 +168,41 @@ class WinRtOcrEngine:
         h, w = rgba_image.shape[:2]
         try:
             result = self._recognize_sync(rgba_image.tobytes(), w, h)
+        except UnicodeDecodeError as e:
+            logger.warning(f"WinRT OCR decode error (ignoring): {e}")
+            return OcrRawResult(
+                lines=[], engine="winrt", latency_ms=(time.time() - start_time) * 1000
+            )
         except Exception as e:
-            logger.error(f"WinRT OCR failed: {e}")
+            logger.error(f"WinRT OCR recognize failed: {e}")
             return OcrRawResult(
                 lines=[], engine="winrt", latency_ms=(time.time() - start_time) * 1000
             )
 
         latency_ms = (time.time() - start_time) * 1000
         lines = []
-        if result and "lines" in result:
-            for line_data in result["lines"]:
+        try:
+            lines = self._parse_ocr_result(result, scale)
+        except Exception as e:
+            logger.warning(f"WinRT OCR result parsing failed: {e}", exc_info=True)
+
+        return OcrRawResult(
+            lines=lines,
+            engine="winrt",
+            latency_ms=latency_ms,
+            det_time_ms=0,
+            rec_time_ms=latency_ms,
+            cls_time_ms=0,
+            model_version="windows-media-ocr",
+            device="cpu",
+        )
+
+    def _parse_ocr_result(self, result: dict, scale: float) -> list[OcrLine]:
+        lines: list[OcrLine] = []
+        if not result or "lines" not in result:
+            return lines
+        for line_data in result["lines"]:
+            try:
                 raw_text = line_data.get("text", "")
                 if not raw_text.strip():
                     continue
@@ -193,17 +218,10 @@ class WinRtOcrEngine:
                 else:
                     confidence = _estimate_line_confidence(text, bbox)
                 lines.append(OcrLine(text=text, score=confidence, bbox_px=bbox))
-
-        return OcrRawResult(
-            lines=lines,
-            engine="winrt",
-            latency_ms=latency_ms,
-            det_time_ms=0,
-            rec_time_ms=latency_ms,
-            cls_time_ms=0,
-            model_version="windows-media-ocr",
-            device="cpu",
-        )
+            except Exception as e:
+                logger.debug(f"WinRT OCR: skipped line due to error: {e}")
+                continue
+        return lines
 
     @staticmethod
     def _aggregate_word_bboxes(words: list[dict], scale: float) -> BBox:
@@ -243,7 +261,11 @@ class WinRtOcrEngine:
             raise RuntimeError("winocr backend unavailable")
         awaitable = winocr.recognize_bytes(image_bytes, width, height, lang=self.lang)
         result = await awaitable
-        pickled = winocr.picklify(result)
+        try:
+            pickled = winocr.picklify(result)
+        except UnicodeDecodeError as e:
+            logger.warning(f"winocr.picklify decode error: {e}")
+            return {"lines": []}
         if not isinstance(pickled, dict):
             raise RuntimeError("winocr returned unexpected result type")
         return pickled

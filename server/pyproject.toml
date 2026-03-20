@@ -62,7 +62,7 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http>=1.39.0",
     "openinference-instrumentation-openai>=0.1.41",
     "pandas>=3.0.1",
-
+    "arize-phoenix>=13.15.0",
 ]
 
 [dependency-groups]
