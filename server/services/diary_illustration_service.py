@@ -230,6 +230,7 @@ class DiaryIllustrationService:
             len(scenes),
         )
         saved_paths: list[str] = []
+        last_error: str | None = None
         for idx, scene in enumerate(scenes):
             prompt = str(scene.get("prompt", "")).strip()
             scene_title = scene.get("scene", "?")
@@ -260,6 +261,7 @@ class DiaryIllustrationService:
                     len(image_bytes),
                 )
             except Exception as exc:
+                last_error = str(exc)
                 logger.exception(
                     "DiaryIllustration: panel %d generation failed scene=%s error=%s",
                     idx + 1,
@@ -268,6 +270,13 @@ class DiaryIllustrationService:
                 )
 
         ok = len(saved_paths) > 0
+        result = {
+            "ok": ok,
+            "date": date_str,
+            "count": len(saved_paths),
+            "paths": saved_paths,
+            "error": None if saved_paths else (last_error or "No images were generated"),
+        }
         logger.info(
             "DiaryIllustration: generate_for_date done date=%s ok=%s count=%d/%d",
             date_str,

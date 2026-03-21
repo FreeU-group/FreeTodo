@@ -211,8 +211,19 @@ class NotificationPoller {
 		}
 	}
 
+	/** Keywords in notification titles that should trigger an Electron system popup. */
+	private static readonly POPUP_KEYWORDS = [
+		"邀约", "invitation",
+		"自动待办", "auto_todo",
+		"待办调整", "update",
+		"待办完成", "complete",
+		"待办取消", "cancel",
+		"日程冲突", "conflict",
+	];
+
 	/**
-	 * Trigger Electron system popup for important notifications (invitation, etc.)
+	 * Trigger Electron system popup for todo-related notifications
+	 * (create / update / complete / cancel / invitation / conflict).
 	 */
 	private triggerElectronPopupIfNeeded(notification: Notification): void {
 		if (
@@ -222,9 +233,10 @@ class NotificationPoller {
 			return;
 		}
 		const title = notification.title || "";
-		const isImportant =
-			title.includes("邀约") || title.includes("invitation");
-		if (!isImportant) return;
+		const shouldPopup = NotificationPoller.POPUP_KEYWORDS.some((kw) =>
+			title.includes(kw),
+		);
+		if (!shouldPopup) return;
 
 		const snippet =
 			notification.content.length > 80

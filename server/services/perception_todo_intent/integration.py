@@ -25,6 +25,8 @@ _MULTI_SPACE_RE = re.compile(r"\s+")
 
 _AGNO_TOOLS_FOR_TODO = [
     "create_todo",
+    "update_todo",
+    "complete_todo",
     "list_todos",
     "search_todos",
     "check_schedule_conflict",
@@ -275,6 +277,10 @@ async def _apply_direct_update(
             action_label = "canceled"
         else:
             kwargs = _candidate_to_update_kwargs(candidate)
+            # For update_existing the candidate name describes the change intent
+            # (e.g. "调整截止时间到4月1日"), not a new todo name — drop it to
+            # avoid silently renaming the existing todo.
+            kwargs.pop("name", None)
             if not kwargs:
                 logger.info(
                     "[Integration] update_existing: no fields to update for %r",
@@ -367,16 +373,27 @@ def _candidate_fields(candidate: ExtractedTodoCandidate) -> list[str]:
 def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
     """Return an action-specific instruction based on memory_match."""
     action = candidate.memory_match.action
+    matched = candidate.memory_match.matched_todo_name or "未知"
+    reason = candidate.memory_match.reason or ""
     if action == MemoryMatchAction.CONFLICT:
-        matched = candidate.memory_match.matched_todo_name or "未知"
-        reason = candidate.memory_match.reason or ""
         return (
             f"\n注意：该意图与已有待办「{matched}」存在时间冲突。{reason}\n"
             "请先检查冲突情况，再决定是否创建待办，并在描述或 user_notes 中注明冲突。"
         )
     if action == MemoryMatchAction.CANCEL_EXISTING:
-        matched = candidate.memory_match.matched_todo_name or "未知"
         return f"\n用户表示不再需要已有待办「{matched}」。\n请帮用户将该待办标记为取消。"
+    if action == MemoryMatchAction.UPDATE_EXISTING:
+        return (
+            f"\n用户要求修改已有待办「{matched}」。{reason}\n"
+            "请先用 search_todos 找到该待办，再用 update_todo 更新对应字段（如截止时间、描述、优先级等）。\n"
+            "不要创建新待办。"
+        )
+    if action == MemoryMatchAction.COMPLETE_EXISTING:
+        return (
+            f"\n用户表示已有待办「{matched}」已完成。{reason}\n"
+            "请先用 search_todos 找到该待办，再用 complete_todo 将其标记为完成。\n"
+            "不要创建新待办。"
+        )
     return (
         "\n**你必须调用 create_todo 工具来创建待办事项，这是强制要求。**"
         "\n若有发起人/执行者，请使用 create_todo 的 who_founder 和 who_executor 参数传入。"
