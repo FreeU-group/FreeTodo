@@ -34,6 +34,11 @@ BUBBLE_COLORS = {
     },
 }
 
+INPUT_BOX_BG = {
+    "dark": {"color": (32, 32, 32), "tolerance": 12},
+    "light": {"color": (255, 255, 255), "tolerance": 15},
+}
+
 _DARK_BRIGHTNESS_UPPER = 100
 _LIGHT_BRIGHTNESS_LOWER = 150
 

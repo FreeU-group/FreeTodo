@@ -74,6 +74,7 @@ sensor:
   screenshot_interval: 10.0
   proactive_ocr_enabled: true
   proactive_ocr_interval: 1.0
+  audio_enabled: true
 
 # 感知流（Perception Stream）配置
 perception:

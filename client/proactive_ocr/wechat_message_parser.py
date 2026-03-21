@@ -19,6 +19,7 @@ from .priors.wechat import (
     GREEN_HUE_MIN,
     GREEN_SAT_MIN,
     GREEN_VAL_MIN,
+    INPUT_BOX_BG,
     WeChatPrior,
 )
 
@@ -227,6 +228,47 @@ def _extract_title_text(
     return " ".join(title_parts).strip()
 
 
+_INPUT_BOX_SAMPLE_EXPAND = 8
+_INPUT_BOX_SAMPLE_POINTS = 6
+
+
+def _is_in_input_box(
+    image: np.ndarray,
+    bbox: BBox,
+    theme_name: str,
+) -> bool:
+    """Check if a text bbox sits inside the compose/input box by sampling
+    background pixels around it and comparing to input box background color."""
+    cfg = INPUT_BOX_BG.get(theme_name)
+    if cfg is None:
+        return False
+    target = np.array(cfg["color"], dtype=np.float64)
+    tolerance = cfg["tolerance"]
+    h, w = image.shape[:2]
+
+    expand = _INPUT_BOX_SAMPLE_EXPAND
+    sample_points = [
+        (bbox.y - expand, bbox.x + bbox.width // 2),
+        (bbox.y + bbox.height + expand, bbox.x + bbox.width // 2),
+        (bbox.y + bbox.height // 2, bbox.x - expand),
+        (bbox.y + bbox.height // 2, bbox.x + bbox.width + expand),
+        (bbox.y - expand, bbox.x - expand),
+        (bbox.y + bbox.height + expand, bbox.x + bbox.width + expand),
+    ]
+
+    matches = 0
+    checked = 0
+    for sy, sx in sample_points:
+        sy = max(0, min(sy, h - 1))
+        sx = max(0, min(sx, w - 1))
+        pixel = image[sy, sx].astype(np.float64)[:3]
+        checked += 1
+        if np.sqrt(np.sum((pixel - target) ** 2)) < tolerance:
+            matches += 1
+
+    return checked > 0 and matches >= checked // 2
+
+
 def _is_send_button(ln: OcrLine, image_h: int, image_w: int) -> bool:
     """Discard the '发送' button in the bottom-right corner."""
     if ln.text.strip() not in _SEND_BUTTON_TEXTS:
@@ -408,6 +450,11 @@ def _attribute_messages(
         if _is_timestamp_line(ln, ctx.roi_width, median_h):
             current_timestamp = _normalize_timestamp(ln.text)
             logger.info("  [TS] %s → %s", ln.text.strip(), current_timestamp)
+            i += 1
+            continue
+
+        if _is_in_input_box(ctx.image, ln.bbox_px, ctx.theme_name):
+            logger.info("  [INPUT_BOX] skipped: %s", ln.text.strip())
             i += 1
             continue
 
