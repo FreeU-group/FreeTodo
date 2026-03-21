@@ -269,13 +269,17 @@ def parse_wechat_messages(
     image: np.ndarray,
     ocr_result: OcrRawResult,
     theme_name: str = "dark",
+    *,
+    title_hint: str = "",
 ) -> ChatContext | None:
     """Parse OCR results from a WeChat chat region into structured messages.
 
     Args:
-        image: The chat region image (after sidebar removal).
+        image: The message area image (may or may not include title bar).
         ocr_result: Raw OCR output with bbox information.
         theme_name: 'dark' or 'light' theme.
+        title_hint: Window title from OS, used as chat name when OCR
+            target has been cropped to exclude the title bar.
 
     Returns:
         ChatContext with speaker-attributed messages, or None on failure.
@@ -284,34 +288,34 @@ def parse_wechat_messages(
         logger.debug("WeChat parser: no OCR lines, skipping")
         return None
 
-    prior = WeChatPrior()
-    raw_divider = prior.find_title_divider_y(image)
-    divider_y = prior.get_title_divider_y(image)
     h, roi_width = image.shape[:2]
-    logger.info(
-        "WeChat parser: divider_y=%s (raw=%s), image=%dx%d, theme=%s",
-        divider_y,
-        raw_divider,
-        roi_width,
-        h,
-        theme_name,
-    )
 
-    title_text = _extract_title_text(ocr_result.lines, divider_y)
+    title_text = ""
+    divider_y = 0
 
-    if not title_text and raw_divider is None:
-        topmost = _find_topmost_title_line(ocr_result.lines, h)
-        if topmost:
-            title_text = topmost.text.strip()
-            divider_y = topmost.bbox_px.y + topmost.bbox_px.height + 2
-            logger.info(
-                "WeChat parser: fallback to topmost OCR line as title: '%s' (divider_y=%d)",
-                title_text,
-                divider_y,
-            )
+    if title_hint:
+        title_text = title_hint.strip()
+        logger.info(
+            "WeChat parser: using window title as chat name: '%s', image=%dx%d",
+            title_text, roi_width, h,
+        )
+    else:
+        prior = WeChatPrior()
+        raw_divider = prior.find_title_divider_y(image)
+        divider_y = prior.get_title_divider_y(image)
+        logger.info(
+            "WeChat parser: divider_y=%s (raw=%s), image=%dx%d, theme=%s",
+            divider_y, raw_divider, roi_width, h, theme_name,
+        )
+        title_text = _extract_title_text(ocr_result.lines, divider_y)
+        if not title_text and raw_divider is None:
+            topmost = _find_topmost_title_line(ocr_result.lines, h)
+            if topmost:
+                title_text = topmost.text.strip()
+                divider_y = topmost.bbox_px.y + topmost.bbox_px.height + 2
 
     if not title_text:
-        logger.warning("WeChat parser: no title text found above divider_y=%d", divider_y)
+        logger.warning("WeChat parser: no title text found")
         return None
 
     chat_type = _detect_chat_type(title_text)

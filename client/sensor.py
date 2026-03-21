@@ -499,9 +499,14 @@ class SensorDaemon:
         self._save_debug_image(_frame.data, f"proactive_{app_type.value}_full")
         self._save_debug_image(image_to_ocr, f"proactive_{app_type.value}_roi")
 
+        ocr_target, wechat_divider_y = self._prepare_ocr_target(image_to_ocr, app_type)
+        if self._debug_images and wechat_divider_y is not None:
+            self._save_debug_image(image_to_ocr[:wechat_divider_y, :], "wechat_title")
+            self._save_debug_image(ocr_target, "wechat_messages")
+
         engine = _get_ocr_engine()
         try:
-            ocr_result = await asyncio.to_thread(engine.ocr, image_to_ocr)
+            ocr_result = await asyncio.to_thread(engine.ocr, ocr_target)
         except Exception as ocr_exc:
             logger.error(
                 f"OCR engine.ocr() raised {type(ocr_exc).__name__}: {ocr_exc}",
@@ -521,11 +526,11 @@ class SensorDaemon:
             return
 
         text, extra_metadata = self._build_ocr_text(
-            image_to_ocr,
+            ocr_target,
             ocr_result,
             valid_lines,
             app_type,
-            debug_saver=self._save_debug_image if self._debug_images else None,
+            window_title=window.title,
         )
         if len(text) < _MIN_TEXT_LEN:
             return
@@ -560,13 +565,38 @@ class SensorDaemon:
             )
 
     @staticmethod
+    def _prepare_ocr_target(
+        roi_image: np.ndarray,
+        app_type,
+    ) -> tuple[np.ndarray, int | None]:
+        """For WeChat, crop to message area below the title divider.
+        Returns (image_to_ocr, divider_y_or_none)."""
+        from proactive_ocr.models import AppType  # noqa: PLC0415
+
+        if app_type != AppType.WECHAT:
+            return roi_image, None
+        try:
+            from proactive_ocr.priors.wechat import WeChatPrior  # noqa: PLC0415
+
+            prior = WeChatPrior()
+            dy = prior.find_title_divider_y(roi_image)
+            if dy is not None and dy > 0:
+                msg_image = roi_image[dy + 2 :, :]
+                if msg_image.shape[0] > 10:
+                    logger.debug("WeChat: OCR target cropped to message area (divider_y=%d)", dy)
+                    return msg_image, dy
+        except Exception:
+            logger.debug("WeChat divider detection failed, OCR full ROI", exc_info=True)
+        return roi_image, None
+
+    @staticmethod
     def _build_ocr_text(
         image: np.ndarray,
         ocr_result,
         valid_lines: list,
         app_type,
         *,
-        debug_saver=None,
+        window_title: str = "",
     ) -> tuple[str, dict]:
         """Build text and extra metadata; use structured parser for WeChat."""
         from proactive_ocr.models import AppType  # noqa: PLC0415
@@ -580,12 +610,10 @@ class SensorDaemon:
 
                 theme = WeChatPrior().detect_theme(image)
                 theme_name = theme.name if theme else "dark"
-                ctx = parse_wechat_messages(image, ocr_result, theme_name)
+                ctx = parse_wechat_messages(
+                    image, ocr_result, theme_name, title_hint=window_title,
+                )
                 if ctx is not None and ctx.messages:
-                    if debug_saver and ctx.divider_y is not None:
-                        dy = ctx.divider_y
-                        debug_saver(image[:dy, :], "wechat_title")
-                        debug_saver(image[dy + 2 :, :], "wechat_messages")
                     structured = ctx.to_structured_text()
                     logger.info(
                         "WeChat structured OCR (%d msgs):\n%s",
