@@ -510,8 +510,20 @@ class SensorDaemon:
 
         ocr_target, wechat_divider_y = self._prepare_ocr_target(image_to_ocr, app_type)
         if self._debug_images and wechat_divider_y is not None:
-            self._save_debug_image(image_to_ocr[:wechat_divider_y, :], "wechat_title")
+            title_img = image_to_ocr[:wechat_divider_y, :]
+            self._save_debug_image(title_img, "wechat_title")
             self._save_debug_image(ocr_target, "wechat_messages")
+            try:
+                title_ocr = await asyncio.to_thread(_get_ocr_engine().ocr, title_img)
+                if title_ocr.lines:
+                    annotated_title = self._build_ocr_annotated_image(title_img, title_ocr.lines)
+                    self._save_debug_image(annotated_title, "wechat_title_ocr")
+                    logger.info(
+                        "WeChat title OCR: %s",
+                        " | ".join(f"{ln.text}(s={ln.score:.2f})" for ln in title_ocr.lines),
+                    )
+            except Exception:
+                logger.debug("Failed to OCR title for debug", exc_info=True)
 
         engine = _get_ocr_engine()
         try:

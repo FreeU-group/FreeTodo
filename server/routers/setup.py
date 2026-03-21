@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import time
 from pathlib import Path
@@ -35,11 +36,22 @@ class ScanResult(BaseModel):
     scan_time_ms: int
 
 
+class AnalyzeFilesRequest(BaseModel):
+    filenames: list[str]
+    directory: str = ""
+
+
+class AnalyzeFilesResult(BaseModel):
+    guessed_name: str = ""
+    initial_profile: str = ""
+
+
 class CompleteRequest(BaseModel):
     user_name: str = ""
     agent_name: str = "Free U"
     scan_directories: list[str] = []
     allowed_apps: list[str] = ["微信"]
+    initial_profile: str = ""
 
 
 @router.get("/status")
@@ -103,6 +115,109 @@ async def scan_directory(req: ScanRequest) -> ScanResult:
     )
 
 
+_ANALYZE_SYSTEM_PROMPT = (
+    "你是一个用户画像分析助手。根据用户电脑上的文件名列表，推断用户的身份、职业、兴趣和习惯。\n\n"
+    "你需要完成两件事：\n"
+    "1. **猜测用户的名字**：从文件名中寻找可能的人名线索（如「张三的文档」「李四简历」"
+    "「王五_论文」等），也可能出现在路径中的用户名文件夹。"
+    "如果找不到明确的名字线索，返回空字符串。\n"
+    "2. **生成初始用户画像**：用 Markdown 格式输出简洁的用户画像。\n\n"
+    "输出格式严格为：\n"
+    "```\n"
+    "NAME: <猜测的用户名字，找不到就留空>\n"
+    "---PROFILE---\n"
+    "<Markdown 格式的用户画像>\n"
+    "```\n\n"
+    "用户画像分区规范（均使用 ## 二级标题）：\n"
+    "- **身份与角色**：根据文件类型和内容推断身份（学生/职场人/开发者/设计师等）\n"
+    "- **工作模式**：常用的文件类型、工具偏好\n"
+    "- **当前重点**：从最近修改的文件推断当前在做什么\n"
+    "- **兴趣领域**：从文件名中推断的兴趣爱好\n\n"
+    "每个分区 2-4 个 bullet（`- `开头），总字数控制在 500 字以内。\n"
+    "所有推断都基于文件名，语气用「可能」「似乎」等表达不确定性。"
+)
+
+_ANALYZE_USER_TEMPLATE = """\
+以下是用户电脑 `{directory}` 目录下的文件名列表（按最近修改排序）：
+
+{filenames}
+
+请根据这些文件名分析用户画像并猜测用户名字。
+"""
+
+
+@router.post("/analyze-files")
+async def analyze_files(req: AnalyzeFilesRequest) -> AnalyzeFilesResult:
+    """用 LLM 分析文件名，猜测用户名字并生成初始画像。"""
+    if not req.filenames:
+        return AnalyzeFilesResult()
+
+    try:
+        from llm.llm_client import LLMClient  # noqa: PLC0415
+    except ImportError:
+        logger.warning("LLM 模块不可用，跳过文件分析")
+        return AnalyzeFilesResult()
+
+    llm = LLMClient()
+    if not llm.is_available():
+        logger.warning("LLM 客户端不可用，跳过文件分析")
+        return AnalyzeFilesResult()
+
+    filenames_text = "\n".join(f"- {name}" for name in req.filenames[:300])
+    prompt = _ANALYZE_USER_TEMPLATE.format(
+        directory=req.directory or "未知目录",
+        filenames=filenames_text,
+    )
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": _ANALYZE_SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+
+    try:
+        resp = await asyncio.to_thread(
+            llm.chat,
+            messages,
+            0.3,
+            None,
+            2048,
+            log_usage=True,
+            log_meta={"endpoint": "setup_analyze_files", "feature_type": "setup"},
+        )
+    except Exception:
+        logger.exception("analyze-files LLM 调用失败")
+        return AnalyzeFilesResult()
+
+    guessed_name = ""
+    initial_profile = ""
+
+    if resp:
+        lines = resp.strip().split("\n")
+        profile_start = -1
+        for i, line in enumerate(lines):
+            if line.strip().startswith("NAME:"):
+                guessed_name = line.split(":", 1)[1].strip()
+            if "---PROFILE---" in line:
+                profile_start = i + 1
+                break
+
+        if profile_start >= 0:
+            initial_profile = "\n".join(lines[profile_start:]).strip()
+            if initial_profile.startswith("```"):
+                initial_profile = initial_profile[3:].strip()
+            if initial_profile.endswith("```"):
+                initial_profile = initial_profile[:-3].strip()
+
+    if initial_profile and not initial_profile.startswith("# "):
+        initial_profile = f"# 用户画像\n\n{initial_profile}"
+
+    logger.info(
+        "文件分析完成: guessed_name=%s, profile_len=%d",
+        guessed_name or "(empty)",
+        len(initial_profile),
+    )
+    return AnalyzeFilesResult(guessed_name=guessed_name, initial_profile=initial_profile)
+
+
 @router.post("/complete")
 async def complete_setup(req: CompleteRequest):
     """标记初始化向导完成，保存设置到 config。"""
@@ -121,6 +236,19 @@ async def complete_setup(req: CompleteRequest):
         logger.info(f"设置 Agno 默认工作区: {workspace}")
 
     _config_service.save_config(config_updates)
+
+    if req.initial_profile:
+        try:
+            memory_dir = get_user_data_dir() / "memory"
+            profile_dir = memory_dir / "profile_L4"
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            profile_file = profile_dir / "user_profile.md"
+            if not profile_file.exists():
+                profile_file.write_text(req.initial_profile, encoding="utf-8")
+                logger.info("初始用户画像已写入: %s", profile_file)
+        except Exception:
+            logger.exception("写入初始用户画像失败")
+
     logger.info(f"初始化向导完成: user={req.user_name}, agent={req.agent_name}")
     return {"success": True}
 

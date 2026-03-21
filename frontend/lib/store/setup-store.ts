@@ -10,6 +10,10 @@ export interface SetupState {
 	scanDirectory: string;
 	userName: string;
 	agentName: string;
+	guessedUserName: string;
+	initialProfile: string;
+	/** Whether the user has manually edited the name field */
+	userNameManuallySet: boolean;
 
 	setStep: (step: number) => void;
 	nextStep: () => void;
@@ -20,6 +24,9 @@ export interface SetupState {
 	setScanDirectory: (v: string) => void;
 	setUserName: (v: string) => void;
 	setAgentName: (v: string) => void;
+	setGuessedUserName: (v: string) => void;
+	setInitialProfile: (v: string) => void;
+	setUserNameManuallySet: (v: boolean) => void;
 }
 
 export const useSetupStore = create<SetupState>()((set) => ({
@@ -31,6 +38,9 @@ export const useSetupStore = create<SetupState>()((set) => ({
 	scanDirectory: "",
 	userName: "Master",
 	agentName: "Free U",
+	guessedUserName: "",
+	initialProfile: "",
+	userNameManuallySet: false,
 
 	setStep: (step) => set({ currentStep: step }),
 	nextStep: () => set((s) => ({ currentStep: Math.min(s.currentStep + 1, s.totalSteps - 1) })),
@@ -41,4 +51,7 @@ export const useSetupStore = create<SetupState>()((set) => ({
 	setScanDirectory: (v) => set({ scanDirectory: v }),
 	setUserName: (v) => set({ userName: v }),
 	setAgentName: (v) => set({ agentName: v }),
+	setGuessedUserName: (v) => set({ guessedUserName: v }),
+	setInitialProfile: (v) => set({ initialProfile: v }),
+	setUserNameManuallySet: (v) => set({ userNameManuallySet: v }),
 }));

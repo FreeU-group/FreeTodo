@@ -1,6 +1,6 @@
 "use client";
 
-import { UserCircle } from "lucide-react";
+import { UserCircle, Sparkles } from "lucide-react";
 import { useSetupStore } from "@/lib/store/setup-store";
 
 interface NamingStepProps {
@@ -9,7 +9,19 @@ interface NamingStepProps {
 }
 
 export function NamingStep({ onNext, onBack }: NamingStepProps) {
-	const { userName, agentName, setUserName, setAgentName } = useSetupStore();
+	const {
+		userName,
+		agentName,
+		guessedUserName,
+		setUserName,
+		setAgentName,
+		setUserNameManuallySet,
+	} = useSetupStore();
+
+	const handleUserNameChange = (value: string) => {
+		setUserName(value);
+		setUserNameManuallySet(true);
+	};
 
 	return (
 		<div className="flex w-full max-w-md flex-col gap-5">
@@ -35,12 +47,19 @@ export function NamingStep({ onNext, onBack }: NamingStepProps) {
 						className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/30 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
 						placeholder="输入你的名字或昵称"
 						value={userName}
-						onChange={(e) => setUserName(e.target.value)}
+						onChange={(e) => handleUserNameChange(e.target.value)}
 						autoFocus
 					/>
-					<p className="mt-1 text-xs text-white/40">
-						Agent 会用这个名字称呼你
-					</p>
+					{guessedUserName && userName === guessedUserName ? (
+						<p className="mt-1 flex items-center gap-1 text-xs text-primary/60">
+							<Sparkles className="h-3 w-3" />
+							AI 从你的文件中猜测的名字，可直接修改
+						</p>
+					) : (
+						<p className="mt-1 text-xs text-white/40">
+							Agent 会用这个名字称呼你
+						</p>
+					)}
 				</div>
 
 				<div>

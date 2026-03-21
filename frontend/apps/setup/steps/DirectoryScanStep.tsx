@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { FolderKanban, Check } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { FolderKanban, Check, Sparkles } from "lucide-react";
 import { useSetupStore } from "@/lib/store/setup-store";
-import { useScanDirectory } from "@/lib/query/setup";
+import { useScanDirectory, useAnalyzeFiles } from "@/lib/query/setup";
 
 interface DirectoryScanStepProps {
 	onNext: () => void;
@@ -24,10 +24,19 @@ function formatTime(ts: number): string {
 }
 
 export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
-	const { scanDirectory, setScanDirectory } = useSetupStore();
+	const {
+		scanDirectory,
+		setScanDirectory,
+		setGuessedUserName,
+		setInitialProfile,
+		setUserName,
+		userNameManuallySet,
+	} = useSetupStore();
 	const scanMutation = useScanDirectory();
+	const analyzeMutation = useAnalyzeFiles();
 	const [scanned, setScanned] = useState(false);
 	const [error, setError] = useState("");
+	const analyzeTriggered = useRef(false);
 
 	const defaultDir =
 		typeof navigator !== "undefined" && navigator.userAgent.includes("Windows")
@@ -41,6 +50,7 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 	const handleScan = async () => {
 		setError("");
 		setScanDirectory(dir);
+		analyzeTriggered.current = false;
 		try {
 			const res = await scanMutation.mutateAsync({ directory: dir, maxFiles: 200 });
 			if (!res.valid) {
@@ -56,6 +66,30 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 	};
 
 	const files = scanMutation.data?.files ?? [];
+
+	useEffect(() => {
+		if (!scanned || files.length === 0 || analyzeTriggered.current) return;
+		analyzeTriggered.current = true;
+
+		const filenames = files.map((f) => f.name);
+		analyzeMutation.mutate(
+			{ filenames, directory: dir },
+			{
+				onSuccess: (data) => {
+					if (data.guessed_name) {
+						setGuessedUserName(data.guessed_name);
+						if (!userNameManuallySet) {
+							setUserName(data.guessed_name);
+						}
+					}
+					if (data.initial_profile) {
+						setInitialProfile(data.initial_profile);
+					}
+				},
+			},
+		);
+	}, [scanned, files.length]);
+
 	const extCounts: Record<string, number> = {};
 	for (const f of files) {
 		const ext = f.ext || "(无后缀)";
@@ -151,6 +185,28 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 							</div>
 						))}
 					</div>
+				</div>
+			)}
+
+			{/* AI analysis status */}
+			{scanned && analyzeMutation.isPending && (
+				<div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+					<Sparkles className="h-4 w-4 animate-pulse text-primary" />
+					<span className="text-sm text-white/70">AI 正在分析文件，了解你的使用习惯…</span>
+				</div>
+			)}
+			{scanned && analyzeMutation.isSuccess && analyzeMutation.data?.guessed_name && (
+				<div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+					<Sparkles className="h-4 w-4 text-emerald-400" />
+					<span className="text-sm text-white/70">
+						AI 猜测你可能是 <strong className="text-white">{analyzeMutation.data.guessed_name}</strong>，下一步可以修改
+					</span>
+				</div>
+			)}
+			{scanned && analyzeMutation.isSuccess && !analyzeMutation.data?.guessed_name && (
+				<div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+					<Sparkles className="h-4 w-4 text-white/40" />
+					<span className="text-sm text-white/50">AI 分析完成，下一步请告诉我你的名字</span>
 				</div>
 			)}
 

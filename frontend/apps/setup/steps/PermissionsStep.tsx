@@ -48,7 +48,7 @@ const INITIAL_APPS = [
 ];
 
 export function PermissionsStep({ onComplete, onBack }: PermissionsStepProps) {
-	const { userName, agentName, scanDirectory } = useSetupStore();
+	const { userName, agentName, scanDirectory, initialProfile } = useSetupStore();
 	const completeMutation = useCompleteSetup();
 	const [apps, setApps] = useState(INITIAL_APPS);
 
@@ -67,6 +67,7 @@ export function PermissionsStep({ onComplete, onBack }: PermissionsStepProps) {
 			agentName: agentName || "Free U",
 			scanDirectories: scanDirectory ? [scanDirectory] : [],
 			allowedApps,
+			initialProfile,
 		});
 		onComplete();
 	};

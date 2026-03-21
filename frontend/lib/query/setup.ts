@@ -41,6 +41,22 @@ export function useScanDirectory() {
 	});
 }
 
+export function useAnalyzeFiles() {
+	return useMutation({
+		mutationFn: (args: { filenames: string[]; directory: string }) =>
+			fetchJson<{ guessed_name: string; initial_profile: string }>(
+				"/api/setup/analyze-files",
+				{
+					method: "POST",
+					body: JSON.stringify({
+						filenames: args.filenames,
+						directory: args.directory,
+					}),
+				},
+			),
+	});
+}
+
 export function useCompleteSetup() {
 	const qc = useQueryClient();
 	return useMutation({
@@ -49,6 +65,7 @@ export function useCompleteSetup() {
 			agentName: string;
 			scanDirectories: string[];
 			allowedApps: string[];
+			initialProfile?: string;
 		}) =>
 			fetchJson<{ success: boolean }>("/api/setup/complete", {
 				method: "POST",
@@ -57,6 +74,7 @@ export function useCompleteSetup() {
 					agent_name: args.agentName,
 					scan_directories: args.scanDirectories,
 					allowed_apps: args.allowedApps,
+					initial_profile: args.initialProfile ?? "",
 				}),
 			}),
 		onSuccess: () => {
