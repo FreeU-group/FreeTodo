@@ -33,6 +33,36 @@ except Exception:
     WinOcrEngine = None
 
 
+def _safe_picklify(o: object) -> object:
+    """Convert a WinRT OCR result object to a plain Python dict/list tree.
+
+    Replaces ``winocr.picklify`` with per-attribute error handling so that
+    a single problematic WinRT property (e.g. one that triggers a GBK
+    UnicodeDecodeError on Chinese Windows) doesn't crash the whole call.
+    """
+    try:
+        if hasattr(o, "size"):
+            return [_safe_picklify(e) for e in o]
+    except Exception:
+        return []
+
+    try:
+        if hasattr(o, "__module__"):
+            result = {}
+            for name in dir(o):
+                if name.startswith("_"):
+                    continue
+                try:
+                    result[name] = _safe_picklify(getattr(o, name))
+                except Exception:
+                    pass
+            return result
+    except Exception:
+        return {}
+
+    return o
+
+
 _CJK_PUNCT = set(
     "\uff0c\u3002\uff01\uff1f\u3001\uff1a\uff1b"
     "\u201c\u201d\u2018\u2019\uff08\uff09"
@@ -168,11 +198,6 @@ class WinRtOcrEngine:
         h, w = rgba_image.shape[:2]
         try:
             result = self._recognize_sync(rgba_image.tobytes(), w, h)
-        except UnicodeDecodeError as e:
-            logger.warning(f"WinRT OCR decode error (ignoring): {e}")
-            return OcrRawResult(
-                lines=[], engine="winrt", latency_ms=(time.time() - start_time) * 1000
-            )
         except Exception as e:
             logger.error(f"WinRT OCR recognize failed: {e}")
             return OcrRawResult(
@@ -261,11 +286,7 @@ class WinRtOcrEngine:
             raise RuntimeError("winocr backend unavailable")
         awaitable = winocr.recognize_bytes(image_bytes, width, height, lang=self.lang)
         result = await awaitable
-        try:
-            pickled = winocr.picklify(result)
-        except UnicodeDecodeError as e:
-            logger.warning(f"winocr.picklify decode error: {e}")
-            return {"lines": []}
+        pickled = _safe_picklify(result)
         if not isinstance(pickled, dict):
             raise RuntimeError("winocr returned unexpected result type")
         return pickled

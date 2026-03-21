@@ -38,7 +38,7 @@ _SEND_BUTTON_RIGHT_RATIO = 0.75
 
 _TIMESTAMP_RE = re.compile(
     r"^("
-    r"\d{1,2}:\d{2}"
+    r"\d{1,2}[:\uff1a]\d{2}"
     r"|[昨前]天\s*\d{1,2}[:\uff1a]\d{2}"
     r"|星期[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"
     r"|周[一二三四五六日天]\s*\d{1,2}[:\uff1a]\d{2}"
@@ -47,6 +47,9 @@ _TIMESTAMP_RE = re.compile(
     r")(\s*\d{1,2}[:\uff1a]\d{2})?$"
 )
 _TIMESTAMP_CENTER_TOLERANCE = 0.30
+_TIMESTAMP_HEIGHT_RATIO = 0.80
+_TIMESTAMP_WIDTH_RATIO = 0.35
+_TIMESTAMP_MAX_CHARS = 20
 
 _WEEKDAY_MAP = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
 _TIME_HM_RE = re.compile(r"(\d{1,2})[:\uff1a](\d{2})")
@@ -352,16 +355,33 @@ def parse_wechat_messages(
     )
 
 
-def _is_timestamp_line(ln: OcrLine, roi_width: int) -> bool:
-    """Centered small text matching time patterns."""
-    text = ln.text.strip().replace(" ", "")
-    if not _TIMESTAMP_RE.match(text):
+def _is_timestamp_line(ln: OcrLine, roi_width: int, median_h: float) -> bool:
+    """Detect timestamp lines using bbox position as primary signal, regex as secondary."""
+    b = ln.bbox_px
+    text = ln.text.strip()
+
+    if not text or len(text) > _TIMESTAMP_MAX_CHARS:
         return False
-    cx = ln.bbox_px.x + ln.bbox_px.width / 2
+
+    cx = b.x + b.width / 2
     mid = roi_width / 2
     if mid <= 0:
         return False
-    return abs(cx - mid) / mid < _TIMESTAMP_CENTER_TOLERANCE
+    is_centered = abs(cx - mid) / mid < _TIMESTAMP_CENTER_TOLERANCE
+    is_small = median_h > 0 and b.height < median_h * _TIMESTAMP_HEIGHT_RATIO
+    is_narrow = roi_width > 0 and b.width < roi_width * _TIMESTAMP_WIDTH_RATIO
+
+    norm = text.replace(" ", "").replace("\u3000", "")
+    has_time_pattern = _TIMESTAMP_RE.match(norm) is not None
+    has_digits = any(c.isdigit() for c in norm)
+    has_colon = ":" in norm or "\uff1a" in norm
+
+    if is_centered and is_small and has_time_pattern:
+        return True
+    if is_centered and is_narrow and is_small and has_digits and has_colon:
+        return True
+
+    return False
 
 
 def _attribute_messages(
@@ -381,7 +401,7 @@ def _attribute_messages(
     while i < len(msg_lines):
         ln = msg_lines[i]
 
-        if _is_timestamp_line(ln, ctx.roi_width):
+        if _is_timestamp_line(ln, ctx.roi_width, median_h):
             current_timestamp = _normalize_timestamp(ln.text)
             logger.info("  [TS] %s → %s", ln.text.strip(), current_timestamp)
             i += 1
