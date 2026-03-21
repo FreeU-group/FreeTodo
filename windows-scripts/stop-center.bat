@@ -14,8 +14,7 @@ call :kill_by_port 6006 "Phoenix"
 call :kill_by_port 8002 "AgentOS"
 call :kill_by_port 8001 "LifeTrace Backend"
 call :kill_by_port 3001 "LifeTrace Frontend"
-REM cpolar disabled (center & sensor on same machine)
-REM call :kill_by_name "cpolar" "cpolar tunnel"
+call :kill_by_name "cpolar" "cpolar tunnel"
 
 echo.
 echo ================================================
