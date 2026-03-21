@@ -155,6 +155,9 @@ async def reset_setup():
         try:
             os.rename(memory_dir, backup_dir)
             logger.info(f"已将 memory 文件夹备份为: {backup_dir}")
+            # 重新创建一个空的 memory 文件夹，避免其他模块找不到目录报错
+            memory_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("已重新创建空的 memory 文件夹")
         except Exception as e:
             logger.error(f"备份 memory 文件夹失败: {e}")
 
