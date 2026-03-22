@@ -179,7 +179,7 @@ class SensorDaemon:
         self._consecutive_post_failures: int = 0
         self._max_backoff: float = 120.0
 
-        self._screenshot_enabled: bool = True
+        self._screenshot_enabled: bool = False
         self._proactive_ocr_enabled: bool = True
         self._audio_enabled: bool = True
         self._screenshot_interval: float = 10.0
@@ -541,7 +541,7 @@ class SensorDaemon:
 
         if self._debug_images and ocr_result.lines:
             try:
-                annotated = self._build_ocr_annotated_image(image_to_ocr, ocr_result.lines)
+                annotated = self._build_ocr_annotated_image(ocr_target, ocr_result.lines)
                 self._save_debug_image(annotated, f"proactive_{app_type.value}_ocr")
             except Exception:
                 logger.debug("Failed to build OCR annotated debug image", exc_info=True)
