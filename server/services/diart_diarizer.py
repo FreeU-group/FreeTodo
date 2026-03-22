@@ -180,13 +180,23 @@ class DiartDiarizer:
     def backend(self) -> str:
         return self._backend
 
-    def get_current_turn_key(self) -> str | None:
+    def get_current_turn_key(self) -> str | None:  # noqa: PLR0911
         """Return a lightweight speaker-turn key for segmentation decisions."""
         if self._backend == "diart":
             with self._timeline_lock:
                 label = self._current_speaker
-            if label:
+                overlap_labels = sorted(self._recent_overlap_labels)
+            if label is None and not overlap_labels:
+                return None
+            if label is not None:
+                overlap_without_current = [item for item in overlap_labels if item != label]
+                if overlap_without_current:
+                    overlap_suffix = ",".join(overlap_without_current)
+                    return f"diart:{label}|ov:{overlap_suffix}"
                 return f"diart:{label}"
+            if overlap_labels:
+                overlap_suffix = ",".join(overlap_labels)
+                return f"diart:overlap:{overlap_suffix}"
             return None
 
         recent = self._get_recent_last_match()

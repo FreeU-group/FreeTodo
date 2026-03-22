@@ -319,6 +319,15 @@ audio:
       delta_new: 1.0 # 鏂拌璇濅汉妫€娴嬮槇鍊?
       segmentation_model: pyannote/segmentation-3.0
       embedding_model: pyannote/embedding
+    segmentation:
+      monitor_interval_seconds: 0.5 # diarization monitor loop interval (seconds)
+      min_segment_seconds: 1.0 # minimum segment length before speaker-change split
+      debounce_seconds: 0.35 # new turn must stay stable for this duration
+      cooldown_seconds: 0.6 # min interval between consecutive speaker-change splits
+      max_segment_minutes: 30 # duration split fallback (mainly for non-diarization cases)
+      duration_fallback_without_turn_seconds: 180 # re-enable duration split if no turn signal
+      silence_check_interval_seconds: 2 # silence check cadence (seconds)
+      silence_threshold_seconds: 600 # long-silence split threshold (seconds)
     # 澹扮汗搴撻厤缃紙VoiceprintStore锛?
     embedding_dim: 192 # 澹扮汗鍚戦噺缁村害
     similarity_threshold: 0.68 # 浣欏鸡鐩镐技搴﹀尮閰嶉槇鍊硷紙CAM++ 鍚屼汉鍏稿瀷 0.7-0.95锛屼笉鍚屼汉 0.3-0.6锛?

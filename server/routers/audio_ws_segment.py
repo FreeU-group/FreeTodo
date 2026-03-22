@@ -8,19 +8,52 @@ from typing import TYPE_CHECKING, Any
 
 from starlette.websockets import WebSocketState
 
+from util.settings import settings
 from util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
     from datetime import datetime
 
+def _read_positive_float_setting(path: str, default: float) -> float:
+    """Read a positive float from settings, fallback to default on invalid values."""
+    try:
+        value = float(settings.get(path, default))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+# Monitor cadence (sub-second for low-latency speaker turn boundaries).
+SEGMENT_MONITOR_INTERVAL_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.monitor_interval_seconds", 0.5
+)
+
 # Kept local (mirrors audio_ws.py) to avoid circular imports.
-SILENCE_CHECK_INTERVAL_SECONDS = 2
-SILENCE_DETECTION_THRESHOLD_SECONDS = 600
-SEGMENT_DURATION_MINUTES = 30
+SILENCE_CHECK_INTERVAL_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.silence_check_interval_seconds", 2.0
+)
+SILENCE_DETECTION_THRESHOLD_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.silence_threshold_seconds", 600.0
+)
+SEGMENT_DURATION_MINUTES = _read_positive_float_setting(
+    "audio.speaker.segmentation.max_segment_minutes", 30.0
+)
 
 # Realtime segmentation by speaker turn changes.
-SPEAKER_CHANGE_SEGMENT_MIN_SECONDS = 4
-SPEAKER_CHANGE_COOLDOWN_SECONDS = 2
+SPEAKER_CHANGE_SEGMENT_MIN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.min_segment_seconds", 1.0
+)
+SPEAKER_CHANGE_COOLDOWN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.cooldown_seconds", 0.6
+)
+SPEAKER_CHANGE_DEBOUNCE_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.debounce_seconds", 0.35
+)
+
+# If turn signals disappear, re-enable duration-based segmentation after this fallback window.
+DURATION_FALLBACK_WITHOUT_TURN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.duration_fallback_without_turn_seconds", 180.0
+)
 
 _segment_tasks: set[asyncio.Task] = set()
 
@@ -317,34 +350,45 @@ def _get_speaker_turn_key(ctx: _SegmentMonitorContext) -> str | None:
         return None
 
 
-async def _check_speaker_change_segment(  # noqa: PLR0911
+async def _check_speaker_change_segment(  # noqa: C901, PLR0911, PLR0913
     ctx: _SegmentMonitorContext,
     now: datetime,
     segment_start_time: datetime,
     last_turn_key: str | None,
     last_change_at: datetime | None,
+    current_turn_key: str | None,
+    pending_turn_key: str | None,
+    pending_turn_key_since: datetime | None,
     *,
     persist_segment: bool,
-) -> tuple[bool, str | None, datetime | None]:
+) -> tuple[bool, str | None, datetime | None, str | None, datetime | None]:
     """Segment in realtime when speaker turn changes."""
-    current_turn_key = _get_speaker_turn_key(ctx)
     if current_turn_key is None:
-        return False, last_turn_key, last_change_at
+        return False, last_turn_key, last_change_at, None, None
     if last_turn_key is None:
-        return False, current_turn_key, last_change_at
+        return False, current_turn_key, last_change_at, None, None
     if current_turn_key == last_turn_key:
-        return False, current_turn_key, last_change_at
+        return False, current_turn_key, last_change_at, None, None
     if not ctx.audio_chunks:
-        return False, current_turn_key, last_change_at
+        return False, last_turn_key, last_change_at, None, None
+
+    if pending_turn_key != current_turn_key:
+        return False, last_turn_key, last_change_at, current_turn_key, now
+    if pending_turn_key_since is None:
+        return False, last_turn_key, last_change_at, pending_turn_key, now
+
+    pending_elapsed = (now - pending_turn_key_since).total_seconds()
+    if pending_elapsed < SPEAKER_CHANGE_DEBOUNCE_SECONDS:
+        return False, last_turn_key, last_change_at, pending_turn_key, pending_turn_key_since
 
     elapsed = (now - segment_start_time).total_seconds()
     if elapsed < SPEAKER_CHANGE_SEGMENT_MIN_SECONDS:
-        return False, current_turn_key, last_change_at
+        return False, last_turn_key, last_change_at, pending_turn_key, pending_turn_key_since
 
     if last_change_at is not None:
         since_last_change = (now - last_change_at).total_seconds()
         if since_last_change < SPEAKER_CHANGE_COOLDOWN_SECONDS:
-            return False, current_turn_key, last_change_at
+            return False, last_turn_key, last_change_at, pending_turn_key, pending_turn_key_since
 
     ctx.logger.info(f"Segment by speaker turn change: {last_turn_key} -> {current_turn_key}")
     if persist_segment:
@@ -367,10 +411,18 @@ async def _check_speaker_change_segment(  # noqa: PLR0911
             segment_start_time=segment_start_time,
             segment_reason="Segmented by speaker turn change.",
         )
-    return True, current_turn_key, now
+    return True, current_turn_key, now, None, None
 
 
-async def _segment_monitor_task(*, params: dict[str, Any], is_24x7: bool) -> None:
+def _has_speaker_turn_support(ctx: _SegmentMonitorContext) -> bool:
+    diarizer = ctx.speaker_diarizer
+    if diarizer is None:
+        return False
+    getter = diarizer.get_current_turn_key if hasattr(diarizer, "get_current_turn_key") else None
+    return callable(getter)
+
+
+async def _segment_monitor_task(*, params: dict[str, Any], is_24x7: bool) -> None:  # noqa: C901, PLR0912, PLR0915
     """Monitor segmentation conditions and save segments asynchronously."""
     _ = is_24x7
     logger = params["logger"]
@@ -381,51 +433,84 @@ async def _segment_monitor_task(*, params: dict[str, Any], is_24x7: bool) -> Non
     silence_start_time: datetime | None = None
     last_turn_key: str | None = None
     last_speaker_change_at: datetime | None = None
+    pending_turn_key: str | None = None
+    pending_turn_key_since: datetime | None = None
+    last_silence_check_at: datetime | None = None
+    last_turn_seen_at: datetime | None = None
+    has_turn_support = _has_speaker_turn_support(ctx)
 
     while ctx.is_connected_ref[0]:
         try:
-            await asyncio.sleep(SILENCE_CHECK_INTERVAL_SECONDS)
+            await asyncio.sleep(SEGMENT_MONITOR_INTERVAL_SECONDS)
             if not ctx.is_connected_ref[0]:
                 break
 
             now = get_utc_now()
+            current_turn_key = _get_speaker_turn_key(ctx)
+            if current_turn_key is not None:
+                last_turn_seen_at = now
 
             (
                 speaker_changed,
                 last_turn_key,
                 last_speaker_change_at,
+                pending_turn_key,
+                pending_turn_key_since,
             ) = await _check_speaker_change_segment(
                 ctx,
                 now,
                 segment_start_time,
                 last_turn_key,
                 last_speaker_change_at,
+                current_turn_key,
+                pending_turn_key,
+                pending_turn_key_since,
                 persist_segment=is_24x7,
             )
             if speaker_changed:
                 segment_start_time = now
                 silence_start_time = None
-                ctx.recording_started_at = now
-                continue
-
-            if is_24x7 and await _check_time_segment(ctx, now, segment_start_time):
-                segment_start_time = now
-                silence_start_time = None
+                last_silence_check_at = None
                 ctx.recording_started_at = now
                 continue
 
             if is_24x7:
-                was_segmented, silence_start_time = await _check_silence_segment(
-                    ctx, now, segment_start_time, silence_start_time
-                )
-                if was_segmented:
+                should_use_duration_segment = True
+                if has_turn_support:
+                    turn_reference = last_turn_seen_at or segment_start_time
+                    no_turn_elapsed = (now - turn_reference).total_seconds()
+                    should_use_duration_segment = (
+                        no_turn_elapsed >= DURATION_FALLBACK_WITHOUT_TURN_SECONDS
+                    )
+                if should_use_duration_segment and await _check_time_segment(
+                    ctx, now, segment_start_time
+                ):
                     segment_start_time = now
+                    silence_start_time = None
+                    last_silence_check_at = None
                     ctx.recording_started_at = now
                     continue
+
+            if is_24x7:
+                should_check_silence = (
+                    last_silence_check_at is None
+                    or (now - last_silence_check_at).total_seconds() >= SILENCE_CHECK_INTERVAL_SECONDS
+                )
+                if should_check_silence:
+                    last_silence_check_at = now
+                    was_segmented, silence_start_time = await _check_silence_segment(
+                        ctx, now, segment_start_time, silence_start_time
+                    )
+                    if was_segmented:
+                        segment_start_time = now
+                        last_silence_check_at = None
+                        ctx.recording_started_at = now
+                        continue
 
             if await _check_manual_segment(ctx, now, segment_start_time, persist_segment=is_24x7):
                 segment_start_time = now
                 silence_start_time = None
+                last_silence_check_at = None
                 ctx.recording_started_at = now
 
         except asyncio.CancelledError:
