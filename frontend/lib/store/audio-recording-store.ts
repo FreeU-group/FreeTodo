@@ -24,10 +24,6 @@ interface TodoItem {
 
 type TranscriptionCallback = (text: string, isFinal: boolean) => void
 
-type RealtimeNlpCallback = (data: {
-		todos?: TodoItem[];
-	}) => void
-
 type ErrorCallback = (error: Error) => void
 
 interface AudioRecordingState {
@@ -53,15 +49,12 @@ interface AudioRecordingState {
 	segmentRecordingIds: number[];
 	/** 段落偏移（秒） */
 	segmentOffsetsSec: number[];
-	/** 实时提取的待办 */
-	liveTodos: TodoItem[];
 }
 
 interface AudioRecordingActions {
 	/** 开始录音 */
 	startRecording: (
 		onTranscription: TranscriptionCallback,
-		onRealtimeNlp?: RealtimeNlpCallback,
 		onError?: ErrorCallback,
 		is24x7?: boolean,
 	) => Promise<void>;
@@ -84,8 +77,6 @@ interface AudioRecordingActions {
 		recordingId: number;
 		offsetSec: number;
 	}) => void;
-	/** 设置实时待办 */
-	setLiveTodos: (todos: TodoItem[]) => void;
 	/** 清空录音会话数据（开始新录音时调用） */
 	clearSessionData: () => void;
 }
@@ -146,7 +137,6 @@ let transportMetricsRef: AudioTransportMetrics | null = null;
 
 // 回调函数引用（用于在 WebSocket 消息中调用）
 let currentOnTranscription: TranscriptionCallback | null = null;
-let currentOnRealtimeNlp: RealtimeNlpCallback | null = null;
 let currentOnError: ErrorCallback | null = null;
 
 // ========== 7×24 自动重连相关变量 ==========
@@ -472,7 +462,6 @@ function cleanupRecordingResources(segmentTimestamps?: number[], isReconnecting 
 	// 如果不是重连，清理回调引用和重连状态
 	if (!isReconnecting) {
 		currentOnTranscription = null;
-		currentOnRealtimeNlp = null;
 		currentOnError = null;
 		// 停止自动重连
 		shouldReconnectRef = false;
@@ -525,16 +514,6 @@ async function startBackendCapture(is24x7: boolean): Promise<void> {
 					const isFinal = data.payload?.is_final || false;
 					if (text && currentOnTranscription) {
 						currentOnTranscription(text, isFinal);
-					}
-					return;
-				}
-
-				if (data.header?.name === "ExtractionChanged") {
-					const todos = data.payload?.todos;
-					if (currentOnRealtimeNlp) {
-						currentOnRealtimeNlp({
-							todos: Array.isArray(todos) ? todos : [],
-						});
 					}
 					return;
 				}
@@ -601,7 +580,6 @@ async function stopBackendCapture(): Promise<void> {
 	}
 	reconnectAttemptsRef = 0;
 	currentOnTranscription = null;
-	currentOnRealtimeNlp = null;
 	currentOnError = null;
 	currentIs24x7 = false;
 }
@@ -622,11 +600,10 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 	segmentTimeLabels: [],
 	segmentRecordingIds: [],
 	segmentOffsetsSec: [],
-	liveTodos: [],
 
 	// ===== Actions =====
 
-		startRecording: async (onTranscription, onRealtimeNlp, onError, is24x7 = false) => {
+		startRecording: async (onTranscription, onError, is24x7 = false) => {
 			// 如果已经在录音且不是内部重连，直接返回
 			if (get().isRecording && !isReconnectingInternally) {
 				console.warn("[AudioRecordingStore] Already recording, ignoring start request");
@@ -639,7 +616,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 					currentIs24x7 = is24x7;
 					shouldReconnectRef = is24x7;
 					currentOnTranscription = onTranscription;
-					currentOnRealtimeNlp = onRealtimeNlp || null;
 					currentOnError = onError || null;
 
 					await startBackendCapture(is24x7);
@@ -709,7 +685,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 
 			// 保存回调引用
 				currentOnTranscription = onTranscription;
-				currentOnRealtimeNlp = onRealtimeNlp || null;
 				currentOnError = onError || null;
 
 				// 初始化本地缓冲（WebSocket 尚未 OPEN 时先暂存一小段 PCM）
@@ -801,17 +776,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 							const isFinal = data.payload?.is_final || false;
 							if (text && currentOnTranscription) {
 								currentOnTranscription(text, isFinal);
-							}
-							return;
-						}
-
-						// 实时提取结果
-						if (data.header?.name === "ExtractionChanged") {
-							const todos = data.payload?.todos;
-							if (currentOnRealtimeNlp) {
-								currentOnRealtimeNlp({
-									todos: Array.isArray(todos) ? todos : [],
-								});
 							}
 							return;
 						}

@@ -44,25 +44,6 @@ async def _publish_perception_audio_sentence(
         logger.debug(f"Perception publish skipped: {exc}")
 
 
-def _wrap_on_final_sentence_with_perception(
-    *,
-    base_on_final_sentence,
-    logger,
-    task_set,
-    ws_source: str = "mic_pc",
-    ws_node_id: str = "local",
-):
-    def on_final_sentence(text: str) -> None:
-        base_on_final_sentence(text)
-        _track_handler_task(
-            task_set,
-            _publish_perception_audio_sentence(
-                text=text, logger=logger, ws_source=ws_source, ws_node_id=ws_node_id
-            ),
-        )
-
-    return on_final_sentence
-
 
 async def _handle_json_error(websocket: WebSocket, logger, e: json.JSONDecodeError) -> None:
     """处理 JSON 解析错误"""
@@ -461,11 +442,10 @@ async def _create_save_final_data_func(
 
 
 async def _cleanup_websocket(
-    *, state: dict, cancel_realtime_nlp, save_final_data, logger, websocket: WebSocket
+    *, state: dict, save_final_data, logger, websocket: WebSocket
 ) -> None:
     """清理 WebSocket 连接"""
     state["is_connected_ref"][0] = False
-    cancel_realtime_nlp()
 
     if (diarizer := state.get("speaker_diarizer")) is not None and hasattr(diarizer, "stop"):
         diarizer.stop()
@@ -492,21 +472,13 @@ async def _handle_transcribe_ws(*, websocket: WebSocket, logger, asr_client, aud
     ws_node_id = websocket.query_params.get("node_id", "local")
     logger.info(f"Audio WS params: source={ws_source}, node_id={ws_node_id}")
 
-    base_on_final_sentence, cancel_realtime_nlp = await _create_nlp_handler(
-        websocket=websocket,
-        logger=logger,
-        audio_service=audio_service,
-        state=state,
-        funcs=funcs,
-    )
-
-    on_final_sentence = _wrap_on_final_sentence_with_perception(
-        base_on_final_sentence=base_on_final_sentence,
-        logger=logger,
-        task_set=state["task_set"],
-        ws_source=ws_source,
-        ws_node_id=ws_node_id,
-    )
+    def on_final_sentence(text: str) -> None:
+        _track_handler_task(
+            state["task_set"],
+            _publish_perception_audio_sentence(
+                text=text, logger=logger, ws_source=ws_source, ws_node_id=ws_node_id
+            ),
+        )
 
     async def stop_segment_task():
         """停止分段监控任务"""
@@ -550,7 +522,6 @@ async def _handle_transcribe_ws(*, websocket: WebSocket, logger, asr_client, aud
     finally:
         await _cleanup_websocket(
             state=state,
-            cancel_realtime_nlp=cancel_realtime_nlp,
             save_final_data=save_final_data,
             logger=logger,
             websocket=websocket,

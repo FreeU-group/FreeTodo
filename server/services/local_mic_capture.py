@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import time
 from typing import TYPE_CHECKING, Any
 
 from util.audio_utils import apply_agc_to_pcm, pcm16le_to_wav
@@ -65,11 +64,6 @@ class LocalMicCapture:
 
         self._subscribers: set[WebSocket] = set()
         self._bg_tasks: set[asyncio.Task] = set()
-
-        self._nlp_buffer = ""
-        self._nlp_last_emit = 0.0
-        self._nlp_pending: asyncio.Task[None] | None = None
-        self._nlp_throttle_seconds = 8.0
 
     @property
     def is_active(self) -> bool:
@@ -165,7 +159,6 @@ class LocalMicCapture:
                     logger.info(f"[local-mic] ✓ {text}")
                     _track(self._bg_tasks, self._update_transcription())
                     _track(self._bg_tasks, self._publish_perception(text.strip()))
-                    self._on_final_sentence_nlp(text.strip())
 
             def on_error(error: Exception) -> None:
                 logger.error(f"[local-mic] ASR error: {error}")
@@ -180,48 +173,6 @@ class LocalMicCapture:
             logger.error(f"[local-mic] ASR failed: {exc}", exc_info=True)
         finally:
             await self._finalize()
-
-    # ── realtime NLP (todo extraction) ─────────────────────────────
-
-    def _on_final_sentence_nlp(self, text: str) -> None:
-        if self._nlp_buffer:
-            self._nlp_buffer += "\n"
-        self._nlp_buffer += text
-
-        now = time.monotonic()
-        elapsed = now - self._nlp_last_emit
-        if elapsed >= self._nlp_throttle_seconds:
-            self._nlp_last_emit = now
-            _track(self._bg_tasks, self._run_nlp_once())
-            return
-
-        if self._nlp_pending is None:
-            delay = max(0.0, self._nlp_throttle_seconds - elapsed)
-            self._nlp_pending = _track(self._bg_tasks, self._run_nlp_debounced(delay))
-
-    async def _run_nlp_debounced(self, delay: float) -> None:
-        try:
-            await asyncio.sleep(delay)
-            await self._run_nlp_once()
-        finally:
-            self._nlp_pending = None
-
-    async def _run_nlp_once(self) -> None:
-        snapshot = self._nlp_buffer.strip()
-        if not snapshot:
-            return
-        try:
-            extracted = await self.audio_service.extraction_service.extract_todos(snapshot)
-            todos = extracted.get("todos", [])
-            logger.info(f"[local-mic] NLP extracted {len(todos)} todos")
-            await self._broadcast(
-                {
-                    "header": {"name": "ExtractionChanged"},
-                    "payload": {"todos": todos, "schedules": []},
-                }
-            )
-        except Exception as exc:
-            logger.error(f"[local-mic] NLP extraction failed: {exc}")
 
     # ── broadcast ──────────────────────────────────────────────────
 
