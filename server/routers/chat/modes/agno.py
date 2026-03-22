@@ -1,6 +1,7 @@
 """Agno 模式处理器（基于本地 Agno Agent）。"""
 
 import json
+import threading
 from typing import Any
 
 from fastapi.responses import StreamingResponse
@@ -125,6 +126,28 @@ def _save_and_publish(
         )
 
 
+def _schedule_post_stream_tasks(
+    storage_chunks: list[str],
+    tool_events: list[dict[str, Any]],
+    chat_service: ChatService,
+    session_id: str,
+    user_query: str,
+) -> None:
+    """将流结束后的后处理（DB 写入、感知发布、偏好提取）移到后台线程，避免阻塞 HTTP 流关闭。"""
+
+    def _bg() -> None:
+        try:
+            _save_and_publish(storage_chunks, tool_events, chat_service, session_id)
+        except Exception:
+            logger.exception("[stream][agno] 后台保存消息失败")
+
+        storage_text = "".join(storage_chunks).strip()
+        if user_query and storage_text:
+            _schedule_preference_extraction(user_query, storage_text)
+
+    threading.Thread(target=_bg, daemon=True, name="agno-post-stream").start()
+
+
 def _sanitize_attachments_for_metadata(
     attachments: list[dict[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
@@ -190,11 +213,13 @@ def _build_agent_os_token_generator(
                     storage_length += len(content)
                 yield chunk
 
-            _save_and_publish(storage_chunks, tool_events, chat_service, session_id)
-            user_query = (message.message or "").strip()
-            storage_text = "".join(storage_chunks).strip()
-            if user_query and storage_text:
-                _schedule_preference_extraction(user_query, storage_text)
+            _schedule_post_stream_tasks(
+                storage_chunks,
+                tool_events,
+                chat_service,
+                session_id,
+                (message.message or "").strip(),
+            )
         except Exception as e:
             logger.exception(f"[stream][agno] 生成失败: {e}")
             yield f"Agno Agent 处理失败: {e!s}"

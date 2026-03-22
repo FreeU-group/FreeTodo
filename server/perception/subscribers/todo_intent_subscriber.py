@@ -6,6 +6,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from perception.models import SourceType
 from schemas.perception_todo_intent import (
     TodoIntentProcessingRecord,
     TodoIntentProcessingStatus,
@@ -140,6 +141,8 @@ class TodoIntentSubscriber:
 
     async def on_event(self, event: PerceptionEvent) -> None:
         if not self._enabled:
+            return
+        if event.source == SourceType.AI_OUTPUT:
             return
         text = (event.content_text or "").strip()
         if not text:
