@@ -148,7 +148,7 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 					disabled={!canProceed || testing}
 					className="flex-1 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-40"
 				>
-					{testing ? "测试中…" : "测试连接"}
+					{testing ? "测试中…" : "测试连接并保存"}
 				</button>
 				<button
 					type="button"

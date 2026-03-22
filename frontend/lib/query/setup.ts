@@ -79,6 +79,7 @@ export function useCompleteSetup() {
 			}),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["setup-status"] });
+			qc.invalidateQueries({ queryKey: ["config"] });
 		},
 	});
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, LayoutGrid, LifeBuoy, Radar, Settings, Sparkles, Wrench } from "lucide-react";
+import { BellRing, LayoutGrid, LifeBuoy, Radar, Settings, Sparkles, UserCircle, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
@@ -15,12 +15,14 @@ import {
 	CookiesConfigSection,
 	CrawlerConfigSection,
 	DiaryIllustrationConfigSection,
+	DirectoryScanSection,
 	// DifyConfigSection,
 	DockDisplayModeSection,
 	GeminiConfigSection,
 	JournalSettingsSection,
 	KdlConfigSection,
 	LlmConfigSection,
+	NamingSection,
 	NotificationPermissionSection,
 	NotificationPopupSection,
 	OnboardingSection,
@@ -36,10 +38,12 @@ import {
 	SettingsSearchProvider,
 	SettingsSection,
 	VersionInfoSection,
+	VoiceprintSection,
 } from "./components";
 import { useSettingsSearchMatchStats } from "./hooks/useSettingsSearchMatchStats";
 
 const SETTINGS_CATEGORY_IDS: SettingsCategoryId[] = [
+	"identity",
 	"ai",
 	"workspace",
 	"sensing",
@@ -64,6 +68,12 @@ export function SettingsPanel() {
 	const isAudioPanelEnabled = isFeatureEnabled("audio");
 
 	const categories: SettingsCategory[] = [
+		{
+			id: "identity",
+			label: tSettings("categoryIdentityTitle"),
+			description: tSettings("categoryIdentityDescription"),
+			icon: UserCircle,
+		},
 		{
 			id: "ai",
 			label: tSettings("categoryAiTitle"),
@@ -140,6 +150,14 @@ export function SettingsPanel() {
 
 	const renderCategoryContent = (categoryId: SettingsCategoryId) => {
 		switch (categoryId) {
+			case "identity":
+				return (
+					<>
+						<NamingSection config={config} loading={loading} />
+						<DirectoryScanSection config={config} loading={loading} />
+						<VoiceprintSection loading={loading} />
+					</>
+				);
 			case "workspace":
 				return (
 					<>

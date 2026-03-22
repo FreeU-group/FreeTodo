@@ -142,6 +142,22 @@ def _get_current_date_instruction(lang: str) -> str:
     return f"Current date: {date_str} ({weekday_en})."
 
 
+def _resolve_identity() -> tuple[str, str]:
+    """Read user_name and agent_name from setup config."""
+    user_name = settings.get("setup.user_name", "") or ""
+    agent_name = settings.get("setup.agent_name", "") or ""
+    return user_name.strip() or "用户", agent_name.strip() or "Free U"
+
+
+def _inject_identity(text: str) -> str:
+    """Replace {user_name} and {agent_name} placeholders in instructions."""
+    user_name, agent_name = _resolve_identity()
+    try:
+        return text.format(user_name=user_name, agent_name=agent_name)
+    except (KeyError, IndexError):
+        return text.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
+
+
 def _build_instructions(
     lang: str,
     has_tools: bool,
@@ -161,35 +177,36 @@ def _build_instructions(
     """
     date_instruction = _get_current_date_instruction(lang)
     _ = (use_all_lifetrace_tools, has_external_tools)
+    user_name, agent_name = _resolve_identity()
 
     # Load instructions from agno_tools/{lang}/instructions.yaml (if available)
     instructions = get_message(lang, "instructions")
     if instructions and instructions != "[instructions]":
-        return [date_instruction, instructions]
+        return [date_instruction, _inject_identity(instructions)]
 
-    # 简化的 instructions
+    # 简化的 instructions（also inject identity）
     if lang == "zh":
         if has_tools:
             return [
                 date_instruction,
-                "你是 FreeTodo 智能助手，可以帮助用户管理待办事项和执行各种任务。"
+                f"你是 {agent_name}，{user_name} 的智能助手，可以帮助用户管理待办事项和执行各种任务。"
                 "请根据用户的问题选择合适的工具来完成任务。",
             ]
         return [
             date_instruction,
-            "你是 FreeTodo 智能助手。当前没有启用任何工具，请直接回答用户的问题。",
+            f"你是 {agent_name}，{user_name} 的智能助手。当前没有启用任何工具，请直接回答用户的问题。",
         ]
 
     # English
     if has_tools:
         return [
             date_instruction,
-            "You are the FreeTodo assistant that helps users manage their todos "
+            f"You are {agent_name}, {user_name}'s assistant that helps manage todos "
             "and perform various tasks. Use the appropriate tools to complete tasks.",
         ]
     return [
         date_instruction,
-        "You are the FreeTodo assistant. No tools are currently enabled. "
+        f"You are {agent_name}, {user_name}'s assistant. No tools are currently enabled. "
         "Please answer the user's questions directly.",
     ]
 

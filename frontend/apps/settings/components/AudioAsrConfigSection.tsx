@@ -320,8 +320,8 @@ export function AudioAsrConfigSection({ config, loading = false }: AudioAsrConfi
 					className="w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					{testAsrMutation.isPending
-						? `${t("testConnection") || "测试连接"}...`
-						: t("testConnection") || "测试连接"}
+						? `${t("testConnection") || "测试连接并保存"}...`
+						: t("testConnection") || "测试连接并保存"}
 				</button>
 			</div>
 		</SettingsSection>

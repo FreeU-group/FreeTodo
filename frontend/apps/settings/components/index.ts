@@ -1,4 +1,7 @@
 export { AudioAsrConfigSection } from "./AudioAsrConfigSection";
+export { DirectoryScanSection } from "./DirectoryScanSection";
+export { NamingSection } from "./NamingSection";
+export { VoiceprintSection } from "./VoiceprintSection";
 export { AudioConfigSection } from "./AudioConfigSection";
 export { AutomationTasksSection } from "./AutomationTasksSection";
 export { AutoTodoDetectionSection } from "./AutoTodoDetectionSection";

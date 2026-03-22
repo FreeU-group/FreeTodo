@@ -119,6 +119,11 @@ perception:
       post_extract_dedupe_window_seconds: 600
       create_confidence_threshold: 0.7
       update_confidence_threshold: 0.75
+  agent_name_watcher:
+    enabled: true
+    window_seconds: 15
+    max_window_events: 5
+    queue_maxsize: 100
 
 # 基础目录配置
 base_dir: data

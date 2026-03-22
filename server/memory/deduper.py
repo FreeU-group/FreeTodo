@@ -270,6 +270,7 @@ class MemoryDeduper:
 
         if date_str != self._current_date:
             self._current_date = date_str
+            self._deduped_dir.mkdir(parents=True, exist_ok=True)
             self._current_file = self._deduped_dir / f"{date_str}.md"
             if not self._current_file.exists():
                 with open(self._current_file, "w", encoding="utf-8") as f:
@@ -278,6 +279,10 @@ class MemoryDeduper:
 
         if self._current_file is None:
             raise RuntimeError("Deduper output file is not initialized")
+        self._current_file.parent.mkdir(parents=True, exist_ok=True)
+        if not self._current_file.exists():
+            with open(self._current_file, "w", encoding="utf-8") as f:
+                f.write(f"# {self._current_date} 去重记录\n")
         with open(self._current_file, "a", encoding="utf-8") as f:
             f.write(line)
 
