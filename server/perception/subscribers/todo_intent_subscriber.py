@@ -45,7 +45,7 @@ class TodoIntentSubscriber:
         orchestrator: TodoIntentOrchestrator,
         queue_maxsize: int = 200,
         max_recent_records: int = 200,
-        aggregation_window_seconds: float = 5.0,
+        aggregation_window_seconds: float = 0.0,
         max_context_chars: int = 5000,
         processing_workers: int = 2,
         processing_queue_maxsize: int | None = None,
