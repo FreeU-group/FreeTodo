@@ -436,6 +436,9 @@ class SensorDaemon:
                 return roi_result.image
         return frame.data
 
+    _DEBUG_MAX_FILES = 1000
+    _DEBUG_CLEANUP_COUNT = 500
+
     def _save_debug_image(self, image: np.ndarray, label: str) -> None:
         if not self._debug_images:
             return
@@ -445,6 +448,26 @@ class SensorDaemon:
         path = self._debug_dir / f"{label}_{ts}.png"
         Image.fromarray(image).save(path)
         logger.debug(f"Debug image saved: {path}")
+        self._maybe_cleanup_debug_dir()
+
+    def _maybe_cleanup_debug_dir(self) -> None:
+        if not hasattr(self, "_debug_cleanup_counter"):
+            self._debug_cleanup_counter = 0
+        self._debug_cleanup_counter += 1
+        if self._debug_cleanup_counter % 50 != 0:
+            return
+        try:
+            files = sorted(self._debug_dir.glob("*.png"), key=lambda f: f.stat().st_mtime)
+            if len(files) > self._DEBUG_MAX_FILES:
+                to_delete = files[: self._DEBUG_CLEANUP_COUNT]
+                for f in to_delete:
+                    f.unlink(missing_ok=True)
+                logger.info(
+                    "Debug cleanup: deleted %d oldest files (%d remaining)",
+                    len(to_delete), len(files) - len(to_delete),
+                )
+        except Exception:
+            logger.debug("Debug cleanup failed", exc_info=True)
 
     @staticmethod
     def _build_ocr_annotated_image(

@@ -21,7 +21,7 @@ const fs = require("node:fs");
 const MARGIN = 16;
 const DEFAULT_WIDTH = 380;
 const MIN_HEIGHT = 120;
-const MAX_HEIGHT = 750;
+const MAX_HEIGHT = 600;
 const HEADER_HEIGHT = 56;
 const BUTTON_HEIGHT = 50;
 const LINK_HEIGHT = 34;
@@ -67,8 +67,14 @@ function escapeHtml(str) {
 		.replace(/\n/g, "<br>");
 }
 
-function renderSimpleMarkdown(str) {
-	return escapeHtml(str)
+function stripEmoji(html) {
+	return html
+		.replace(/\p{Extended_Pictographic}/gu, "")
+		.replace(/\uFE0F/g, "");
+}
+
+function applyInlineMarkdown(str) {
+	return str
 		.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
 		.replace(/\*(.+?)\*/g, "<em>$1</em>")
 		.replace(
@@ -77,9 +83,13 @@ function renderSimpleMarkdown(str) {
 		);
 }
 
+function renderSimpleMarkdown(str) {
+	return applyInlineMarkdown(escapeHtml(stripEmoji(str)));
+}
+
 function estimateHeight(data) {
 	if (data.height) return data.height;
-	if (data.bodyHtml) return Math.min(data.height || 500, MAX_HEIGHT);
+	if (data.bodyHtml) return Math.min(data.height || 420, MAX_HEIGHT);
 	const subtitle = data.subtitle || "";
 	const linkCount = (data.links || []).length;
 	const subtitleLines = subtitle
@@ -134,7 +144,7 @@ function getPanelHtml(data) {
 
 	let bodyContent;
 	if (hasBodyHtml) {
-		bodyContent = data.bodyHtml;
+		bodyContent = applyInlineMarkdown(stripEmoji(data.bodyHtml));
 	} else {
 		const subtitle = data.subtitle || "";
 		const subtitleHtml = subtitle ? renderSimpleMarkdown(subtitle) : "";
@@ -394,6 +404,9 @@ function getPanelHtml(data) {
 	.d-row:last-child{border-bottom:none}
 	.d-row-k{color:#64748b}
 	.d-row-v{font-weight:600;color:#1e1b4b}
+
+	/* Hide empty icon containers after emoji stripping */
+	.t-icon:empty,.d-alert-icon:empty,.d-file-icon:empty{display:none}
 
 	/* Toast for copy feedback */
 	.copy-toast{
