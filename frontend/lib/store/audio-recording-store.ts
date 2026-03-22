@@ -147,6 +147,12 @@ let isReconnectingInternally = false; // 标记是否正在内部重连（绕过
  * 获取 API 基础 URL
  */
 function getApiBaseUrl(): string {
+	if (typeof window !== "undefined") {
+		const host = window.location.hostname;
+		if (host === "localhost" || host === "127.0.0.1") {
+			return `http://${host}:8001`;
+		}
+	}
 	return (
 		process.env.NEXT_PUBLIC_API_URL ||
 		(typeof window !== "undefined" &&
