@@ -509,21 +509,25 @@ class SensorDaemon:
         self._save_debug_image(image_to_ocr, f"proactive_{app_type.value}_roi")
 
         ocr_target, wechat_divider_y = self._prepare_ocr_target(image_to_ocr, app_type)
-        if self._debug_images and wechat_divider_y is not None:
+        wechat_title_ocr_text = ""
+        if wechat_divider_y is not None:
             title_img = image_to_ocr[:wechat_divider_y, :]
             self._save_debug_image(title_img, "wechat_title")
             self._save_debug_image(ocr_target, "wechat_messages")
             try:
                 title_ocr = await asyncio.to_thread(_get_ocr_engine().ocr, title_img)
                 if title_ocr.lines:
-                    annotated_title = self._build_ocr_annotated_image(title_img, title_ocr.lines)
-                    self._save_debug_image(annotated_title, "wechat_title_ocr")
-                    logger.info(
-                        "WeChat title OCR: %s",
-                        " | ".join(f"{ln.text}(s={ln.score:.2f})" for ln in title_ocr.lines),
-                    )
+                    wechat_title_ocr_text = " ".join(
+                        ln.text for ln in title_ocr.lines if ln.score >= _MIN_OCR_CONFIDENCE
+                    ).strip()
+                    if self._debug_images:
+                        annotated_title = self._build_ocr_annotated_image(
+                            title_img, title_ocr.lines,
+                        )
+                        self._save_debug_image(annotated_title, "wechat_title_ocr")
+                    logger.info("WeChat title OCR: '%s'", wechat_title_ocr_text)
             except Exception:
-                logger.debug("Failed to OCR title for debug", exc_info=True)
+                logger.debug("Failed to OCR title area", exc_info=True)
 
         engine = _get_ocr_engine()
         try:
@@ -546,12 +550,13 @@ class SensorDaemon:
         if not valid_lines:
             return
 
+        title_for_parser = wechat_title_ocr_text or window.title
         text, extra_metadata = self._build_ocr_text(
             ocr_target,
             ocr_result,
             valid_lines,
             app_type,
-            window_title=window.title,
+            window_title=title_for_parser,
         )
         if len(text) < _MIN_TEXT_LEN:
             return
