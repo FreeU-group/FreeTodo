@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSetupStore } from "@/lib/store/setup-store";
 
 interface VoiceprintStepProps {
 	onNext: () => void;
@@ -12,10 +13,15 @@ const RECORD_SECONDS = 5;
 const BAR_COUNT = 40;
 
 export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
+	const { userName } = useSetupStore();
 	const [phase, setPhase] = useState<"idle" | "recording" | "stopping" | "done" | "error">("idle");
 	const [elapsed, setElapsed] = useState(0);
 	const [bars, setBars] = useState<number[]>(new Array(BAR_COUNT).fill(0));
 	const [errorMsg, setErrorMsg] = useState("");
+	const barKeys = useMemo(
+		() => Array.from({ length: BAR_COUNT }, (_, index) => `voiceprint-bar-${index}`),
+		[],
+	);
 
 	const animRef = useRef<number>(0);
 	const phaseRef = useRef(phase);
@@ -34,11 +40,42 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 
 	useEffect(() => () => cleanup(), [cleanup]);
 
-	const stopBackendRecording = async () => {
+	const stopBackendRecording = async (): Promise<number | null> => {
 		try {
-			await fetch("/api/audio/local-mic/stop", { method: "POST" });
+			const res = await fetch("/api/audio/local-mic/stop", { method: "POST" });
+			if (!res.ok) return null;
+			const data = (await res.json()) as { recording_id?: number };
+			return typeof data.recording_id === "number" ? data.recording_id : null;
 		} catch {
-			// best effort
+			return null;
+		}
+	};
+
+	const enrollVoiceprint = async (recordingId: number): Promise<boolean> => {
+		try {
+			const res = await fetch("/api/setup/enroll-voiceprint", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					recording_id: recordingId,
+					user_name: userName || "",
+					set_as_me: true,
+				}),
+			});
+			if (!res.ok) {
+				const data = (await res.json().catch(() => ({}))) as { detail?: string };
+				setErrorMsg(data.detail || "Failed to enroll voiceprint.");
+				return false;
+			}
+			const data = (await res.json()) as { success?: boolean };
+			if (data.success !== true) {
+				setErrorMsg("Failed to enroll voiceprint.");
+				return false;
+			}
+			return true;
+		} catch {
+			setErrorMsg("Failed to enroll voiceprint.");
+			return false;
 		}
 	};
 
@@ -104,7 +141,7 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 				const step = Math.max(1, Math.floor(binCount / BAR_COUNT));
 				newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
 					const idx = Math.min(i * step, binCount - 1);
-					return freqData![idx] / 255;
+					return (freqData?.[idx] ?? 0) / 255;
 				});
 			} else {
 				// Fallback: simulated waveform
@@ -123,7 +160,15 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 				cleanup();
 				setPhase("stopping");
 				setBars(new Array(BAR_COUNT).fill(0));
-				stopBackendRecording().then(() => setPhase("done"));
+				stopBackendRecording().then(async (recordingId) => {
+					if (recordingId === null) {
+						setErrorMsg("Voiceprint recording saved failed.");
+						setPhase("error");
+						return;
+					}
+					const ok = await enrollVoiceprint(recordingId);
+					setPhase(ok ? "done" : "error");
+				});
 				return;
 			}
 			animRef.current = requestAnimationFrame(tick);
@@ -157,9 +202,10 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 				{bars.map((level, i) => {
 					const isActive = phase === "recording";
 					const h = isActive ? Math.max(4, level * 56) : 4;
+					const key = barKeys[i] ?? `voiceprint-bar-fallback-${level}-${i}`;
 					return (
 						<div
-							key={i}
+							key={key}
 							className="w-1.5 rounded-full"
 							style={{
 								height: `${h}px`,
