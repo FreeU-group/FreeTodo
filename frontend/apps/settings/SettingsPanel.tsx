@@ -26,7 +26,6 @@ import {
 	OnboardingSection,
 	PanelSwitchesSection,
 	PERCEPTION_JOB_IDS,
-	RecorderConfigSection,
 	ResetSetupSection,
 	SchedulerSection,
 	SensorNodesSection,
@@ -161,7 +160,6 @@ export function SettingsPanel() {
 				return (
 					<>
 						<SensorNodesSection config={config} loading={loading} />
-						<RecorderConfigSection config={config} loading={loading} />
 						<SchedulerSection
 							loading={loading}
 							includeJobIds={["recorder_job", "ocr_job"]}

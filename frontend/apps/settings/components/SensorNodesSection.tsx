@@ -409,6 +409,12 @@ export function SensorNodesSection({
 					)}
 				</div>
 
+				{/* Screen recorder settings (blacklist) — inline from RecorderConfigSection */}
+				<div className="space-y-2 border-t border-border pt-4">
+					<h4 className="text-sm font-medium text-foreground">{t("screenRecorderSettings") || "屏幕录制设置"}</h4>
+					<RecorderConfigInline config={config} loading={loading} />
+				</div>
+
 				{/* Audio perception toggle */}
 				<div className="space-y-2">
 					<div className="flex items-center justify-between">
