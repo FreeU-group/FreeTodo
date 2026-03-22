@@ -234,6 +234,7 @@ function connectWithFallback(
 
 	set({ connectionState: isReconnectAttempt ? "reconnecting" : "connecting" });
 	const wsUrl = buildWsUrl(candidate);
+	console.log(`[todo-intent-ws] Connecting to: ${wsUrl}`);
 	const socket = new WebSocket(wsUrl);
 	ws = socket;
 
@@ -243,16 +244,18 @@ function connectWithFallback(
 		if (ws !== socket) return;
 		closeWs();
 		connectWithFallback(set, candidateIndex + 1, isReconnectAttempt);
-	}, 2000);
+	}, 5000);
 
 	socket.onopen = () => {
 		opened = true;
 		activeWsPath = candidate;
 		clearTimeout(openTimeout);
+		console.log(`[todo-intent-ws] Connected OK: ${wsUrl}`);
 		set({ connectionState: "connected" });
 	};
 
-	socket.onclose = () => {
+	socket.onclose = (ev) => {
+		console.log(`[todo-intent-ws] Closed: code=${ev.code} reason=${ev.reason} wasClean=${ev.wasClean}`);
 		clearTimeout(openTimeout);
 		if (ws === socket) ws = null;
 		set({ connectionState: "disconnected" });
