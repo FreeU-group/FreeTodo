@@ -84,8 +84,14 @@ class WeChatPrior(AppPrior):
     # ------------------------------------------------------------------
 
     def find_title_divider_y(self, image: np.ndarray) -> int | None:
-        """Detect the thin horizontal divider line between title bar and chat
-        content by scanning for a brightness pulse in the top portion."""
+        """Detect the boundary between title bar and chat content.
+
+        Strategy 1 (pulse): a thin bright/dark line where brightness jumps
+        and returns within a few rows — sign reversal in diff.
+        Strategy 2 (step): a sustained brightness level change — the title
+        bar brightness (~40) drops to chat background (~25-30) and stays.
+        Step detection starts from 5% height to skip window chrome.
+        """
         h, w = image.shape[:2]
         search_limit = max(int(h * _DIVIDER_SEARCH_RATIO), 10)
 
@@ -96,8 +102,20 @@ class WeChatPrior(AppPrior):
 
         strip = image[:search_limit, x_start:x_end]
         row_mean = np.mean(strip.reshape(search_limit, -1).astype(np.float64), axis=1)
-
         diff = np.diff(row_mean)
+
+        pulse = self._find_pulse(diff)
+        if pulse is not None:
+            return pulse
+
+        step = self._find_step(row_mean, min_y=max(10, search_limit // 4))
+        if step is not None:
+            return step
+
+        return None
+
+    @staticmethod
+    def _find_pulse(diff: np.ndarray) -> int | None:
         for y in range(len(diff)):
             if abs(diff[y]) < _DIVIDER_PULSE_THRESHOLD:
                 continue
@@ -109,6 +127,18 @@ class WeChatPrior(AppPrior):
                     continue
                 if diff[y] * diff[y2] < 0:
                     return y + 1
+        return None
+
+    @staticmethod
+    def _find_step(row_mean: np.ndarray, min_y: int = 10) -> int | None:
+        sustain = 8
+        for y in range(min_y, len(row_mean) - sustain - 1):
+            jump = abs(float(row_mean[y + 1]) - float(row_mean[y]))
+            if jump < _DIVIDER_PULSE_THRESHOLD:
+                continue
+            after = float(np.mean(row_mean[y + 1 : y + 1 + sustain]))
+            if abs(after - float(row_mean[y])) > _DIVIDER_PULSE_THRESHOLD * 0.6:
+                return y + 1
         return None
 
     def get_title_divider_y(self, image: np.ndarray) -> int:

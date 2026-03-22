@@ -117,7 +117,6 @@ def _get_audio_ws_functions():
     return {
         "_audio_stream_generator": audio_ws_module._audio_stream_generator,
         "_create_error_callback": audio_ws_module._create_error_callback,
-        "_create_realtime_nlp_handler": audio_ws_module._create_realtime_nlp_handler,
         "_create_result_callback": audio_ws_module._create_result_callback,
         "_get_segment_functions": audio_ws_module._get_segment_functions,
         "_handle_json_error": _handle_json_error,
@@ -428,20 +427,6 @@ async def _handle_websocket_errors(
     else:
         await _handle_websocket_error(websocket, logger, e)
 
-
-async def _create_nlp_handler(
-    *, websocket: WebSocket, logger, audio_service, state: dict, funcs: dict
-) -> tuple:
-    """创建 NLP 处理函数"""
-    _create_realtime_nlp_handler = funcs["_create_realtime_nlp_handler"]
-    return _create_realtime_nlp_handler(
-        websocket=websocket,
-        logger=logger,
-        audio_service=audio_service,
-        is_connected_ref=state["is_connected_ref"],
-        task_set=state["task_set"],
-        throttle_seconds=8.0,
-    )
 
 
 async def _create_save_final_data_func(
