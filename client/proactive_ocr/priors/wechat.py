@@ -154,7 +154,8 @@ class WeChatPrior(AppPrior):
         mean_val = float(np.mean(col_grad_sum))
 
         if mean_val > 0 and peak_val > mean_val * 1.8:
-            return x_start + peak_idx + 1
+            boundary = x_start + peak_idx + 1
+            return max(0, boundary - 3)
 
         return None
 
