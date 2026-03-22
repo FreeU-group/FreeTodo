@@ -254,51 +254,6 @@ export function SpeakerLivePanel() {
 		});
 	}, []);
 
-	const autoSetFirstSpeakerAsMe = useCallback(
-		async (speakerId: number, backend: string | null) => {
-			if (autoAssignedRef.current) {
-				return;
-			}
-
-			setAutoAssignState("saving");
-
-			try {
-				setPanelError(null);
-				if (backend === "diart") {
-					// Diart IDs are session-local and may not exist in VoiceprintStore.
-					autoAssignedRef.current = true;
-					setMeSpeaker(speakerId);
-					setKnownSpeakerAsMe(speakerId);
-					setAutoAssignState("success");
-					return;
-				}
-				const res = await fetch(`/api/audio/speakers/${speakerId}/set-as-me`, {
-					method: "POST",
-				});
-				if (res.status === 404) {
-					// diart labels may be ephemeral and not persisted in VoiceprintStore;
-					// keep local "me" assignment to avoid noisy failures.
-					autoAssignedRef.current = true;
-					setMeSpeaker(speakerId);
-					setAutoAssignState("success");
-					return;
-				}
-				if (!res.ok) {
-					throw new Error(`${res.status}`);
-				}
-				autoAssignedRef.current = true;
-				setMeSpeaker(speakerId);
-				setKnownSpeakerAsMe(speakerId);
-				setAutoAssignState("success");
-			} catch {
-				autoAssignedRef.current = false;
-				setAutoAssignState("failed");
-				setPanelError(t("autoSetMeFailed"));
-			}
-		},
-		[setKnownSpeakerAsMe, setMeSpeaker, t],
-	);
-
 	const resetPanelState = useCallback(
 		(options?: { keepMe?: boolean }) => {
 			const keepMe = options?.keepMe === true && meSpeakerIdRef.current !== null;
@@ -431,11 +386,6 @@ export function SpeakerLivePanel() {
 							setMeSpeaker(effectiveSpeaker.speakerId);
 							setKnownSpeakerAsMe(effectiveSpeaker.speakerId);
 							setAutoAssignState("success");
-						} else if (!autoAssignedRef.current) {
-							void autoSetFirstSpeakerAsMe(
-								effectiveSpeaker.speakerId,
-								effectiveSpeaker.backend,
-							);
 						}
 					}
 
@@ -472,7 +422,6 @@ export function SpeakerLivePanel() {
 	}, [
 		appendLine,
 		applyKnownSpeakerMeta,
-		autoSetFirstSpeakerAsMe,
 		isRecording,
 		loadKnownSpeakers,
 		resetPanelState,

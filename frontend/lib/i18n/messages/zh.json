@@ -593,7 +593,7 @@
 		"primaryTrack": "主轨",
 		"overlapTracks": "重叠轨",
 		"recordingError": "录音失败。",
-		"meNotSet": "默认会把第一个识别到的说话人自动标记为我。",
+		"meNotSet": "还没有识别到“我”，请先在初始化里录入声纹。",
 		"autoSettingMe": "正在自动标记首个说话人为我...",
 		"autoSetMeFailed": "自动标记“我”失败，请稍后重试。",
 		"meSpeakerId": "当前“我”的说话人: #{id}"

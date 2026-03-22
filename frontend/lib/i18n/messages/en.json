@@ -593,7 +593,7 @@
 		"primaryTrack": "Primary Track",
 		"overlapTracks": "Overlap Tracks",
 		"recordingError": "Recording failed.",
-		"meNotSet": "The first detected speaker will be auto-marked as me.",
+		"meNotSet": "No \"me\" speaker yet. Please enroll your voiceprint in Setup first.",
 		"autoSettingMe": "Auto-marking first speaker as me...",
 		"autoSetMeFailed": "Failed to auto-mark first speaker as me.",
 		"meSpeakerId": "Me speaker: #{id}"
