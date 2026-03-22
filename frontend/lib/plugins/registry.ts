@@ -155,6 +155,17 @@ const panelRegistry: Record<PanelFeature, PanelPlugin> = {
 				default: mod.AudioPanel,
 			})),
 	},
+	speakerLive: {
+		id: "speakerLive",
+		labelKey: "speakerLiveLabel",
+		placeholderKey: "speakerLivePlaceholder",
+		icon: FEATURE_ICON_MAP.speakerLive,
+		backendModules: ["audio"],
+		loader: () =>
+			import("@/apps/speaker-live/SpeakerLivePanel").then((mod) => ({
+				default: mod.SpeakerLivePanel,
+			})),
+	},
 	preview: {
 		id: "preview",
 		labelKey: "previewLabel",

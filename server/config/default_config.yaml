@@ -1,22 +1,22 @@
-# LifeTrace 默认配置文件
+﻿# LifeTrace 榛樿閰嶇疆鏂囦欢
 
-# ！！！重要提示：
-# 请勿编辑此文件 default_config.yaml，所有配置都应在 config.yaml 中进行设置
-# 如果 config.yaml 不存在，系统会自动从 default_config.yaml 复制并生成
-# 如果 config.yaml 存在，系统会自动验证完整性，如果不完整，系统会自动提示并退出
-# 当此提示出现在 config.yaml 中时，请忽略
+# 锛侊紒锛侀噸瑕佹彁绀猴細
+# 璇峰嬁缂栬緫姝ゆ枃浠?default_config.yaml锛屾墍鏈夐厤缃兘搴斿湪 config.yaml 涓繘琛岃缃?
+# 濡傛灉 config.yaml 涓嶅瓨鍦紝绯荤粺浼氳嚜鍔ㄤ粠 default_config.yaml 澶嶅埗骞剁敓鎴?
+# 濡傛灉 config.yaml 瀛樺湪锛岀郴缁熶細鑷姩楠岃瘉瀹屾暣鎬э紝濡傛灉涓嶅畬鏁达紝绯荤粺浼氳嚜鍔ㄦ彁绀哄苟閫€鍑?
+# 褰撴鎻愮ず鍑虹幇鍦?config.yaml 涓椂锛岃蹇界暐
 
-# 部署角色配置
+# 閮ㄧ讲瑙掕壊閰嶇疆
 deployment:
-  role: standalone # standalone（单机） | center（中心节点，接受远程感知数据）
+  role: standalone # standalone锛堝崟鏈猴級 | center锛堜腑蹇冭妭鐐癸紝鎺ュ彈杩滅▼鎰熺煡鏁版嵁锛?
 
-# 服务器配置
+# 鏈嶅姟鍣ㄩ厤缃?
 server:
   host: 127.0.0.1
   port: 8001
   debug: false
 
-# 后端模块启用配置（轻量插件化）
+# 鍚庣妯″潡鍚敤閰嶇疆锛堣交閲忔彃浠跺寲锛?
 backend_modules:
   enabled:
     - health
@@ -53,19 +53,19 @@ backend_modules:
     - omi_compat
     - location
 
-# Omi App / 硬件兼容层配置
+# Omi App / 纭欢鍏煎灞傞厤缃?
 omi_compat:
   token: "lifetrace-omi-compat-2026"
   uid: "lifetrace-user"
 
-# 远程感知节点 (Sensor) 配置
+# 杩滅▼鎰熺煡鑺傜偣 (Sensor) 閰嶇疆
 sensor:
   screenshot_enabled: true
   screenshot_interval: 10.0
   proactive_ocr_enabled: true
   proactive_ocr_interval: 1.0
 
-# 感知流（Perception Stream）配置
+# 鎰熺煡娴侊紙Perception Stream锛夐厤缃?
 perception:
   enabled: true
   window_seconds: 300
@@ -78,7 +78,7 @@ perception:
   todo_intent:
     enabled: true
     mode: memory_preview # memory_preview | draft | active | review_queue
-    disable_legacy_auto_extraction: true # 启用后跳过旧自动提取链路（audio/proactive_ocr/todo_recorder）
+    disable_legacy_auto_extraction: true # 鍚敤鍚庤烦杩囨棫鑷姩鎻愬彇閾捐矾锛坅udio/proactive_ocr/todo_recorder锛?
     window_seconds: 5
     max_context_chars: 5000
     max_todos_per_context: 5
@@ -94,13 +94,13 @@ perception:
       max_cache_size: 5000
     gate:
       enabled: true
-      model: "qwen-turbo" # 门控只需判断 true/false，用轻量模型加速
+      model: "qwen-turbo" # 闂ㄦ帶鍙渶鍒ゆ柇 true/false锛岀敤杞婚噺妯″瀷鍔犻€?
       temperature: 0.0
       max_tokens: 160
       min_text_length: 8
       prompt_category: transcription_extraction_gate
     extractor:
-      model: "" # 空则回退 llm.todo_extraction_model 或 llm.model
+      model: "" # 绌哄垯鍥為€€ llm.todo_extraction_model 鎴?llm.model
       temperature: 0.2
       max_tokens: 800
       prompt_category: perception_todo_intent_extraction
@@ -109,129 +109,129 @@ perception:
       create_confidence_threshold: 0.7
       update_confidence_threshold: 0.75
 
-# 基础目录配置
+# 鍩虹鐩綍閰嶇疆
 base_dir: data
 database_path: lifetrace.db
 screenshots_dir: screenshots/
 attachments_dir: attachments/
 
-# 日志配置
+# 鏃ュ織閰嶇疆
 logging:
   level: INFO
   console_level: INFO
   file_level: INFO
-  quiet_modules: [] # 示例: ["activity_service", "event_service"]
+  quiet_modules: [] # 绀轰緥: ["activity_service", "event_service"]
   log_path: logs/
-  # 声纹/CAM++ 相关日志单独输出到此目录，留空则与主日志合并
-  speaker_log_path: "" # 例如: logs/speaker/
+  # 澹扮汗/CAM++ 鐩稿叧鏃ュ織鍗曠嫭杈撳嚭鍒版鐩綍锛岀暀绌哄垯涓庝富鏃ュ織鍚堝苟
+  speaker_log_path: "" # 渚嬪: logs/speaker/
 
-# 调度器配置
+# 璋冨害鍣ㄩ厤缃?
 scheduler:
-  enabled: true # 启用调度器
-  database_path: scheduler.db # 调度器数据库路径
-  max_workers: 10 # 最大工作线程数
-  coalesce: true # 合并错过的任务
-  max_instances: 1 # 同一任务同时只能有一个实例
-  misfire_grace_time: 60 # 错过触发时间的容忍度（秒）
-  timezone: Asia/Shanghai # 时区
+  enabled: true # 鍚敤璋冨害鍣?
+  database_path: scheduler.db # 璋冨害鍣ㄦ暟鎹簱璺緞
+  max_workers: 10 # 鏈€澶у伐浣滅嚎绋嬫暟
+  coalesce: true # 鍚堝苟閿欒繃鐨勪换鍔?
+  max_instances: 1 # 鍚屼竴浠诲姟鍚屾椂鍙兘鏈変竴涓疄渚?
+  misfire_grace_time: 60 # 閿欒繃瑙﹀彂鏃堕棿鐨勫蹇嶅害锛堢锛?
+  timezone: Asia/Shanghai # 鏃跺尯
 
-# 定时任务
+# 瀹氭椂浠诲姟
 jobs:
   audio_recording:
-    id: audio_recording # 任务ID
-    name: 音频录制 # 任务显示名称（中文）
-    enabled: false # 是否启用音频录制（默认关闭，7x24小时录制）
-    interval: 60 # 状态检查间隔（秒），用于监控录音状态
+    id: audio_recording # 浠诲姟ID
+    name: 闊抽褰曞埗 # 浠诲姟鏄剧ず鍚嶇О锛堜腑鏂囷級
+    enabled: false # 鏄惁鍚敤闊抽褰曞埗锛堥粯璁ゅ叧闂紝7x24灏忔椂褰曞埗锛?
+    interval: 60 # 鐘舵€佹鏌ラ棿闅旓紙绉掞級锛岀敤浜庣洃鎺у綍闊崇姸鎬?
     params:
-      segment_duration_minutes: 30 # 分段时长（分钟）
-      silence_threshold_seconds: 600 # 静音检测阈值（秒）
+      segment_duration_minutes: 30 # 鍒嗘鏃堕暱锛堝垎閽燂級
+      silence_threshold_seconds: 600 # 闈欓煶妫€娴嬮槇鍊硷紙绉掞級
   activity_aggregator:
-    id: activity_aggregator # 任务ID
-    name: 活动聚合 # 任务显示名称（中文）
-    enabled: false # 是否启用活动聚合任务（默认关闭，需用户手动开启）
-    interval: 900 # 检查间隔（秒），默认15分钟
+    id: activity_aggregator # 浠诲姟ID
+    name: 娲诲姩鑱氬悎 # 浠诲姟鏄剧ず鍚嶇О锛堜腑鏂囷級
+    enabled: false # 鏄惁鍚敤娲诲姩鑱氬悎浠诲姟锛堥粯璁ゅ叧闂紝闇€鐢ㄦ埛鎵嬪姩寮€鍚級
+    interval: 900 # 妫€鏌ラ棿闅旓紙绉掞級锛岄粯璁?5鍒嗛挓
   clean_data:
-    id: clean_data # 任务ID
-    name: 截图清理 # 任务显示名称（中文）
-    enabled: false # 是否启用截图清理任务（默认关闭，需要时手动开启）
-    interval: 3600 # 检查间隔（秒），默认每小时检查一次
+    id: clean_data # 浠诲姟ID
+    name: 鎴浘娓呯悊 # 浠诲姟鏄剧ず鍚嶇О锛堜腑鏂囷級
+    enabled: false # 鏄惁鍚敤鎴浘娓呯悊浠诲姟锛堥粯璁ゅ叧闂紝闇€瑕佹椂鎵嬪姩寮€鍚級
+    interval: 3600 # 妫€鏌ラ棿闅旓紙绉掞級锛岄粯璁ゆ瘡灏忔椂妫€鏌ヤ竴娆?
     params:
-      max_screenshots: 10000 # 最大截图数量限制
-      max_days: 30 # 数据保留天数（按日期清理旧数据）
-      delete_file_only: true # 只删除文件（true），还是同时删除记录（false）
+      max_screenshots: 10000 # 鏈€澶ф埅鍥炬暟閲忛檺鍒?
+      max_days: 30 # 鏁版嵁淇濈暀澶╂暟锛堟寜鏃ユ湡娓呯悊鏃ф暟鎹級
+      delete_file_only: true # 鍙垹闄ゆ枃浠讹紙true锛夛紝杩樻槸鍚屾椂鍒犻櫎璁板綍锛坒alse锛?
   deadline_reminder:
-    id: deadline_reminder # 任务ID
-    name: DDL提醒 # 任务显示名称（中文）
-    enabled: false # 是否启用 DDL 提醒任务（默认关闭，需用户手动开启）
+    id: deadline_reminder # 浠诲姟ID
+    name: DDL鎻愰啋 # 浠诲姟鏄剧ず鍚嶇О锛堜腑鏂囷級
+    enabled: false # 鏄惁鍚敤 DDL 鎻愰啋浠诲姟锛堥粯璁ゅ叧闂紝闇€鐢ㄦ埛鎵嬪姩寮€鍚級
     params:
-      reminder_window_minutes: 5 # 兼容保留字段，不再作为待办默认提醒
+      reminder_window_minutes: 5 # 鍏煎淇濈暀瀛楁锛屼笉鍐嶄綔涓哄緟鍔為粯璁ゆ彁閱?
   auto_todo_detection:
     id: auto_todo_detection
-    name: 自动待办检测
+    name: 鑷姩寰呭姙妫€娴?
     enabled: true
   diary_illustration:
     id: diary_illustration
-    name: 日记插画生成
+    name: 鏃ヨ鎻掔敾鐢熸垚
     enabled: false
     cron: "0 22 * * *"
 
-# 向量数据库配置
+# 鍚戦噺鏁版嵁搴撻厤缃?
 vector_db:
-  enabled: true # 启用向量数据库
-  collection_name: lifetrace_ocr # 集合名称
-  embedding_model: shibing624/text2vec-base-chinese # 嵌入模型
-  rerank_model: BAAI/bge-reranker-base # 重排序模型
-  persist_directory: vector_db # 持久化目录
+  enabled: true # 鍚敤鍚戦噺鏁版嵁搴?
+  collection_name: lifetrace_ocr # 闆嗗悎鍚嶇О
+  embedding_model: shibing624/text2vec-base-chinese # 宓屽叆妯″瀷
+  rerank_model: BAAI/bge-reranker-base # 閲嶆帓搴忔ā鍨?
+  persist_directory: vector_db # 鎸佷箙鍖栫洰褰?
 
-# 聊天配置
+# 鑱婂ぉ閰嶇疆
 chat:
-  enable_history: true # 开启后发送消息时附带历史上下文
-  history_limit: 10 # 历史记录轮数限制（1轮=1个用户消息+1个助手回复）
+  enable_history: true # 寮€鍚悗鍙戦€佹秷鎭椂闄勫甫鍘嗗彶涓婁笅鏂?
+  history_limit: 10 # 鍘嗗彶璁板綍杞暟闄愬埗锛?杞?1涓敤鎴锋秷鎭?1涓姪鎵嬪洖澶嶏級
 
-# Agno Learning 配置
+# Agno Learning 閰嶇疆
 agno:
-  user_id: local-user # 默认用户 ID（用于个人画像/记忆）
-  default_workspace: "." # 默认工作区路径（Agent 文件操作的根目录）
+  user_id: local-user # 榛樿鐢ㄦ埛 ID锛堢敤浜庝釜浜虹敾鍍?璁板繂锛?
+  default_workspace: "." # 榛樿宸ヤ綔鍖鸿矾寰勶紙Agent 鏂囦欢鎿嶄綔鐨勬牴鐩綍锛?
   learning:
-    enabled: true # 是否启用 Agno Learning
+    enabled: true # 鏄惁鍚敤 Agno Learning
     mode: always # always | agentic
-    db_path: agno/learning.db # 相对 base_dir 的学习数据库路径
-    add_history_to_context: false # 是否使用 Agno 自带历史注入
+    db_path: agno/learning.db # 鐩稿 base_dir 鐨勫涔犳暟鎹簱璺緞
+    add_history_to_context: false # 鏄惁浣跨敤 Agno 鑷甫鍘嗗彶娉ㄥ叆
   tracing:
-    enabled: true # 是否启用 Agno Tracing（用于 AgentOS 调试）
-    db_path: agno/traces.db # 相对 base_dir 的 Tracing 数据库路径（建议独立 DB）
-    use_setup_tracing: true # 是否调用 Agno setup_tracing 进行更细粒度配置
-    batch_processing: true # setup_tracing 批处理开关
-    max_queue_size: 2048 # setup_tracing 队列最大长度
-    schedule_delay_millis: 3000 # setup_tracing 批处理调度间隔（毫秒）
+    enabled: true # 鏄惁鍚敤 Agno Tracing锛堢敤浜?AgentOS 璋冭瘯锛?
+    db_path: agno/traces.db # 鐩稿 base_dir 鐨?Tracing 鏁版嵁搴撹矾寰勶紙寤鸿鐙珛 DB锛?
+    use_setup_tracing: true # 鏄惁璋冪敤 Agno setup_tracing 杩涜鏇寸粏绮掑害閰嶇疆
+    batch_processing: true # setup_tracing 鎵瑰鐞嗗紑鍏?
+    max_queue_size: 2048 # setup_tracing 闃熷垪鏈€澶ч暱搴?
+    schedule_delay_millis: 3000 # setup_tracing 鎵瑰鐞嗚皟搴﹂棿闅旓紙姣锛?
   agent_os:
-    enabled: true # 是否启用 AgentOS 入口
-    host: 127.0.0.1 # AgentOS 监听地址
-    port: 8002 # AgentOS 监听端口
-    debug: true # AgentOS 调试模式（独立于 server.debug）
-    base_url: "" # 可选：直接指定 AgentOS 访问地址（优先级最高）
-    agent_id: freetodo-agent # AgentOS 中的 Agent ID
-    agent_name: FreeTodo Agent # AgentOS 中的 Agent 名称
-    lang: en # AgentOS 默认语言
-    timeout_sec: 60 # AgentOS 调用超时（秒）
-    selected_tools: [] # 空表示启用全部 Lifetrace 工具（AgentOS 启动时）
-    external_tools: [] # 空表示启用全部外部工具（AgentOS 启动时）
-    external_tools_config: {} # 预留外部工具配置
+    enabled: true # 鏄惁鍚敤 AgentOS 鍏ュ彛
+    host: 127.0.0.1 # AgentOS 鐩戝惉鍦板潃
+    port: 8002 # AgentOS 鐩戝惉绔彛
+    debug: true # AgentOS 璋冭瘯妯″紡锛堢嫭绔嬩簬 server.debug锛?
+    base_url: "" # 鍙€夛細鐩存帴鎸囧畾 AgentOS 璁块棶鍦板潃锛堜紭鍏堢骇鏈€楂橈級
+    agent_id: freetodo-agent # AgentOS 涓殑 Agent ID
+    agent_name: FreeTodo Agent # AgentOS 涓殑 Agent 鍚嶇О
+    lang: en # AgentOS 榛樿璇█
+    timeout_sec: 60 # AgentOS 璋冪敤瓒呮椂锛堢锛?
+    selected_tools: [] # 绌鸿〃绀哄惎鐢ㄥ叏閮?Lifetrace 宸ュ叿锛圓gentOS 鍚姩鏃讹級
+    external_tools: [] # 绌鸿〃绀哄惎鐢ㄥ叏閮ㄥ閮ㄥ伐鍏凤紙AgentOS 鍚姩鏃讹級
+    external_tools_config: {} # 棰勭暀澶栭儴宸ュ叿閰嶇疆
 
-# LLM配置
+# LLM閰嶇疆
 llm:
-  api_key: YOUR_LLM_KEY_HERE # LLM 密钥，需要用户配置
-  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1 # LLM API基础URL
-  model: qwen-plus # 使用的模型名称
-  vision_model: qwen3-vl-plus # 视觉多模态模型名称（用于图片分析）
-  todo_extraction_model: "" # 待办提取专用模型（留空则使用主模型，推荐 qwen-turbo 等快速模型）
-  temperature: 0.7 # 温度参数
-  max_tokens: 2048 # 最大token数
-  # 模型价格配置（单位：人民币/千token）
+  api_key: YOUR_LLM_KEY_HERE # LLM 瀵嗛挜锛岄渶瑕佺敤鎴烽厤缃?
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1 # LLM API鍩虹URL
+  model: qwen-plus # 浣跨敤鐨勬ā鍨嬪悕绉?
+  vision_model: qwen3-vl-plus # 瑙嗚澶氭ā鎬佹ā鍨嬪悕绉帮紙鐢ㄤ簬鍥剧墖鍒嗘瀽锛?
+  todo_extraction_model: "" # 寰呭姙鎻愬彇涓撶敤妯″瀷锛堢暀绌哄垯浣跨敤涓绘ā鍨嬶紝鎺ㄨ崘 qwen-turbo 绛夊揩閫熸ā鍨嬶級
+  temperature: 0.7 # 娓╁害鍙傛暟
+  max_tokens: 2048 # 鏈€澶oken鏁?
+  # 妯″瀷浠锋牸閰嶇疆锛堝崟浣嶏細浜烘皯甯?鍗僼oken锛?
   model_prices:
-    default: # 默认价格，用于未配置的模型（qwen-plus）
-      input_price: 0.0008 # 输入token价格
-      output_price: 0.002 # 输出token价格
+    default: # 榛樿浠锋牸锛岀敤浜庢湭閰嶇疆鐨勬ā鍨嬶紙qwen-plus锛?
+      input_price: 0.0008 # 杈撳叆token浠锋牸
+      output_price: 0.002 # 杈撳嚭token浠锋牸
     qwen3-max:
       input_price: 0.0032
       output_price: 0.0128
@@ -241,10 +241,10 @@ llm:
     qwen-turbo:
       input_price: 0.0003
       output_price: 0.0006
-    qwen3-vl-plus: # 视觉模型价格（支持非思考/思考模式，按输入token分层计价）
-      # 兼容旧逻辑的基础单价（默认取第一档）
-      input_price: 0.001 # 输入token价格（元/千token）
-      output_price: 0.01 # 输出token价格（元/千token）
+    qwen3-vl-plus: # 瑙嗚妯″瀷浠锋牸锛堟敮鎸侀潪鎬濊€?鎬濊€冩ā寮忥紝鎸夎緭鍏oken鍒嗗眰璁′环锛?
+      # 鍏煎鏃ч€昏緫鐨勫熀纭€鍗曚环锛堥粯璁ゅ彇绗竴妗ｏ級
+      input_price: 0.001 # 杈撳叆token浠锋牸锛堝厓/鍗僼oken锛?
+      output_price: 0.01 # 杈撳嚭token浠锋牸锛堝厓/鍗僼oken锛?
       tiers:
         # (0, 32,000]
         - max_input_tokens: 32000
@@ -259,100 +259,104 @@ llm:
           input_price: 0.003
           output_price: 0.03
 
-# Tavily 配置（联网搜索）
+# Tavily 閰嶇疆锛堣仈缃戞悳绱級
 tavily:
-  api_key: YOUR_TAVILY_API_KEY_HERE # Tavily API Key，需要用户配置
-  search_depth: basic # 搜索深度：basic 或 advanced
-  max_results: 5 # 最大返回结果数
-  include_domains: [] # 包含的域名列表（可选）
-  exclude_domains: [] # 排除的域名列表（可选）
+  api_key: YOUR_TAVILY_API_KEY_HERE # Tavily API Key锛岄渶瑕佺敤鎴烽厤缃?
+  search_depth: basic # 鎼滅储娣卞害锛歜asic 鎴?advanced
+  max_results: 5 # 鏈€澶ц繑鍥炵粨鏋滄暟
+  include_domains: [] # 鍖呭惈鐨勫煙鍚嶅垪琛紙鍙€夛級
+  exclude_domains: [] # 鎺掗櫎鐨勫煙鍚嶅垪琛紙鍙€夛級
 
-# Gemini 图像生成配置（日记插画）
+# Gemini 鍥惧儚鐢熸垚閰嶇疆锛堟棩璁版彃鐢伙級
 banna2:
   api_key: YOUR_GOOGLE_GEMINI_API_KEY_HERE
   ref_image_path: ""
 
-# 音频识别配置（阿里云Fun-ASR）
+# 闊抽璇嗗埆閰嶇疆锛堥樋閲屼簯Fun-ASR锛?
 audio:
-  is_24x7: false # 7x24小时录制模式（自动启动录音，默认关闭）
+  is_24x7: false # 7x24灏忔椂褰曞埗妯″紡锛堣嚜鍔ㄥ惎鍔ㄥ綍闊筹紝榛樿鍏抽棴锛?
   extraction_gate:
-    enabled: true # 是否启用"先用 LLM 判断再提取"的 gate
-    model: "" # gate 使用模型；留空则使用 llm.model
-    min_text_length: 5 # gate 最小文本长度（字符）；低于该值直接跳过提取
-    max_chars: 2500 # gate 单次调用输入最大字符数（过长自动分块）
-    max_seconds: 300 # gate/提取分块最大时长（秒），0=不按时长分块
-    max_tokens: 160 # gate 输出最大 token
-    temperature: 0.0 # gate 温度（建议 0）
+    enabled: true # 鏄惁鍚敤"鍏堢敤 LLM 鍒ゆ柇鍐嶆彁鍙?鐨?gate
+    model: "" # gate 浣跨敤妯″瀷锛涚暀绌哄垯浣跨敤 llm.model
+    min_text_length: 5 # gate 鏈€灏忔枃鏈暱搴︼紙瀛楃锛夛紱浣庝簬璇ュ€肩洿鎺ヨ烦杩囨彁鍙?
+    max_chars: 2500 # gate 鍗曟璋冪敤杈撳叆鏈€澶у瓧绗︽暟锛堣繃闀胯嚜鍔ㄥ垎鍧楋級
+    max_seconds: 300 # gate/鎻愬彇鍒嗗潡鏈€澶ф椂闀匡紙绉掞級锛?=涓嶆寜鏃堕暱鍒嗗潡
+    max_tokens: 160 # gate 杈撳嚭鏈€澶?token
+    temperature: 0.0 # gate 娓╁害锛堝缓璁?0锛?
   asr:
-    api_key: YOUR_LLM_KEY_HERE # 阿里云百炼API Key
-    base_url: wss://dashscope.aliyuncs.com/api-ws/v1/inference/ # WebSocket地址
-    model: fun-asr-realtime # 使用的模型名称
-    sample_rate: 16000 # 采样率（Hz）
-    format: pcm # 音频格式：pcm, wav, mp3, opus, speex, aac, amr
-    semantic_punctuation_enabled: false # 是否开启语义断句
-    max_sentence_silence: 1300 # VAD静音时长阈值（毫秒）
-    heartbeat: false # 是否开启长连接保持
+    api_key: YOUR_LLM_KEY_HERE # 闃块噷浜戠櫨鐐糀PI Key
+    base_url: wss://dashscope.aliyuncs.com/api-ws/v1/inference/ # WebSocket鍦板潃
+    model: fun-asr-realtime # 浣跨敤鐨勬ā鍨嬪悕绉?
+    sample_rate: 16000 # 閲囨牱鐜囷紙Hz锛?
+    format: pcm # 闊抽鏍煎紡锛歱cm, wav, mp3, opus, speex, aac, amr
+    semantic_punctuation_enabled: false # 鏄惁寮€鍚涔夋柇鍙?
+    max_sentence_silence: 1300 # VAD闈欓煶鏃堕暱闃堝€硷紙姣锛?
+    heartbeat: false # 鏄惁寮€鍚暱杩炴帴淇濇寔
   speaker:
-    enabled: true # 是否启用说话人识别
-    # CAM++ 声纹模型配置（本地 FunASR，默认方案）
+    enabled: true # 鏄惁鍚敤璇磋瘽浜鸿瘑鍒?
+    # CAM++ 澹扮汗妯″瀷閰嶇疆锛堟湰鍦?FunASR锛岄粯璁ゆ柟妗堬級
     model: iic/speech_campplus_sv_zh-cn_16k-common
     device: cpu
-    min_audio_duration: 2.5 # 最小音频时长（秒），低于此不提取声纹
-    buffer_duration: 8.0 # 音频缓冲时长（秒），每次提取声纹的音频量
-    vad_enabled: true # 是否启用 FSMN-VAD 语音切分（按说话轮次切段，提高多人对话识别准确率）
-    # Diart 实时说话人分离（可选，优先于 CAM++，需 pip install diart 并登录 HuggingFace）
+    min_audio_duration: 2.5 # 鏈€灏忛煶棰戞椂闀匡紙绉掞級锛屼綆浜庢涓嶆彁鍙栧０绾?
+    buffer_duration: 8.0 # 闊抽缂撳啿鏃堕暱锛堢锛夛紝姣忔鎻愬彇澹扮汗鐨勯煶棰戦噺
+    vad_enabled: true # 鏄惁鍚敤 FSMN-VAD 璇煶鍒囧垎锛堟寜璇磋瘽杞鍒囨锛屾彁楂樺浜哄璇濊瘑鍒噯纭巼锛?
+    # Diart 瀹炴椂璇磋瘽浜哄垎绂伙紙鍙€夛紝浼樺厛浜?CAM++锛岄渶 pip install diart 骞剁櫥褰?HuggingFace锛?
     diart:
-      enabled: false # 默认关闭；开启后需 torchaudio<=2.8 且 huggingface-cli login
-      step: 0.5 # 处理步长（秒）
-      latency: 0.5 # 最小延迟（秒，0.5-5.0）
-      tau_active: 0.5 # 说话人活跃度阈值（0-1）
-      rho_update: 0.3 # 声纹更新阈值
-      delta_new: 1.0 # 新说话人检测阈值
+      enabled: false # 榛樿鍏抽棴锛涘紑鍚悗闇€ torchaudio<=2.8 涓?huggingface-cli login
+      step: 0.5 # 澶勭悊姝ラ暱锛堢锛?
+      latency: 0.5 # 鏈€灏忓欢杩燂紙绉掞紝0.5-5.0锛?
+      tau_active: 0.5 # 璇磋瘽浜烘椿璺冨害闃堝€硷紙0-1锛?
+      rho_update: 0.3 # 澹扮汗鏇存柊闃堝€?
+      delta_new: 1.0 # 鏂拌璇濅汉妫€娴嬮槇鍊?
       segmentation_model: pyannote/segmentation-3.0
       embedding_model: pyannote/embedding
-    # 声纹库配置（VoiceprintStore）
-    embedding_dim: 192 # 声纹向量维度
-    similarity_threshold: 0.68 # 余弦相似度匹配阈值（CAM++ 同人典型 0.7-0.95，不同人 0.3-0.6）
-    new_speaker_confirm_count: 2 # 连续未匹配次数达到此值才创建新说话人（防止短暂波动）
-    max_speakers: 100 # 声纹库最大说话人数
-    auto_create_speaker: true # 未匹配时是否自动创建新说话人
-    update_voiceprint: true # 匹配后是否追加新的声纹样本
-    max_samples_per_speaker: 10 # 每个说话人最多保存的声纹样本数
-  # 二次处理（离线 ASR + 说话人分离），对实时转录结果进行精修
+    # 澹扮汗搴撻厤缃紙VoiceprintStore锛?
+    embedding_dim: 192 # 澹扮汗鍚戦噺缁村害
+    similarity_threshold: 0.68 # 浣欏鸡鐩镐技搴﹀尮閰嶉槇鍊硷紙CAM++ 鍚屼汉鍏稿瀷 0.7-0.95锛屼笉鍚屼汉 0.3-0.6锛?
+    new_speaker_confirm_count: 2 # 杩炵画鏈尮閰嶆鏁拌揪鍒版鍊兼墠鍒涘缓鏂拌璇濅汉锛堥槻姝㈢煭鏆傛尝鍔級
+    max_speakers: 100 # 澹扮汗搴撴渶澶ц璇濅汉鏁?
+    auto_create_speaker: true # 鏈尮閰嶆椂鏄惁鑷姩鍒涘缓鏂拌璇濅汉
+    update_voiceprint: true # 鍖归厤鍚庢槸鍚﹁拷鍔犳柊鐨勫０绾规牱鏈?
+    max_samples_per_speaker: 10 # 姣忎釜璇磋瘽浜烘渶澶氫繚瀛樼殑澹扮汗鏍锋湰鏁?
+  # 浜屾澶勭悊锛堢绾?ASR + 璇磋瘽浜哄垎绂伙級锛屽瀹炴椂杞綍缁撴灉杩涜绮句慨
   second_pass:
-    enabled: true # 启用后对 /v4/listen 的音频进行离线二次转录
-    model: paraformer-v2 # 离线 ASR 模型
-    debounce_seconds: 3 # 检测到句子结束后等待的去抖时间（秒），避免连续说话时频繁触发
-    interval_seconds: 30 # 最大等待间隔（秒），持续说话时也会按此间隔触发
-    diarization_enabled: true # 是否启用说话人分离
-    speaker_count: 0 # 说话人数量提示（0=自动检测）
-    language_hints: ["zh", "en"] # 待识别语种
-    disfluency_removal_enabled: false # 是否过滤语气词
-    temp_audio_dir: second_pass_audio/ # 临时音频文件目录（相对 base_dir）
-    temp_audio_max_age_hours: 24 # 临时音频文件保留时长（小时）
+    enabled: true # 鍚敤鍚庡 /v4/listen 鐨勯煶棰戣繘琛岀绾夸簩娆¤浆褰?
+    model: paraformer-v2 # 绂荤嚎 ASR 妯″瀷
+    base_url: "" # 可选：当 model=whisper-large-v3 时可指定 OpenAI 兼容转写服务地址（留空则使用 llm.base_url）
+    debounce_seconds: 3 # 妫€娴嬪埌鍙ュ瓙缁撴潫鍚庣瓑寰呯殑鍘绘姈鏃堕棿锛堢锛夛紝閬垮厤杩炵画璇磋瘽鏃堕绻佽Е鍙?
+    interval_seconds: 30 # 鏈€澶х瓑寰呴棿闅旓紙绉掞級锛屾寔缁璇濇椂涔熶細鎸夋闂撮殧瑙﹀彂
+    diarization_enabled: true # 鏄惁鍚敤璇磋瘽浜哄垎绂?
+    speaker_count: 0 # 璇磋瘽浜烘暟閲忔彁绀猴紙0=鑷姩妫€娴嬶級
+    language_hints: ["zh", "en"] # 寰呰瘑鍒绉?
+    disfluency_removal_enabled: false # 鏄惁杩囨护璇皵璇?
+    temp_audio_dir: second_pass_audio/ # 涓存椂闊抽鏂囦欢鐩綍锛堢浉瀵?base_dir锛?
+    temp_audio_max_age_hours: 24 # 涓存椂闊抽鏂囦欢淇濈暀鏃堕暱锛堝皬鏃讹級
   storage:
-    audio_dir: audio/ # 音频文件存储目录
-    temp_audio_dir: temp_audio/ # 临时音频文件目录
+    audio_dir: audio/ # 闊抽鏂囦欢瀛樺偍鐩綍
+    temp_audio_dir: temp_audio/ # 涓存椂闊抽鏂囦欢鐩綍
 
-# 可观测性配置（Phoenix + OpenInference）
+# 鍙娴嬫€ч厤缃紙Phoenix + OpenInference锛?
 observability:
-  enabled: true # 是否启用观测功能（默认关闭，需用户手动开启）
-  mode: local # 导出模式：local（本地JSON文件）| phoenix（Phoenix UI）| both（两者都启用）
+  enabled: true # 鏄惁鍚敤瑙傛祴鍔熻兘锛堥粯璁ゅ叧闂紝闇€鐢ㄦ埛鎵嬪姩寮€鍚級
+  mode: local # 瀵煎嚭妯″紡锛歭ocal锛堟湰鍦癑SON鏂囦欢锛墊 phoenix锛圥hoenix UI锛墊 both锛堜袱鑰呴兘鍚敤锛?
   local:
-    traces_dir: traces/ # trace 文件存储目录（相对于 base_dir）
-    max_files: 100 # 最大保留文件数（超出后自动清理旧文件）
-    pretty_print: true # JSON 是否格式化输出（便于人类阅读）
+    traces_dir: traces/ # trace 鏂囦欢瀛樺偍鐩綍锛堢浉瀵逛簬 base_dir锛?
+    max_files: 100 # 鏈€澶т繚鐣欐枃浠舵暟锛堣秴鍑哄悗鑷姩娓呯悊鏃ф枃浠讹級
+    pretty_print: true # JSON 鏄惁鏍煎紡鍖栬緭鍑猴紙渚夸簬浜虹被闃呰锛?
   phoenix:
-    endpoint: http://localhost:6006 # Phoenix 服务端点（需先启动 phoenix serve）
-    project_name: freetodo-agent # 项目名称（用于 Phoenix UI 中分组）
-    export_timeout_sec: 2.0 # 导出超时（秒），避免 Phoenix 不可用时阻塞
-    disable_after_failures: 1 # 连续失败达到阈值后自动禁用 Phoenix 导出
-    retry_cooldown_sec: 60 # 触发禁用后多久尝试恢复（秒，0 表示不自动重试）
+    endpoint: http://localhost:6006 # Phoenix 鏈嶅姟绔偣锛堥渶鍏堝惎鍔?phoenix serve锛?
+    project_name: freetodo-agent # 椤圭洰鍚嶇О锛堢敤浜?Phoenix UI 涓垎缁勶級
+    export_timeout_sec: 2.0 # 瀵煎嚭瓒呮椂锛堢锛夛紝閬垮厤 Phoenix 涓嶅彲鐢ㄦ椂闃诲
+    disable_after_failures: 1 # 杩炵画澶辫触杈惧埌闃堝€煎悗鑷姩绂佺敤 Phoenix 瀵煎嚭
+    retry_cooldown_sec: 60 # 瑙﹀彂绂佺敤鍚庡涔呭皾璇曟仮澶嶏紙绉掞紝0 琛ㄧず涓嶈嚜鍔ㄩ噸璇曪級
   terminal:
-    summary_only: true # Terminal 是否只输出一行摘要（推荐 true，保持日志精简）
+    summary_only: true # Terminal 鏄惁鍙緭鍑轰竴琛屾憳瑕侊紙鎺ㄨ崘 true锛屼繚鎸佹棩蹇楃簿绠€锛?
 
-# 插件配置（可选功能模块的按需下载与管理）
+# 鎻掍欢閰嶇疆锛堝彲閫夊姛鑳芥ā鍧楃殑鎸夐渶涓嬭浇涓庣鐞嗭級
 plugins:
   media_crawler:
-    download_url: "" # 自定义下载 URL（留空则使用默认 GitHub Release 地址）
-    auto_setup_venv: true # 安装后是否自动创建虚拟环境并安装依赖
+    download_url: "" # 鑷畾涔変笅杞?URL锛堢暀绌哄垯浣跨敤榛樿 GitHub Release 鍦板潃锛?
+    auto_setup_venv: true # 瀹夎鍚庢槸鍚﹁嚜鍔ㄥ垱寤鸿櫄鎷熺幆澧冨苟瀹夎渚濊禆
+
+
+

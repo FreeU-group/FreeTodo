@@ -19,7 +19,27 @@ interface TodoItem {
 	source_text?: string;
 }
 
-type TranscriptionCallback = (text: string, isFinal: boolean) => void
+export interface RealtimeSpeakerInfo {
+	speaker_id?: number;
+	speaker_name?: string;
+	confidence?: number;
+	is_me?: boolean;
+	is_new?: boolean;
+	backend?: string;
+	overlap_speakers?: Array<{
+		speaker_id?: number;
+		speaker_name?: string;
+		label?: string;
+		is_current?: boolean;
+	}>;
+	[key: string]: unknown;
+}
+
+type TranscriptionCallback = (
+	text: string,
+	isFinal: boolean,
+	speaker?: RealtimeSpeakerInfo | null,
+) => void
 
 type RealtimeNlpCallback = (data: {
 		todos?: TodoItem[];
@@ -626,8 +646,13 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 						if (data.header?.name === "TranscriptionResultChanged") {
 							const text = data.payload?.result;
 							const isFinal = data.payload?.is_final || false;
+							const rawSpeaker = data.payload?.speaker;
+							const speaker =
+								typeof rawSpeaker === "object" && rawSpeaker !== null
+									? (rawSpeaker as RealtimeSpeakerInfo)
+									: null;
 							if (text && currentOnTranscription) {
-								currentOnTranscription(text, isFinal);
+								currentOnTranscription(text, isFinal, speaker);
 							}
 							return;
 						}

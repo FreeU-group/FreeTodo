@@ -97,6 +97,9 @@ class SecondPassASRProcessor:
         cfg = settings.get("audio.second_pass", {}) or {}
         self.enabled = bool(cfg.get("enabled", False))
         self.model = str(cfg.get("model", "paraformer-v2"))
+        self.base_url = str(
+            cfg.get("base_url", "") or settings.get("llm.base_url", "") or ""
+        ).strip()
         self.diarization_enabled = bool(cfg.get("diarization_enabled", True))
         self.speaker_count = int(cfg.get("speaker_count", 0))
         self.language_hints = list(cfg.get("language_hints", ["zh", "en"]))
@@ -107,9 +110,10 @@ class SecondPassASRProcessor:
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
         self._api_key: str | None = None
+        self._use_whisper_backend = self._is_whisper_model(self.model)
 
         if not self.enabled:
-            logger.debug("[second-pass] 二次处理未启用 (audio.second_pass.enabled=false)")
+            logger.debug("[second-pass] 浜屾澶勭悊鏈惎鐢?(audio.second_pass.enabled=false)")
 
     def _get_api_key(self) -> str:
         if self._api_key:
@@ -136,15 +140,114 @@ class SecondPassASRProcessor:
         )
         return local_path
 
-    async def process(
+    @staticmethod
+    def _is_whisper_model(model: str) -> bool:
+        model_name = (model or "").strip().lower()
+        return "whisper" in model_name
+
+    def _preferred_whisper_language(self) -> str | None:
+        for hint in self.language_hints:
+            lowered = str(hint).strip().lower()
+            if lowered in {"zh", "zh-cn", "zh-tw"}:
+                return "zh"
+            if lowered in {"en", "en-us", "en-gb"}:
+                return "en"
+        return None
+
+    @staticmethod
+    def _normalize_openai_response(resp: Any) -> dict[str, Any] | None:
+        if resp is None:
+            return None
+        if isinstance(resp, dict):
+            return resp
+        if hasattr(resp, "model_dump") and callable(resp.model_dump):
+            dumped = resp.model_dump()
+            if isinstance(dumped, dict):
+                return dumped
+        if hasattr(resp, "to_dict") and callable(resp.to_dict):
+            dumped = resp.to_dict()
+            if isinstance(dumped, dict):
+                return dumped
+        return None
+
+    async def _call_whisper_transcription(self, local_path: Path) -> dict[str, Any] | None:
+        api_key = self._get_api_key()
+        if not api_key:
+            logger.error("[second-pass] No API key configured for whisper backend")
+            return None
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._submit_whisper_task, api_key, local_path)
+
+    def _submit_whisper_task(self, api_key: str, local_path: Path) -> dict[str, Any] | None:
+        from openai import OpenAI  # noqa: PLC0415
+
+        kwargs: dict[str, Any] = {"api_key": api_key}
+        if self.base_url:
+            kwargs["base_url"] = self.base_url
+        client = OpenAI(**kwargs)
+        language = self._preferred_whisper_language()
+
+        try:
+            with local_path.open("rb") as audio_file:
+                response = client.audio.transcriptions.create(
+                    model=self.model,
+                    file=audio_file,
+                    response_format="verbose_json",
+                    timestamp_granularities=["segment", "word"],
+                    language=language,
+                    temperature=0,
+                )
+            data = self._normalize_openai_response(response)
+            if data is None:
+                logger.error("[second-pass] whisper backend returned non-dict response")
+                return None
+            return data
+        except Exception as e:
+            logger.error(f"[second-pass] whisper transcription failed: {e}")
+            return None
+
+    @staticmethod
+    def _parse_whisper_result(raw: dict[str, Any]) -> list[RefinedSegment]:
+        segments: list[RefinedSegment] = []
+        for seg in raw.get("segments", []) or []:
+            text = str(seg.get("text", "")).strip()
+            if not text:
+                continue
+            start_s = float(seg.get("start", 0.0) or 0.0)
+            end_s = float(seg.get("end", 0.0) or 0.0)
+            segments.append(
+                RefinedSegment(
+                    text=text,
+                    speaker_id=None,
+                    begin_time_ms=max(0, int(start_s * 1000)),
+                    end_time_ms=max(0, int(end_s * 1000)),
+                )
+            )
+        return segments
+
+    @staticmethod
+    def _extract_text_fallback(raw: dict[str, Any]) -> str:
+        text = raw.get("text")
+        if isinstance(text, str):
+            return text.strip()
+        return ""
+
+    @staticmethod
+    def _format_segment_line(seg: RefinedSegment) -> str:
+        if seg.speaker_name:
+            speaker_label = seg.speaker_name
+        elif seg.speaker_id is not None:
+            speaker_label = f"说话人{seg.speaker_id}"
+        else:
+            speaker_label = "未知说话人"
+        return f"[{speaker_label}] {seg.text}"
+
+    async def process(  # noqa: PLR0911
         self,
         pcm_chunks: list[bytes],
         session_id: str,
     ) -> SecondPassResult | None:
-        """Run second-pass transcription on accumulated audio chunks.
-
-        Returns ``None`` if processing fails or is disabled.
-        """
+        """Run second-pass transcription on accumulated audio chunks."""
         if not self.enabled or not pcm_chunks:
             return None
 
@@ -155,24 +258,38 @@ class SecondPassASRProcessor:
             return None
 
         t0 = time.monotonic()
-
         local_path = self._save_wav_locally(pcm_chunks, session_id)
 
         try:
-            oss_url = await self._upload_to_dashscope(local_path)
-            if oss_url is None:
-                return None
+            raw_result: dict[str, Any] | None
+            segments: list[RefinedSegment]
+            if self._use_whisper_backend:
+                raw_result = await self._call_whisper_transcription(local_path)
+                if raw_result is None:
+                    return None
+                segments = self._parse_whisper_result(raw_result)
+            else:
+                oss_url = await self._upload_to_dashscope(local_path)
+                if oss_url is None:
+                    return None
+                raw_result = await self._call_transcription_api(oss_url)
+                if raw_result is None:
+                    return None
+                segments = self._parse_transcription_result(raw_result)
 
-            raw_result = await self._call_transcription_api(oss_url)
-            if raw_result is None:
-                return None
+            if not segments and raw_result is not None:
+                fallback_text = self._extract_text_fallback(raw_result)
+                if fallback_text:
+                    segments = [
+                        RefinedSegment(
+                            text=fallback_text,
+                            begin_time_ms=0,
+                            end_time_ms=int(duration_s * 1000),
+                        )
+                    ]
 
-            segments = self._parse_transcription_result(raw_result)
             segments = await self._map_speakers(segments, pcm_chunks)
-
-            full_text = "\n".join(
-                f"[{s.speaker_name or f'说话人{s.speaker_id}'}] {s.text}" for s in segments
-            )
+            full_text = "\n".join(self._format_segment_line(s) for s in segments)
 
             result = SecondPassResult(
                 segments=segments,
@@ -464,7 +581,7 @@ class SecondPassASRProcessor:
 
                 seg.speaker_name, seg.speaker_id = Counter(votes).most_common(1)[0][0]
             else:
-                seg.speaker_name = f"说话人 {ds_id}"
+                seg.speaker_name = f"说话人{ds_id}"
 
         return segments
 
@@ -522,36 +639,34 @@ async def _identify_segment_speaker(
 
         match = store.find_speaker(embedding)
         if match is not None:
-            name = "我" if match.is_me else (match.speaker_name or f"说话人 {match.speaker_id}")
+            name = "我" if match.is_me else (match.speaker_name or f"说话人{match.speaker_id}")
             logger.info(
-                f"[second-pass] Seg {seg_idx} (ds={label}) → {name} "
+                f"[second-pass] Seg {seg_idx} (ds={label}) -> {name} "
                 f"(store_id={match.speaker_id}, conf={match.confidence:.3f})"
             )
             return (name, match.speaker_id)
 
         new_match = store.identify_or_create(embedding, audio_duration=duration)
         if new_match.speaker_id < 0:
-            logger.info(f"[second-pass] Seg {seg_idx} (ds={label}) → unidentified")
-            return (f"说话人 {label}", None)
+            logger.info(f"[second-pass] Seg {seg_idx} (ds={label}) -> unidentified")
+            return (f"说话人{label}", None)
 
         name = (
-            "我"
-            if new_match.is_me
-            else (new_match.speaker_name or f"说话人 {new_match.speaker_id}")
+            "我" if new_match.is_me else (new_match.speaker_name or f"说话人{new_match.speaker_id}")
         )
         tag = "new" if new_match.is_new else f"conf={new_match.confidence:.3f}"
         logger.info(
-            f"[second-pass] Seg {seg_idx} (ds={label}) → {name} "
+            f"[second-pass] Seg {seg_idx} (ds={label}) -> {name} "
             f"(store_id={new_match.speaker_id}, {tag})"
         )
         return (name, new_match.speaker_id)
     except Exception as e:
         logger.debug(f"[second-pass] Speaker mapping failed for seg {seg_idx}: {e}")
-        return (f"说话人 {label}", None)
+        return (f"说话人{label}", None)
 
 
 def _assign_default_speaker_names(segments: list[RefinedSegment]) -> None:
     """Fall back to generic speaker names when voiceprint services are unavailable."""
     for seg in segments:
         if seg.speaker_id is not None:
-            seg.speaker_name = f"说话人 {seg.speaker_id}"
+            seg.speaker_name = f"说话人{seg.speaker_id}"

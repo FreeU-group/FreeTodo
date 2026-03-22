@@ -186,6 +186,7 @@ settings = Dynaconf(
         # 二次处理（离线 ASR + 说话人分离）
         Validator("audio.second_pass.enabled", default=False, is_type_of=bool),
         Validator("audio.second_pass.model", default="paraformer-v2"),
+        Validator("audio.second_pass.base_url", default=""),
         Validator("audio.second_pass.debounce_seconds", default=3, is_type_of=int),
         Validator("audio.second_pass.interval_seconds", default=30, is_type_of=int),
         Validator("audio.second_pass.diarization_enabled", default=True, is_type_of=bool),

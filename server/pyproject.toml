@@ -19,7 +19,9 @@ dependencies = [
     "alembic>=1.14.0",
     "python-multipart>=0.0.6",
     "icalendar>=6.0.0",
-    "torch>=2.8.0",
+    "torch>=2.8,<2.9",
+    "torchaudio>=2.8,<2.9",
+    "torchvision>=0.23,<0.24",
     # Diart 实时说话人分离（可选，需要 HuggingFace 授权访问 pyannote 模型）
     # 安装方法：
     # 1. pip install diart
@@ -124,3 +126,5 @@ explicit = true
 # 告诉 uv，torch 相关的包去 pytorch-cpu 这个索引找
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }

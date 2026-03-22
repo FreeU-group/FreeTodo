@@ -36,6 +36,7 @@ class SpeakerMatch:
     confidence: float
     is_new: bool = False
     is_me: bool = False
+    overlap_speakers: list[dict[str, Any]] | None = None
 
 
 def _embedding_to_base64(embedding: np.ndarray) -> str:
@@ -72,6 +73,9 @@ class VoiceprintStore:
         cfg = settings.get("audio.speaker", {}) or {}
         self._embedding_dim: int = int(cfg.get("embedding_dim", 192))
         self._similarity_threshold: float = float(cfg.get("similarity_threshold", 0.65))
+        self._me_similarity_threshold: float = float(
+            cfg.get("me_similarity_threshold", min(0.95, self._similarity_threshold + 0.08))
+        )
         self._max_speakers: int = int(cfg.get("max_speakers", 100))
         self._auto_create: bool = bool(cfg.get("auto_create_speaker", True))
         self._update_voiceprint: bool = bool(cfg.get("update_voiceprint", True))
@@ -169,7 +173,11 @@ class VoiceprintStore:
                 best_name = sname
                 best_is_me = s_is_me
 
-        if best_score >= self._similarity_threshold:
+        threshold = self._similarity_threshold
+        if best_is_me:
+            threshold = max(threshold, self._me_similarity_threshold)
+
+        if best_score >= threshold:
             return SpeakerMatch(
                 speaker_id=best_id,
                 speaker_name=best_name,

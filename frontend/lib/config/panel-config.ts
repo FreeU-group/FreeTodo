@@ -24,6 +24,7 @@ import {
 	ScrollText,
 	Settings,
 	UserCircle,
+	Users,
 } from "lucide-react";
 
 export type PanelPosition = "panelA" | "panelB" | "panelC";
@@ -41,6 +42,7 @@ export type PanelFeature =
 	| "crawler"
 	| "crawlerDetail"
 	| "audio"
+	| "speakerLive"
 	| "perceptionStream"
 	| "todoIntent"
 	| "preview"
@@ -58,6 +60,7 @@ export const DEV_IN_PROGRESS_FEATURES: PanelFeature[] = [
 	"debugShots",
 	"achievements",
 	"audio",
+	"speakerLive",
 	"perceptionStream",
 	"todoIntent",
 ];
@@ -79,6 +82,7 @@ export const ALL_PANEL_FEATURES: PanelFeature[] = [
 	"crawler",
 	"crawlerDetail",
 	"audio",
+	"speakerLive",
 	"perceptionStream",
 	"todoIntent",
 	"preview",
@@ -103,6 +107,7 @@ export const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	crawler: Bug,
 	crawlerDetail: Network,
 	audio: Mic,
+	speakerLive: Users,
 	perceptionStream: Radio,
 	todoIntent: BrainCircuit,
 	preview: Eye,
