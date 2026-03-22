@@ -217,6 +217,14 @@ export function SpeakerLivePanel() {
 		if (line.speakerName) return `name:${line.speakerName}`;
 		return "unknown";
 	}, []);
+	const getSpeakerKeyFromOverlapLabel = useCallback((label: string) => {
+		const trimmed = label.trim();
+		const idMatch = trimmed.match(/^#(\d+)$/);
+		if (idMatch) {
+			return `id:${Number.parseInt(idMatch[1], 10)}`;
+		}
+		return trimmed.length > 0 ? `name:${trimmed}` : "unknown";
+	}, []);
 
 	const getSpeakerLabel = useCallback(
 		(line: Pick<SpeakerLine, "speakerId" | "speakerName" | "isMe">) => {
@@ -508,39 +516,51 @@ export function SpeakerLivePanel() {
 
 	const speakerStats = useMemo<SpeakerStat[]>(() => {
 		const statMap = new Map<string, SpeakerStat>();
-		for (const line of lines) {
-			if (line.kind !== "speech") continue;
-			const key = getSpeakerKey(line);
+		const upsertStat = (key: string, label: string, isMe: boolean) => {
 			const existing = statMap.get(key);
 			if (existing) {
 				existing.count += 1;
-				if (line.isMe) {
+				if (isMe) {
 					existing.isMe = true;
 					existing.label = t("me");
 				}
-				continue;
+				return;
 			}
+			statMap.set(key, { key, label: isMe ? t("me") : label, count: 1, isMe });
+		};
 
-			statMap.set(key, {
-				key,
-				label: getSpeakerLabel(line),
-				count: 1,
-				isMe: line.isMe,
-			});
+		for (const line of lines) {
+			if (line.kind !== "speech") continue;
+			upsertStat(getSpeakerKey(line), getSpeakerLabel(line), line.isMe);
+
+			for (const overlapLabel of line.overlapLabels) {
+				const overlapKey = getSpeakerKeyFromOverlapLabel(overlapLabel);
+				if (overlapKey === "unknown") continue;
+				let overlapIsMe = false;
+				if (overlapKey.startsWith("id:") && meSpeakerId !== null) {
+					const overlapId = Number.parseInt(overlapKey.slice(3), 10);
+					overlapIsMe = overlapId === meSpeakerId;
+				}
+				upsertStat(overlapKey, overlapLabel, overlapIsMe);
+			}
 		}
 
 		return Array.from(statMap.values()).sort((a, b) => {
 			if (a.isMe !== b.isMe) return a.isMe ? -1 : 1;
 			return b.count - a.count;
 		});
-	}, [getSpeakerKey, getSpeakerLabel, lines, t]);
+	}, [getSpeakerKey, getSpeakerKeyFromOverlapLabel, getSpeakerLabel, lines, meSpeakerId, t]);
 
 	const filteredLines = useMemo(() => {
 		if (activeSpeakerFilter === ALL_FILTER) return lines;
-		return lines.filter(
-			(line) => line.kind === "speech" && getSpeakerKey(line) === activeSpeakerFilter,
-		);
-	}, [activeSpeakerFilter, getSpeakerKey, lines]);
+		return lines.filter((line) => {
+			if (line.kind !== "speech") return false;
+			if (getSpeakerKey(line) === activeSpeakerFilter) return true;
+			return line.overlapLabels.some(
+				(label) => getSpeakerKeyFromOverlapLabel(label) === activeSpeakerFilter,
+			);
+		});
+	}, [activeSpeakerFilter, getSpeakerKey, getSpeakerKeyFromOverlapLabel, lines]);
 
 	const unknownSegmentCount = useMemo(
 		() =>
@@ -703,8 +723,30 @@ export function SpeakerLivePanel() {
 									</span>
 								</div>
 								{line.overlapLabels.length > 0 && (
-									<div className="mb-1 text-[11px] text-amber-700 dark:text-amber-300">
-										{t("overlapWith", { names: line.overlapLabels.join(" / ") })}
+									<div className="mb-2 grid gap-1 sm:grid-cols-2">
+										<div className="rounded-md border border-sky-200 bg-sky-50/70 px-2 py-1 dark:border-sky-800/40 dark:bg-sky-900/20">
+											<div className="text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">
+												{t("primaryTrack")}
+											</div>
+											<div className="mt-1 text-[11px] text-sky-800 dark:text-sky-200">
+												{speakerLabel}
+											</div>
+										</div>
+										<div className="rounded-md border border-amber-200 bg-amber-50/80 px-2 py-1 dark:border-amber-700/40 dark:bg-amber-900/20">
+											<div className="text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+												{t("overlapTracks")}
+											</div>
+											<div className="mt-1 flex flex-wrap gap-1">
+												{line.overlapLabels.map((label) => (
+													<span
+														key={`${line.id}-${label}`}
+														className="rounded-full border border-amber-300/70 bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800 dark:border-amber-600/50 dark:bg-amber-900/40 dark:text-amber-200"
+													>
+														{label}
+													</span>
+												))}
+											</div>
+										</div>
 									</div>
 								)}
 								<div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
@@ -733,8 +775,38 @@ export function SpeakerLivePanel() {
 								)}
 							</div>
 							{partialSpeaker && partialSpeaker.overlapLabels.length > 0 && (
-								<div className="mb-1 text-[11px] text-amber-700 dark:text-amber-300">
-									{t("overlapWith", { names: partialSpeaker.overlapLabels.join(" / ") })}
+								<div className="mb-1 grid gap-1 sm:grid-cols-2">
+									<div className="rounded-md border border-amber-300/80 bg-amber-100/70 px-2 py-1 text-[11px] dark:border-amber-600/50 dark:bg-amber-900/30">
+										<div className="text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+											{t("primaryTrack")}
+										</div>
+										<div className="mt-1 text-amber-800 dark:text-amber-200">
+											{getSpeakerLabel({
+												speakerId: partialSpeaker.speakerId,
+												speakerName: partialSpeaker.speakerName,
+												isMe:
+													partialSpeaker.isMe ||
+													(partialSpeaker.speakerId !== null &&
+														meSpeakerIdRef.current !== null &&
+														partialSpeaker.speakerId === meSpeakerIdRef.current),
+											})}
+										</div>
+									</div>
+									<div className="rounded-md border border-amber-300/80 bg-amber-100/70 px-2 py-1 dark:border-amber-600/50 dark:bg-amber-900/30">
+										<div className="text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+											{t("overlapTracks")}
+										</div>
+										<div className="mt-1 flex flex-wrap gap-1">
+											{partialSpeaker.overlapLabels.map((label) => (
+												<span
+													key={`partial-${label}`}
+													className="rounded-full border border-amber-300/80 bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800 dark:border-amber-600/50 dark:bg-amber-900/40 dark:text-amber-200"
+												>
+													{label}
+												</span>
+											))}
+										</div>
+									</div>
 								</div>
 							)}
 							<div className="text-sm text-foreground/90">{partialText}</div>
@@ -895,8 +967,30 @@ export function SpeakerLivePanel() {
 												)}
 											</div>
 											{line.overlapLabels.length > 0 && (
-												<div className="mb-1 text-[11px] text-amber-700 dark:text-amber-300">
-													{t("overlapWith", { names: line.overlapLabels.join(" / ") })}
+												<div className="mb-2 grid gap-1 sm:grid-cols-2">
+													<div className="rounded-md border border-sky-200 bg-sky-50/70 px-2 py-1 dark:border-sky-800/40 dark:bg-sky-900/20">
+														<div className="text-[10px] font-medium uppercase tracking-wide text-sky-700 dark:text-sky-300">
+															{t("primaryTrack")}
+														</div>
+														<div className="mt-1 text-[11px] text-sky-800 dark:text-sky-200">
+															{getSpeakerLabel(line)}
+														</div>
+													</div>
+													<div className="rounded-md border border-amber-200 bg-amber-50/80 px-2 py-1 dark:border-amber-700/40 dark:bg-amber-900/20">
+														<div className="text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+															{t("overlapTracks")}
+														</div>
+														<div className="mt-1 flex flex-wrap gap-1">
+															{line.overlapLabels.map((label) => (
+																<span
+																	key={`modal-${line.id}-${label}`}
+																	className="rounded-full border border-amber-300/70 bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800 dark:border-amber-600/50 dark:bg-amber-900/40 dark:text-amber-200"
+																>
+																	{label}
+																</span>
+															))}
+														</div>
+													</div>
 												</div>
 											)}
 											<div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">

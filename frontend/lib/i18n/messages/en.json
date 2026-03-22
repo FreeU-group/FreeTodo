@@ -590,6 +590,8 @@
 		"confidence": "Confidence {value}%",
 		"backend": "Backend: {name}",
 		"overlapWith": "Overlap with: {names}",
+		"primaryTrack": "Primary Track",
+		"overlapTracks": "Overlap Tracks",
 		"recordingError": "Recording failed.",
 		"meNotSet": "The first detected speaker will be auto-marked as me.",
 		"autoSettingMe": "Auto-marking first speaker as me...",

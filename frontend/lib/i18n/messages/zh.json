@@ -590,6 +590,8 @@
 		"confidence": "置信度 {value}%",
 		"backend": "后端: {name}",
 		"overlapWith": "重叠说话: {names}",
+		"primaryTrack": "主轨",
+		"overlapTracks": "重叠轨",
 		"recordingError": "录音失败。",
 		"meNotSet": "默认会把第一个识别到的说话人自动标记为我。",
 		"autoSettingMe": "正在自动标记首个说话人为我...",
