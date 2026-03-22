@@ -123,9 +123,12 @@ class WeChatPrior(AppPrior):
     # ------------------------------------------------------------------
 
     def _find_sidebar_boundary(self, image: np.ndarray) -> int | None:
-        """Find the vertical boundary between conversation list and chat area
-        by detecting the column with the strongest consistent horizontal
-        gradient (the sidebar divider line)."""
+        """Find the vertical boundary between conversation list and chat area.
+
+        Uses row-level consistency: a true divider line has a strong brightness
+        jump at the same x column across most rows. This is more robust than
+        sum-of-gradients which can be skewed by sidebar content.
+        """
         h, w = image.shape[:2]
         if len(image.shape) == 3:  # noqa: PLR2004
             gray = np.mean(image, axis=2).astype(np.float64)
@@ -139,25 +142,27 @@ class WeChatPrior(AppPrior):
 
         y_start = int(h * 0.15)
         y_end = int(h * 0.85)
-        if y_end <= y_start:
+        n_rows = y_end - y_start
+        if n_rows <= 0:
             return None
 
         region = gray[y_start:y_end, x_start : x_end + 1]
         h_grad = np.abs(np.diff(region, axis=1))
-        col_grad_sum = np.sum(h_grad, axis=0)
 
-        if len(col_grad_sum) == 0:
+        row_threshold = 15.0
+        strong_rows = (h_grad > row_threshold).astype(np.int32)
+        col_consistency = np.sum(strong_rows, axis=0)
+
+        if len(col_consistency) == 0:
             return None
 
-        peak_idx = int(np.argmax(col_grad_sum))
-        peak_val = col_grad_sum[peak_idx]
-        mean_val = float(np.mean(col_grad_sum))
+        best_idx = int(np.argmax(col_consistency))
+        best_count = int(col_consistency[best_idx])
 
-        if mean_val > 0 and peak_val > mean_val * 1.8:
-            boundary = x_start + peak_idx + 1
-            return max(0, boundary - 3)
+        if best_count < n_rows * 0.5:
+            return None
 
-        return None
+        return x_start + best_idx + 1
 
     # ------------------------------------------------------------------
     # Chat ROI extraction
