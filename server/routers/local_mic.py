@@ -135,7 +135,6 @@ def register_local_mic_routes(
 
         前端连接此端点后，会收到与原 /transcribe 相同格式的消息：
         - TranscriptionResultChanged  (转录文本)
-        - ExtractionChanged           (实时提取的待办)
         - TaskFailed                   (错误)
         """
         await _handle_local_mic_stream(websocket)

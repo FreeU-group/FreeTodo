@@ -17,13 +17,10 @@ export function useAudioRecording() {
 	const startRecording = useCallback(
 		async (
 			onTranscription: (text: string, isFinal: boolean) => void,
-			onRealtimeNlp?: (data: {
-				todos?: Array<{ title: string; description?: string; deadline?: string }>;
-			}) => void,
 			onError?: (error: Error) => void,
 			is24x7: boolean = false,
 		) => {
-			await startRecordingAction(onTranscription, onRealtimeNlp, onError, is24x7);
+			await startRecordingAction(onTranscription, onError, is24x7);
 		},
 		[startRecordingAction],
 	);

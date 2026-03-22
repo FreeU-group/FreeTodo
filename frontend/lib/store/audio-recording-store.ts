@@ -15,13 +15,6 @@ import { create } from "zustand";
 
 // ========== 类型定义 ==========
 
-interface TodoItem {
-	title: string;
-	description?: string;
-	deadline?: string;
-	source_text?: string;
-}
-
 type TranscriptionCallback = (text: string, isFinal: boolean) => void
 
 type ErrorCallback = (error: Error) => void
@@ -857,7 +850,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 								// 使用保存的回调重新启动录音
 								await get().startRecording(
 									currentOnTranscription,
-									currentOnRealtimeNlp || undefined,
 									currentOnError || undefined,
 									currentIs24x7
 								);
@@ -1025,10 +1017,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 		}));
 	},
 
-	setLiveTodos: (todos) => {
-		set({ liveTodos: todos });
-	},
-
 	clearSessionData: () => {
 		set({
 			transcriptionText: "",
@@ -1037,7 +1025,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 			segmentTimeLabels: [],
 			segmentRecordingIds: [],
 			segmentOffsetsSec: [],
-			liveTodos: [],
 		});
 	},
 }));

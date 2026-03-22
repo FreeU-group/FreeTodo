@@ -27,16 +27,7 @@ interface ExtractionPanelProps {
 		React.SetStateAction<Record<number, { todos?: TodoItem[] }>>
 	>;
 	parseTimeToIsoWithDate: (raw?: string | null) => string | undefined;
-	// 录音中的实时提取结果（recId=0 表示录音中）
-	liveTodos?: Array<{
-		title: string;
-		description?: string;
-		startTime?: string;
-		deadline?: string;
-		source_text?: string;
-	}>;
-	isRecording?: boolean;
-	isExtracting?: boolean; // 后端正在提取中
+	isExtracting?: boolean;
 }
 
 export function AudioExtractionPanel({
@@ -45,8 +36,6 @@ export function AudioExtractionPanel({
 	extractionsByRecordingId,
 	setExtractionsByRecordingId,
 	parseTimeToIsoWithDate,
-	liveTodos = [],
-	isRecording = false,
 	isExtracting = false,
 }: ExtractionPanelProps) {
 	const tAudio = useTranslations("audio");
@@ -68,28 +57,7 @@ export function AudioExtractionPanel({
 		const uniqueIds = Array.from(new Set(segmentRecordingIds.filter((id) => id && id > 0)));
 		const aggregated = new Map<string, ModalItem>();
 
-		// 先处理录音中的实时提取结果（recId=0）
-		if (isRecording && liveTodos.length > 0) {
-			for (const item of liveTodos) {
-				const itemKey = (item.source_text || item.title || "").toString();
-				if (!itemKey) continue;
-				const mapKey = `todo:${itemKey}`;
-				const liveTime = item.startTime ?? item.deadline ?? null;
-				if (!aggregated.has(mapKey)) {
-					aggregated.set(mapKey, {
-						key: `audio:${dateKey}:${mapKey}:live`,
-						name: item.source_text || item.title,
-						description: item.source_text || item.description || undefined,
-						deadline: parseTimeToIsoWithDate(liveTime),
-						rawTime: liveTime || item.source_text || undefined,
-						tags: [tAudio("linkTodoTag")],
-						_meta: { recordingIds: [0], kind: "todo", itemKey },
-					});
-				}
-			}
-		}
-
-		// 然后处理已保存录音的提取结果
+		// 处理已保存录音的提取结果
 		for (const recId of uniqueIds) {
 			const ext = extractionsByRecordingId[recId];
 			if (!ext) continue;
@@ -129,8 +97,6 @@ export function AudioExtractionPanel({
 		extractionsByRecordingId,
 		parseTimeToIsoWithDate,
 		tAudio,
-		isRecording,
-		liveTodos,
 	]);
 
 	const filteredTodoCount = extractionTodosForModal.length;
@@ -138,7 +104,7 @@ export function AudioExtractionPanel({
 
 	return (
 		<>
-			{(hasExtraction || isExtracting || (isRecording && liveTodos.length > 0)) ? (
+			{(hasExtraction || isExtracting) ? (
 				<div className="flex items-center justify-between px-4 py-2 border-b border-[oklch(var(--border))] bg-[oklch(var(--muted))]/40">
 					<div className="flex items-center gap-2">
 						{isExtracting && (
@@ -147,7 +113,7 @@ export function AudioExtractionPanel({
 								<span>提取中...</span>
 							</div>
 						)}
-						{(hasExtraction || (isRecording && liveTodos.length > 0)) && (
+						{hasExtraction && (
 							<div className="text-sm text-[oklch(var(--muted-foreground))]">
 								{`待添加 ${filteredTodoCount} 个待办`}
 							</div>
