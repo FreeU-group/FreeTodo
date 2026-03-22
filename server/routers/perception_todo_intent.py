@@ -44,11 +44,11 @@ async def _replay_recent_records(
     subscriber: TodoIntentSubscriber,
     count: int,
 ) -> str | None:
-    last_record_id: str | None = None
+    last_key: str | None = None
     for record in subscriber.get_recent_records(count):
         await websocket.send_json(record.model_dump(mode="json"))
-        last_record_id = record.record_id
-    return last_record_id
+        last_key = f"{record.record_id}:{record.status}"
+    return last_key
 
 
 def _register_routes(r: APIRouter) -> None:  # noqa: C901
@@ -111,15 +111,16 @@ def _register_routes(r: APIRouter) -> None:  # noqa: C901
 
         subscriber.subscribe_records(on_record)
         try:
-            last_record_id = await _replay_recent_records(
+            last_replay_key = await _replay_recent_records(
                 websocket, subscriber, _RECENT_REPLAY_COUNT
             )
             while True:
                 record = await queue.get()
-                if last_record_id and record.record_id == last_record_id:
+                rec_key = f"{record.record_id}:{record.status}"
+                if last_replay_key and rec_key == last_replay_key:
+                    last_replay_key = None
                     continue
                 await websocket.send_json(record.model_dump(mode="json"))
-                last_record_id = record.record_id
         except WebSocketDisconnect:
             pass
         finally:
