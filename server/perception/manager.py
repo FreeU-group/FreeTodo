@@ -412,11 +412,11 @@ class PerceptionStreamManager:
             processing_queue_maxsize = queue_maxsize
         processing_queue_maxsize = max(1, processing_queue_maxsize)
         max_recent_records = max(1, int(self._todo_intent_config.get("max_recent_records", 200)))
-        aggregation_window_seconds = self._todo_intent_config.get("window_seconds", 20)
+        aggregation_window_seconds = self._todo_intent_config.get("window_seconds", 5)
         try:
             aggregation_window_seconds = float(aggregation_window_seconds)
         except (TypeError, ValueError):
-            aggregation_window_seconds = 20.0
+            aggregation_window_seconds = 5.0
         max_context_chars = self._todo_intent_config.get("max_context_chars", 5000)
         try:
             max_context_chars = int(max_context_chars)

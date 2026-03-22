@@ -273,10 +273,13 @@ function connectWithFallback(
 	socket.onmessage = (msg) => {
 		try {
 			const record = JSON.parse(String(msg.data)) as TodoIntentProcessingRecord;
+			console.log(`[todo-intent-ws] onmessage: id=${record.record_id?.slice(0, 16)} status=${record.status}`);
 			set((state) => ({
 				records: upsertRecords(state.records, [record]),
 			}));
-		} catch {}
+		} catch (e) {
+			console.error("[todo-intent-ws] parse error:", e);
+		}
 	};
 }
 
