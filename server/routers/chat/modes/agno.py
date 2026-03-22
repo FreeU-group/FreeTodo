@@ -6,7 +6,8 @@ from typing import Any
 from fastapi.responses import StreamingResponse
 
 from llm.agno_agent import TOOL_EVENT_PREFIX, TOOL_EVENT_SUFFIX, AgnoAgentService
-from routers.chat.base import publish_ai_output_to_perception
+from llm.agno_tools.memory_toolkit import MemoryToolkit
+from routers.chat.base import _schedule_preference_extraction, publish_ai_output_to_perception
 from schemas.chat import ChatMessage
 from services.chat_service import ChatService
 from util.logging_config import get_logger
@@ -190,6 +191,10 @@ def _build_agent_os_token_generator(
                 yield chunk
 
             _save_and_publish(storage_chunks, tool_events, chat_service, session_id)
+            user_query = (message.message or "").strip()
+            storage_text = "".join(storage_chunks).strip()
+            if user_query and storage_text:
+                _schedule_preference_extraction(user_query, storage_text)
         except Exception as e:
             logger.exception(f"[stream][agno] 生成失败: {e}")
             yield f"Agno Agent 处理失败: {e!s}"
@@ -253,12 +258,23 @@ def create_agno_streaming_response(
         else:
             logger.warning("[stream][agno] 图片附件检测到，但未配置 vision_model，继续使用默认模型")
 
+    extra_tools = []
+    memory_config = settings.get("memory", {}) or {}
+    if memory_config.get("enabled", True):
+        _memory_tool_names = {"recall_today", "recall_date", "search_memory", "list_memory_dates"}
+        selected_memory_tools = [
+            t for t in (message.selected_tools or []) if t in _memory_tool_names
+        ]
+        if selected_memory_tools:
+            extra_tools.append(MemoryToolkit(lang=lang, selected_tools=selected_memory_tools))
+
     agent_service = AgnoAgentService(
         lang=lang,
         selected_tools=message.selected_tools,
         external_tools=message.external_tools,
         external_tools_config=external_tools_config or None,
         model=model_override,
+        extra_tools=extra_tools or None,
     )
 
     headers = {

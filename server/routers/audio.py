@@ -14,6 +14,7 @@ from sqlmodel import select
 
 from routers.audio_ws import register_audio_ws_routes
 from routers.hardware_audio import register_hardware_audio_routes
+from routers.local_mic import register_local_mic_routes
 from services.asr_client import ASRClient
 from services.audio_service import AudioService
 from storage import get_session
@@ -33,6 +34,7 @@ register_audio_ws_routes(
     router=router, logger=logger, asr_client=asr_client, audio_service=audio_service
 )
 register_hardware_audio_routes(router=router, asr_client=asr_client, audio_service=audio_service)
+register_local_mic_routes(router=router, asr_client=asr_client, audio_service=audio_service)
 
 
 def _to_local(dt: datetime | None) -> datetime | None:

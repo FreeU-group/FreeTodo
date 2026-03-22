@@ -1,5 +1,6 @@
 """聊天路由基础设施：共享 router 与通用工具函数。"""
 
+import asyncio
 from typing import Any, TypedDict
 
 from fastapi import APIRouter
@@ -9,6 +10,45 @@ from util.logging_config import get_logger
 from util.token_usage_logger import log_token_usage
 
 logger = get_logger()
+
+
+async def _try_extract_and_save_preferences(
+    user_message: str,
+    ai_response: str,
+) -> None:
+    """Fire-and-forget: detect preferences in chat and update user profile."""
+    try:
+        from memory.manager import try_get_memory_manager  # noqa: PLC0415
+        from services.preference_extractor import extract_preferences  # noqa: PLC0415
+
+        mgr = try_get_memory_manager()
+        if mgr is None or mgr.profile_builder is None:
+            return
+        llm = mgr.profile_builder._llm
+        model = mgr.profile_builder._model
+
+        items = await extract_preferences(user_message, ai_response, llm, model)
+        if items:
+            mgr.profile_builder.update_preferences(items)
+    except Exception:
+        logger.debug("Preference extraction background task failed", exc_info=True)
+
+
+def _schedule_preference_extraction(user_query: str, ai_response: str) -> None:
+    """Schedule preference extraction from a synchronous context (generator thread).
+
+    Uses ``threading`` + ``asyncio.run`` so it works reliably from any thread
+    without depending on ``get_event_loop()`` (deprecated in 3.10+).
+    """
+    import threading  # noqa: PLC0415
+
+    def _bg() -> None:
+        try:
+            asyncio.run(_try_extract_and_save_preferences(user_query, ai_response))
+        except Exception:
+            logger.debug("Preference extraction background thread failed", exc_info=True)
+
+    threading.Thread(target=_bg, daemon=True, name="pref-extract").start()
 
 
 def publish_ai_output_to_perception(
@@ -42,6 +82,49 @@ class StreamMeta(TypedDict, total=False):
     feature_type: str
     user_query: str
     additional_info: dict[str, Any]
+
+
+def _finalize_stream(
+    *,
+    total_content: str,
+    usage_info,
+    rag_svc,
+    temperature: float,
+    chat_service: ChatService,
+    meta: StreamMeta,
+) -> None:
+    """Save message, publish to perception, extract preferences, log token usage."""
+    if total_content:
+        session_id = meta.get("session_id")
+        if session_id:
+            chat_service.add_message(
+                session_id=session_id,
+                role="assistant",
+                content=total_content,
+                token_count=usage_info.total_tokens if usage_info else None,
+                model=rag_svc.llm_client.model,
+            )
+            logger.info("[stream] 消息已保存到数据库")
+        publish_ai_output_to_perception(
+            total_content,
+            metadata={
+                "mode": meta.get("feature_type", "stream_chat"),
+                "session_id": meta.get("session_id"),
+            },
+        )
+        user_query = meta.get("user_query", "")
+        if user_query:
+            _schedule_preference_extraction(user_query, total_content)
+
+    if usage_info:
+        _log_stream_token_usage(
+            rag_svc=rag_svc,
+            usage_info=usage_info,
+            temperature=temperature,
+            total_content=total_content,
+            session_id=meta.get("session_id"),
+            meta=meta,
+        )
 
 
 def _create_llm_stream_generator(
@@ -80,35 +163,14 @@ def _create_llm_stream_generator(
                     total_content += content
                     yield content
 
-            if total_content:
-                session_id = meta.get("session_id")
-                if session_id:
-                    chat_service.add_message(
-                        session_id=session_id,
-                        role="assistant",
-                        content=total_content,
-                        token_count=usage_info.total_tokens if usage_info else None,
-                        model=rag_svc.llm_client.model,
-                    )
-                    logger.info("[stream] 消息已保存到数据库")
-                publish_ai_output_to_perception(
-                    total_content,
-                    metadata={
-                        "mode": meta.get("feature_type", "stream_chat"),
-                        "session_id": meta.get("session_id"),
-                    },
-                )
-
-            if usage_info:
-                session_id = meta.get("session_id")
-                _log_stream_token_usage(
-                    rag_svc=rag_svc,
-                    usage_info=usage_info,
-                    temperature=temperature,
-                    total_content=total_content,
-                    session_id=session_id,
-                    meta=meta,
-                )
+            _finalize_stream(
+                total_content=total_content,
+                usage_info=usage_info,
+                rag_svc=rag_svc,
+                temperature=temperature,
+                chat_service=chat_service,
+                meta=meta,
+            )
         except Exception as e:
             logger.error(f"[stream] 生成失败: {e}")
             yield "\n[提示] 流式生成出现异常，已结束。"

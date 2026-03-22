@@ -1,0 +1,10 @@
+{
+  "title": "📝 Free U · 周报助手",
+  "width": 400,
+  "height": 230,
+  "buttons": [
+    {"label": "查看详情", "action": "close", "style": "primary"},
+    {"label": "稍后", "action": "close", "style": "secondary"},
+    {"label": "忽略", "action": "close", "style": "secondary"}
+  ]
+}

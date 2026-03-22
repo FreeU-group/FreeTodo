@@ -30,6 +30,7 @@ class ModuleDefinition:
 MODULES: tuple[ModuleDefinition, ...] = (
     ModuleDefinition(id="health", router_module="routers.health", core=True),
     ModuleDefinition(id="config", router_module="routers.config", core=True),
+    ModuleDefinition(id="setup", router_module="routers.setup", core=True),
     ModuleDefinition(id="system", router_module="routers.system", core=True),
     ModuleDefinition(id="logs", router_module="routers.logs"),
     ModuleDefinition(id="preview", router_module="routers.preview"),

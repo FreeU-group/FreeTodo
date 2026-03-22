@@ -16,6 +16,8 @@ class MemoryMatchAction(str, Enum):
     LINK_EXISTING = "link_existing"
     CONFLICT = "conflict"
     CANCEL_EXISTING = "cancel_existing"
+    UPDATE_EXISTING = "update_existing"
+    COMPLETE_EXISTING = "complete_existing"
 
 
 class MemoryMatch(BaseModel):

@@ -371,6 +371,12 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 await _publish_final_perception(text, is_realtime=True)
             latest_final_chunk_idx = len(audio_chunks)
             second_pass_trigger.set()
+            logger.info(
+                "[omi-compat] is_final received: chunks=%d cursor=%d text=%.40s",
+                latest_final_chunk_idx,
+                second_pass_cursor,
+                text.strip()[:40],
+            )
 
     result_queue: asyncio.Queue[tuple[str, bool]] = asyncio.Queue()
 
@@ -537,6 +543,11 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
             return
         try:
             result = await second_pass_processor.process(chunks_slice, session_id)
+            if result is None or not result.segments:
+                logger.info(
+                    "[omi-compat] Second-pass returned no segments "
+                    "(audio may be too short or processing failed)"
+                )
             await _send_refined_segments(result)
         except Exception:
             logger.exception("[omi-compat] Second-pass processing error")
@@ -588,6 +599,11 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
             # stream position, to avoid sending partial utterances.
             end = latest_final_chunk_idx
             if end <= second_pass_cursor:
+                logger.debug(
+                    "[omi-compat] Second-pass skip: end=%d <= cursor=%d",
+                    end,
+                    second_pass_cursor,
+                )
                 continue
             chunks_slice = audio_chunks[second_pass_cursor:end]
             start = second_pass_cursor

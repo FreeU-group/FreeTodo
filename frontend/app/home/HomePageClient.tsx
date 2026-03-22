@@ -3,15 +3,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { PanelRegion } from "@/components/layout/PanelRegion";
+import { SetupWizard } from "@/apps/setup/SetupWizard";
 import { GlobalDndProvider } from "@/lib/dnd";
 import { useAutoRecording } from "@/lib/hooks/useAutoRecording";
 import { useOnboardingTour } from "@/lib/hooks/useOnboardingTour";
 import { usePanelResize } from "@/lib/hooks/usePanelResize";
 import { useWindowAdaptivePanels } from "@/lib/hooks/useWindowAdaptivePanels";
 import { useConfig } from "@/lib/query";
+import { useSetupStatus } from "@/lib/query/setup";
 import { useUiStore } from "@/lib/store/ui-store";
 
 export default function HomePageClient() {
+	// 初始化向导门控
+	const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
+	const [setupDone, setSetupDone] = useState(false);
+	const needsSetup = !setupLoading && setupStatus && !setupStatus.completed && !setupDone;
+
 	// 全局自动录音：根据配置决定是否在应用启动时自动开始录音
 	useAutoRecording();
 
@@ -35,13 +42,36 @@ export default function HomePageClient() {
 		};
 	}, []);
 
-	// 默认打开三列（仍允许用户通过 BottomDock 控制）
+	// 初始化默认布局（确保只有A和B打开，且宽度比例为 1:2，A为待办，B为聊天）
 	useEffect(() => {
 		const state = useUiStore.getState();
 		const next: Partial<typeof state> = {};
+
+		// 确保 A 和 B 打开，C 关闭
 		if (!state.isPanelAOpen) next.isPanelAOpen = true;
 		if (!state.isPanelBOpen) next.isPanelBOpen = true;
-		if (!state.isPanelCOpen) next.isPanelCOpen = true;
+		if (state.isPanelCOpen) next.isPanelCOpen = false;
+
+		// 确保宽度比例为 1/3 (Panel A 占 1/3，剩下的 2/3 给 Panel B)
+		if (state.panelAWidth !== 1/3) next.panelAWidth = 1/3;
+
+		// 确保功能分配正确：A为待办，B为聊天
+		let featureMapChanged = false;
+		const newFeatureMap = { ...state.panelFeatureMap };
+
+		if (newFeatureMap.panelA !== "todos") {
+			newFeatureMap.panelA = "todos";
+			featureMapChanged = true;
+		}
+		if (newFeatureMap.panelB !== "chat") {
+			newFeatureMap.panelB = "chat";
+			featureMapChanged = true;
+		}
+
+		if (featureMapChanged) {
+			next.panelFeatureMap = newFeatureMap;
+		}
+
 		if (Object.keys(next).length > 0) {
 			useUiStore.setState(next);
 		}
@@ -111,6 +141,10 @@ export default function HomePageClient() {
 			setGlobalResizeCursor,
 		});
 
+	if (needsSetup) {
+		return <SetupWizard onSetupComplete={() => setSetupDone(true)} />;
+	}
+
 	return (
 		<GlobalDndProvider>
 			<main
@@ -126,7 +160,7 @@ export default function HomePageClient() {
 						backgroundColor: "oklch(var(--background))",
 						background: "oklch(var(--background))",
 						height: "100vh",
-						width: "100vw",
+						width: "100%",
 						overflow: "hidden",
 					}}
 				>

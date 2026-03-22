@@ -16,6 +16,8 @@ dependencies = [
     "loguru>=0.7.3",
     "dynaconf[yaml]>=3.2.0",
     "pyyaml>=6.0",
+    "sounddevice>=0.5.0",
+    "websockets>=15.0",
     # macOS
     "pyobjc-framework-Cocoa>=12.1; sys_platform == 'darwin'",
     "pyobjc-framework-Quartz>=12.1; sys_platform == 'darwin'",

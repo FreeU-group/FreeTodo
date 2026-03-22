@@ -354,6 +354,7 @@ class ConfigService:
             "sensor.screenshot_interval",
             "sensor.proactive_ocr_enabled",
             "sensor.proactive_ocr_interval",
+            "sensor.audio_enabled",
             # Diary illustration
             "banna2.api_key",
             "banna2.ref_image_path",

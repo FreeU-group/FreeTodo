@@ -36,15 +36,28 @@ class AppPrior(ABC):
 
     def detect_theme(self, image: np.ndarray) -> ThemeConfig | None:
         h, w = image.shape[:2]
-        sample_y = min(h - 100, h - 1)
-        sample_x = w - 50
-        if sample_y < 0 or sample_x < 0:
-            return self.themes[0] if self.themes else None
-        pixel = image[sample_y, sample_x].astype(np.float32)
+        margin = 40
+        region_h = min(80, h // 4)
+        region_w = min(100, w // 4)
+        y1 = max(0, h - margin - region_h)
+        y2 = max(y1 + 1, h - margin)
+        x1 = max(0, w - margin - region_w)
+        x2 = max(x1 + 1, w - margin)
+
+        region = image[y1:y2, x1:x2]
+        avg_color = np.mean(region.reshape(-1, region.shape[-1]), axis=0).astype(np.float32)
+
+        best_theme = None
+        best_dist = float("inf")
         for theme in self.themes:
             target = np.array(theme.chat_bg_color, dtype=np.float32)
-            if np.all(np.abs(pixel - target) <= theme.color_tolerance):
-                return theme
+            dist = float(np.sqrt(np.sum((avg_color - target) ** 2)))
+            if dist < best_dist:
+                best_dist = dist
+                best_theme = theme
+
+        if best_theme is not None and best_dist <= best_theme.color_tolerance * 3:
+            return best_theme
         return self.themes[0] if self.themes else None
 
     @abstractmethod

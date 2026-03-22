@@ -1,0 +1,9 @@
+{
+  "title": "📅 2026年3月20日（周四）日程规划",
+  "width": 480,
+  "height": 660,
+  "buttons": [
+    {"label": "📋 复制协商消息", "action": "copy", "copyText": "可儿，明天下午我要赶飞机去北京，\n线上会议能提前到中午12点吗？\n大概1小时，12点到1点，方便吗？", "style": "primary"},
+    {"label": "忽略", "action": "close", "style": "secondary"}
+  ]
+}

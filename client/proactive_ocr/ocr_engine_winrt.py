@@ -33,6 +33,114 @@ except Exception:
     WinOcrEngine = None
 
 
+def _safe_picklify(o: object) -> object:
+    """Convert a WinRT OCR result object to a plain Python dict/list tree.
+
+    Replaces ``winocr.picklify`` with per-attribute error handling so that
+    a single problematic WinRT property (e.g. one that triggers a GBK
+    UnicodeDecodeError on Chinese Windows) doesn't crash the whole call.
+    """
+    try:
+        if hasattr(o, "size"):
+            return [_safe_picklify(e) for e in o]
+    except Exception:
+        return []
+
+    try:
+        if hasattr(o, "__module__"):
+            result = {}
+            for name in dir(o):
+                if name.startswith("_"):
+                    continue
+                try:
+                    result[name] = _safe_picklify(getattr(o, name))
+                except Exception:
+                    pass
+            return result
+    except Exception:
+        return {}
+
+    return o
+
+
+_CJK_PUNCT = set(
+    "\uff0c\u3002\uff01\uff1f\u3001\uff1a\uff1b"
+    "\u201c\u201d\u2018\u2019\uff08\uff09"
+    "\u3010\u3011\u300a\u300b\u2026\u2014"
+    "\uff5e\u00b7\u300c\u300d\u300e\u300f"
+    "\u3008\u3009\u3014\u3015\u3016\u3017"
+)
+
+
+def _normalize_winrt_spacing(text: str) -> str:
+    """Collapse per-character spacing inserted by WinRT CJK OCR.
+
+    WinRT OCR inserts a space between every CJK character, producing
+    "你 好 世 界" instead of "你好世界".  This function detects that
+    pattern (space count ≈ char count - 1) and collapses all spaces.
+    English text like "hello world" is left untouched because its
+    space-to-char ratio is much lower.
+    """
+    non_space = text.replace(" ", "")
+    if len(non_space) <= 1:
+        return text
+    space_count = text.count(" ")
+    expected = len(non_space) - 1
+    if expected <= 0:
+        return text
+    if space_count / expected >= 0.7:  # noqa: PLR2004
+        return non_space
+    return text
+
+
+_CHAR_RATIO_THRESHOLDS = [(0.95, 0.92), (0.8, 0.78), (0.6, 0.60)]
+_CHAR_RATIO_DEFAULT_SCORE = 0.35
+_DENSITY_MIN_WIDTH = 20
+_DENSITY_SPARSE = 1.0
+_DENSITY_LOW = 2.0
+
+
+def _is_expected_char(ch: str) -> bool:
+    return (
+        "\u4e00" <= ch <= "\u9fff"
+        or "\u3400" <= ch <= "\u4dbf"
+        or ch.isascii()
+        or ch in _CJK_PUNCT
+        or "\uff00" <= ch <= "\uffef"
+        or "\u3000" <= ch <= "\u303f"
+        or "\U00020000" <= ch <= "\U0002a6df"
+    )
+
+
+def _estimate_line_confidence(text: str, bbox: BBox) -> float:
+    """Heuristic confidence when the engine provides no native score."""
+    stripped = text.strip()
+    n = len(stripped)
+    if n == 0:
+        return 0.1
+
+    normal = sum(1 for ch in stripped if _is_expected_char(ch))
+    char_ratio = normal / n
+
+    score = _CHAR_RATIO_DEFAULT_SCORE
+    for threshold, value in _CHAR_RATIO_THRESHOLDS:
+        if char_ratio >= threshold:
+            score = value
+            break
+
+    if n == 1 and char_ratio < 1.0:
+        score -= 0.2
+
+    if bbox.width > _DENSITY_MIN_WIDTH and n > 0:
+        chars_per_100px = (n / bbox.width) * 100
+        if chars_per_100px < _DENSITY_SPARSE:
+            score -= 0.15
+        elif chars_per_100px < _DENSITY_LOW:
+            score -= 0.05
+
+    return max(0.1, min(0.99, round(score, 2)))
+
+
 class WinRtOcrEngine:
     def __init__(self, lang: str = "zh-Hans-CN", resize_max_side: int = 0):
         if not WINOCR_AVAILABLE:
@@ -91,28 +199,17 @@ class WinRtOcrEngine:
         try:
             result = self._recognize_sync(rgba_image.tobytes(), w, h)
         except Exception as e:
-            logger.error(f"WinRT OCR failed: {e}")
+            logger.error(f"WinRT OCR recognize failed: {e}")
             return OcrRawResult(
                 lines=[], engine="winrt", latency_ms=(time.time() - start_time) * 1000
             )
 
         latency_ms = (time.time() - start_time) * 1000
         lines = []
-        if result and "lines" in result:
-            for line_data in result["lines"]:
-                text = line_data.get("text", "")
-                if not text.strip():
-                    continue
-                bbox = self._aggregate_word_bboxes(line_data.get("words", []), scale)
-                word_confidences = []
-                for word in line_data.get("words", []):
-                    conf = word.get("confidence", None)
-                    if conf is not None:
-                        word_confidences.append(float(conf))
-                avg_confidence = (
-                    sum(word_confidences) / len(word_confidences) if word_confidences else 0.95
-                )
-                lines.append(OcrLine(text=text, score=avg_confidence, bbox_px=bbox))
+        try:
+            lines = self._parse_ocr_result(result, scale)
+        except Exception as e:
+            logger.warning(f"WinRT OCR result parsing failed: {e}", exc_info=True)
 
         return OcrRawResult(
             lines=lines,
@@ -124,6 +221,32 @@ class WinRtOcrEngine:
             model_version="windows-media-ocr",
             device="cpu",
         )
+
+    def _parse_ocr_result(self, result: dict, scale: float) -> list[OcrLine]:
+        lines: list[OcrLine] = []
+        if not result or "lines" not in result:
+            return lines
+        for line_data in result["lines"]:
+            try:
+                raw_text = line_data.get("text", "")
+                if not raw_text.strip():
+                    continue
+                text = _normalize_winrt_spacing(raw_text)
+                bbox = self._aggregate_word_bboxes(line_data.get("words", []), scale)
+                word_confidences = []
+                for word in line_data.get("words", []):
+                    conf = word.get("confidence", None)
+                    if conf is not None:
+                        word_confidences.append(float(conf))
+                if word_confidences:
+                    confidence = sum(word_confidences) / len(word_confidences)
+                else:
+                    confidence = _estimate_line_confidence(text, bbox)
+                lines.append(OcrLine(text=text, score=confidence, bbox_px=bbox))
+            except Exception as e:
+                logger.debug(f"WinRT OCR: skipped line due to error: {e}")
+                continue
+        return lines
 
     @staticmethod
     def _aggregate_word_bboxes(words: list[dict], scale: float) -> BBox:
@@ -163,7 +286,7 @@ class WinRtOcrEngine:
             raise RuntimeError("winocr backend unavailable")
         awaitable = winocr.recognize_bytes(image_bytes, width, height, lang=self.lang)
         result = await awaitable
-        pickled = winocr.picklify(result)
+        pickled = _safe_picklify(result)
         if not isinstance(pickled, dict):
             raise RuntimeError("winocr returned unexpected result type")
         return pickled

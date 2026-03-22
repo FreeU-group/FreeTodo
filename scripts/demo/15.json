@@ -1,0 +1,10 @@
+{
+  "title": "📅 2026年3月20日（周四）最终日程",
+  "width": 480,
+  "height": 640,
+  "buttons": [
+    {"label": "📋 复制确认消息", "action": "copy", "copyText": "行程已确认：\n10:00 华泽线下（深圳湾科技生态园7栋）\n12:00 胡可儿线上（腾讯会议）\n15:10 航班飞北京\n19:15 陈翔宇晚餐（北京国贸）", "style": "primary"},
+    {"label": "✏️ 手动调整", "action": "close", "style": "secondary"},
+    {"label": "忽略", "action": "close", "style": "secondary"}
+  ]
+}

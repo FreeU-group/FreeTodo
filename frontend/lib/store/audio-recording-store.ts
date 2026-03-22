@@ -1,7 +1,10 @@
 /**
  * 全局音频录音状态管理
  *
- * 将录音状态和资源提升到全局层面，使录音在面板切换时不会中断。
+ * 支持两种采集模式：
+ * - "backend": 后端 Python (sounddevice) 采集 PC 麦克风，前端只通过 WS 接收结果（推荐）
+ * - "browser": 浏览器 getUserMedia 采集（兼容/回退方案）
+ *
  * 核心思路：
  * - 使用模块级变量存储不可序列化的资源（WebSocket、AudioContext、MediaStream）
  * - 使用 Zustand store 存储可序列化的状态（isRecording、transcriptionText 等）
@@ -107,7 +110,20 @@ interface AudioRecordingActions {
 	clearSessionData: () => void;
 }
 
+type CaptureMode = "browser" | "backend";
+
 type AudioRecordingStore = AudioRecordingState & AudioRecordingActions;
+
+// ========== 采集模式 ==========
+// "backend" = 后端 sounddevice 采集（推荐），"browser" = 浏览器 getUserMedia（兜底）
+let captureMode: CaptureMode = "backend";
+
+export function setCaptureMode(mode: CaptureMode) {
+	captureMode = mode;
+}
+export function getCaptureMode(): CaptureMode {
+	return captureMode;
+}
 
 // ========== 模块级资源存储（不可序列化） ==========
 
@@ -489,6 +505,127 @@ function cleanupRecordingResources(segmentTimestamps?: number[], isReconnecting 
 	}
 }
 
+// ========== 后端采集模式辅助 ==========
+
+async function startBackendCapture(is24x7: boolean): Promise<void> {
+	const apiBase = getApiBaseUrl();
+
+	const resp = await fetch(`${apiBase}/api/audio/local-mic/start`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ is_24x7: is24x7 }),
+	});
+	if (!resp.ok) {
+		const text = await resp.text();
+		throw new Error(`启动后端录音失败: ${resp.status} ${text}`);
+	}
+
+	const wsUrl = apiBase.replace("http://", "ws://").replace("https://", "wss://");
+	const ws = new WebSocket(`${wsUrl}/api/audio/local-mic/stream`);
+	wsRef = ws;
+
+	ws.onmessage = (event) => {
+		try {
+			if (typeof event.data === "string") {
+				const data = JSON.parse(event.data);
+
+				if (data.header?.name === "TaskFailed") {
+					const errorText =
+						typeof data.payload?.error === "string"
+							? data.payload.error
+							: "后端录音服务错误";
+					if (currentOnError) {
+						currentOnError(new Error(errorText));
+					}
+					return;
+				}
+
+				if (data.header?.name === "TranscriptionResultChanged") {
+					const text = data.payload?.result;
+					const isFinal = data.payload?.is_final || false;
+					if (text && currentOnTranscription) {
+						currentOnTranscription(text, isFinal);
+					}
+					return;
+				}
+
+				if (data.header?.name === "ExtractionChanged") {
+					const todos = data.payload?.todos;
+					if (currentOnRealtimeNlp) {
+						currentOnRealtimeNlp({
+							todos: Array.isArray(todos) ? todos : [],
+						});
+					}
+					return;
+				}
+
+				if (data.header?.name === "SegmentSaved") {
+					const reason = data.payload?.message || "分段保存";
+					if (currentOnTranscription) {
+						currentOnTranscription(`__SEGMENT_SAVED__:${reason}`, true);
+					}
+					return;
+				}
+			}
+		} catch (error) {
+			console.error("[BackendCapture] Failed to parse message:", error);
+		}
+	};
+
+	ws.onerror = () => {
+		console.error("[BackendCapture] WebSocket error");
+	};
+
+	ws.onclose = (event) => {
+		if (!event.wasClean && shouldReconnectRef && currentIs24x7) {
+			reconnectAttemptsRef++;
+			if (reconnectAttemptsRef <= maxReconnectAttempts) {
+				console.log(`[BackendCapture] WS 断开，${reconnectDelayMs / 1000}s 后重连`);
+				reconnectTimeoutRef = setTimeout(() => {
+					const apiBase2 = getApiBaseUrl();
+					const wsUrl2 = apiBase2.replace("http://", "ws://").replace("https://", "wss://");
+					const newWs = new WebSocket(`${wsUrl2}/api/audio/local-mic/stream`);
+					newWs.onmessage = ws.onmessage;
+					newWs.onerror = ws.onerror;
+					newWs.onclose = ws.onclose;
+					wsRef = newWs;
+				}, reconnectDelayMs);
+				return;
+			}
+		}
+		wsRef = null;
+	};
+}
+
+async function stopBackendCapture(): Promise<void> {
+	if (wsRef) {
+		try {
+			wsRef.close();
+		} catch {
+			// ignore
+		}
+		wsRef = null;
+	}
+
+	const apiBase = getApiBaseUrl();
+	try {
+		await fetch(`${apiBase}/api/audio/local-mic/stop`, { method: "POST" });
+	} catch (e) {
+		console.warn("[BackendCapture] Stop request failed:", e);
+	}
+
+	shouldReconnectRef = false;
+	if (reconnectTimeoutRef) {
+		clearTimeout(reconnectTimeoutRef);
+		reconnectTimeoutRef = null;
+	}
+	reconnectAttemptsRef = 0;
+	currentOnTranscription = null;
+	currentOnRealtimeNlp = null;
+	currentOnError = null;
+	currentIs24x7 = false;
+}
+
 // ========== Zustand Store ==========
 
 export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => ({
@@ -516,6 +653,42 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 				return;
 			}
 
+			// ===== 后端采集模式 =====
+			if (captureMode === "backend") {
+				try {
+					currentIs24x7 = is24x7;
+					shouldReconnectRef = is24x7;
+					currentOnTranscription = onTranscription;
+					currentOnRealtimeNlp = onRealtimeNlp || null;
+					currentOnError = onError || null;
+
+					await startBackendCapture(is24x7);
+
+					const now = Date.now();
+					set({
+						isRecording: true,
+						recordingStartedAt: now,
+						recordingStartedDate: new Date(),
+						lastFinalEndMs: null,
+					});
+					console.log("[AudioRecordingStore] ✅ Backend capture started");
+					return;
+				} catch (error) {
+					console.error("[AudioRecordingStore] Backend capture failed:", error);
+					if (onError) {
+						onError(error as Error);
+					}
+					set({
+						isRecording: false,
+						recordingStartedAt: null,
+						recordingStartedDate: null,
+						lastFinalEndMs: null,
+					});
+					return;
+				}
+			}
+
+			// ===== 浏览器采集模式（原逻辑） =====
 			try {
 				// 设置 7×24 模式标志
 				currentIs24x7 = is24x7;
@@ -849,7 +1022,20 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 		},
 
 	stopRecording: (segmentTimestamps) => {
-		// 停止自动重连
+		if (captureMode === "backend") {
+			// 后端采集模式：调用后端 API 停止
+			void stopBackendCapture();
+			set({
+				isRecording: false,
+				recordingStartedAt: null,
+				recordingStartedDate: null,
+				lastFinalEndMs: null,
+			});
+			console.log("[AudioRecordingStore] Backend capture stopped");
+			return;
+		}
+
+		// 浏览器采集模式（原逻辑）
 		shouldReconnectRef = false;
 		if (reconnectTimeoutRef) {
 			clearTimeout(reconnectTimeoutRef);
@@ -858,7 +1044,6 @@ export const useAudioRecordingStore = create<AudioRecordingStore>((set, get) => 
 		reconnectAttemptsRef = 0;
 		currentIs24x7 = false;
 
-		// 清理录音资源
 		cleanupRecordingResources(segmentTimestamps);
 		set({
 			isRecording: false,

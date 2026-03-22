@@ -127,6 +127,7 @@ export function DiaryPanel() {
 		className: "gap-2 px-2 text-xs font-medium",
 	});
 	const actionIconStyle = usePanelIconStyle("action");
+	const [diaryTextGenerating, setDiaryTextGenerating] = useState(false);
 	const {
 		createJournal,
 		updateJournal,
@@ -309,50 +310,19 @@ export function DiaryPanel() {
 		}
 
 		if (!saved) return;
-
 		const savedDate = parseJournalDate(saved.date);
-		setDraft({
-			id: saved.id,
-			name: saved.name ?? "",
-			userNotes: saved.userNotes ?? "",
-			contentObjective: saved.contentObjective ?? "",
-			contentAi: saved.contentAi ?? "",
-			mood: saved.mood ?? "",
-			energy: saved.energy ?? null,
-			tags: (saved.tags ?? []).map((tag) => tag.tagName),
-			relatedTodoIds: saved.relatedTodoIds ?? [],
-			relatedActivityIds: saved.relatedActivityIds ?? [],
-			date: savedDate,
-		});
-		setSelectedDate(savedDate);
-		setTagInput((saved.tags ?? []).map((tag) => tag.tagName).join(", "));
+		syncDraftFromJournal(saved);
 		setAutoLinkMessage(t("saveSuccess"));
 
-		const snapshot = {
-			title: saved.name ?? "",
-			content: saved.userNotes ?? "",
-			date: savedDate,
-		};
-
+		const snapshot = { title: saved.name ?? "", content: saved.userNotes ?? "", date: savedDate };
 		if (autoLinkEnabled) {
-			try {
-				await runAutoLink(saved.id, snapshot);
-			} catch (_error) {
-				setAutoLinkMessage(t("autoLinkFailed"));
-			}
+			try { await runAutoLink(saved.id, snapshot); }
+			catch { setAutoLinkMessage(t("autoLinkFailed")); }
 		}
 		if (autoGenerateAiEnabled) {
-			const aiTasks: Promise<void>[] = [
-				generateIllustrationForDate(savedDate).catch(() => {
-					setAutoLinkMessage(t("illustrationGenerateFailed"));
-				}),
-			];
+			const aiTasks: Promise<void>[] = [generateIllustrationForDate(savedDate).catch(() => {})];
 			if (autoGenerateObjectiveEnabled && !saved.contentAi) {
-				aiTasks.push(
-					runObjectiveGeneration(saved.id, snapshot).catch(() => {
-						setAutoLinkMessage(t("generateFailed"));
-					}),
-				);
+				aiTasks.push(runObjectiveGeneration(saved.id, snapshot).catch(() => {}));
 			}
 			await Promise.allSettled(aiTasks);
 		}
@@ -380,18 +350,6 @@ export function DiaryPanel() {
 			draftOverride: options?.draftOverride,
 		});
 	};
-	const handleCopyToOriginal = (content: string) => {
-		setDraft((prev) => {
-			const trimmed = content.trim();
-			if (!trimmed) return prev;
-			const separator = prev.userNotes.trim().length > 0 ? "\n\n" : "";
-			return {
-				...prev,
-				userNotes: `${prev.userNotes}${separator}${trimmed}`,
-			};
-		});
-		setActiveTab("original");
-	};
 	const generateIllustrationForDate = async (date = selectedDate) => {
 		const dateStr = formatDateInput(date);
 		setActiveTab("ai");
@@ -414,19 +372,26 @@ export function DiaryPanel() {
 			setIllustrationGenerating(false);
 		}
 	};
-	const handleGenerateAiClick = async () => {
-		setActiveTab("ai");
-		const tasks: Promise<void>[] = [generateIllustrationForDate(selectedDate)];
+	const handleGenerateAllClick = async () => {
+		setDiaryTextGenerating(true);
+		const textPromise = fetch(
+			`/api/diary-illustration/generate-text?date=${selectedDateStr}`,
+			{ method: "POST" },
+		)
+			.then(async (resp) => {
+				if (resp.ok) {
+					const data = await resp.json();
+					if (data.text) {
+						setDraft((prev) => ({ ...prev, contentAi: data.text }));
+						handleAutoSave({ draftOverride: { contentAi: data.text } });
+					}
+				}
+			})
+			.catch(() => {})
+			.finally(() => setDiaryTextGenerating(false));
 
-		if (draft.id) {
-			tasks.push(
-				runObjectiveGeneration(draft.id).catch((_error) => {
-					setAutoLinkMessage(t("generateFailed"));
-				}),
-			);
-		}
-
-		await Promise.allSettled(tasks);
+		const mangaPromise = generateIllustrationForDate(selectedDate).catch(() => {});
+		await Promise.allSettled([textPromise, mangaPromise]);
 	};
 	const handleAutoLinkClick = async () => {
 		if (!draft.id || isAutoLinking) return;
@@ -484,7 +449,6 @@ export function DiaryPanel() {
 				<DiaryEditor
 					draft={draft}
 					activeTab={activeTab}
-					selectedDateStr={selectedDateStr}
 					onTabChange={setActiveTab}
 					onTitleChange={(value) =>
 						setDraft((prev) => ({ ...prev, name: value }))
@@ -498,16 +462,20 @@ export function DiaryPanel() {
 					onUserNotesBlur={(value) =>
 						handleAutoSave({ draftOverride: { userNotes: value } })
 					}
-					onGenerateAi={handleGenerateAiClick}
+					onContentAiChange={(value) =>
+						setDraft((prev) => ({ ...prev, contentAi: value }))
+					}
+					onContentAiBlur={(value) =>
+						handleAutoSave({ draftOverride: { contentAi: value } })
+					}
+					onGenerateAll={handleGenerateAllClick}
 					onAutoLink={handleAutoLinkClick}
-					onCopyToOriginal={handleCopyToOriginal}
 					autoLinkMessage={autoLinkMessage}
-					isGeneratingAi={illustrationGenerating}
+					isGenerating={diaryTextGenerating || illustrationGenerating}
 					isAutoLinking={isAutoLinking}
 					hasJournalId={Boolean(draft.id)}
 					illustrationUrls={illustrationUrls}
 					illustrationLoading={illustrationLoading}
-					illustrationGenerating={illustrationGenerating}
 				/>
 			</div>
 		</div>

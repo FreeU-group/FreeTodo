@@ -103,6 +103,7 @@ class SecondPassASRProcessor:
         self.diarization_enabled = bool(cfg.get("diarization_enabled", True))
         self.speaker_count = int(cfg.get("speaker_count", 0))
         self.language_hints = list(cfg.get("language_hints", ["zh", "en"]))
+        self.min_duration_seconds = float(cfg.get("min_duration_seconds", 0.5))
         self.disfluency_removal = bool(cfg.get("disfluency_removal_enabled", False))
         self.temp_dir = Path(get_user_data_dir()) / str(
             cfg.get("temp_audio_dir", "second_pass_audio/")
@@ -253,8 +254,12 @@ class SecondPassASRProcessor:
 
         total_bytes = sum(len(c) for c in pcm_chunks)
         duration_s = total_bytes / (SAMPLE_RATE * 2)
-        if duration_s < 1.0:
-            logger.debug("[second-pass] Audio too short (%.1fs), skipping", duration_s)
+        if duration_s < self.min_duration_seconds:
+            logger.info(
+                "[second-pass] Audio too short (%.1fs < %.1fs), skipping",
+                duration_s,
+                self.min_duration_seconds,
+            )
             return None
 
         t0 = time.monotonic()

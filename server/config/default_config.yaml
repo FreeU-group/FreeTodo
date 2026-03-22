@@ -6,7 +6,16 @@
 # 濡傛灉 config.yaml 瀛樺湪锛岀郴缁熶細鑷姩楠岃瘉瀹屾暣鎬э紝濡傛灉涓嶅畬鏁达紝绯荤粺浼氳嚜鍔ㄦ彁绀哄苟閫€鍑?
 # 褰撴鎻愮ず鍑虹幇鍦?config.yaml 涓椂锛岃蹇界暐
 
-# 閮ㄧ讲瑙掕壊閰嶇疆
+# 初始化向导配置
+setup:
+  completed: false
+  user_name: ""
+  agent_name: "Free U"
+  scan_directories: []
+  allowed_apps:
+    - 微信
+
+# 部署角色配置
 deployment:
   role: standalone # standalone锛堝崟鏈猴級 | center锛堜腑蹇冭妭鐐癸紝鎺ュ彈杩滅▼鎰熺煡鏁版嵁锛?
 
@@ -323,6 +332,7 @@ audio:
     enabled: true # 鍚敤鍚庡 /v4/listen 鐨勯煶棰戣繘琛岀绾夸簩娆¤浆褰?
     model: paraformer-v2 # 绂荤嚎 ASR 妯″瀷
     base_url: "" # 可选：当 model=whisper-large-v3 时可指定 OpenAI 兼容转写服务地址（留空则使用 llm.base_url）
+    min_duration_seconds: 0.5 # 最短音频时长（秒），低于此值跳过二次处理
     debounce_seconds: 3 # 妫€娴嬪埌鍙ュ瓙缁撴潫鍚庣瓑寰呯殑鍘绘姈鏃堕棿锛堢锛夛紝閬垮厤杩炵画璇磋瘽鏃堕绻佽Е鍙?
     interval_seconds: 30 # 鏈€澶х瓑寰呴棿闅旓紙绉掞級锛屾寔缁璇濇椂涔熶細鎸夋闂撮殧瑙﹀彂
     diarization_enabled: true # 鏄惁鍚敤璇磋瘽浜哄垎绂?

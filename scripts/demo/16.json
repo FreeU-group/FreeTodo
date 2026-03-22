@@ -1,0 +1,11 @@
+{
+  "title": "🔄 Free U · 日程变动 → 行程重规划",
+  "width": 500,
+  "height": 740,
+  "buttons": [
+    {"label": "方案A", "action": "close", "style": "primary"},
+    {"label": "方案B", "action": "close", "style": "primary"},
+    {"label": "手动调整", "action": "close", "style": "secondary"},
+    {"label": "忽略", "action": "close", "style": "secondary"}
+  ]
+}

@@ -13,6 +13,7 @@ interface SensorNode {
 	online: boolean;
 	screenshot_running: boolean;
 	proactive_ocr_running: boolean;
+	audio_running: boolean;
 	screenshot_interval: number;
 	proactive_ocr_interval: number;
 	last_screenshot_at: string | null;
@@ -57,6 +58,9 @@ export function SensorNodesSection({
 	const [proactiveOcrEnabled, setProactiveOcrEnabled] = useState(
 		(config?.sensorProactiveOcrEnabled as boolean | undefined) ?? true,
 	);
+	const [audioEnabled, setAudioEnabled] = useState(
+		(config?.sensorAudioEnabled as boolean | undefined) ?? true,
+	);
 	const [screenshotInterval, setScreenshotInterval] = useState(
 		Number(config?.sensorScreenshotInterval ?? 10),
 	);
@@ -76,6 +80,9 @@ export function SensorNodesSection({
 			}
 			if (config.sensorProactiveOcrEnabled !== undefined) {
 				setProactiveOcrEnabled(config.sensorProactiveOcrEnabled as boolean);
+			}
+			if (config.sensorAudioEnabled !== undefined) {
+				setAudioEnabled(config.sensorAudioEnabled as boolean);
 			}
 			if (config.sensorScreenshotInterval !== undefined) {
 				setScreenshotInterval(Number(config.sensorScreenshotInterval));
@@ -238,6 +245,13 @@ export function SensorNodesSection({
 										{node.proactive_ocr_running &&
 											` (${node.proactive_ocr_interval}s)`}
 									</span>
+									<span className="flex items-center gap-1">
+										<span
+											className={`h-1.5 w-1.5 rounded-full ${node.audio_running ? "bg-green-500" : "bg-yellow-500"}`}
+										/>
+										{t("audioStream")}:{" "}
+										{node.audio_running ? t("running") : t("paused")}
+									</span>
 								</div>
 							</div>
 						))}
@@ -392,6 +406,28 @@ export function SensorNodesSection({
 							)}
 						</div>
 					)}
+				</div>
+
+				{/* Audio perception toggle */}
+				<div className="space-y-2">
+					<div className="flex items-center justify-between">
+						<div className="flex-1">
+							<p className="text-sm font-medium text-foreground">{t("audioPerception")}</p>
+							<p className="mt-0.5 text-xs text-muted-foreground">{t("audioPerceptionDesc")}</p>
+						</div>
+						<ToggleSwitch
+							enabled={audioEnabled}
+							disabled={isLoading}
+							onToggle={(v) =>
+								handleToggle(
+									"sensorAudioEnabled",
+									v,
+									setAudioEnabled,
+									audioEnabled,
+								)
+							}
+						/>
+					</div>
 				</div>
 			</div>
 		</SettingsSection>

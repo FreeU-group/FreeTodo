@@ -95,6 +95,49 @@ class _MessagesPageState extends State<MessagesPage>
     }
   }
 
+  /// Icon and accent color based on notification type.
+  ({IconData icon, Color color, String label}) _typeVisual(AppNotification n) {
+    switch (n.type) {
+      case NotificationType.conflict:
+        return (
+          icon: FontAwesomeIcons.triangleExclamation,
+          color: const Color(0xFFE74C3C),
+          label: '日程冲突',
+        );
+      case NotificationType.update:
+        return (
+          icon: FontAwesomeIcons.penToSquare,
+          color: const Color(0xFFF39C12),
+          label: '待办调整',
+        );
+      case NotificationType.complete:
+        return (
+          icon: FontAwesomeIcons.circleCheck,
+          color: const Color(0xFF27AE60),
+          label: '待办完成',
+        );
+      case NotificationType.cancel:
+        return (
+          icon: FontAwesomeIcons.circleXmark,
+          color: const Color(0xFF95A5A6),
+          label: '待办取消',
+        );
+      case NotificationType.invitation:
+        return (
+          icon: FontAwesomeIcons.handshake,
+          color: const Color(0xFF3498DB),
+          label: '邀约助手',
+        );
+      case NotificationType.autoTodo:
+      default:
+        return (
+          icon: FontAwesomeIcons.listCheck,
+          color: MobileTokens.accent,
+          label: '自动待办',
+        );
+    }
+  }
+
   Future<void> _acceptNotification(AppNotification n) async {
     final ok = await context.read<NotificationCenterProvider>().acceptOrIgnore(
       n.id,
@@ -434,6 +477,7 @@ class _MessagesPageState extends State<MessagesPage>
 
   Widget _buildCard(AppNotification n, bool isLater) {
     final isRecent = DateTime.now().difference(n.timestamp).inMinutes <= 30;
+    final visual = _typeVisual(n);
 
     return Container(
       decoration: MobileTokens.cardDecoration(highlight: isRecent && !isLater),
@@ -447,24 +491,25 @@ class _MessagesPageState extends State<MessagesPage>
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: MobileTokens.surfaceElevated,
+                  color: visual.color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
                   child: FaIcon(
-                    _sourceIcon(n.source),
+                    visual.icon,
                     size: 13,
-                    color: MobileTokens.textSecondary,
+                    color: visual.color,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  n.source?.isNotEmpty == true ? n.source! : '系统消息',
-                  style: const TextStyle(
-                    color: MobileTokens.textSecondary,
+                  visual.label,
+                  style: TextStyle(
+                    color: visual.color,
                     fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
