@@ -378,14 +378,14 @@ def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
         matched = candidate.memory_match.matched_todo_name or "未知"
         return f"\n用户表示不再需要已有待办「{matched}」。\n请帮用户将该待办标记为取消。"
     return (
-        "\n请根据以上信息为用户创建待办事项。"
+        "\n**你必须调用 create_todo 工具来创建待办事项，这是强制要求。**"
         "\n若有发起人/执行者，请使用 create_todo 的 who_founder 和 who_executor 参数传入。"
     )
 
 
 _USER_FACING_INSTRUCTION = (
-    "\n\n重要：你的回复将直接展示给用户看，请直接输出结论和建议，"
-    "不要输出你的思考过程、推理步骤或工具调用说明。用简洁友好的语气。"
+    "\n\n重要：1) 你必须先调用 create_todo 工具创建待办，不能只输出文字而不调用工具。"
+    "\n2) 工具调用完成后，你的文字回复将直接展示给用户看，请用简洁友好的语气告知用户待办已创建。"
 )
 
 
