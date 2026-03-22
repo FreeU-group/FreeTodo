@@ -87,8 +87,12 @@ function normalizeSpeakerInfo(speaker?: RealtimeSpeakerInfo | null): {
 	const confidence = typeof speaker?.confidence === "number" ? speaker.confidence : null;
 	const isMe = speaker?.is_me === true;
 	const backend = typeof speaker?.backend === "string" && speaker.backend.trim() ? speaker.backend : null;
-	const overlapLabels = Array.isArray(speaker?.overlap_speakers)
+	const overlapLabelsRaw = Array.isArray(speaker?.overlap_speakers)
 		? speaker.overlap_speakers
+				.filter((item) => {
+					if (!item || typeof item !== "object") return false;
+					return item.is_current !== true;
+				})
 				.map((item) => {
 					if (!item || typeof item !== "object") return "";
 					const named =
@@ -102,6 +106,11 @@ function normalizeSpeakerInfo(speaker?: RealtimeSpeakerInfo | null): {
 				})
 				.filter((v): v is string => v.length > 0)
 		: [];
+	const overlapLabels = Array.from(new Set(overlapLabelsRaw)).filter((label) => {
+		if (speakerName && label === speakerName) return false;
+		if (speakerId !== null && label === `#${speakerId}`) return false;
+		return true;
+	});
 
 	return { speakerId, speakerName, confidence, isMe, backend, overlapLabels };
 }
