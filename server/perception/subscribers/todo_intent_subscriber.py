@@ -90,9 +90,11 @@ class TodoIntentSubscriber:
         Memory deduplication layer.
 
         Falls back to subscribing to *stream* directly when no deduper is given.
+
+        Always starts the subscription and background tasks regardless of
+        ``_enabled``.  The flag only gates event processing in ``on_event``,
+        allowing runtime toggle via ``set_enabled`` without restart.
         """
-        if not self._enabled:
-            return
         if self._batcher_task is not None and not self._batcher_task.done():
             return
 
@@ -371,14 +373,10 @@ class TodoIntentSubscriber:
             self._enqueue_batch(batch)
 
     def _make_progress_callback(self):
-        """Create a sync callback that schedules record publishing on the event loop."""
-        loop = asyncio.get_event_loop()
+        """Create a callback that publishes record updates to WebSocket subscribers."""
 
-        def _on_progress(record):
-            loop.call_soon_threadsafe(
-                asyncio.ensure_future,
-                self._publish_record(record),
-            )
+        async def _on_progress(record):
+            await self._publish_record(record)
 
         return _on_progress
 
@@ -391,12 +389,14 @@ class TodoIntentSubscriber:
             try:
                 if len(batch) == 1:
                     record = await self._orchestrator.process_event(
-                        batch[0], on_progress=on_progress,
+                        batch[0],
+                        on_progress=on_progress,
                     )
                 else:
                     context = self._orchestrator.build_context_from_events(batch)
                     record = await self._orchestrator.process_context(
-                        context, on_progress=on_progress,
+                        context,
+                        on_progress=on_progress,
                     )
                 await self._publish_record(record)
                 self._processed_total += len(batch)
