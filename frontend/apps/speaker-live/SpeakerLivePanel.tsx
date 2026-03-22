@@ -47,6 +47,10 @@ type SpeakerStat = {
 };
 
 type AutoAssignState = "idle" | "saving" | "success" | "failed";
+type KnownSpeaker = {
+	name: string | null;
+	isMe: boolean;
+};
 
 const MAX_LINES = 200;
 const ALL_FILTER = "__all__";
@@ -124,6 +128,8 @@ export function SpeakerLivePanel() {
 	const nextLineIdRef = useRef(1);
 	const meSpeakerIdRef = useRef<number | null>(null);
 	const autoAssignedRef = useRef(false);
+	const lastBackendRef = useRef<string | null>(null);
+	const knownSpeakersRef = useRef<Map<number, KnownSpeaker>>(new Map());
 	const listBottomRef = useRef<HTMLDivElement | null>(null);
 	const lastKnownSpeakerRef = useRef<{
 		speakerId: number | null;
@@ -138,6 +144,64 @@ export function SpeakerLivePanel() {
 		meSpeakerIdRef.current = speakerId;
 		setMeSpeakerId(speakerId);
 	}, []);
+	const setBackend = useCallback((backend: string | null) => {
+		lastBackendRef.current = backend;
+		setLastBackend(backend);
+	}, []);
+
+	const applyKnownSpeakerMeta = useCallback((speaker: ReturnType<typeof normalizeSpeakerInfo>) => {
+		if (speaker.speakerId === null) return speaker;
+		const known = knownSpeakersRef.current.get(speaker.speakerId);
+		if (!known) return speaker;
+		return {
+			...speaker,
+			speakerName: speaker.speakerName ?? known.name,
+			isMe: speaker.isMe || known.isMe,
+		};
+	}, []);
+
+	const setKnownSpeakerAsMe = useCallback((speakerId: number) => {
+		const next = new Map(knownSpeakersRef.current);
+		for (const [id, value] of next.entries()) {
+			next.set(id, { ...value, isMe: id === speakerId });
+		}
+		if (!next.has(speakerId)) {
+			next.set(speakerId, { name: null, isMe: true });
+		}
+		knownSpeakersRef.current = next;
+	}, []);
+
+	const loadKnownSpeakers = useCallback(async () => {
+		try {
+			const res = await fetch("/api/audio/speakers");
+			if (!res.ok) return;
+			const data = (await res.json()) as {
+				speakers?: Array<{ id?: number; name?: string; is_me?: boolean }>;
+			};
+			if (!Array.isArray(data.speakers)) return;
+
+			const next = new Map<number, KnownSpeaker>();
+			let meId: number | null = null;
+			for (const item of data.speakers) {
+				if (typeof item?.id !== "number" || item.id <= 0) continue;
+				const normalizedName =
+					typeof item.name === "string" && item.name.trim().length > 0 ? item.name.trim() : null;
+				const isMe = item.is_me === true;
+				next.set(item.id, { name: normalizedName, isMe });
+				if (isMe) {
+					meId = item.id;
+				}
+			}
+			knownSpeakersRef.current = next;
+			if (meId !== null) {
+				autoAssignedRef.current = true;
+				setMeSpeaker(meId);
+				setAutoAssignState("success");
+			}
+		} catch {
+			// Ignore preload failure; live stream can still work.
+		}
+	}, [setMeSpeaker]);
 
 	const getSpeakerKey = useCallback((line: Pick<SpeakerLine, "speakerId" | "speakerName">) => {
 		if (line.speakerId !== null) return `id:${line.speakerId}`;
@@ -179,14 +243,15 @@ export function SpeakerLivePanel() {
 				return;
 			}
 
-			autoAssignedRef.current = true;
-			setMeSpeaker(speakerId);
 			setAutoAssignState("saving");
 
 			try {
 				setPanelError(null);
 				if (backend === "diart") {
 					// Diart IDs are session-local and may not exist in VoiceprintStore.
+					autoAssignedRef.current = true;
+					setMeSpeaker(speakerId);
+					setKnownSpeakerAsMe(speakerId);
 					setAutoAssignState("success");
 					return;
 				}
@@ -196,33 +261,49 @@ export function SpeakerLivePanel() {
 				if (res.status === 404) {
 					// diart labels may be ephemeral and not persisted in VoiceprintStore;
 					// keep local "me" assignment to avoid noisy failures.
+					autoAssignedRef.current = true;
+					setMeSpeaker(speakerId);
 					setAutoAssignState("success");
 					return;
 				}
 				if (!res.ok) {
 					throw new Error(`${res.status}`);
 				}
+				autoAssignedRef.current = true;
+				setMeSpeaker(speakerId);
+				setKnownSpeakerAsMe(speakerId);
 				setAutoAssignState("success");
 			} catch {
+				autoAssignedRef.current = false;
 				setAutoAssignState("failed");
 				setPanelError(t("autoSetMeFailed"));
 			}
 		},
-		[setMeSpeaker, t],
+		[setKnownSpeakerAsMe, setMeSpeaker, t],
 	);
 
-	const resetPanelState = useCallback(() => {
-		setLines([]);
-		setPartialText("");
-		setPartialSpeaker(null);
-		setPanelError(null);
-		setMeSpeaker(null);
-		setLastBackend(null);
-		setAutoAssignState("idle");
-		nextLineIdRef.current = 1;
-		autoAssignedRef.current = false;
-		lastKnownSpeakerRef.current = null;
-	}, [setMeSpeaker]);
+	const resetPanelState = useCallback(
+		(options?: { keepMe?: boolean }) => {
+			const keepMe = options?.keepMe === true && meSpeakerIdRef.current !== null;
+
+			setLines([]);
+			setPartialText("");
+			setPartialSpeaker(null);
+			setPanelError(null);
+			setBackend(null);
+			if (keepMe) {
+				autoAssignedRef.current = true;
+				setAutoAssignState("success");
+			} else {
+				setMeSpeaker(null);
+				setAutoAssignState("idle");
+				autoAssignedRef.current = false;
+			}
+			nextLineIdRef.current = 1;
+			lastKnownSpeakerRef.current = null;
+		},
+		[setBackend, setMeSpeaker],
+	);
 
 	const handleClearVoiceprints = useCallback(async () => {
 		if (!window.confirm(t("clearVoiceprintsConfirm"))) return;
@@ -231,19 +312,24 @@ export function SpeakerLivePanel() {
 			const res = await fetch("/api/audio/speakers", { method: "DELETE" });
 			if (!res.ok) throw new Error(`${res.status}`);
 			const data = (await res.json()) as { cleared?: number };
+			knownSpeakersRef.current = new Map();
+			setMeSpeaker(null);
+			autoAssignedRef.current = false;
+			setAutoAssignState("idle");
 			window.alert(t("clearVoiceprintsSuccess", { count: data.cleared ?? 0 }));
 		} catch {
 			window.alert(t("clearVoiceprintsFailed"));
 		} finally {
 			setClearingSpeakers(false);
 		}
-	}, [t]);
+	}, [setMeSpeaker, t]);
 
 	const handleStartRecording = useCallback(async () => {
 		if (isRecording || isStartingRef.current) return;
 
 		isStartingRef.current = true;
-		resetPanelState();
+		await loadKnownSpeakers();
+		resetPanelState({ keepMe: true });
 
 		try {
 			await startRecording(
@@ -258,7 +344,7 @@ export function SpeakerLivePanel() {
 							speakerName: null,
 							confidence: null,
 							isMe: false,
-							backend: lastBackend,
+							backend: lastBackendRef.current,
 							overlapLabels: [],
 						});
 						return;
@@ -266,17 +352,25 @@ export function SpeakerLivePanel() {
 
 					if (!isFinal) {
 						setPartialText(text);
-						setPartialSpeaker(speaker ? normalizeSpeakerInfo(speaker) : null);
+						setPartialSpeaker(
+							speaker ? applyKnownSpeakerMeta(normalizeSpeakerInfo(speaker)) : null,
+						);
+						return;
+					}
+
+					if (text.trim().length === 0) {
+						setPartialText("");
+						setPartialSpeaker(null);
 						return;
 					}
 
 					setPartialText("");
 					setPartialSpeaker(null);
 
-					const parsed = normalizeSpeakerInfo(speaker);
+					const parsed = applyKnownSpeakerMeta(normalizeSpeakerInfo(speaker));
 					const now = Date.now();
 					if (parsed.backend) {
-						setLastBackend(parsed.backend);
+						setBackend(parsed.backend);
 					}
 					const recentKnown = lastKnownSpeakerRef.current;
 					const shouldBorrowLastSpeaker =
@@ -287,7 +381,7 @@ export function SpeakerLivePanel() {
 						now - recentKnown.at <= 1200 &&
 						text.trim().length <= 24;
 
-					const effectiveSpeaker = shouldBorrowLastSpeaker
+					const maybeBorrowedSpeaker = shouldBorrowLastSpeaker
 						? {
 								...parsed,
 								speakerId: recentKnown.speakerId,
@@ -297,6 +391,7 @@ export function SpeakerLivePanel() {
 								backend: parsed.backend ?? recentKnown.backend,
 							}
 						: parsed;
+					const effectiveSpeaker = applyKnownSpeakerMeta(maybeBorrowedSpeaker);
 
 					if (effectiveSpeaker.speakerId !== null || effectiveSpeaker.speakerName) {
 						lastKnownSpeakerRef.current = {
@@ -317,6 +412,7 @@ export function SpeakerLivePanel() {
 						if (effectiveSpeaker.isMe) {
 							autoAssignedRef.current = true;
 							setMeSpeaker(effectiveSpeaker.speakerId);
+							setKnownSpeakerAsMe(effectiveSpeaker.speakerId);
 							setAutoAssignState("success");
 						} else if (!autoAssignedRef.current) {
 							void autoSetFirstSpeakerAsMe(
@@ -358,14 +454,21 @@ export function SpeakerLivePanel() {
 		}
 	}, [
 		appendLine,
+		applyKnownSpeakerMeta,
 		autoSetFirstSpeakerAsMe,
 		isRecording,
-		lastBackend,
+		loadKnownSpeakers,
 		resetPanelState,
+		setBackend,
+		setKnownSpeakerAsMe,
 		setMeSpeaker,
 		startRecording,
 		t,
 	]);
+
+	useEffect(() => {
+		void loadKnownSpeakers();
+	}, [loadKnownSpeakers]);
 
 	const handleStopRecording = useCallback(() => {
 		if (!isRecording) return;
@@ -374,9 +477,12 @@ export function SpeakerLivePanel() {
 		setPartialSpeaker(null);
 	}, [isRecording, stopRecording]);
 
+	const scrollSignal = useMemo(() => `${lines.length}:${partialText}`, [lines, partialText]);
+
 	useEffect(() => {
+		void scrollSignal;
 		listBottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-	}, [lines, partialText]);
+	}, [scrollSignal]);
 
 	useEffect(() => {
 		if (!isListOpen) {
@@ -489,7 +595,7 @@ export function SpeakerLivePanel() {
 					<button
 						type="button"
 						className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
-						onClick={resetPanelState}
+						onClick={() => resetPanelState()}
 					>
 						<Trash2 className="h-4 w-4" />
 						{t("clear")}
