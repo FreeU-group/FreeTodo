@@ -125,9 +125,9 @@ class WeChatPrior(AppPrior):
     def _find_sidebar_boundary(self, image: np.ndarray) -> int | None:
         """Find the vertical boundary between conversation list and chat area.
 
-        Uses row-level consistency: a true divider line has a strong brightness
-        jump at the same x column across most rows. This is more robust than
-        sum-of-gradients which can be skewed by sidebar content.
+        The sidebar has a brighter background (~45-50) than the chat area (~25).
+        Compute the median brightness of each column (robust to avatars, text,
+        highlighted items) and find the sharpest drop from sidebar to chat area.
         """
         h, w = image.shape[:2]
         if len(image.shape) == 3:  # noqa: PLR2004
@@ -135,34 +135,38 @@ class WeChatPrior(AppPrior):
         else:
             gray = image.astype(np.float64)
 
-        x_start = int(w * 0.15)
+        x_start = int(w * 0.05)
         x_end = int(w * 0.55)
         if x_end <= x_start + 2:
             return None
 
-        y_start = int(h * 0.15)
-        y_end = int(h * 0.85)
-        n_rows = y_end - y_start
-        if n_rows <= 0:
+        y_start = int(h * 0.10)
+        y_end = int(h * 0.90)
+        if y_end <= y_start:
             return None
 
-        region = gray[y_start:y_end, x_start : x_end + 1]
-        h_grad = np.abs(np.diff(region, axis=1))
+        region = gray[y_start:y_end, x_start:x_end]
+        col_bg = np.percentile(region, 25, axis=0)
 
-        row_threshold = 15.0
-        strong_rows = (h_grad > row_threshold).astype(np.int32)
-        col_consistency = np.sum(strong_rows, axis=0)
+        kernel = max(5, len(col_bg) // 40)
+        if kernel % 2 == 0:
+            kernel += 1
+        smoothed = np.convolve(col_bg, np.ones(kernel) / kernel, mode="same")
 
-        if len(col_consistency) == 0:
+        sidebar_level = float(np.max(smoothed))
+        chat_level = float(np.min(smoothed[len(smoothed) // 2 :]))
+        if sidebar_level - chat_level < 8:
             return None
+        threshold = (sidebar_level + chat_level) / 2
 
-        best_idx = int(np.argmax(col_consistency))
-        best_count = int(col_consistency[best_idx])
+        boundary = None
+        for i in range(len(smoothed) - 1):
+            if smoothed[i] >= threshold and smoothed[i + 1] < threshold:
+                boundary = i
 
-        if best_count < n_rows * 0.5:
+        if boundary is None:
             return None
-
-        return x_start + best_idx + 1
+        return x_start + boundary + 1
 
     # ------------------------------------------------------------------
     # Chat ROI extraction
