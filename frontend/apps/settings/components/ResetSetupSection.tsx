@@ -49,7 +49,7 @@ export function ResetSetupSection({ loading = false }: ResetSetupSectionProps) {
 					type="button"
 					onClick={handleReset}
 					disabled={loading || resetMutation.isPending}
-					className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive ring-offset-background transition-colors hover:bg-destructive hover:text-destructive-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+					className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive ring-offset-background transition-colors hover:bg-destructive hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<RotateCcw className="h-4 w-4" />
 					{resetMutation.isPending ? "正在重置..." : "重置初始化向导"}
