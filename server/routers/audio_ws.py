@@ -241,6 +241,12 @@ def _create_realtime_nlp_handler(  # noqa: C901
             return compat_extracted
 
         async def _run_once(self) -> None:
+            from util.settings import settings  # noqa: PLC0415
+
+            if not bool(settings.get("jobs.auto_todo_detection.enabled", True)):
+                logger.debug("实时提取已跳过: jobs.auto_todo_detection.enabled=False")
+                return
+
             text_snapshot = self._buffer.strip()
             if not text_snapshot:
                 return

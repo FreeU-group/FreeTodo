@@ -112,11 +112,39 @@ class WeChatPrior(AppPrior):
         return None
 
     def get_title_divider_y(self, image: np.ndarray) -> int:
-        """Return title divider y with fallback."""
+        """Return title divider y with fallback.
+
+        When pulse detection fails, estimate by finding where the top
+        region's row brightness pattern changes — the title bar has a
+        relatively uniform brightness, then transitions to the chat content
+        which has a different level.
+        """
         y = self.find_title_divider_y(image)
         if y is not None:
             return y
-        return int(image.shape[0] * _FALLBACK_TITLE_RATIO)
+
+        h, w = image.shape[:2]
+        search_limit = int(h * _DIVIDER_SEARCH_RATIO)
+        if search_limit < 5:
+            return int(h * _FALLBACK_TITLE_RATIO)
+
+        if len(image.shape) == 3:  # noqa: PLR2004
+            gray = np.mean(image, axis=2).astype(np.float64)
+        else:
+            gray = image.astype(np.float64)
+
+        x_start = int(w * 0.3)
+        x_end = int(w * 0.7)
+        row_means = np.mean(gray[:search_limit, x_start:x_end], axis=1)
+
+        top_level = float(np.mean(row_means[:max(3, search_limit // 10)]))
+
+        for y_pos in range(search_limit // 5, search_limit):
+            local = float(np.mean(row_means[max(0, y_pos - 2) : y_pos + 3]))
+            if abs(local - top_level) > 10:
+                return y_pos
+
+        return int(h * _FALLBACK_TITLE_RATIO)
 
     # ------------------------------------------------------------------
     # Sidebar-chat boundary — structural edge detection
@@ -188,8 +216,11 @@ class WeChatPrior(AppPrior):
                 sample_heights=sample_heights,
             )
 
-        if split_x is None or split_x > int(w * 0.7) or split_x < int(w * 0.1):
-            split_x = int(w * 0.35)
+        if split_x is not None and split_x > int(w * 0.45):
+            split_x = None
+
+        if split_x is None:
+            split_x = 0
 
         chat_region = image[:, split_x:, :]
         return ROIResult(
