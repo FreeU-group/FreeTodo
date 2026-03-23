@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -22,6 +21,8 @@ from util.settings import settings
 from util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from perception.models import PerceptionEvent
 
 logger = get_logger()
@@ -271,7 +272,7 @@ class TodoIntentOrchestrator:
             logger.debug("Failed to load memory context for intent extraction", exc_info=True)
             return "", ""
 
-    async def process_context(
+    async def process_context(  # noqa: C901, PLR0915
         self,
         context: TodoIntentContext,
         on_progress: Callable[[TodoIntentProcessingRecord], Any] | None = None,

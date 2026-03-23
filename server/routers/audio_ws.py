@@ -194,7 +194,6 @@ def _create_error_callback(
     return on_error
 
 
-
 def _handle_websocket_text_message(
     message: dict,
     logger,

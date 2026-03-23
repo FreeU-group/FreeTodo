@@ -44,7 +44,6 @@ async def _publish_perception_audio_sentence(
         logger.debug(f"Perception publish skipped: {exc}")
 
 
-
 async def _handle_json_error(websocket: WebSocket, logger, e: json.JSONDecodeError) -> None:
     """处理 JSON 解析错误"""
     logger.error(f"Failed to parse WebSocket message: {e}")
@@ -409,7 +408,6 @@ async def _handle_websocket_errors(
         await _handle_websocket_error(websocket, logger, e)
 
 
-
 async def _create_save_final_data_func(
     *,
     state: dict,
@@ -441,9 +439,7 @@ async def _create_save_final_data_func(
     return save_final_data
 
 
-async def _cleanup_websocket(
-    *, state: dict, save_final_data, logger, websocket: WebSocket
-) -> None:
+async def _cleanup_websocket(*, state: dict, save_final_data, logger, websocket: WebSocket) -> None:
     """清理 WebSocket 连接"""
     state["is_connected_ref"][0] = False
 

@@ -147,6 +147,7 @@ class PreGateDedupeCache:
 _WECHAT_LINE_RE = re.compile(r"^\[([^\]]+)\]\s*(.+)$")
 _WECHAT_HEADER_RE = re.compile(r"^\[(私聊|群聊)\]")
 _WECHAT_NOISE_KEYWORDS = ("发送", "发送（", "发送(")
+_WECHAT_NOISE_MIN_LEN = 2
 
 
 class WeChatMessageHistory:
@@ -167,7 +168,7 @@ class WeChatMessageHistory:
 
     def _evict(self, now: float) -> None:
         while self._seen:
-            key, expires = next(iter(self._seen.items()))
+            _key, expires = next(iter(self._seen.items()))
             if expires > now:
                 break
             self._seen.popitem(last=False)
@@ -177,12 +178,9 @@ class WeChatMessageHistory:
     @staticmethod
     def _is_noise(text: str) -> bool:
         stripped = text.strip()
-        if len(stripped) < 2:
+        if len(stripped) < _WECHAT_NOISE_MIN_LEN:
             return True
-        for kw in _WECHAT_NOISE_KEYWORDS:
-            if stripped.startswith(kw):
-                return True
-        return False
+        return any(stripped.startswith(kw) for kw in _WECHAT_NOISE_KEYWORDS)
 
     def filter_new_messages(self, structured_text: str) -> str | None:
         """Return structured text with only unseen message lines.
