@@ -17,6 +17,7 @@ from schemas.perception_todo_intent import (
     TodoIntentContext,
 )
 from util.logging_config import get_logger
+from util.settings import settings
 from util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
@@ -44,6 +45,63 @@ _AGNO_TOOLS_FOR_INVITATION = [
     "search_nearby_places",
     "draft_reply_message",
 ]
+
+_todo_repo_cache = None
+_todo_repo_cache_lock = Lock()
+
+
+def _get_integration_create_status() -> str:
+    raw_mode = str(settings.get("perception.todo_intent.mode", "draft") or "draft").strip().lower()
+    return raw_mode if raw_mode in {"draft", "active"} else "draft"
+
+
+def _get_todo_repo():
+    global _todo_repo_cache  # noqa: PLW0603
+    if _todo_repo_cache is not None:
+        return _todo_repo_cache
+
+    from repositories.sql_todo_repository import SqlTodoRepository  # noqa: PLC0415
+    from storage.database_base import DatabaseBase  # noqa: PLC0415
+
+    with _todo_repo_cache_lock:
+        if _todo_repo_cache is None:
+            _todo_repo_cache = SqlTodoRepository(DatabaseBase())
+    return _todo_repo_cache
+
+
+def _snapshot_recent_todo_statuses() -> dict[int, str]:
+    repo = _get_todo_repo()
+    snapshot: dict[int, str] = {}
+    for status in ("active", "draft"):
+        for todo in repo.list_todos(limit=200, offset=0, status=status):
+            todo_id = todo.get("id")
+            if isinstance(todo_id, int):
+                snapshot[todo_id] = str(todo.get("status") or status)
+    return snapshot
+
+
+def _coerce_new_todos_to_mode(*, before_snapshot: dict[int, str], desired_status: str) -> list[int]:
+    if desired_status != "draft":
+        return []
+
+    repo = _get_todo_repo()
+    after_snapshot = _snapshot_recent_todo_statuses()
+    changed_ids: list[int] = []
+    for todo_id, current_status in after_snapshot.items():
+        if todo_id in before_snapshot:
+            continue
+        if current_status == desired_status:
+            continue
+        if repo.update(todo_id, status=desired_status):
+            changed_ids.append(todo_id)
+
+    if changed_ids:
+        logger.info(
+            "[Integration] Forced newly created todos into %s mode: %s",
+            desired_status,
+            changed_ids,
+        )
+    return changed_ids
 
 
 class TodoIntentIntegrationService:
@@ -295,11 +353,15 @@ def _build_agno_message(candidate: ExtractedTodoCandidate, context: TodoIntentCo
     if candidate.intent_type == IntentType.INVITATION:
         return _build_invitation_message(candidate, context)
     background_markdown = _build_background_markdown(candidate, context)
+    create_status = _get_integration_create_status()
     lines = ["[自动意图识别] 系统从用户的感知流中检测到以下待办意图："]
     lines.extend(_candidate_fields(candidate))
     lines.append(_memory_match_instruction(candidate))
     lines.append(
         "请先调用 `search_todos` 或 `list_todos` 核对现有待办，再决定 create/update/delete/complete。"
+    )
+    lines.append(
+        f'如果确认需要新建待办，调用 `create_todo` 时必须显式传入 `status="{create_status}"`；不要使用默认状态。'
     )
     lines.append(
         "无论是创建还是更新，最终待办的 `description` 必须完整保留下列 5 个小节：When、Who、What、Why、Message Sources。"
@@ -316,6 +378,7 @@ def _build_invitation_message(
 ) -> str:
     """Build a scheduling-coordination prompt for invitation intents."""
     background_markdown = _build_background_markdown(candidate, context)
+    create_status = _get_integration_create_status()
     lines = [
         "[自动意图识别 — 邀约] 系统从用户的感知流中检测到一条邀约：",
         "",
@@ -337,7 +400,9 @@ def _build_invitation_message(
     else:
         lines.append("4. 如果邀约涉及餐饮，调用 search_nearby_places 搜索附近餐厅推荐。")
     lines.append("5. 综合以上信息，调用 draft_reply_message 为用户草拟一条得体的回复消息。")
-    lines.append("6. 如果没有冲突，也请按实际情况创建或更新对应待办事项。")
+    lines.append(
+        f'6. 如果没有冲突，也请按实际情况创建或更新对应待办事项；若新建，`create_todo` 必须显式传入 `status="{create_status}"`。'
+    )
     lines.append(
         "7. 无论创建还是更新，description 中必须完整写入 When、Who、What、Why、Message Sources 五个小节。"
     )
@@ -449,6 +514,8 @@ async def _dispatch_to_agno(
     dedupe_key: str,
 ) -> TodoIntegrationResult:
     """Dispatch an extracted intent to Agno agent for execution."""
+    create_status = _get_integration_create_status()
+    before_snapshot = _snapshot_recent_todo_statuses()
     try:
         message = _build_agno_message(candidate, context)
         tools = _select_tools(candidate)
@@ -470,6 +537,11 @@ async def _dispatch_to_agno(
             len(response),
         )
         logger.info("[Dispatch] Response preview: %s", response[:500])
+
+        _coerce_new_todos_to_mode(
+            before_snapshot=before_snapshot,
+            desired_status=create_status,
+        )
 
         _push_notification(candidate, response)
 

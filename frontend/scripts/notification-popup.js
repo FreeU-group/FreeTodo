@@ -372,6 +372,16 @@ function pollDraftTodos() {
 const seenNotificationIds = new Set();
 const NOTIFICATION_POLL_INTERVAL_MS = 1_000;
 
+function isImportantNotificationTitle(title) {
+	const normalized = String(title || "").toLowerCase();
+	return (
+		normalized.includes("邀约") ||
+		normalized.includes("invitation") ||
+		normalized.includes("自动待办") ||
+		normalized.includes("auto todo")
+	);
+}
+
 function pollNotifications() {
 	const cfg = readConfig();
 	if (!cfg.enabled) {
@@ -410,11 +420,10 @@ function pollNotifications() {
 						console.log(
 							`[notification-popup] New notification: id=${id} title="${title}"`,
 						);
-						const isImportant =
-							title.includes("邀约") || title.includes("invitation");
+						const isImportant = isImportantNotificationTitle(title);
 						if (!isImportant) {
 							console.log(
-								`[notification-popup] Skipped (not invitation): "${title}"`,
+								`[notification-popup] Skipped (not important): "${title}"`,
 							);
 							continue;
 						}

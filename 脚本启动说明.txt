@@ -1,0 +1,174 @@
+FreeTodo 脚本启动说明（Windows）
+
+这个文件只讲两件事：
+
+1. 怎么启动 FreeTodo
+2. 怎么停止 FreeTodo
+
+如果你只是想马上跑起来，不想研究太多，先看前面的“最简单用法”。
+
+
+====================
+一、最简单用法
+====================
+
+你现在有两个脚本：
+
+1. setup-and-start-all-chore-liji-thesis.cmd
+   作用：一键安装 + 一键启动
+
+2. stop-all-chore-liji-thesis.cmd
+   作用：一键停止全部服务
+
+
+第一次使用：
+
+1. 新建一个空文件夹
+2. 把 `setup-and-start-all-chore-liji-thesis.cmd` 放进去
+3. 双击它
+4. 等待脚本自动安装、自动启动
+5. 浏览器自动打开后，就可以开始使用
+
+
+以后再次启动：
+
+1. 再次双击 `setup-and-start-all-chore-liji-thesis.cmd`
+2. 它会自动跳过已经安装好的内容
+3. 如果服务已经在运行，它也会自动跳过重复启动
+
+
+停止服务：
+
+1. 把 `stop-all-chore-liji-thesis.cmd` 放在同一个文件夹
+2. 双击它
+3. 它会自动停止相关服务
+
+
+一句话记住：
+
+- 想启动，就双击 `setup-and-start-all-chore-liji-thesis.cmd`
+- 想停止，就双击 `stop-all-chore-liji-thesis.cmd`
+
+
+====================
+二、启动脚本会帮你做什么
+====================
+
+启动脚本会自动做这些事情：
+
+- 检查电脑里有没有 Git
+- 检查电脑里有没有 Python
+- 检查电脑里有没有 Node.js
+- 检查电脑里有没有 uv
+- 检查电脑里有没有 pnpm
+- 如果缺少，会尽量自动安装
+- 自动下载 FreeTodo 当前分支代码
+- 自动安装 server、client、frontend 的依赖
+- 自动启动以下 4 个服务：
+  1) Backend
+  2) AgentOS
+  3) Frontend
+  4) Sensor
+
+其中 Sensor 是本机感知器。
+如果没有 Sensor，很多依赖本机感知的功能会不完整，比如截图感知、OCR 感知等。
+
+
+====================
+三、脚本默认使用哪个分支
+====================
+
+当前这两个脚本默认分支是：
+
+`chore/liji/thesis`
+
+如果脚本所在目录不是仓库目录，脚本通常会在当前目录下自动创建一个类似这样的文件夹：
+
+`FreeTodo-chore-liji-thesis`
+
+
+====================
+四、命令行方式怎么用
+====================
+
+如果你不想双击，也可以用命令行运行。
+
+
+1. 用 PowerShell 运行启动脚本
+
+先进入脚本所在目录，例如：
+
+`cd "C:\你的文件夹路径"`
+
+然后运行：
+
+`./setup-and-start-all-chore-liji-thesis.cmd`
+
+
+2. 用 PowerShell 运行停止脚本
+
+先进入脚本所在目录，例如：
+
+`cd "C:\你的文件夹路径"`
+
+然后运行：
+
+`./stop-all-chore-liji-thesis.cmd`
+
+
+3. 指定分支运行
+
+虽然这两个脚本默认就是 `chore/liji/thesis`，
+但如果你想手动指定其他分支，也可以这样运行：
+
+启动：
+
+`./setup-and-start-all-chore-liji-thesis.cmd -Branch chore/liji/thesis`
+
+或者：
+
+`./setup-and-start-all-chore-liji-thesis.cmd -Branch main`
+
+停止：
+
+`./stop-all-chore-liji-thesis.cmd -Branch chore/liji/thesis`
+
+
+====================
+五、常见情况
+====================
+
+1. 已经安装过依赖
+
+脚本会自动跳过安装步骤，不需要你手动处理。
+
+
+2. 服务已经在运行
+
+脚本会自动识别，避免重复启动。
+
+
+3. 我不知道代码下载到哪里了
+
+通常就在脚本所在目录下，目录名类似：
+
+`FreeTodo-chore-liji-thesis`
+
+
+4. 我只想关掉服务，不想删代码
+
+运行 `stop-all-chore-liji-thesis.cmd` 就可以。
+
+
+====================
+六、这两个脚本对应什么文件
+====================
+
+当前说明对应：
+
+- `setup-and-start-all-chore-liji-thesis.cmd`
+- `stop-all-chore-liji-thesis.cmd`
+
+默认分支：
+
+- `chore/liji/thesis`

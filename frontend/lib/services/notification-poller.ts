@@ -237,8 +237,12 @@ class NotificationPoller {
 			return;
 		}
 		const title = notification.title || "";
+		const normalized = title.toLowerCase();
 		const isImportant =
-			title.includes("邀约") || title.includes("invitation");
+			title.includes("邀约") ||
+			normalized.includes("invitation") ||
+			title.includes("自动待办") ||
+			normalized.includes("auto todo");
 		if (!isImportant) return;
 
 		const snippet =

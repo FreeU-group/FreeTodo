@@ -45,7 +45,13 @@ function sortNotifications(notifications: Notification[]): Notification[] {
 
 function isImportantNotification(notification: Notification): boolean {
 	const title = notification.title || "";
-	return title.includes("邀约") || title.includes("invitation");
+	const normalized = title.toLowerCase();
+	return (
+		title.includes("邀约") ||
+		normalized.includes("invitation") ||
+		title.includes("自动待办") ||
+		normalized.includes("auto todo")
+	);
 }
 
 export const useNotificationStore = create<NotificationStoreState>((set, get) => ({
