@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 interface ActivityStoreState {
 	selectedActivityId: number | null;
@@ -8,9 +8,8 @@ interface ActivityStoreState {
 	setSearch: (search: string) => void;
 }
 
-export const useActivityStore = create<ActivityStoreState>()(
-	persist(
-		(set) => ({
+export const useActivityStore = createPersistedStore<ActivityStoreState>(
+	(set) => ({
 			selectedActivityId: null,
 			search: "",
 			setSelectedActivityId: (id) => set({ selectedActivityId: id }),
@@ -76,5 +75,4 @@ export const useActivityStore = create<ActivityStoreState>()(
 				};
 			}),
 		},
-	),
 );

@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 interface ChatStoreState {
 	conversationId: string | null;
@@ -13,9 +13,8 @@ interface ChatStoreState {
 	setPendingPrompt: (prompt: string | null, startNewChat?: boolean) => void;
 }
 
-export const useChatStore = create<ChatStoreState>()(
-	persist(
-		(set) => ({
+export const useChatStore = createPersistedStore<ChatStoreState>(
+	(set) => ({
 			conversationId: null,
 			historyOpen: false,
 			historyPinned: false,
@@ -80,5 +79,4 @@ export const useChatStore = create<ChatStoreState>()(
 				};
 			}),
 		},
-	),
 );

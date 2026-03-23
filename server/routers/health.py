@@ -1,5 +1,6 @@
 """健康检查路由"""
 
+import asyncio
 import os
 import shutil
 import subprocess  # nosec B404
@@ -59,9 +60,13 @@ async def health_check():
 
 @router.get("/health/llm")
 async def llm_health_check():
-    """LLM服务健康检查"""
+    """LLM服务健康检查（卸载到线程池避免阻塞事件循环）"""
+    return await asyncio.to_thread(_llm_health_check_impl)
+
+
+def _llm_health_check_impl():
+    """LLM 健康检查的同步实现"""
     try:
-        # 获取RAG服务（延迟加载）- 验证服务能正常初始化
         try:
             from core.dependencies import get_rag_service  # noqa: PLC0415
 
@@ -73,7 +78,6 @@ async def llm_health_check():
                 "timestamp": get_utc_now().isoformat(),
             }
 
-        # 检查配置是否完整
         llm_key = settings.llm.api_key
         base_url = settings.llm.base_url
 
@@ -97,7 +101,6 @@ async def llm_health_check():
         client = OpenAI(api_key=llm_key, base_url=base_url)
         model = settings.llm.model
 
-        # 发送最小化测试请求
         client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "test"}],

@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -43,9 +43,8 @@ const themeStorage = {
 	},
 };
 
-export const useThemeStore = create<ThemeState>()(
-	persist(
-		(set) => ({
+export const useThemeStore = createPersistedStore<ThemeState>(
+	(set) => ({
 			theme: "system",
 			_hasHydrated: false,
 			setTheme: (theme) => set({ theme }),
@@ -58,5 +57,4 @@ export const useThemeStore = create<ThemeState>()(
 				state?.setHasHydrated(true);
 			},
 		},
-	),
 );

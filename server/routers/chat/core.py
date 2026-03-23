@@ -1,5 +1,6 @@
 """聊天核心路由：基础问答与流式聊天。"""
 
+import asyncio
 import json
 import mimetypes
 import uuid
@@ -25,7 +26,6 @@ from .helpers import (
 from .modes import (
     create_agent_streaming_response,
     create_agno_streaming_response,
-    create_dify_streaming_response,
     create_web_search_streaming_response,
 )
 
@@ -311,7 +311,6 @@ async def chat_with_llm_stream(
 
     支持额外的 mode 字段：
     - 默认为现有行为（走本地 LLM + RAG）
-    - 当 mode == \"dify_test\" 时，走 Dify 测试通道
     - 当 mode == \"agno\" 时，走 Agno Agent 通道（支持 file/shell 等外部工具）
     """
     try:
@@ -323,8 +322,8 @@ async def chat_with_llm_stream(
         # 解析请求语言
         lang = get_request_language(request)
 
-        # 1. 会话初始化与聊天会话创建
-        session_id = ensure_stream_session(message, chat_service)
+        # 1. 会话初始化与聊天会话创建（卸载到线程池避免阻塞事件循环）
+        session_id = await asyncio.to_thread(ensure_stream_session, message, chat_service)
 
         if uploads and getattr(message, "mode", None) != "agno":
             raise HTTPException(status_code=400, detail="Attachments only supported in Agno mode")
@@ -349,11 +348,7 @@ async def chat_with_llm_stream(
             system_prompt=message.system_prompt,
         )
 
-        # 2. Dify 测试模式（直接返回）
-        if getattr(message, "mode", None) == "dify_test":
-            return create_dify_streaming_response(message, chat_service, session_id)
-
-        # 2.3. Agent 模式（工具调用框架）
+        # 2. Agent 模式（工具调用框架）
         if getattr(message, "mode", None) == "agent":
             return create_agent_streaming_response(message, chat_service, session_id, lang)
 
@@ -376,8 +371,9 @@ async def chat_with_llm_stream(
         if error_response is not None:
             return error_response
 
-        # 4. 保存用户原始输入（不含 system prompt）
-        chat_service.add_message(
+        # 4. 保存用户原始输入（不含 system prompt，卸载到线程池）
+        await asyncio.to_thread(
+            chat_service.add_message,
             session_id=session_id,
             role="user",
             content=user_message_to_save,

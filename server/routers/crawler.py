@@ -1454,8 +1454,8 @@ async def start_crawler(data: dict[str, Any] | None = None):
             f"准备启动循环爬虫 - 平台: {platforms}, 类型: {crawler_type}, 排除关键词: {_excluded_keywords}"
         )
 
-        # 1. 启动签名服务
-        if not start_sign_service():
+        # 1. 启动签名服务（卸载到线程池避免 time.sleep 阻塞事件循环）
+        if not await asyncio.to_thread(start_sign_service):
             _crawler_status = "error"
             return {"success": False, "error": "启动签名服务失败"}
 

@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 // Supported locales - add new languages here
 // Future languages: "ja" | "ko" | "ru" | "fr"
@@ -86,9 +86,8 @@ const localeStorage = {
 	},
 };
 
-export const useLocaleStore = create<LocaleState>()(
-	persist(
-		(set) => ({
+export const useLocaleStore = createPersistedStore<LocaleState>(
+	(set) => ({
 			locale: getSystemLocale(),
 			_hasHydrated: false,
 			_setHasHydrated: (state: boolean) => set({ _hasHydrated: state }),
@@ -106,5 +105,4 @@ export const useLocaleStore = create<LocaleState>()(
 				state?._setHasHydrated(true);
 			},
 		},
-	),
 );

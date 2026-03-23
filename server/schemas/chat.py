@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ChatMessage(BaseModel):
-    model_config = ConfigDict(extra="allow")  # 允许额外字段，用于传递 Dify 等服务的参数
+    model_config = ConfigDict(extra="allow")
 
     message: str  # 发送给 LLM 的完整消息（包含 system prompt + context + user input）
     user_input: str | None = None  # 用户真正输入的内容（用于保存到历史记录）
@@ -16,7 +16,7 @@ class ChatMessage(BaseModel):
     conversation_id: str | None = None  # 会话ID
     user_id: str | None = None  # 用户ID（用于 Agno Learning 记忆）
     use_rag: bool = True  # 是否使用RAG
-    mode: str | None = None  # 前端聊天模式（ask/plan/edit/dify_test/agno 等）
+    mode: str | None = None  # 前端聊天模式（ask/plan/edit/agno 等）
 
     # Agno Agent 工具配置
     selected_tools: list[str] | None = (

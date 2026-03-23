@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 export type ColorTheme =
 	| "catppuccin"
@@ -53,9 +53,8 @@ const colorThemeStorage = {
 	},
 };
 
-export const useColorThemeStore = create<ColorThemeState>()(
-	persist(
-		(set) => ({
+export const useColorThemeStore = createPersistedStore<ColorThemeState>(
+	(set) => ({
 			colorTheme: "catppuccin",
 			setColorTheme: (colorTheme) => set({ colorTheme }),
 		}),
@@ -63,5 +62,4 @@ export const useColorThemeStore = create<ColorThemeState>()(
 			name: "color-theme",
 			storage: createJSONStorage(() => colorThemeStorage),
 		},
-	),
 );

@@ -93,7 +93,11 @@ class RAGService:
         return self.context_builder.build_summary_context(user_query, retrieved_data)
 
     async def process_query(self, user_query: str, max_results: int = 50) -> dict[str, Any]:
-        """处理用户查询的完整RAG流水线"""
+        """处理用户查询的完整RAG流水线（异步包装，不阻塞事件循环）"""
+        return await asyncio.to_thread(self._process_query_impl, user_query, max_results)
+
+    def _process_query_impl(self, user_query: str, max_results: int = 50) -> dict[str, Any]:
+        """process_query 的同步实现，在独立线程中执行"""
         start_time = get_utc_now()
 
         try:
@@ -164,7 +168,7 @@ class RAGService:
 
     def process_query_sync(self, user_query: str, max_results: int = 50) -> dict[str, Any]:
         """同步版本的查询处理"""
-        return asyncio.run(self.process_query(user_query, max_results))
+        return self._process_query_impl(user_query, max_results)
 
     def post_stream_decision(self, user_query: str, output_text: str) -> None:
         """流式输出完成后的判定/记录钩子"""
@@ -309,19 +313,28 @@ class RAGService:
         session_id: str | None = None,
         lang: str = "zh",
     ) -> dict[str, Any]:
-        """为流式接口处理查询，返回构建好的 messages 和 temperature"""
+        """为流式接口处理查询，返回构建好的 messages 和 temperature（异步包装，不阻塞事件循环）"""
+        return await asyncio.to_thread(
+            self._process_query_stream_impl, user_query, session_id, lang
+        )
+
+    def _process_query_stream_impl(
+        self,
+        user_query: str,
+        session_id: str | None = None,
+        lang: str = "zh",
+    ) -> dict[str, Any]:
+        """process_query_stream 的同步实现，在独立线程中执行"""
         try:
             logger.info(f"[stream] 开始处理查询: {user_query}, session_id: {session_id}")
             intent_result = self.llm_client.classify_intent(user_query)
             needs_db = intent_result.get("needs_database", True)
 
-            # 构建消息
             if needs_db:
                 parsed_query = self.query_parser.parse_query(user_query)
                 query_type = "statistics" if "统计" in user_query else "search"
                 retrieved_data = self.retrieval_service.search_by_conditions(parsed_query, 500)
 
-                # 构建上下文
                 if query_type == "statistics":
                     stats = self.retrieval_service.get_statistics(parsed_query)
                     context_text = self.context_builder.build_statistics_context(
@@ -333,23 +346,19 @@ class RAGService:
                     )
                 logger.debug(f"构建的上下文内容: {context_text}")
 
-                # 注入语言指令
                 context_text += get_language_instruction(lang)
                 messages = [{"role": "system", "content": context_text}]
                 temperature = 0.3
             else:
-                # 不需要数据库查询的直接回复
                 intent_type = intent_result.get("intent_type", "general_chat")
                 if intent_type == "system_help":
                     system_prompt = get_prompt("rag", "system_help")
                 else:
                     system_prompt = get_prompt("rag", "general_chat")
-                # 注入语言指令
                 system_prompt += get_language_instruction(lang)
                 messages = [{"role": "system", "content": system_prompt}]
                 temperature = 0.7
 
-            # 添加当前用户消息
             messages.append({"role": "user", "content": user_query})
 
             return {
