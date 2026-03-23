@@ -6,38 +6,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+source "$SCRIPT_DIR/start-center-env.sh"
 cd "$REPO_ROOT"
 
-# ================================================================
-#  Load local config (if exists)
-# ================================================================
-if [[ -f "$SCRIPT_DIR/local-env.sh" ]]; then
-    # shellcheck disable=SC1091
-    source "$SCRIPT_DIR/local-env.sh"
-fi
-
-# Fallback defaults (override in scripts/local-env.sh)
-: "${CPOLAR_BACKEND_DOMAIN:=YOUR_BACKEND_SUBDOMAIN}"
-: "${CPOLAR_FRONTEND_DOMAIN:=YOUR_FRONTEND_SUBDOMAIN}"
-: "${CPOLAR_DOMAIN_SUFFIX:=}"
-: "${CPOLAR_BACKEND_SUFFIX:=${CPOLAR_DOMAIN_SUFFIX:-cpolar.cn}}"
-: "${CPOLAR_FRONTEND_SUFFIX:=${CPOLAR_DOMAIN_SUFFIX:-cpolar.cn}}"
-
-CENTER_URL="https://${CPOLAR_BACKEND_DOMAIN}.${CPOLAR_BACKEND_SUFFIX}"
-CENTER_FRONTEND_URL="https://${CPOLAR_FRONTEND_DOMAIN}.${CPOLAR_FRONTEND_SUFFIX}"
+CENTER_URL="$BACKEND_PUBLIC_URL"
+CENTER_FRONTEND_URL="$FRONTEND_PUBLIC_URL"
+PIDFILE="$REPO_ROOT/.run-logs/sensor.pid"
 
 # Node ID (defaults to hostname)
 NODE_ID="${NODE_ID:-$(hostname)}"
-
-# ================================================================
-#  Validate config
-# ================================================================
-if [[ "$CPOLAR_BACKEND_DOMAIN" == "YOUR_BACKEND_SUBDOMAIN" ]]; then
-    echo "[ERROR] Please create scripts/local-env.sh with your cpolar subdomains."
-    echo
-    exit 1
-fi
 
 # ================================================================
 #  Startup
@@ -65,28 +42,36 @@ fi
 echo
 
 SENSOR_DIR="$REPO_ROOT/client"
-SENSOR_CMD="uv run python -m sensor --center-url $CENTER_URL --node-id $NODE_ID --debug-images"
 
 cleanup() {
     echo
     echo "Shutting down sensor processes..."
-    kill "${SENSOR_PID:-}" "${SIGNAL_PID:-}" 2>/dev/null || true
-    wait "${SENSOR_PID:-}" "${SIGNAL_PID:-}" 2>/dev/null || true
+    # Kill entire process groups so grandchild processes (python) also die
+    for pid in "${SENSOR_PID:-}" "${SIGNAL_PID:-}"; do
+        [[ -n "$pid" ]] && kill -- -"$pid" 2>/dev/null || true
+    done
+    wait 2>/dev/null || true
+    rm -f "$PIDFILE"
     echo "All processes stopped."
 }
 trap cleanup EXIT INT TERM
 
-# Start perception daemon
+# Start perception daemon (setsid gives it its own process group)
 echo "[1/3] Starting perception daemon..."
-(cd "$SENSOR_DIR" && $SENSOR_CMD) &
+setsid uv run python -m sensor --center-url "$CENTER_URL" --node-id "$NODE_ID" --debug-images &
 SENSOR_PID=$!
 
-# Start signal-sensor (unified notification daemon + interactive popup)
+# Start signal-sensor (setsid for clean group kill)
 echo "[2/3] Starting signal-sensor (notification polling + popup)..."
 SIGNAL_SCRIPT="$REPO_ROOT/scripts/signal-sensor.py"
-(cd "$REPO_ROOT/client" && uv run python "$SIGNAL_SCRIPT" --center-url "$CENTER_URL" --node-id "$NODE_ID") &
+setsid uv run python "$SIGNAL_SCRIPT" --center-url "$CENTER_URL" --node-id "$NODE_ID" &
 SIGNAL_PID=$!
 echo "Signal sensor started (center: $CENTER_URL, node: $NODE_ID)"
+
+# Write PID file for stop-sensor.sh
+echo "$$" > "$PIDFILE"
+echo "$SENSOR_PID" >> "$PIDFILE"
+echo "$SIGNAL_PID" >> "$PIDFILE"
 
 # Open browser
 echo "[3/3] Opening browser..."
@@ -108,7 +93,7 @@ echo "Perception daemon: screenshot + OCR + proactive OCR = $CENTER_URL"
 echo "Signal sensor:     notification polling + interactive popup"
 echo "Browser opened:    $CENTER_FRONTEND_URL"
 echo
-echo "Tip: press Ctrl+C to stop all sensor processes."
+echo "Tip: press Ctrl+C or run scripts/stop-sensor.sh to stop."
 echo
 
 wait
