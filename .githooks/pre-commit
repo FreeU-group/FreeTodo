@@ -2,6 +2,7 @@
 set -u
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "${repo_root}" || exit 1
 
 if command -v pre-commit >/dev/null 2>&1; then
   exec pre-commit run --hook-stage pre-commit "$@"
@@ -9,7 +10,7 @@ fi
 
 if command -v uv >/dev/null 2>&1; then
   if [ -f "${repo_root}/server/pyproject.toml" ]; then
-    exec uv run --directory "${repo_root}/server" pre-commit run --hook-stage pre-commit "$@"
+    exec uv run --project "${repo_root}/server" pre-commit run --hook-stage pre-commit "$@"
   fi
 
   exec uv tool run pre-commit run --hook-stage pre-commit "$@"
