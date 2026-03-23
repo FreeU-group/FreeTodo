@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from contextlib import suppress
 from typing import Any
 
 import numpy as np
@@ -52,10 +53,8 @@ def _safe_picklify(o: object) -> object:
             for name in dir(o):
                 if name.startswith("_"):
                     continue
-                try:
+                with suppress(Exception):
                     result[name] = _safe_picklify(getattr(o, name))
-                except Exception:
-                    pass
             return result
     except Exception:
         return {}

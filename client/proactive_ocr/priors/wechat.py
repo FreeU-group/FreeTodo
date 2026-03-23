@@ -10,6 +10,12 @@ _DIVIDER_PULSE_WINDOW = 6
 _DIVIDER_SAMPLE_X_START = 0.35
 _DIVIDER_SAMPLE_X_END = 0.90
 _FALLBACK_TITLE_RATIO = 0.08
+_DIVIDER_MIN_SEARCH_HEIGHT = 5
+_TITLE_LEVEL_SAMPLE_MIN_ROWS = 3
+_TITLE_LEVEL_SAMPLE_DIVISOR = 10
+_TITLE_LEVEL_WINDOW_RADIUS = 2
+_TITLE_LEVEL_DELTA_THRESHOLD = 10
+_SIDEBAR_CHAT_DELTA_THRESHOLD = 8
 
 # ---------------------------------------------------------------------------
 # HSV-based green bubble detection (version-agnostic)
@@ -155,7 +161,7 @@ class WeChatPrior(AppPrior):
 
         h, w = image.shape[:2]
         search_limit = int(h * _DIVIDER_SEARCH_RATIO)
-        if search_limit < 5:
+        if search_limit < _DIVIDER_MIN_SEARCH_HEIGHT:
             return int(h * _FALLBACK_TITLE_RATIO)
 
         if len(image.shape) == 3:  # noqa: PLR2004
@@ -167,11 +173,14 @@ class WeChatPrior(AppPrior):
         x_end = int(w * 0.7)
         row_means = np.mean(gray[:search_limit, x_start:x_end], axis=1)
 
-        top_level = float(np.mean(row_means[:max(3, search_limit // 10)]))
+        sample_rows = max(_TITLE_LEVEL_SAMPLE_MIN_ROWS, search_limit // _TITLE_LEVEL_SAMPLE_DIVISOR)
+        top_level = float(np.mean(row_means[:sample_rows]))
 
         for y_pos in range(search_limit // 5, search_limit):
-            local = float(np.mean(row_means[max(0, y_pos - 2) : y_pos + 3]))
-            if abs(local - top_level) > 10:
+            window_start = max(0, y_pos - _TITLE_LEVEL_WINDOW_RADIUS)
+            window_end = y_pos + _TITLE_LEVEL_WINDOW_RADIUS + 1
+            local = float(np.mean(row_means[window_start:window_end]))
+            if abs(local - top_level) > _TITLE_LEVEL_DELTA_THRESHOLD:
                 return y_pos
 
         return int(h * _FALLBACK_TITLE_RATIO)
@@ -213,7 +222,7 @@ class WeChatPrior(AppPrior):
 
         sidebar_level = float(np.max(smoothed))
         chat_level = float(np.min(smoothed[len(smoothed) // 2 :]))
-        if sidebar_level - chat_level < 8:
+        if sidebar_level - chat_level < _SIDEBAR_CHAT_DELTA_THRESHOLD:
             return None
         threshold = (sidebar_level + chat_level) / 2
 

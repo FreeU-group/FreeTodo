@@ -3,23 +3,25 @@
 import asyncio
 
 import numpy as np
+import winocr
 from PIL import Image
 
-import winocr
+IMAGE_NDIM_GRAY = 2
+IMAGE_CHANNEL_RGB = 3
 
 
 def main():
     img = np.array(Image.open("sensor_debug/proactive_wechat_roi_20260321_234212.png"))
     print(f"Image shape: {img.shape}")
 
-    if len(img.shape) == 2:
+    if len(img.shape) == IMAGE_NDIM_GRAY:
         rgba = np.zeros((*img.shape, 4), dtype=np.uint8)
         rgba[:, :, 0] = img
         rgba[:, :, 1] = img
         rgba[:, :, 2] = img
         rgba[:, :, 3] = 255
         img = rgba
-    elif img.shape[2] == 3:
+    elif img.shape[2] == IMAGE_CHANNEL_RGB:
         rgba = np.zeros((img.shape[0], img.shape[1], 4), dtype=np.uint8)
         rgba[:, :, :3] = img
         rgba[:, :, 3] = 255
