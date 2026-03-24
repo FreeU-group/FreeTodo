@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PORT=${1:?"用法: deploy_new.sh <端口号> (8000-9000)"}
+if [ "$#" -ne 2 ]; then
+  echo "用法: deploy_new.sh <端口号> <用户名>"
+  echo "示例: deploy_new.sh 8001 alice"
+  exit 1
+fi
+
+PORT=$1
+USERNAME=$2
 
 if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 8000 ] || [ "$PORT" -gt 9000 ]; then
   echo "错误: 端口号必须在 8000-9000 之间"
+  exit 1
+fi
+
+if ! [[ "$USERNAME" =~ ^[A-Za-z]{3,20}$ ]]; then
+  echo "错误: 用户名必须是 3-20 位英文字母"
   exit 1
 fi
 
@@ -13,7 +25,7 @@ AGENT_PORT=$((PORT + 1))
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SRC="$REPO_ROOT/deploy"
-DEST="$REPO_ROOT/deploy-${PORT}"
+DEST="$REPO_ROOT/deploy-${PORT}-${USERNAME}"
 
 if [ -d "$DEST" ]; then
   echo "错误: $DEST 已存在"
@@ -40,8 +52,8 @@ sedi "s/^LIFETRACE_AGNO__AGENT_OS__PORT=.*/LIFETRACE_AGNO__AGENT_OS__PORT=${AGEN
 
 # ── 更新 compose.yaml ──
 # 容器名称（避免多实例冲突）
-sedi "s/container_name: lifetrace-server/container_name: lifetrace-server-${PORT}/" "$DEST/compose.yaml"
-sedi "s/container_name: lifetrace-agent/container_name: lifetrace-agent-${PORT}/" "$DEST/compose.yaml"
+sedi "s/container_name: lifetrace-server/container_name: lifetrace-server-${USERNAME}/" "$DEST/compose.yaml"
+sedi "s/container_name: lifetrace-agent/container_name: lifetrace-agent-${USERNAME}/" "$DEST/compose.yaml"
 
 # Agent 内部 URL 和硬编码端口
 sedi "s|http://agent:8002|http://agent:${AGENT_PORT}|g" "$DEST/compose.yaml"
@@ -62,6 +74,7 @@ echo "✅ 部署配置已生成:"
 echo "  目录: $DEST"
 echo "  Server 端口: ${PORT}"
 echo "  Agent  端口: ${AGENT_PORT}"
+echo "  用户名: ${USERNAME}"
 echo ""
 echo "启动命令:"
 echo "  cd $DEST && docker compose up -d"

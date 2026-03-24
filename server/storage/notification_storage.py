@@ -1,5 +1,6 @@
 """通知存储模块 - 使用内存存储通知，支持去重"""
 
+import threading
 from datetime import datetime
 from typing import Any
 
@@ -7,6 +8,9 @@ from util.logging_config import get_logger
 from util.time_utils import naive_as_utc
 
 logger = get_logger()
+
+# 保护 _notifications 和 _dismissed_notifications 的全局锁
+_lock = threading.Lock()
 
 # 内存存储：使用字典存储通知，key 为唯一标识符
 _notifications: dict[str, dict[str, Any]] = {}
@@ -27,6 +31,28 @@ def _parse_iso_datetime(value: str | None) -> datetime | None:
 
 def _build_reminder_key(reminder_at: datetime) -> str:
     return naive_as_utc(reminder_at).isoformat()
+
+
+def _dismiss_locked(notification: dict[str, Any]) -> None:
+    """将通知标记为已取消（调用方必须已持有 _lock）"""
+    todo_id = notification.get("todo_id")
+    reminder_at = _parse_iso_datetime(
+        notification.get("reminder_at")
+        or notification.get("schedule_time")
+        or notification.get("deadline")
+    )
+    if todo_id is not None and reminder_at is not None:
+        key = _build_reminder_key(reminder_at)
+        existing = _dismissed_notifications.get(todo_id)
+        if existing is None:
+            existing = set()
+            _dismissed_notifications[todo_id] = existing
+        existing.add(key)
+        logger.debug(
+            "标记通知为已取消: todo_id=%s, reminder_at=%s",
+            todo_id,
+            reminder_at.isoformat(),
+        )
 
 
 def add_notification(  # noqa: PLR0913
@@ -60,38 +86,39 @@ def add_notification(  # noqa: PLR0913
     Returns:
         bool: 如果通知已存在（去重），返回 False；否则返回 True
     """
-    if notification_id in _notifications:
-        logger.debug(f"通知已存在，跳过: {notification_id}")
-        return False
+    with _lock:
+        if notification_id in _notifications:
+            logger.debug(f"通知已存在，跳过: {notification_id}")
+            return False
 
-    notification: dict[str, Any] = {
-        "id": notification_id,
-        "title": title,
-        "content": content,
-        "timestamp": timestamp.isoformat(),
-    }
+        notification: dict[str, Any] = {
+            "id": notification_id,
+            "title": title,
+            "content": content,
+            "timestamp": timestamp.isoformat(),
+        }
 
-    if notification_type is not None:
-        notification["type"] = notification_type
+        if todo_id is not None:
+            notification["todo_id"] = todo_id
 
-    if todo_id is not None:
-        notification["todo_id"] = todo_id
+        if notification_type is not None:
+            notification["type"] = notification_type
 
-    effective_time = schedule_time or deadline
-    if effective_time is not None:
-        notification["schedule_time"] = effective_time.isoformat()
-    if deadline is not None:
-        notification["deadline"] = deadline.isoformat()
+        effective_time = schedule_time or deadline
+        if effective_time is not None:
+            notification["schedule_time"] = effective_time.isoformat()
+        if deadline is not None:
+            notification["deadline"] = deadline.isoformat()
 
-    if reminder_at is not None:
-        notification["reminder_at"] = reminder_at.isoformat()
+        if reminder_at is not None:
+            notification["reminder_at"] = reminder_at.isoformat()
 
-    if reminder_offset is not None:
-        notification["reminder_offset"] = reminder_offset
+        if reminder_offset is not None:
+            notification["reminder_offset"] = reminder_offset
 
-    _notifications[notification_id] = notification
-    logger.info(f"添加通知: {notification_id} - {title}")
-    return True
+        _notifications[notification_id] = notification
+        logger.info(f"添加通知: {notification_id} - {title}")
+        return True
 
 
 def get_latest_notification() -> dict[str, Any] | None:
@@ -107,13 +134,14 @@ def get_latest_notification() -> dict[str, Any] | None:
 
 def get_notifications() -> list[dict[str, Any]]:
     """获取所有通知（按时间倒序）"""
-    if not _notifications:
-        return []
-    return sorted(
-        _notifications.values(),
-        key=lambda x: x.get("timestamp", ""),
-        reverse=True,
-    )
+    with _lock:
+        if not _notifications:
+            return []
+        return sorted(
+            _notifications.values(),
+            key=lambda x: x.get("timestamp", ""),
+            reverse=True,
+        )
 
 
 def get_notification(notification_id: str) -> dict[str, Any] | None:
@@ -126,7 +154,8 @@ def get_notification(notification_id: str) -> dict[str, Any] | None:
     Returns:
         通知字典，如果不存在则返回 None
     """
-    return _notifications.get(notification_id)
+    with _lock:
+        return _notifications.get(notification_id)
 
 
 def clear_notification(notification_id: str) -> bool:
@@ -139,31 +168,13 @@ def clear_notification(notification_id: str) -> bool:
     Returns:
         如果通知存在并已清除，返回 True；否则返回 False
     """
-    if notification_id in _notifications:
-        notification = _notifications[notification_id]
-        todo_id = notification.get("todo_id")
-        reminder_at = _parse_iso_datetime(
-            notification.get("reminder_at")
-            or notification.get("schedule_time")
-            or notification.get("deadline")
-        )
-        if todo_id is not None and reminder_at is not None:
-            key = _build_reminder_key(reminder_at)
-            existing = _dismissed_notifications.get(todo_id)
-            if existing is None:
-                existing = set()
-                _dismissed_notifications[todo_id] = existing
-            existing.add(key)
-            logger.debug(
-                "标记通知为已取消: todo_id=%s, reminder_at=%s",
-                todo_id,
-                reminder_at.isoformat(),
-            )
-
-        del _notifications[notification_id]
-        logger.debug(f"清除通知: {notification_id}")
-        return True
-    return False
+    with _lock:
+        if notification_id in _notifications:
+            _dismiss_locked(_notifications[notification_id])
+            del _notifications[notification_id]
+            logger.debug(f"清除通知: {notification_id}")
+            return True
+        return False
 
 
 def clear_all_notifications() -> int:
@@ -173,10 +184,11 @@ def clear_all_notifications() -> int:
     Returns:
         清除的通知数量
     """
-    count = len(_notifications)
-    _notifications.clear()
-    logger.info(f"清除所有通知，共 {count} 条")
-    return count
+    with _lock:
+        count = len(_notifications)
+        _notifications.clear()
+        logger.info(f"清除所有通知，共 {count} 条")
+        return count
 
 
 def get_notification_count() -> int:
@@ -186,12 +198,14 @@ def get_notification_count() -> int:
     Returns:
         通知数量
     """
-    return len(_notifications)
+    with _lock:
+        return len(_notifications)
 
 
 def get_notifications_by_todo_id(todo_id: int) -> list[dict[str, Any]]:
     """根据待办ID查找所有通知"""
-    return [n for n in _notifications.values() if n.get("todo_id") == todo_id]
+    with _lock:
+        return [n for n in _notifications.values() if n.get("todo_id") == todo_id]
 
 
 def get_notification_by_todo_id(todo_id: int) -> dict[str, Any] | None:
@@ -202,21 +216,26 @@ def get_notification_by_todo_id(todo_id: int) -> dict[str, Any] | None:
 
 def clear_notification_by_todo_id(todo_id: int) -> int:
     """根据待办ID清除所有通知"""
-    notifications = get_notifications_by_todo_id(todo_id)
-    removed = 0
-    for notification in notifications:
-        notification_id = notification.get("id")
-        if notification_id and clear_notification(notification_id):
-            removed += 1
-    return removed
+    with _lock:
+        to_remove = [n for n in _notifications.values() if n.get("todo_id") == todo_id]
+        removed = 0
+        for notification in to_remove:
+            notification_id = notification.get("id")
+            if notification_id and notification_id in _notifications:
+                _dismiss_locked(notification)
+                del _notifications[notification_id]
+                logger.debug(f"清除通知: {notification_id}")
+                removed += 1
+        return removed
 
 
 def is_notification_dismissed(todo_id: int, reminder_at: datetime) -> bool:
     """检查指定待办的提醒时间是否已被取消"""
-    dismissed = _dismissed_notifications.get(todo_id)
-    if not dismissed:
-        return False
-    return _build_reminder_key(reminder_at) in dismissed
+    with _lock:
+        dismissed = _dismissed_notifications.get(todo_id)
+        if not dismissed:
+            return False
+        return _build_reminder_key(reminder_at) in dismissed
 
 
 def clear_dismissed_mark(todo_id: int) -> None:
@@ -226,6 +245,7 @@ def clear_dismissed_mark(todo_id: int) -> None:
     Args:
         todo_id: 待办ID
     """
-    if todo_id in _dismissed_notifications:
-        del _dismissed_notifications[todo_id]
-        logger.debug(f"清除已取消标记: todo_id={todo_id}")
+    with _lock:
+        if todo_id in _dismissed_notifications:
+            del _dismissed_notifications[todo_id]
+            logger.debug(f"清除已取消标记: todo_id={todo_id}")

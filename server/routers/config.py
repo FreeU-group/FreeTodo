@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, HTTPException
 
-from services.config_service import ConfigService, is_llm_configured
+from services.config_service import ConfigService, is_llm_configured, is_masked_api_key
 from util.agent_os_utils import resolve_agent_os_base_url
 from util.logging_config import get_logger
 from util.prompt_loader import get_prompt
@@ -150,6 +150,9 @@ async def test_llm_config(config_data: dict[str, str]):
         base_url = _get_config_value(config_data, "llmBaseUrl", "llm_base_url")
         model = _get_config_value(config_data, "llmModel", "llm_model")
 
+        if is_masked_api_key(llm_key):
+            llm_key = settings.get("llm.api_key")
+
         if not llm_key or not base_url:
             return {"success": False, "error": "LLM Key 和 Base URL 不能为空"}
 
@@ -190,6 +193,9 @@ async def test_tavily_config(config_data: dict[str, str]):
 
         # 同时支持 camelCase 和 snake_case 格式（前端 fetcher 会自动转换为 snake_case）
         tavily_key = _get_config_value(config_data, "tavilyApiKey", "tavily_api_key")
+
+        if is_masked_api_key(tavily_key):
+            tavily_key = settings.get("tavily.api_key")
 
         if not tavily_key:
             return {"success": False, "error": "Tavily API Key 不能为空"}
@@ -388,6 +394,9 @@ async def test_asr_config(config_data: dict[str, Any]):
         base_url = config["base_url"]
         model = config["model"]
 
+        if is_masked_api_key(asr_key):
+            asr_key = settings.get("audio.asr.api_key")
+
         if not asr_key or not base_url:
             return {"success": False, "error": "ASR API Key 和 Base URL 不能为空"}
 
@@ -462,9 +471,9 @@ def _validate_config_fields(config_data: dict[str, str]) -> dict[str, Any] | Non
     base_url = _get_config_value(config_data, "llmBaseUrl", "llm_base_url")
     model = _get_config_value(config_data, "llmModel", "llm_model")
 
-    # 检查必需字段
+    # 检查必需字段（掩码值视为已配置）
     missing_fields = []
-    if not llm_key:
+    if not llm_key and not is_masked_api_key(llm_key):
         missing_fields.append("llmApiKey")
     if not base_url:
         missing_fields.append("llmBaseUrl")
@@ -532,6 +541,8 @@ async def save_and_init_llm(config_data: dict[str, str]):
 async def save_config(settings: dict[str, Any]):
     """保存配置到config.yaml文件"""
     try:
+        logger.info(f"[/save-config] 收到请求，键: {list(settings.keys())}")
+
         # 定义更新 LLM 配置状态的回调函数（配置状态已通过 config.is_configured() 实时获取）
         def update_llm_configured_status():
             # 配置状态现在通过 config.is_configured() 实时获取
@@ -539,10 +550,11 @@ async def save_config(settings: dict[str, Any]):
 
         # 调用配置服务保存配置
         result = config_service.save_config(settings, update_llm_configured_status)
+        logger.info(f"[/save-config] 保存结果: {result}")
         return result
 
     except Exception as e:
-        logger.error(f"保存配置失败: {e}")
+        logger.error(f"保存配置失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"保存配置失败: {e!s}") from e
 
 
