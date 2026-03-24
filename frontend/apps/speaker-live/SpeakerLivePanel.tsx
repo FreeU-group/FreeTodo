@@ -61,6 +61,7 @@ type VoiceprintSpeaker = {
 
 const MAX_LINES = 200;
 const ALL_FILTER = "__all__";
+const RECENT_SPEAKER_FALLBACK_MS = 2500;
 
 function normalizeSpeakerInfo(speaker?: RealtimeSpeakerInfo | null): {
 	speakerId: number | null;
@@ -465,7 +466,20 @@ export function SpeakerLivePanel() {
 					if (parsed.backend) {
 						setBackend(parsed.backend);
 					}
-					const effectiveSpeaker = applyKnownSpeakerMeta(parsed);
+					let effectiveSpeaker = applyKnownSpeakerMeta(parsed);
+					if (effectiveSpeaker.speakerId === null && !effectiveSpeaker.speakerName) {
+						const recent = lastKnownSpeakerRef.current;
+						if (recent && now - recent.at <= RECENT_SPEAKER_FALLBACK_MS) {
+							effectiveSpeaker = {
+								...effectiveSpeaker,
+								speakerId: recent.speakerId,
+								speakerName: recent.speakerName,
+								confidence: recent.confidence,
+								isMe: recent.isMe,
+								backend: effectiveSpeaker.backend ?? recent.backend,
+							};
+						}
+					}
 
 					if (effectiveSpeaker.speakerId !== null || effectiveSpeaker.speakerName) {
 						lastKnownSpeakerRef.current = {
