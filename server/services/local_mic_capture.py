@@ -30,6 +30,7 @@ logger = get_logger()
 SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCK_SIZE = 1024
+UNKNOWN_SPEAKER_LOG_LIMIT = 5
 
 
 def _read_positive_float_setting(path: str, default: float) -> float:
@@ -144,6 +145,13 @@ class LocalMicCapture:
         self._pending_turn_key: str | None = None
         self._pending_turn_key_since: float | None = None
         self._last_segment_boundary_at: float | None = None
+        self._last_speaker_payload: dict[str, Any] | None = None
+        self._last_speaker_payload_at: float = 0.0
+        self._speaker_payload_fallback_seconds = _read_positive_float_setting(
+            "audio.speaker.recent_payload_fallback_seconds",
+            2.5,
+        )
+        self._unknown_speaker_final_count = 0
     @property
     def is_active(self) -> bool:
         return self._running and self._stream is not None
@@ -174,6 +182,9 @@ class LocalMicCapture:
         self._pending_turn_key = None
         self._pending_turn_key_since = None
         self._last_segment_boundary_at = None
+        self._last_speaker_payload = None
+        self._last_speaker_payload_at = 0.0
+        self._unknown_speaker_final_count = 0
 
         self._speaker_diarizer = None
         with contextlib.suppress(Exception):
@@ -299,10 +310,38 @@ class LocalMicCapture:
             return None
         return value if isinstance(value, str) and value else None
 
-    async def _resolve_speaker_payload(self, *, is_final: bool) -> dict[str, Any] | None:
+    def _is_valid_speaker_payload(self, payload: dict[str, Any] | None) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        speaker_id = payload.get("speaker_id")
+        speaker_name = payload.get("speaker_name")
+        return (
+            (isinstance(speaker_id, int) and speaker_id > 0)
+            or (isinstance(speaker_name, str) and speaker_name.strip() != "")
+        )
+
+    def _remember_speaker_payload(self, payload: dict[str, Any]) -> None:
+        if not self._is_valid_speaker_payload(payload):
+            return
+        self._last_speaker_payload = dict(payload)
+        self._last_speaker_payload_at = time.monotonic()
+
+    def _get_recent_speaker_payload(self) -> dict[str, Any] | None:
+        payload = self._last_speaker_payload
+        if payload is None:
+            return None
+        if self._speaker_payload_fallback_seconds <= 0:
+            return dict(payload)
+        if (time.monotonic() - self._last_speaker_payload_at) <= self._speaker_payload_fallback_seconds:
+            return dict(payload)
+        return None
+
+    async def _resolve_speaker_payload(  # noqa: PLR0911
+        self, *, is_final: bool
+    ) -> dict[str, Any] | None:
         diarizer = self._speaker_diarizer
         if diarizer is None or not getattr(diarizer, "enabled", False):
-            return None
+            return self._get_recent_speaker_payload() if is_final else None
         try:
             if is_final:
                 result = await diarizer.identify_current_speaker()
@@ -314,11 +353,25 @@ class LocalMicCapture:
                     return None
                 result = getter()
             if result is None:
+                # Final ASR chunks may arrive slightly earlier than stable diarizer identity.
+                # Fallback to current snapshot and then to very recent stable speaker.
+                if is_final:
+                    getter = diarizer.get_current_speaker if hasattr(diarizer, "get_current_speaker") else None
+                    if callable(getter):
+                        with contextlib.suppress(Exception):
+                            snapshot = getter()
+                            if snapshot is not None:
+                                payload = _normalize_speaker_payload(snapshot, diarizer)
+                                self._remember_speaker_payload(payload)
+                                return payload
+                    return self._get_recent_speaker_payload()
                 return None
-            return _normalize_speaker_payload(result, diarizer)
+            payload = _normalize_speaker_payload(result, diarizer)
+            self._remember_speaker_payload(payload)
+            return payload
         except Exception as exc:
             logger.debug(f"[local-mic] resolve speaker payload failed: {exc}")
-            return None
+            return self._get_recent_speaker_payload() if is_final else None
 
     async def _maybe_emit_segment_boundary_by_turn(self) -> None:  # noqa: PLR0911
         current_turn_key = self._get_current_turn_key()
@@ -382,6 +435,20 @@ class LocalMicCapture:
     async def _broadcast_result(self, text: str, is_final: bool) -> None:
         async with self._speaker_lock:
             speaker_payload = await self._resolve_speaker_payload(is_final=is_final)
+            if is_final and speaker_payload is None:
+                self._unknown_speaker_final_count += 1
+                if self._unknown_speaker_final_count <= UNKNOWN_SPEAKER_LOG_LIMIT:
+                    backend = (
+                        getattr(self._speaker_diarizer, "backend", None)
+                        if self._speaker_diarizer is not None
+                        else None
+                    )
+                    logger.info(
+                        "[local-mic] final chunk has no stable speaker yet "
+                        "(count=%d, backend=%s)",
+                        self._unknown_speaker_final_count,
+                        backend or "none",
+                    )
             payload: dict[str, Any] = {"result": text, "is_final": is_final}
             if speaker_payload is not None:
                 payload["speaker"] = speaker_payload
