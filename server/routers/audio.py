@@ -348,6 +348,22 @@ async def clear_speakers():
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
+@router.delete("/speakers/{speaker_id}")
+async def delete_speaker(speaker_id: int):
+    """删除单个说话人及其声纹数据。"""
+    try:
+        from services.speaker_service import VoiceprintStore  # noqa: PLC0415
+
+        store = VoiceprintStore()
+        success = store.delete_speaker(speaker_id)
+        if not success:
+            return JSONResponse({"error": "说话人不存在"}, status_code=404)
+        return JSONResponse({"ok": True, "speaker_id": speaker_id})
+    except Exception as e:
+        logger.error(f"删除说话人失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @router.post("/speakers/{speaker_id}/set-as-me")
 async def set_speaker_as_me(speaker_id: int):
     """将指定说话人标记为「我」"""
