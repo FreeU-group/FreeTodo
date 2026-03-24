@@ -1,4 +1,5 @@
 import { Download, FileText, Image as ImageIcon } from "lucide-react";
+import Image from "next/image";
 import type { ChatAttachment } from "@/apps/chat/types";
 import { getChatAttachmentDownloadUrl } from "@/lib/chat-attachments";
 
@@ -17,7 +18,7 @@ const formatBytes = (bytes?: number): string => {
 
 const isImageAttachment = (attachment: ChatAttachment): boolean =>
 	attachment.kind === "image" ||
-	Boolean(attachment.mimeType && attachment.mimeType.startsWith("image/"));
+	Boolean(attachment.mimeType?.startsWith("image/"));
 
 export type MessageAttachmentsProps = {
 	attachments: ChatAttachment[];
@@ -49,9 +50,12 @@ export function MessageAttachments({ attachments }: MessageAttachmentsProps) {
 								rel="noreferrer"
 								className="group flex flex-col gap-1"
 							>
-								<img
+								<Image
 									src={url}
 									alt={label}
+									width={320}
+									height={224}
+									unoptimized
 									className="h-28 w-full rounded-lg object-cover shadow-sm"
 								/>
 								<span className="truncate text-[11px] text-muted-foreground">

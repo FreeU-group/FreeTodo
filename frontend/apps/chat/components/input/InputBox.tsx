@@ -270,6 +270,8 @@ export function InputBox({
 					"bg-background/60 px-3 py-2 mb-4",
 					isDragActive && enableAttachments && "border-primary/60 bg-primary/5",
 				)}
+				role="group"
+				aria-label={placeholder}
 				onDragEnter={handleDragEnter}
 				onDragOver={handleDragOver}
 				onDragLeave={handleDragLeave}
@@ -318,6 +320,8 @@ export function InputBox({
 				"bg-background/60 px-3 pt-2 pb-14",
 				isDragActive && enableAttachments && "border-primary/60 bg-primary/5",
 			)}
+			role="group"
+			aria-label={placeholder}
 			onDragEnter={handleDragEnter}
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}

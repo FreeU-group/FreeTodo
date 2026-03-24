@@ -151,10 +151,14 @@ export function LayoutSelector({
 		customLayouts.find(layoutMatches) ||
 		null;
 	const currentLayoutId = currentLayout?.id ?? null;
+	const getPresetLayoutName = (layoutId: string) => {
+		const key = `layouts.${layoutId}` as Parameters<typeof t>[0];
+		return t.has(key) ? t(key) : layoutId;
+	};
 	const currentLayoutName = currentLayout
 		? customLayouts.some((layout) => layout.id === currentLayout.id)
 			? currentLayout.name
-			: t(`layouts.${currentLayout.id}`)
+			: getPresetLayoutName(currentLayout.id)
 		: t("customLayout");
 
 	// 过滤掉包含已禁用面板功能的预设布局
@@ -176,7 +180,7 @@ export function LayoutSelector({
 	const getLayoutName = (layoutId: string) => {
 		const customLayout = customLayouts.find((layout) => layout.id === layoutId);
 		if (customLayout) return customLayout.name;
-		return t(`layouts.${layoutId}`);
+		return getPresetLayoutName(layoutId);
 	};
 
 	const formatFeatureLabel = (feature: PanelFeature | null) =>

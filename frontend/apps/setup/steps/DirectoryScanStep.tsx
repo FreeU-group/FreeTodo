@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { FolderKanban, Check, Sparkles } from "lucide-react";
+import { Check, FolderKanban, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAnalyzeFiles, useScanDirectory } from "@/lib/query/setup";
 import { useSetupStore } from "@/lib/store/setup-store";
-import { useScanDirectory, useAnalyzeFiles } from "@/lib/query/setup";
 
 interface DirectoryScanStepProps {
 	onNext: () => void;
@@ -66,12 +66,12 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 	};
 
 	const files = scanMutation.data?.files ?? [];
+	const filenames = useMemo(() => files.map((f) => f.name), [files]);
 
 	useEffect(() => {
-		if (!scanned || files.length === 0 || analyzeTriggered.current) return;
+		if (!scanned || filenames.length === 0 || analyzeTriggered.current) return;
 		analyzeTriggered.current = true;
 
-		const filenames = files.map((f) => f.name);
 		analyzeMutation.mutate(
 			{ filenames, directory: dir },
 			{
@@ -88,7 +88,16 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 				},
 			},
 		);
-	}, [scanned, files.length]);
+	}, [
+		analyzeMutation,
+		dir,
+		filenames,
+		scanned,
+		setGuessedUserName,
+		setInitialProfile,
+		setUserName,
+		userNameManuallySet,
+	]);
 
 	const extCounts: Record<string, number> = {};
 	for (const f of files) {
@@ -174,8 +183,11 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 
 					{/* Recent files list */}
 					<div className="max-h-36 space-y-1 overflow-y-auto">
-						{files.slice(0, 20).map((f, i) => (
-							<div key={`${f.name}-${i}`} className="flex items-center justify-between text-xs">
+						{files.slice(0, 20).map((f) => (
+							<div
+								key={`${f.name}-${f.modified}-${f.size}`}
+								className="flex items-center justify-between text-xs"
+							>
 								<span className="truncate text-white/70" style={{ maxWidth: "70%" }}>
 									{f.name}
 								</span>

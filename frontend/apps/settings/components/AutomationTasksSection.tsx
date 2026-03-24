@@ -56,6 +56,11 @@ export function AutomationTasksSection({
 		runMutation.isPending ||
 		toggleMutation.isPending;
 
+	const statusLabel = (status: string) => {
+		const key = `status.${status}` as Parameters<typeof t>[0];
+		return t.has(key) ? t(key) : status;
+	};
+
 	const scheduleSummary = (task: {
 		schedule: {
 			type: AutomationScheduleType;
@@ -441,7 +446,7 @@ export function AutomationTasksSection({
 							<span>{t("labels.lastRun", { time: lastRunLabel(task.lastRunAt) })}</span>
 							<span>
 								{t("labels.status")}:{" "}
-								{task.lastStatus ? t(`status.${task.lastStatus}`) : t("status.never")}
+								{task.lastStatus ? statusLabel(task.lastStatus) : t("status.never")}
 							</span>
 						</div>
 						{task.lastError && (

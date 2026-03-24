@@ -27,7 +27,6 @@ export function useAutoRecording() {
 	const appendTranscriptionText = useAudioRecordingStore((state) => state.appendTranscriptionText);
 	const setPartialText = useAudioRecordingStore((state) => state.setPartialText);
 	const appendSegmentData = useAudioRecordingStore((state) => state.appendSegmentData);
-	const setLiveTodos = useAudioRecordingStore((state) => state.setLiveTodos);
 	const clearSessionData = useAudioRecordingStore((state) => state.clearSessionData);
 
 	const isStartingRef = useRef(false);
@@ -75,9 +74,6 @@ export function useAutoRecording() {
 						setPartialText(text);
 					}
 				},
-				(data) => {
-					if (Array.isArray(data.todos)) setLiveTodos(data.todos);
-				},
 				(error) => {
 					console.error("[useAutoRecording] Recording error:", error);
 				},
@@ -100,7 +96,6 @@ export function useAutoRecording() {
 		appendTranscriptionText,
 		appendSegmentData,
 		setPartialText,
-		setLiveTodos,
 	]);
 
 	useEffect(() => {

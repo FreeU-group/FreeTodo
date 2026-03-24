@@ -119,17 +119,23 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let shouldReconnect = false;
 let activeWsPath: (typeof WS_PATH_CANDIDATES)[number] | null = null;
 
-function getApiBaseUrl(): string {
+function getWsApiBaseUrl(): string {
+	if (typeof window !== "undefined") {
+		const host = window.location.hostname;
+		if (host === "localhost" || host === "127.0.0.1") {
+			return `http://${host}:8001`;
+		}
+	}
 	return (
 		process.env.NEXT_PUBLIC_API_URL ||
 		(typeof window !== "undefined" &&
 			(window as Window & { __BACKEND_URL__?: string }).__BACKEND_URL__) ||
-		"http://127.0.0.1:8100"
+		"http://127.0.0.1:8001"
 	);
 }
 
 function buildWsUrl(path: string): string {
-	const apiBaseUrl = getApiBaseUrl();
+	const apiBaseUrl = getWsApiBaseUrl();
 	const wsBaseUrl = apiBaseUrl
 		.replace("http://", "ws://")
 		.replace("https://", "wss://");
@@ -176,7 +182,7 @@ async function fetchRecentRecords(
 		} catch {}
 
 		try {
-			const absUrl = `${getApiBaseUrl()}${path}${query}`;
+			const absUrl = `${getWsApiBaseUrl()}${path}${query}`;
 			const res = await fetch(absUrl);
 			if (res.ok) return (await res.json()) as TodoIntentProcessingRecord[];
 		} catch {}
@@ -228,6 +234,7 @@ function connectWithFallback(
 
 	set({ connectionState: isReconnectAttempt ? "reconnecting" : "connecting" });
 	const wsUrl = buildWsUrl(candidate);
+	console.log(`[todo-intent-ws] Connecting to: ${wsUrl}`);
 	const socket = new WebSocket(wsUrl);
 	ws = socket;
 
@@ -237,16 +244,18 @@ function connectWithFallback(
 		if (ws !== socket) return;
 		closeWs();
 		connectWithFallback(set, candidateIndex + 1, isReconnectAttempt);
-	}, 2000);
+	}, 5000);
 
 	socket.onopen = () => {
 		opened = true;
 		activeWsPath = candidate;
 		clearTimeout(openTimeout);
+		console.log(`[todo-intent-ws] Connected OK: ${wsUrl}`);
 		set({ connectionState: "connected" });
 	};
 
-	socket.onclose = () => {
+	socket.onclose = (ev) => {
+		console.log(`[todo-intent-ws] Closed: code=${ev.code} reason=${ev.reason} wasClean=${ev.wasClean}`);
 		clearTimeout(openTimeout);
 		if (ws === socket) ws = null;
 		set({ connectionState: "disconnected" });
@@ -264,10 +273,13 @@ function connectWithFallback(
 	socket.onmessage = (msg) => {
 		try {
 			const record = JSON.parse(String(msg.data)) as TodoIntentProcessingRecord;
+			console.log(`[todo-intent-ws] onmessage: id=${record.record_id?.slice(0, 16)} status=${record.status}`);
 			set((state) => ({
 				records: upsertRecords(state.records, [record]),
 			}));
-		} catch {}
+		} catch (e) {
+			console.error("[todo-intent-ws] parse error:", e);
+		}
 	};
 }
 

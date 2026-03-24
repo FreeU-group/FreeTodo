@@ -10,6 +10,12 @@ _DIVIDER_PULSE_WINDOW = 6
 _DIVIDER_SAMPLE_X_START = 0.35
 _DIVIDER_SAMPLE_X_END = 0.90
 _FALLBACK_TITLE_RATIO = 0.08
+_DIVIDER_MIN_SEARCH_HEIGHT = 5
+_TITLE_LEVEL_SAMPLE_MIN_ROWS = 3
+_TITLE_LEVEL_SAMPLE_DIVISOR = 10
+_TITLE_LEVEL_WINDOW_RADIUS = 2
+_TITLE_LEVEL_DELTA_THRESHOLD = 10
+_SIDEBAR_CHAT_DELTA_THRESHOLD = 8
 
 # ---------------------------------------------------------------------------
 # HSV-based green bubble detection (version-agnostic)
@@ -84,8 +90,14 @@ class WeChatPrior(AppPrior):
     # ------------------------------------------------------------------
 
     def find_title_divider_y(self, image: np.ndarray) -> int | None:
-        """Detect the thin horizontal divider line between title bar and chat
-        content by scanning for a brightness pulse in the top portion."""
+        """Detect the boundary between title bar and chat content.
+
+        Strategy 1 (pulse): a thin bright/dark line where brightness jumps
+        and returns within a few rows — sign reversal in diff.
+        Strategy 2 (step): a sustained brightness level change — the title
+        bar brightness (~40) drops to chat background (~25-30) and stays.
+        Step detection starts from 5% height to skip window chrome.
+        """
         h, w = image.shape[:2]
         search_limit = max(int(h * _DIVIDER_SEARCH_RATIO), 10)
 
@@ -96,8 +108,20 @@ class WeChatPrior(AppPrior):
 
         strip = image[:search_limit, x_start:x_end]
         row_mean = np.mean(strip.reshape(search_limit, -1).astype(np.float64), axis=1)
-
         diff = np.diff(row_mean)
+
+        pulse = self._find_pulse(diff)
+        if pulse is not None:
+            return pulse
+
+        step = self._find_step(row_mean, min_y=max(10, search_limit // 4))
+        if step is not None:
+            return step
+
+        return None
+
+    @staticmethod
+    def _find_pulse(diff: np.ndarray) -> int | None:
         for y in range(len(diff)):
             if abs(diff[y]) < _DIVIDER_PULSE_THRESHOLD:
                 continue
@@ -111,52 +135,105 @@ class WeChatPrior(AppPrior):
                     return y + 1
         return None
 
+    @staticmethod
+    def _find_step(row_mean: np.ndarray, min_y: int = 10) -> int | None:
+        sustain = 8
+        for y in range(min_y, len(row_mean) - sustain - 1):
+            jump = abs(float(row_mean[y + 1]) - float(row_mean[y]))
+            if jump < _DIVIDER_PULSE_THRESHOLD:
+                continue
+            after = float(np.mean(row_mean[y + 1 : y + 1 + sustain]))
+            if abs(after - float(row_mean[y])) > _DIVIDER_PULSE_THRESHOLD * 0.6:
+                return y + 1
+        return None
+
     def get_title_divider_y(self, image: np.ndarray) -> int:
-        """Return title divider y with fallback."""
+        """Return title divider y with fallback.
+
+        When pulse detection fails, estimate by finding where the top
+        region's row brightness pattern changes — the title bar has a
+        relatively uniform brightness, then transitions to the chat content
+        which has a different level.
+        """
         y = self.find_title_divider_y(image)
         if y is not None:
             return y
-        return int(image.shape[0] * _FALLBACK_TITLE_RATIO)
+
+        h, w = image.shape[:2]
+        search_limit = int(h * _DIVIDER_SEARCH_RATIO)
+        if search_limit < _DIVIDER_MIN_SEARCH_HEIGHT:
+            return int(h * _FALLBACK_TITLE_RATIO)
+
+        if len(image.shape) == 3:  # noqa: PLR2004
+            gray = np.mean(image, axis=2).astype(np.float64)
+        else:
+            gray = image.astype(np.float64)
+
+        x_start = int(w * 0.3)
+        x_end = int(w * 0.7)
+        row_means = np.mean(gray[:search_limit, x_start:x_end], axis=1)
+
+        sample_rows = max(_TITLE_LEVEL_SAMPLE_MIN_ROWS, search_limit // _TITLE_LEVEL_SAMPLE_DIVISOR)
+        top_level = float(np.mean(row_means[:sample_rows]))
+
+        for y_pos in range(search_limit // 5, search_limit):
+            window_start = max(0, y_pos - _TITLE_LEVEL_WINDOW_RADIUS)
+            window_end = y_pos + _TITLE_LEVEL_WINDOW_RADIUS + 1
+            local = float(np.mean(row_means[window_start:window_end]))
+            if abs(local - top_level) > _TITLE_LEVEL_DELTA_THRESHOLD:
+                return y_pos
+
+        return int(h * _FALLBACK_TITLE_RATIO)
 
     # ------------------------------------------------------------------
     # Sidebar-chat boundary — structural edge detection
     # ------------------------------------------------------------------
 
     def _find_sidebar_boundary(self, image: np.ndarray) -> int | None:
-        """Find the vertical boundary between conversation list and chat area
-        by detecting the column with the strongest consistent horizontal
-        gradient (the sidebar divider line)."""
+        """Find the vertical boundary between conversation list and chat area.
+
+        The sidebar has a brighter background (~45-50) than the chat area (~25).
+        Compute the median brightness of each column (robust to avatars, text,
+        highlighted items) and find the sharpest drop from sidebar to chat area.
+        """
         h, w = image.shape[:2]
         if len(image.shape) == 3:  # noqa: PLR2004
             gray = np.mean(image, axis=2).astype(np.float64)
         else:
             gray = image.astype(np.float64)
 
-        x_start = int(w * 0.15)
+        x_start = int(w * 0.05)
         x_end = int(w * 0.55)
         if x_end <= x_start + 2:
             return None
 
-        y_start = int(h * 0.15)
-        y_end = int(h * 0.85)
+        y_start = int(h * 0.10)
+        y_end = int(h * 0.90)
         if y_end <= y_start:
             return None
 
-        region = gray[y_start:y_end, x_start : x_end + 1]
-        h_grad = np.abs(np.diff(region, axis=1))
-        col_grad_sum = np.sum(h_grad, axis=0)
+        region = gray[y_start:y_end, x_start:x_end]
+        col_bg = np.percentile(region, 25, axis=0)
 
-        if len(col_grad_sum) == 0:
+        kernel = max(5, len(col_bg) // 40)
+        if kernel % 2 == 0:
+            kernel += 1
+        smoothed = np.convolve(col_bg, np.ones(kernel) / kernel, mode="same")
+
+        sidebar_level = float(np.max(smoothed))
+        chat_level = float(np.min(smoothed[len(smoothed) // 2 :]))
+        if sidebar_level - chat_level < _SIDEBAR_CHAT_DELTA_THRESHOLD:
             return None
+        threshold = (sidebar_level + chat_level) / 2
 
-        peak_idx = int(np.argmax(col_grad_sum))
-        peak_val = col_grad_sum[peak_idx]
-        mean_val = float(np.mean(col_grad_sum))
+        boundary = None
+        for i in range(len(smoothed) - 1):
+            if smoothed[i] >= threshold and smoothed[i + 1] < threshold:
+                boundary = i
 
-        if mean_val > 0 and peak_val > mean_val * 1.8:
-            return x_start + peak_idx + 1
-
-        return None
+        if boundary is None:
+            return None
+        return x_start + boundary + 1
 
     # ------------------------------------------------------------------
     # Chat ROI extraction
@@ -178,8 +255,11 @@ class WeChatPrior(AppPrior):
                 sample_heights=sample_heights,
             )
 
-        if split_x is None or split_x > int(w * 0.7) or split_x < int(w * 0.1):
-            split_x = int(w * 0.35)
+        if split_x is not None and split_x > int(w * 0.45):
+            split_x = None
+
+        if split_x is None:
+            split_x = 0
 
         chat_region = image[:, split_x:, :]
         return ROIResult(

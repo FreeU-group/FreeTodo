@@ -49,7 +49,7 @@
 │                           实时输出 (4)                                             │
 └─────────────────────────────────────────────────────────────────────────────────┘
 │  • 返回客户端: TranscriptionResultChanged / transcript / transcript_refined        │
-│  • 实时 NLP: 待办提取 (ExtractionChanged)，8 秒节流                                 │
+│  • 感知流: 音频转录文本发布到 PerceptionStream，由 TodoIntentSubscriber 统一处理     │
 └─────────────────────────────────────────────────────────────────────────────────┘
                 │
                 ▼

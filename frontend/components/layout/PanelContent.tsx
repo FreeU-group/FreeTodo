@@ -35,8 +35,14 @@ export function PanelContent({ position }: PanelContentProps) {
 		backendDisabledFeatures.includes(assignedFeature);
 	const plugin = assignedFeature ? getPanelPlugin(assignedFeature) : null;
 	const LazyPanel = feature ? getPanelLazyComponent(feature) : null;
-	const label = mounted && plugin ? t(plugin.labelKey) : "";
-	const placeholder = mounted && plugin ? t(plugin.placeholderKey) : "";
+	const label =
+		mounted && plugin && t.has(plugin.labelKey as Parameters<typeof t>[0])
+			? t(plugin.labelKey as Parameters<typeof t>[0])
+			: plugin?.id ?? "";
+	const placeholder =
+		mounted && plugin && t.has(plugin.placeholderKey as Parameters<typeof t>[0])
+			? t(plugin.placeholderKey as Parameters<typeof t>[0])
+			: label;
 	const Icon = plugin?.icon ?? null;
 	const unavailableBadge = backendDisabled ? (
 		<span

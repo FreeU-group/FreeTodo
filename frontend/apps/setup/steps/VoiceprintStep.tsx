@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSetupStore } from "@/lib/store/setup-store";
 
 interface VoiceprintStepProps {
@@ -11,6 +11,7 @@ interface VoiceprintStepProps {
 
 const RECORD_SECONDS = 5;
 const BAR_COUNT = 40;
+const BAR_IDS = Array.from({ length: BAR_COUNT }, (_, index) => `bar-${index}`);
 
 export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	const { userName } = useSetupStore();
@@ -18,10 +19,6 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	const [elapsed, setElapsed] = useState(0);
 	const [bars, setBars] = useState<number[]>(new Array(BAR_COUNT).fill(0));
 	const [errorMsg, setErrorMsg] = useState("");
-	const barKeys = useMemo(
-		() => Array.from({ length: BAR_COUNT }, (_, index) => `voiceprint-bar-${index}`),
-		[],
-	);
 
 	const animRef = useRef<number>(0);
 	const phaseRef = useRef(phase);
@@ -136,7 +133,8 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 
 			if (analyser && freqData) {
 				// Real mic frequency data for visualization
-				analyser.getByteFrequencyData(freqData);
+				const currentFreqData = freqData;
+				analyser.getByteFrequencyData(currentFreqData);
 				const binCount = analyser.frequencyBinCount;
 				const step = Math.max(1, Math.floor(binCount / BAR_COUNT));
 				newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
@@ -199,13 +197,13 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 
 			{/* Waveform visualizer */}
 			<div className="flex h-16 items-center justify-center gap-[2px] rounded-xl border border-white/10 bg-black/20 px-4">
-				{bars.map((level, i) => {
+				{BAR_IDS.map((barId, i) => {
+					const level = bars[i] ?? 0;
 					const isActive = phase === "recording";
 					const h = isActive ? Math.max(4, level * 56) : 4;
-					const key = barKeys[i] ?? `voiceprint-bar-fallback-${level}-${i}`;
 					return (
 						<div
-							key={key}
+							key={barId}
 							className="w-1.5 rounded-full"
 							style={{
 								height: `${h}px`,

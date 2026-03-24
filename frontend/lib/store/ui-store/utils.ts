@@ -2,6 +2,7 @@ import type { PanelFeature, PanelPosition } from "@/lib/config/panel-config";
 import {
 	ALL_PANEL_FEATURES,
 	DEV_IN_PROGRESS_FEATURES,
+	EXTENSION_PANEL_FEATURES,
 } from "@/lib/config/panel-config";
 import type { DockDisplayMode } from "./types";
 
@@ -44,8 +45,11 @@ export const DEFAULT_PANEL_STATE = {
 	isPanelCOpen: false,
 	panelAWidth: 1 / 3, // panelA 占左边 1/3
 	panelCWidth: 0.25, // panelC 占右边 1/4 (虽然默认关闭)
-	// 默认关闭的功能：开发中的面板（用户可在设置中手动开启）
-	disabledFeatures: DEV_IN_PROGRESS_FEATURES as PanelFeature[],
+	// 默认关闭的功能：开发中的面板和面板扩展（用户可在设置中手动开启）
+	disabledFeatures: [
+		...DEV_IN_PROGRESS_FEATURES,
+		...EXTENSION_PANEL_FEATURES,
+	] as PanelFeature[],
 	backendDisabledFeatures: [] as PanelFeature[],
 	panelFeatureMap: {
 		panelA: "todos" as PanelFeature,

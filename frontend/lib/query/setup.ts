@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 const API_BASE =
 	typeof window !== "undefined"
 		? ""
-		: process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
+		: process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 	const res = await fetch(`${API_BASE}${url}`, {
@@ -79,6 +79,7 @@ export function useCompleteSetup() {
 			}),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["setup-status"] });
+			qc.invalidateQueries({ queryKey: ["config"] });
 		},
 	});
 }

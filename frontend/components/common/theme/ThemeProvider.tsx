@@ -26,7 +26,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 			defaultTheme="system"
 			enableSystem
 			storageKey="theme"
-			disableTransitionOnChange={false}
+			disableTransitionOnChange
 		>
 			<ColorThemeApplier />
 			{children}

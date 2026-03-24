@@ -11,6 +11,7 @@ from perception.adapters.input_adapter import InputAdapter
 from perception.adapters.ocr_adapter import OCRAdapter
 from perception.models import SourceType
 from perception.stream import PerceptionStream
+from perception.subscribers.agent_name_watcher import AgentNameWatcher
 from perception.subscribers.todo_intent_subscriber import TodoIntentSubscriber
 from services.perception_todo_intent.orchestrator import TodoIntentOrchestrator
 from util.logging_config import get_logger
@@ -43,6 +44,7 @@ class PerceptionStreamManager:
         )
         self._todo_intent_enabled = bool(self._todo_intent_config.get("enabled", True))
         self._todo_intent_subscriber: TodoIntentSubscriber | None = None
+        self._agent_name_watcher: AgentNameWatcher | None = None
         self._enabled_sources = self._build_enabled_sources()
         self._status_lock = threading.Lock()
         self._last_seen: dict[SourceType, datetime] = {}
@@ -73,8 +75,14 @@ class PerceptionStreamManager:
             self._adapters["ai_output"] = AIOutputAdapter(self.publish_event)
 
         await self._start_todo_intent_subscriber()
+        await self._start_agent_name_watcher()
 
     async def stop(self) -> None:
+        watcher = self._agent_name_watcher
+        self._agent_name_watcher = None
+        if watcher is not None:
+            await watcher.stop(self.stream)
+
         subscriber = self._todo_intent_subscriber
         self._todo_intent_subscriber = None
         if subscriber is not None:
@@ -349,6 +357,13 @@ class PerceptionStreamManager:
                 "enabled": self._todo_intent_enabled,
                 "running": False,
             }
+
+        watcher = self._agent_name_watcher
+        if watcher is not None:
+            status["_agent_name_watcher"] = watcher.get_status()
+        else:
+            status["_agent_name_watcher"] = {"enabled": False, "running": False}
+
         return status
 
     def _build_enabled_sources(self) -> dict[SourceType, bool]:
@@ -394,6 +409,38 @@ class PerceptionStreamManager:
     def get_todo_intent_subscriber(self) -> TodoIntentSubscriber | None:
         return self._todo_intent_subscriber
 
+    def get_agent_name_watcher(self) -> AgentNameWatcher | None:
+        return self._agent_name_watcher
+
+    async def _start_agent_name_watcher(self) -> None:
+        """Start the AgentNameWatcher that triggers deep analysis when the
+        configured agent name is mentioned in perception events."""
+        agent_name = (settings.get("setup.agent_name", "") or "").strip()
+        if not agent_name:
+            logger.info("AgentNameWatcher skipped: no agent_name configured")
+            return
+        if self._agent_name_watcher is not None:
+            return
+
+        anw_config = self._todo_intent_config
+        orchestrator = TodoIntentOrchestrator(config=anw_config)
+        watcher = AgentNameWatcher(
+            orchestrator=orchestrator,
+            max_window_events=5,
+            window_seconds=15.0,
+            queue_maxsize=100,
+        )
+
+        deduper = self._resolve_memory_deduper()
+        await watcher.start(self.stream, deduper=deduper)
+        self._agent_name_watcher = watcher
+        source_label = "L1 deduped stream" if deduper else "raw PerceptionStream"
+        logger.info(
+            "AgentNameWatcher initialized (agent_name=%s, source=%s)",
+            agent_name,
+            source_label,
+        )
+
     async def _start_todo_intent_subscriber(self) -> None:
         if not self._todo_intent_enabled:
             return
@@ -412,11 +459,11 @@ class PerceptionStreamManager:
             processing_queue_maxsize = queue_maxsize
         processing_queue_maxsize = max(1, processing_queue_maxsize)
         max_recent_records = max(1, int(self._todo_intent_config.get("max_recent_records", 200)))
-        aggregation_window_seconds = self._todo_intent_config.get("window_seconds", 20)
+        aggregation_window_seconds = self._todo_intent_config.get("window_seconds", 0)
         try:
             aggregation_window_seconds = float(aggregation_window_seconds)
         except (TypeError, ValueError):
-            aggregation_window_seconds = 20.0
+            aggregation_window_seconds = 5.0
         max_context_chars = self._todo_intent_config.get("max_context_chars", 5000)
         try:
             max_context_chars = int(max_context_chars)

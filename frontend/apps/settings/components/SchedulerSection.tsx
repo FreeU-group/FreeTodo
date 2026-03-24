@@ -200,20 +200,14 @@ export function SchedulerSection({
 
 	// 获取任务显示名称
 	const getJobName = (jobId: string) => {
-		try {
-			return t(`jobs.${jobId}` as Parameters<typeof t>[0]);
-		} catch {
-			return jobId;
-		}
+		const key = `jobs.${jobId}` as Parameters<typeof t>[0];
+		return t.has(key) ? t(key) : jobId;
 	};
 
 	// 获取任务描述
 	const getJobDescription = (jobId: string) => {
-		try {
-			return t(`jobDescriptions.${jobId}` as Parameters<typeof t>[0]);
-		} catch {
-			return "";
-		}
+		const key = `jobDescriptions.${jobId}` as Parameters<typeof t>[0];
+		return t.has(key) ? t(key) : "";
 	};
 
 	// 检查是否为 legacy 任务

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { SettingsSearchMatchProvider } from "./SettingsSection";
 
 export type SettingsCategoryId =
+	| "identity"
 	| "workspace"
 	| "automation"
 	| "ai"

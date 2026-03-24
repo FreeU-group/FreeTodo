@@ -88,7 +88,7 @@ perception:
     enabled: true
     mode: memory_preview # memory_preview | draft | active | review_queue
     disable_legacy_auto_extraction: true # 启用后跳过旧自动提取链路（audio/proactive_ocr/todo_recorder）
-    window_seconds: 5
+    window_seconds: 0
     max_context_chars: 5000
     max_todos_per_context: 5
     internal_queue_maxsize: 200
@@ -117,6 +117,11 @@ perception:
       post_extract_dedupe_window_seconds: 600
       create_confidence_threshold: 0.7
       update_confidence_threshold: 0.75
+  agent_name_watcher:
+    enabled: true
+    window_seconds: 15
+    max_window_events: 5
+    queue_maxsize: 100
 
 # 基础目录配置
 base_dir: data

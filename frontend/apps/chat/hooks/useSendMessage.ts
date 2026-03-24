@@ -6,11 +6,11 @@ import type { SessionCacheReturn } from "@/apps/chat/hooks/useSessionCache";
 import type { StreamControllerReturn } from "@/apps/chat/hooks/useStreamController";
 import type { ToolCallTrackerReturn } from "@/apps/chat/hooks/useToolCallTracker";
 import type { ChatMessage, ToolCallAnchor } from "@/apps/chat/types";
-import { createId } from "@/apps/chat/utils/id";
 import {
 	createAgnoAttachmentPreviewUrl,
 	getAgnoAttachmentKind,
 } from "@/apps/chat/utils/attachments";
+import { createId } from "@/apps/chat/utils/id";
 import {
 	buildPayloadMessage,
 	getModeForBackend,

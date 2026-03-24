@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -22,6 +21,8 @@ from util.settings import settings
 from util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from perception.models import PerceptionEvent
 
 logger = get_logger()
@@ -271,7 +272,7 @@ class TodoIntentOrchestrator:
             logger.debug("Failed to load memory context for intent extraction", exc_info=True)
             return "", ""
 
-    async def process_context(
+    async def process_context(  # noqa: C901, PLR0915
         self,
         context: TodoIntentContext,
         on_progress: Callable[[TodoIntentProcessingRecord], Any] | None = None,
@@ -286,18 +287,22 @@ class TodoIntentOrchestrator:
             text_preview,
         )
 
-        def _emit(record: TodoIntentProcessingRecord) -> None:
+        async def _emit(record: TodoIntentProcessingRecord) -> None:
             if on_progress is not None:
                 try:
-                    on_progress(record)
+                    result = on_progress(record)
+                    if hasattr(result, "__await__"):
+                        await result
                 except Exception:
                     logger.debug("on_progress callback error", exc_info=True)
 
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.RECEIVED,
-        ))
+        await _emit(
+            self._build_record(
+                record_id=rid,
+                context=context,
+                status=TodoIntentProcessingStatus.RECEIVED,
+            )
+        )
 
         is_wechat = str(context.metadata.get("app_name") or "").lower() in ("wechat", "微信")
         if is_wechat and str(context.metadata.get("chat_type") or ""):
@@ -315,13 +320,14 @@ class TodoIntentOrchestrator:
                     dedupe_hit=True,
                     dedupe_key="wechat_history_all_seen",
                 )
-                _emit(rec)
+                await _emit(rec)
                 return rec
             original_len = len(context.merged_text)
             context.merged_text = filtered
             logger.info(
                 "[Orchestrator] WeChat history: %d→%d chars (new messages only)",
-                original_len, len(filtered),
+                original_len,
+                len(filtered),
             )
 
         dedupe_hit = False
@@ -338,15 +344,17 @@ class TodoIntentOrchestrator:
                 dedupe_hit=True,
                 dedupe_key=dedupe_key,
             )
-            _emit(rec)
+            await _emit(rec)
             return rec
 
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.GATING,
-            dedupe_key=dedupe_key,
-        ))
+        await _emit(
+            self._build_record(
+                record_id=rid,
+                context=context,
+                status=TodoIntentProcessingStatus.GATING,
+                dedupe_key=dedupe_key,
+            )
+        )
 
         gate_decision = await self._gate.decide(context)
         logger.info(
@@ -363,24 +371,28 @@ class TodoIntentOrchestrator:
                 dedupe_key=dedupe_key,
                 gate_decision=gate_decision,
             )
-            _emit(rec)
+            await _emit(rec)
             return rec
 
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.GATE_PASSED,
-            dedupe_key=dedupe_key,
-            gate_decision=gate_decision,
-        ))
+        await _emit(
+            self._build_record(
+                record_id=rid,
+                context=context,
+                status=TodoIntentProcessingStatus.GATE_PASSED,
+                dedupe_key=dedupe_key,
+                gate_decision=gate_decision,
+            )
+        )
 
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.EXTRACTING,
-            dedupe_key=dedupe_key,
-            gate_decision=gate_decision,
-        ))
+        await _emit(
+            self._build_record(
+                record_id=rid,
+                context=context,
+                status=TodoIntentProcessingStatus.EXTRACTING,
+                dedupe_key=dedupe_key,
+                gate_decision=gate_decision,
+            )
+        )
 
         active_todos, user_profile = self._load_memory_context()
         logger.info(
@@ -414,7 +426,7 @@ class TodoIntentOrchestrator:
                     gate_decision=gate_decision,
                     error=self._resolve_extract_error(exc),
                 )
-                _emit(rec)
+                await _emit(rec)
                 return rec
 
         normalized = self._post_processor.normalize(candidates, context)
@@ -433,14 +445,16 @@ class TodoIntentOrchestrator:
                 c.confidence,
             )
 
-        _emit(self._build_record(
-            record_id=rid,
-            context=context,
-            status=TodoIntentProcessingStatus.INTEGRATING,
-            dedupe_key=dedupe_key,
-            gate_decision=gate_decision,
-            candidates=normalized,
-        ))
+        await _emit(
+            self._build_record(
+                record_id=rid,
+                context=context,
+                status=TodoIntentProcessingStatus.INTEGRATING,
+                dedupe_key=dedupe_key,
+                gate_decision=gate_decision,
+                candidates=normalized,
+            )
+        )
 
         results = await self._integration.integrate(
             context=context,
@@ -467,7 +481,7 @@ class TodoIntentOrchestrator:
             candidates=normalized,
             integration_results=results,
         )
-        _emit(rec)
+        await _emit(rec)
         return rec
 
     def get_stats(self) -> TodoIntentOrchestratorStats:

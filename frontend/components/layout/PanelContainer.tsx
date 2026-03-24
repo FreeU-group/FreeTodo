@@ -57,9 +57,6 @@ export function PanelContainer({
 		costTracking: "Cost Tracking Panel",
 	};
 
-	// 拖动时使用即时更新，禁用动画
-	const transition = isDragging ? { duration: 0 } : ANIMATION_CONFIG.spring;
-
 	// 在 SSR 时使用默认值，避免 hydration 错误
 	const ariaLabel =
 		mounted && feature ? ariaLabelMap[feature] || "Panel" : "Panel";
@@ -75,6 +72,15 @@ export function PanelContainer({
 		},
 	});
 
+	// 拖动时使用即时更新，禁用动画
+	const transition = isDragging ? { duration: 0 } : ANIMATION_CONFIG.spring;
+	const borderWidth = isVisible ? (isOver ? 2 : 1) : 0;
+	const outlineShadow = isVisible
+		? isOver
+			? "inset 0 0 0 1px oklch(var(--primary) / 0.18)"
+			: "inset 0 0 0 1px oklch(var(--border) / 0.55)"
+		: "none";
+
 	return (
 		<motion.section
 			key={position}
@@ -89,8 +95,8 @@ export function PanelContainer({
 				"overflow-hidden",
 				// 边框样式：正常状态 vs 拖拽悬停状态
 				isOver && isVisible
-					? "border-2 border-primary/70"
-					: "border border-[oklch(var(--border))]",
+					? "border-primary/70"
+					: "border-[oklch(var(--border))]",
 				// 当不可见时，隐藏边框和背景，避免残留视觉元素
 				!isVisible && "border-transparent bg-transparent",
 				className,
@@ -103,7 +109,7 @@ export function PanelContainer({
 				// 确保隐藏时不占用任何空间
 				width: isVisible ? "auto" : 0,
 				padding: isVisible ? undefined : 0,
-				borderWidth: isVisible ? undefined : 0,
+				borderWidth,
 			}}
 			transition={transition}
 			style={{
@@ -115,6 +121,7 @@ export function PanelContainer({
 				willChange: isDragging
 					? "flex-basis"
 					: "flex-basis, transform, opacity",
+				boxShadow: outlineShadow,
 			}}
 		>
 			{children}

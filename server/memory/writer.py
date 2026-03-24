@@ -46,6 +46,10 @@ class MemoryWriter:
 
                 if self._current_file is None:
                     raise RuntimeError("MemoryWriter output file is not initialized")
+                self._current_file.parent.mkdir(parents=True, exist_ok=True)
+                if not self._current_file.exists():
+                    with open(self._current_file, "w", encoding="utf-8") as f:
+                        f.write(f"# {self._current_date} 感知记录\n")
                 with open(self._current_file, "a", encoding="utf-8") as f:
                     f.write(line)
                 self._write_count += 1
@@ -74,6 +78,7 @@ class MemoryWriter:
 
     def _rotate_file(self, date_str: str) -> None:
         self._current_date = date_str
+        self._raw_dir.mkdir(parents=True, exist_ok=True)
         self._current_file = self._raw_dir / f"{date_str}.md"
         if not self._current_file.exists():
             with open(self._current_file, "w", encoding="utf-8") as f:

@@ -21,6 +21,7 @@ import os
 import platform
 import re
 import time
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -78,6 +79,7 @@ _window_capture = None
 _app_router = None
 _roi_extractor = None
 _ocr_engine = None
+_WECHAT_MIN_MESSAGE_HEIGHT = 10
 
 
 def _mss_grab_in_thread() -> np.ndarray | None:
@@ -179,7 +181,7 @@ class SensorDaemon:
         self._consecutive_post_failures: int = 0
         self._max_backoff: float = 120.0
 
-        self._screenshot_enabled: bool = True
+        self._screenshot_enabled: bool = False
         self._proactive_ocr_enabled: bool = True
         self._audio_enabled: bool = True
         self._screenshot_interval: float = 10.0
@@ -436,6 +438,9 @@ class SensorDaemon:
                 return roi_result.image
         return frame.data
 
+    _DEBUG_MAX_FILES = 1000
+    _DEBUG_CLEANUP_COUNT = 500
+
     def _save_debug_image(self, image: np.ndarray, label: str) -> None:
         if not self._debug_images:
             return
@@ -445,6 +450,27 @@ class SensorDaemon:
         path = self._debug_dir / f"{label}_{ts}.png"
         Image.fromarray(image).save(path)
         logger.debug(f"Debug image saved: {path}")
+        self._maybe_cleanup_debug_dir()
+
+    def _maybe_cleanup_debug_dir(self) -> None:
+        if not hasattr(self, "_debug_cleanup_counter"):
+            self._debug_cleanup_counter = 0
+        self._debug_cleanup_counter += 1
+        if self._debug_cleanup_counter % 50 != 0:
+            return
+        try:
+            files = sorted(self._debug_dir.glob("*.png"), key=lambda f: f.stat().st_mtime)
+            if len(files) > self._DEBUG_MAX_FILES:
+                to_delete = files[: self._DEBUG_CLEANUP_COUNT]
+                for f in to_delete:
+                    f.unlink(missing_ok=True)
+                logger.info(
+                    "Debug cleanup: deleted %d oldest files (%d remaining)",
+                    len(to_delete),
+                    len(files) - len(to_delete),
+                )
+        except Exception:
+            logger.debug("Debug cleanup failed", exc_info=True)
 
     @staticmethod
     def _build_ocr_annotated_image(
@@ -496,7 +522,7 @@ class SensorDaemon:
 
         return np.array(canvas)
 
-    async def run_proactive_ocr_cycle(self) -> None:
+    async def run_proactive_ocr_cycle(self) -> None:  # noqa: C901, PLR0912
         if not self._proactive_ocr_enabled:
             return
 
@@ -509,21 +535,26 @@ class SensorDaemon:
         self._save_debug_image(image_to_ocr, f"proactive_{app_type.value}_roi")
 
         ocr_target, wechat_divider_y = self._prepare_ocr_target(image_to_ocr, app_type)
-        if self._debug_images and wechat_divider_y is not None:
+        wechat_title_ocr_text = ""
+        if wechat_divider_y is not None:
             title_img = image_to_ocr[:wechat_divider_y, :]
             self._save_debug_image(title_img, "wechat_title")
             self._save_debug_image(ocr_target, "wechat_messages")
             try:
                 title_ocr = await asyncio.to_thread(_get_ocr_engine().ocr, title_img)
                 if title_ocr.lines:
-                    annotated_title = self._build_ocr_annotated_image(title_img, title_ocr.lines)
-                    self._save_debug_image(annotated_title, "wechat_title_ocr")
-                    logger.info(
-                        "WeChat title OCR: %s",
-                        " | ".join(f"{ln.text}(s={ln.score:.2f})" for ln in title_ocr.lines),
-                    )
+                    wechat_title_ocr_text = " ".join(
+                        ln.text for ln in title_ocr.lines if ln.score >= _MIN_OCR_CONFIDENCE
+                    ).strip()
+                    if self._debug_images:
+                        annotated_title = self._build_ocr_annotated_image(
+                            title_img,
+                            title_ocr.lines,
+                        )
+                        self._save_debug_image(annotated_title, "wechat_title_ocr")
+                    logger.info("WeChat title OCR: '%s'", wechat_title_ocr_text)
             except Exception:
-                logger.debug("Failed to OCR title for debug", exc_info=True)
+                logger.debug("Failed to OCR title area", exc_info=True)
 
         engine = _get_ocr_engine()
         try:
@@ -537,7 +568,7 @@ class SensorDaemon:
 
         if self._debug_images and ocr_result.lines:
             try:
-                annotated = self._build_ocr_annotated_image(image_to_ocr, ocr_result.lines)
+                annotated = self._build_ocr_annotated_image(ocr_target, ocr_result.lines)
                 self._save_debug_image(annotated, f"proactive_{app_type.value}_ocr")
             except Exception:
                 logger.debug("Failed to build OCR annotated debug image", exc_info=True)
@@ -546,12 +577,13 @@ class SensorDaemon:
         if not valid_lines:
             return
 
+        title_for_parser = wechat_title_ocr_text or window.title
         text, extra_metadata = self._build_ocr_text(
             ocr_target,
             ocr_result,
             valid_lines,
             app_type,
-            window_title=window.title,
+            window_title=title_for_parser,
         )
         if len(text) < _MIN_TEXT_LEN:
             return
@@ -603,7 +635,7 @@ class SensorDaemon:
             dy = prior.find_title_divider_y(roi_image)
             if dy is not None and dy > 0:
                 msg_image = roi_image[dy + 2 :, :]
-                if msg_image.shape[0] > 10:
+                if msg_image.shape[0] > _WECHAT_MIN_MESSAGE_HEIGHT:
                     logger.debug("WeChat: OCR target cropped to message area (divider_y=%d)", dy)
                     return msg_image, dy
         except Exception:
@@ -632,7 +664,10 @@ class SensorDaemon:
                 theme = WeChatPrior().detect_theme(image)
                 theme_name = theme.name if theme else "dark"
                 ctx = parse_wechat_messages(
-                    image, ocr_result, theme_name, title_hint=window_title,
+                    image,
+                    ocr_result,
+                    theme_name,
+                    title_hint=window_title,
                 )
                 if ctx is not None and ctx.messages:
                     structured = ctx.to_structured_text()
@@ -691,7 +726,7 @@ class SensorDaemon:
     _AUDIO_DISABLE_CHECK_INTERVAL = 3.0
 
     async def _audio_loop(self) -> None:
-        """持续感知 PC 音频流：sounddevice 采集 → WebSocket 流式发送至 Center ASR。"""
+        """持续感知 PC 音频流: sounddevice 采集 -> WebSocket 流式发送至 Center ASR."""
         await asyncio.sleep(3)
         while True:
             if not self._audio_enabled:
@@ -768,7 +803,7 @@ class SensorDaemon:
                 break
 
     async def _audio_recv_loop(self, ws) -> None:
-        """接收 Center 返回的转录结果（日志记录，用于调试）。"""
+        """接收 Center 返回的转录结果(日志记录, 用于调试)."""
         try:
             async for raw in ws:
                 if isinstance(raw, str):
@@ -787,17 +822,15 @@ class SensorDaemon:
                     except json.JSONDecodeError:
                         pass
         except Exception:
-            pass
+            logger.debug("[audio] Receive loop closed", exc_info=True)
 
     async def _audio_config_watch(self, ws) -> None:
-        """监控 audio_enabled 配置，关闭时主动断开 WebSocket。"""
+        """监控 audio_enabled 配置, 关闭时主动断开 WebSocket."""
         while self._audio_enabled:
             await asyncio.sleep(2)
         logger.info("[audio] Audio perception disabled by remote config, closing stream")
-        try:
+        with suppress(Exception):
             await ws.close()
-        except Exception:
-            pass
 
     # ------------------------------------------------------------------
     # Main loop

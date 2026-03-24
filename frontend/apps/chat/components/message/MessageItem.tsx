@@ -4,8 +4,8 @@ import { useState } from "react";
 import type { ExtractionState } from "@/apps/chat/hooks/useMessageExtraction";
 import type { ChatMessage } from "@/apps/chat/types";
 import { cn } from "@/lib/utils";
-import { MessageContent } from "./MessageContent";
 import { MessageAttachments } from "./MessageAttachments";
+import { MessageContent } from "./MessageContent";
 import { MessageTodoExtractionPanel } from "./MessageTodoExtractionPanel";
 import {
 	removeToolCalls,

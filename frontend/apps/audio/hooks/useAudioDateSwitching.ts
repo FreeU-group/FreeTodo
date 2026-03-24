@@ -14,7 +14,6 @@ interface UseAudioDateSwitchingProps {
 		segmentOffsetsSec: number[];
 		segmentRecordingIds: number[];
 		segmentTimeLabels: string[];
-		todos: Array<{ title: string; description?: string; deadline?: string; source_text?: string }>;
 	}>;
 	currentLoadingDateRef: React.MutableRefObject<string | null>;
 	setTranscriptionText: (text: string | ((prev: string) => string)) => void;
@@ -23,7 +22,6 @@ interface UseAudioDateSwitchingProps {
 	setSegmentOffsetsSec: (offsets: number[] | ((prev: number[]) => number[])) => void;
 	setSegmentRecordingIds: (ids: number[] | ((prev: number[]) => number[])) => void;
 	setSegmentTimeLabels: (labels: string[] | ((prev: string[]) => string[])) => void;
-	setLiveTodos: (todos: Array<{ title: string; description?: string; deadline?: string; source_text?: string }>) => void;
 	setIsLoadingTimeline: (loading: boolean) => void;
 	loadTimeline: (callback: (loading: boolean) => void, forceReload?: boolean) => void;
 }
@@ -40,7 +38,6 @@ export function useAudioDateSwitching({
 	setSegmentOffsetsSec,
 	setSegmentRecordingIds,
 	setSegmentTimeLabels,
-	setLiveTodos,
 	setIsLoadingTimeline,
 	loadTimeline,
 }: UseAudioDateSwitchingProps) {
@@ -115,7 +112,6 @@ export function useAudioDateSwitching({
 						setSegmentRecordingIds((prev) => [...prev, ...liveState.segmentRecordingIds]);
 						setSegmentTimeLabels((prev) => [...prev, ...liveState.segmentTimeLabels]);
 						setPartialText(liveState.partialText);
-						setLiveTodos(liveState.todos);
 					}
 				}
 			});
@@ -133,7 +129,6 @@ export function useAudioDateSwitching({
 			setSegmentOffsetsSec([]);
 			setSegmentRecordingIds([]);
 			setSegmentTimeLabels([]);
-			setLiveTodos([]);
 
 			loadTimeline((loading) => {
 				if (currentLoadingDateRef.current !== currentDateStr) {
@@ -154,7 +149,6 @@ export function useAudioDateSwitching({
 		setSegmentTimesSec,
 		setTranscriptionText,
 		setPartialText,
-		setLiveTodos,
 		setIsLoadingTimeline,
 		currentLoadingDateRef,
 		liveRecordingStateRef,

@@ -75,6 +75,8 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "tavily_": (7, "tavily"),
     "sensor_": (7, "sensor"),
     "banna2_": (7, "banna2"),
+    "setup_": (6, "setup"),
+    "agno_": (5, "agno"),
 }
 
 # ASR 配置键名映射（保留下划线的键名）
@@ -360,6 +362,11 @@ class ConfigService:
             "banna2.ref_image_path",
             "jobs.diary_illustration.enabled",
             "jobs.diary_illustration.cron",
+            # Identity / setup
+            "setup.user_name",
+            "setup.agent_name",
+            "setup.scan_directories",
+            "agno.default_workspace",
         ]
 
         config_dict = {}

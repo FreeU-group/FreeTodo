@@ -388,7 +388,6 @@ export function SpeakerLivePanel() {
 						overlapLabels: effectiveSpeaker.overlapLabels,
 					});
 				},
-				undefined,
 				(error) => {
 					setPanelError(error.message || t("recordingError"));
 				},

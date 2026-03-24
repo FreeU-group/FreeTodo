@@ -145,9 +145,8 @@ export function RecorderConfigSection({
 	};
 
 	return (
-		<SettingsSection title={t("basicSettings")}>
-			<div className="space-y-4">
-				{/* 启用黑名单 */}
+		<div className="space-y-4">
+			{/* 启用黑名单 */}
 				<div className="flex items-center justify-between">
 					<div className="flex-1">
 						<p className="text-sm font-medium text-foreground">
@@ -206,7 +205,23 @@ export function RecorderConfigSection({
 						</p>
 					</div>
 				)}
-			</div>
+		</div>
+	);
+}
+
+/**
+ * 独立的 SettingsSection 版本（向后兼容，目前不再单独使用）
+ */
+export function RecorderConfigStandalone(props: RecorderConfigSectionProps) {
+	const t = useTranslations("page.settings");
+	return (
+		<SettingsSection title={t("basicSettings")}>
+			<RecorderConfigSection {...props} />
 		</SettingsSection>
 	);
 }
+
+/**
+ * 内联版本别名，方便 SensorNodesSection 导入
+ */
+export const RecorderConfigInline = RecorderConfigSection;

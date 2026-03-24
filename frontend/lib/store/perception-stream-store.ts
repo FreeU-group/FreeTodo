@@ -61,17 +61,23 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let shouldReconnect = false;
 let activeWsPath: (typeof WS_PATH_CANDIDATES)[number] | null = null;
 
-function getApiBaseUrl(): string {
+function getWsApiBaseUrl(): string {
+	if (typeof window !== "undefined") {
+		const host = window.location.hostname;
+		if (host === "localhost" || host === "127.0.0.1") {
+			return `http://${host}:8001`;
+		}
+	}
 	return (
 		process.env.NEXT_PUBLIC_API_URL ||
 		(typeof window !== "undefined" &&
 			(window as Window & { __BACKEND_URL__?: string }).__BACKEND_URL__) ||
-		"http://127.0.0.1:8100"
+		"http://127.0.0.1:8001"
 	);
 }
 
 function buildWsUrl(path: string): string {
-	const apiBaseUrl = getApiBaseUrl();
+	const apiBaseUrl = getWsApiBaseUrl();
 	const wsBaseUrl = apiBaseUrl
 		.replace("http://", "ws://")
 		.replace("https://", "wss://");
@@ -177,7 +183,7 @@ async function fetchRecentEvents(count: number): Promise<PerceptionEvent[]> {
 		} catch {}
 
 		try {
-			const absUrl = `${getApiBaseUrl()}${path}${query}`;
+			const absUrl = `${getWsApiBaseUrl()}${path}${query}`;
 			const res = await fetch(absUrl);
 			if (res.ok) return (await res.json()) as PerceptionEvent[];
 		} catch {}

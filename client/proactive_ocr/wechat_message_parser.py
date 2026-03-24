@@ -258,10 +258,10 @@ def _is_in_input_box(
 
     matches = 0
     checked = 0
-    for sy, sx in sample_points:
-        sy = max(0, min(sy, h - 1))
-        sx = max(0, min(sx, w - 1))
-        pixel = image[sy, sx].astype(np.float64)[:3]
+    for sample_y, sample_x in sample_points:
+        clamped_y = max(0, min(sample_y, h - 1))
+        clamped_x = max(0, min(sample_x, w - 1))
+        pixel = image[clamped_y, clamped_x].astype(np.float64)[:3]
         checked += 1
         if np.sqrt(np.sum((pixel - target) ** 2)) < tolerance:
             matches += 1
@@ -339,7 +339,9 @@ def parse_wechat_messages(
         title_text = title_hint.strip()
         logger.info(
             "WeChat parser: using window title as chat name: '%s', image=%dx%d",
-            title_text, roi_width, h,
+            title_text,
+            roi_width,
+            h,
         )
     else:
         prior = WeChatPrior()
@@ -347,7 +349,11 @@ def parse_wechat_messages(
         divider_y = prior.get_title_divider_y(image)
         logger.info(
             "WeChat parser: divider_y=%s (raw=%s), image=%dx%d, theme=%s",
-            divider_y, raw_divider, roi_width, h, theme_name,
+            divider_y,
+            raw_divider,
+            roi_width,
+            h,
+            theme_name,
         )
         title_text = _extract_title_text(ocr_result.lines, divider_y)
         if not title_text and raw_divider is None:
@@ -424,10 +430,7 @@ def _is_timestamp_line(ln: OcrLine, roi_width: int, median_h: float) -> bool:
 
     if is_centered and is_small and has_time_pattern:
         return True
-    if is_centered and is_narrow and is_small and has_digits and has_colon:
-        return True
-
-    return False
+    return is_centered and is_narrow and is_small and has_digits and has_colon
 
 
 def _attribute_messages(

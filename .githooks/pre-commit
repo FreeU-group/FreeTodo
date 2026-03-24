@@ -1,12 +1,19 @@
 #!/usr/bin/env sh
 set -u
 
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "${repo_root}" || exit 1
+
 if command -v pre-commit >/dev/null 2>&1; then
   exec pre-commit run --hook-stage pre-commit "$@"
 fi
 
 if command -v uv >/dev/null 2>&1; then
-  exec uv run pre-commit run --hook-stage pre-commit "$@"
+  if [ -f "${repo_root}/server/pyproject.toml" ]; then
+    exec uv run --project "${repo_root}/server" pre-commit run --hook-stage pre-commit "$@"
+  fi
+
+  exec uv tool run pre-commit run --hook-stage pre-commit "$@"
 fi
 
 echo "pre-commit: pre-commit/uv not found; skipping." >&2

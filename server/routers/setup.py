@@ -26,6 +26,7 @@ _config_service = ConfigService()
 PCM16_SAMPLE_WIDTH = 2
 TARGET_SAMPLE_RATE = 16000
 MIN_VOICEPRINT_SECONDS = 0.5
+_background_tasks: set[asyncio.Task] = set()
 
 
 class ScanRequest(BaseModel):
@@ -246,6 +247,81 @@ async def analyze_files(req: AnalyzeFilesRequest) -> AnalyzeFilesResult:  # noqa
     return AnalyzeFilesResult(guessed_name=guessed_name, initial_profile=initial_profile)
 
 
+class AddWorkspaceRequest(BaseModel):
+    directory: str
+
+
+class AddWorkspaceResult(BaseModel):
+    success: bool = True
+    directory: str = ""
+    error: str = ""
+
+
+async def _background_scan_and_update_profile(directory: str) -> None:
+    """后台静默执行：扫描目录文件 → LLM 分析 → 追加写入用户画像。"""
+    try:
+        scan_result = await scan_directory(ScanRequest(directory=directory, max_files=500))
+        if not scan_result.files:
+            logger.info("目录 %s 无文件，跳过画像分析", directory)
+            return
+
+        filenames = [f["name"] for f in scan_result.files]
+        analyze_result = await analyze_files(
+            AnalyzeFilesRequest(filenames=filenames, directory=directory)
+        )
+        if not analyze_result.initial_profile:
+            logger.info("目录 %s 画像分析无结果", directory)
+            return
+
+        memory_dir = get_user_data_dir() / "memory"
+        profile_dir = memory_dir / "profile_L4"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        profile_file = profile_dir / "user_profile.md"
+
+        existing = ""
+        if profile_file.exists():
+            existing = profile_file.read_text(encoding="utf-8").strip()
+        separator = f"\n\n---\n\n## 工作目录分析：{directory}\n\n"
+        updated = (
+            existing + separator + analyze_result.initial_profile
+            if existing
+            else analyze_result.initial_profile
+        )
+        profile_file.write_text(updated, encoding="utf-8")
+        logger.info("用户画像已更新（追加目录分析）: %s", profile_file)
+    except Exception:
+        logger.exception("后台扫描/分析工作目录失败: %s", directory)
+
+
+@router.post("/add-workspace")
+async def add_workspace(req: AddWorkspaceRequest) -> AddWorkspaceResult:
+    """从设置页添加工作目录。
+
+    配置立即写入并返回，扫描文件 + 画像分析在后台静默执行。
+    """
+    target = Path(req.directory).expanduser().resolve()
+    if not target.exists() or not target.is_dir():
+        return AddWorkspaceResult(success=False, error=f"目录不存在: {target}")
+
+    dir_str = str(target)
+
+    current_dirs: list[str] = list(settings.get("setup.scan_directories", []) or [])
+    if dir_str not in current_dirs:
+        current_dirs.append(dir_str)
+
+    config_updates: dict[str, Any] = {
+        "setup.scan_directories": current_dirs,
+        "agno.default_workspace": dir_str,
+    }
+    _config_service.save_config(config_updates)
+
+    task = asyncio.create_task(_background_scan_and_update_profile(dir_str))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+    return AddWorkspaceResult(success=True, directory=dir_str)
+
+
 @router.post("/complete")
 async def complete_setup(req: CompleteRequest) -> dict[str, bool]:
     """Mark setup complete and persist setup-related config."""
@@ -371,6 +447,42 @@ async def save_voiceprint(file: UploadFile) -> dict[str, Any]:
     dest.write_bytes(content)
     logger.info("Saved setup voiceprint file: %s (%d bytes)", dest, len(content))
     return {"success": True, "path": str(dest), "size": len(content)}
+
+
+@router.get("/voiceprint-status")
+async def voiceprint_status():
+    """返回当前声纹录制状态。"""
+    voiceprint_dir = get_user_data_dir() / "voiceprint"
+    if not voiceprint_dir.exists():
+        return {"exists": False}
+    files = sorted(
+        voiceprint_dir.glob("voiceprint_*.*"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    if not files:
+        return {"exists": False}
+    latest = files[0]
+    return {
+        "exists": True,
+        "path": str(latest),
+        "size": latest.stat().st_size,
+    }
+
+
+@router.post("/delete-voiceprint")
+async def delete_voiceprint():
+    """删除所有已录制的声纹文件。"""
+    voiceprint_dir = get_user_data_dir() / "voiceprint"
+    if not voiceprint_dir.exists():
+        return {"success": True}
+    deleted = 0
+    for f in voiceprint_dir.glob("voiceprint_*.*"):
+        try:
+            f.unlink()
+            deleted += 1
+        except Exception:
+            logger.exception("删除声纹文件失败: %s", f)
+    logger.info("已删除 %d 个声纹文件", deleted)
+    return {"success": True, "deleted": deleted}
 
 
 @router.post("/reset")

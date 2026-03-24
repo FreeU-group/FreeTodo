@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SetupWizard } from "@/apps/setup/SetupWizard";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { PanelRegion } from "@/components/layout/PanelRegion";
-import { SetupWizard } from "@/apps/setup/SetupWizard";
 import { GlobalDndProvider } from "@/lib/dnd";
 import { useAutoRecording } from "@/lib/hooks/useAutoRecording";
 import { useOnboardingTour } from "@/lib/hooks/useOnboardingTour";

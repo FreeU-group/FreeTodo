@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { useSaveConfig } from "@/lib/query";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { RecorderConfigInline } from "./RecorderConfigSection";
 import { SettingsSection } from "./SettingsSection";
 import { ToggleSwitch } from "./ToggleSwitch";
 
@@ -406,6 +407,12 @@ export function SensorNodesSection({
 							)}
 						</div>
 					)}
+				</div>
+
+				{/* Screen recorder settings (blacklist) — inline from RecorderConfigSection */}
+				<div className="space-y-2 border-t border-border pt-4">
+					<h4 className="text-sm font-medium text-foreground">{t("screenRecorderSettings") || "屏幕录制设置"}</h4>
+					<RecorderConfigInline config={config} loading={loading} />
 				</div>
 
 				{/* Audio perception toggle */}
