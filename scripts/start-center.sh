@@ -1,165 +1,133 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 计算脚本目录、仓库根目录，并统一把运行日志放到 .run-logs 下。
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd "$script_dir/.." && pwd)"
-log_dir="$repo_root/.run-logs"
-mkdir -p "$log_dir"
+# 一键启动 Center Node 全部服务（Phoenix / AgentOS / Backend / Frontend / cpolar tunnels）
 
-# 允许用户通过本地环境文件覆盖默认配置，不纳入版本控制更方便放私有参数。
-if [[ -f "$script_dir/local-env.sh" ]]; then
-  # shellcheck disable=SC1091
-  source "$script_dir/local-env.sh"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./start-center-env.sh
+source "$SCRIPT_DIR/start-center-env.sh"
 
-# 判断命令是否存在于当前 PATH 中。
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
-
-# 启动前检查关键依赖，缺失时直接报错退出。
-require_command() {
-  local cmd="$1"
-  if ! command_exists "$cmd"; then
-    echo "[ERROR] Missing required command: $cmd" >&2
-    exit 1
-  fi
-}
-
-# 优先使用 python3，兼容部分环境只有 python 命令的情况。
-find_python() {
-  if command_exists python3; then
-    echo "python3"
-    return 0
-  fi
-  if command_exists python; then
-    echo "python"
-    return 0
-  fi
-  echo "[ERROR] python3/python not found." >&2
-  exit 1
-}
-
-# 从指定起始端口开始向上探测，直到找到一个未被占用的本地端口。
-# 这里借助 Python 做 socket 绑定探测，兼容 Linux 和 macOS。
-find_free_port() {
-  local start_port="$1"
-  local py_bin="$2"
-
-  "$py_bin" - "$start_port" <<'PY'
-import socket
-import sys
-
-port = int(sys.argv[1])
-while True:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(("127.0.0.1", port))
-        except OSError:
-            port += 1
-            continue
-    print(port)
-    break
-PY
-}
-
-# 后台启动进程，并把 stdout/stderr 统一写入日志，同时记录 PID。
-# 与 Windows bat 不同，Unix 系统一般不弹出多个新窗口，更适合这种后台常驻方式。
-start_bg() {
-  local name="$1"
-  local workdir="$2"
-  local command="$3"
-  local log_file="$log_dir/${name}.log"
-  local pid_file="$log_dir/${name}.pid"
-
-  echo "Starting $name..."
-  (
-    cd "$workdir"
-    nohup bash -lc "$command" >>"$log_file" 2>&1 &
-    echo $! >"$pid_file"
-  )
-}
-
-# 输出等待提示，方便观察启动顺序和阶段耗时。
-sleep_with_message() {
-  local seconds="$1"
-  local message="$2"
-  echo "$message"
-  sleep "$seconds"
-}
-
-py_bin="$(find_python)"
-require_command uv
-require_command pnpm
-
-# 环境变量默认值：优先使用 local-env.sh 中的配置，没有时再回落。
-: "${BACKEND_PORT:=8001}"
-: "${FRONTEND_PORT:=3001}"
-
-# 记录用户期望端口；若被占用则自动顺延到下一个可用端口。
-backend_port_preferred="$BACKEND_PORT"
-frontend_port_preferred="$FRONTEND_PORT"
-BACKEND_PORT="$(find_free_port "$BACKEND_PORT" "$py_bin")"
-FRONTEND_PORT="$(find_free_port "$FRONTEND_PORT" "$py_bin")"
-
-BACKEND_LOCAL_URL="http://127.0.0.1:${BACKEND_PORT}"
-FRONTEND_LOCAL_URL="http://127.0.0.1:${FRONTEND_PORT}"
+# ── 可选参数 ──────────────────────────────────────────────
+# --no-cpolar : 跳过 cpolar 隧道
+SKIP_CPOLAR=false
+for arg in "$@"; do
+  case "$arg" in
+    --no-cpolar) SKIP_CPOLAR=true ;;
+  esac
+done
 
 cat <<EOF
 ================================================
-   LifeTrace Center Node Startup
+   LifeTrace Center Node — One-click Startup
 ================================================
 
-Backend local:   ${BACKEND_LOCAL_URL}
-Frontend local:  ${FRONTEND_LOCAL_URL}
+Backend  local : http://127.0.0.1:$BACKEND_PORT
+Frontend local : http://127.0.0.1:$FRONTEND_PORT
 EOF
-
-if [[ "$BACKEND_PORT" != "$backend_port_preferred" ]]; then
-  echo "Note: backend preferred port ${backend_port_preferred} busy, switched to ${BACKEND_PORT}"
-fi
-if [[ "$FRONTEND_PORT" != "$frontend_port_preferred" ]]; then
-  echo "Note: frontend preferred port ${frontend_port_preferred} busy, switched to ${FRONTEND_PORT}"
+if [[ "$SKIP_CPOLAR" == false ]]; then
+  cat <<EOF
+Backend  public: $BACKEND_PUBLIC_URL
+Backend  TCP   : $CPOLAR_TCP_REMOTE_ADDRESS
+Frontend public: $FRONTEND_PUBLIC_URL
+EOF
 fi
 echo
 
-# 下面按依赖顺序启动：
-# Phoenix -> AgentOS -> 后端 -> 前端。
-echo "[1/4] Starting Phoenix (observability)..."
-start_bg "phoenix" "$repo_root" "uv run phoenix serve"
-sleep_with_message 2 "Waiting for Phoenix (2s)..."
+# ── [1/7] Phoenix ─────────────────────────────────────────
+rotate_log "$LOG_DIR/phoenix.log"
+(cd "$REPO_ROOT/server" && uv run phoenix serve) >>"$LOG_DIR/phoenix.log" 2>&1 &
+echo $! >"$LOG_DIR/phoenix.pid"
+echo "[1/7] Phoenix started (http://127.0.0.1:6006), PID $!"
 
-echo "[2/4] Starting AgentOS..."
-start_bg "agentos" "$repo_root" "uv run python -m lifetrace.agent_os"
-sleep_with_message 2 "Waiting for AgentOS (2s)..."
+# ── [2/7] AgentOS ─────────────────────────────────────────
+rotate_log "$LOG_DIR/agent_os.log"
+(cd "$REPO_ROOT/server" && uv run python agent_os.py) >>"$LOG_DIR/agent_os.log" 2>&1 &
+echo $! >"$LOG_DIR/agent_os.pid"
+echo "[2/7] AgentOS started (http://127.0.0.1:8200), PID $!"
 
-echo "[3/4] Starting LifeTrace Server (center mode)..."
-start_bg "center-backend" "$repo_root" \
-  "uv run python -m lifetrace.server --role center --port ${BACKEND_PORT}"
-sleep_with_message 5 "Waiting for backend (5s)..."
+# ── [3/7] Backend (center mode) ──────────────────────────
+rotate_log "$LOG_DIR/backend_center_new.log"
+(cd "$REPO_ROOT/server" && uv run python server.py) >>"$LOG_DIR/backend_center_new.log" 2>&1 &
+echo $! >"$LOG_DIR/backend_center.pid"
+echo "[3/7] Backend (center) started (http://0.0.0.0:$BACKEND_PORT), PID $!"
 
-# 前端直连本地后端，不再注入任何公网地址。
-echo "[4/4] Building frontend (client API = ${BACKEND_LOCAL_URL}, rewrite = localhost:${BACKEND_PORT})..."
-start_bg "center-frontend" "$repo_root/free-todo-frontend" \
-  "NEXT_PUBLIC_API_URL='${BACKEND_LOCAL_URL}' API_REWRITE_URL='${BACKEND_LOCAL_URL}' pnpm build:frontend:web && pnpm start --port ${FRONTEND_PORT} --hostname 0.0.0.0"
-sleep_with_message 30 "Waiting for frontend build (~30s)..."
+# 等待后端就绪，前端 SSR build 需要访问后端 API
+wait_for_port "$BACKEND_PORT" 30 "Backend"
+
+# ── [4/7] Frontend (build + start) ───────────────────────
+rotate_log "$LOG_DIR/frontend_center.log"
+pid=$(lsof -ti tcp:"$FRONTEND_PORT" 2>/dev/null) && kill -9 $pid 2>/dev/null || true
+sleep 1
+(
+  cd "$REPO_ROOT/frontend"
+  export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:$BACKEND_PORT}"
+  export API_REWRITE_URL="http://127.0.0.1:$BACKEND_PORT"
+  pnpm build:frontend:web && pnpm start --port "$FRONTEND_PORT" --hostname 0.0.0.0
+) >>"$LOG_DIR/frontend_center.log" 2>&1 &
+echo $! >"$LOG_DIR/frontend_center.pid"
+echo "[4/7] Frontend started (http://0.0.0.0:$FRONTEND_PORT), PID $!"
+
+if [[ "$SKIP_CPOLAR" == true ]]; then
+  echo
+  echo "Skipping cpolar tunnels (--no-cpolar)"
+else
+  if ! command -v cpolar >/dev/null 2>&1; then
+    echo
+    echo "WARNING: cpolar not found in PATH, skipping tunnel steps [5-7]"
+  else
+    # ── [5/7] cpolar backend HTTP ──────────────────────────
+    rotate_log "$LOG_DIR/cpolar_backend_http.log"
+    { cpolar http -region="$CPOLAR_REGION" -subdomain="$CPOLAR_BACKEND_DOMAIN" "$BACKEND_PORT" 2>&1 \
+      | while IFS= read -r line; do echo "$(date '+%Y-%m-%d %H:%M:%S') $line"; done; } \
+      >>"$LOG_DIR/cpolar_backend_http.log" &
+    echo $! >"$LOG_DIR/cpolar_backend_http.pid"
+    echo "[5/7] cpolar backend HTTP started = $BACKEND_PUBLIC_URL, PID $!"
+
+    # ── [6/7] cpolar backend TCP ───────────────────────────
+    rotate_log "$LOG_DIR/cpolar_backend_tcp.log"
+    cpolar tcp -region="$CPOLAR_REGION" -remote-addr="$CPOLAR_TCP_REMOTE_ADDRESS" "$BACKEND_PORT" \
+      >>"$LOG_DIR/cpolar_backend_tcp.log" 2>&1 &
+    echo $! >"$LOG_DIR/cpolar_backend_tcp.pid"
+    echo "[6/7] cpolar backend TCP started ($CPOLAR_TCP_REMOTE_ADDRESS -> localhost:$BACKEND_PORT), PID $!"
+
+    # ── [7/7] cpolar frontend ──────────────────────────────
+    rotate_log "$LOG_DIR/cpolar_frontend.log"
+    cpolar http -region="$CPOLAR_REGION" -subdomain="$CPOLAR_FRONTEND_DOMAIN" "$FRONTEND_PORT" \
+      >>"$LOG_DIR/cpolar_frontend.log" 2>&1 &
+    echo $! >"$LOG_DIR/cpolar_frontend.pid"
+    echo "[7/7] cpolar frontend started = $FRONTEND_PUBLIC_URL, PID $!"
+  fi
+fi
 
 cat <<EOF
 
 ================================================
-   Center Node Started (background processes)
+   Center Node Started (all background)
 ================================================
 
-Services:
-  Phoenix:      http://127.0.0.1:6006
-  AgentOS:      http://127.0.0.1:8200
-  Backend:      ${BACKEND_LOCAL_URL}
-  Frontend:     ${FRONTEND_LOCAL_URL}
+Local services:
+  Phoenix  : http://127.0.0.1:6006
+  AgentOS  : http://127.0.0.1:8200
+  Backend  : http://127.0.0.1:$BACKEND_PORT
+  Frontend : http://127.0.0.1:$FRONTEND_PORT
+EOF
 
-Sensor startup command (run from client/ directory):
-  cd client && uv run python -m sensor --center-url ${BACKEND_LOCAL_URL}
+if [[ "$SKIP_CPOLAR" == false ]] && command -v cpolar >/dev/null 2>&1; then
+  cat <<EOF
 
-Logs: ${log_dir}
-PIDs: ${log_dir}/*.pid
+Public tunnels:
+  Backend HTTP : $BACKEND_PUBLIC_URL
+  Backend TCP  : $CPOLAR_TCP_REMOTE_ADDRESS
+  Frontend     : $FRONTEND_PUBLIC_URL
+EOF
+fi
+
+cat <<EOF
+
+Sensor startup (run from another terminal):
+  cd client && uv run python -m sensor --center-url http://127.0.0.1:$BACKEND_PORT
+
+Logs : $LOG_DIR
+PIDs : $LOG_DIR/*.pid
+Stop : bash $SCRIPT_DIR/stop-center.sh
 EOF
