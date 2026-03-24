@@ -1,14 +1,16 @@
-"""Speaker embedding extraction using FunASR CAM++ model.
+"""Speaker embedding extraction with pluggable backends.
 
-Provides a lazy-loaded singleton that extracts 192-dim speaker embeddings
-from raw PCM audio.  The ``funasr`` package is an optional dependency; if
-it is not installed the client reports itself as unavailable and all calls
-to ``extract_embedding`` raise ``RuntimeError``.
+Supported backends:
+- ``campplus``: FunASR CAM++ (Chinese-friendly, lightweight).
+- ``speechbrain_ecapa``: SpeechBrain ECAPA-TDNN (strong general SV baseline).
+- ``auto``: prefer ECAPA when installed, otherwise CAM++.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import inspect
 import threading
 from typing import Any
 
@@ -18,29 +20,100 @@ from util.logging_config import get_logger
 from util.settings import settings
 
 logger = get_logger()
+TARGET_SAMPLE_RATE = 16000
 
-_funasr_available_cache: dict[str, bool] = {}
+_availability_cache: dict[str, bool] = {}
+
+
+def _check_module(module_name: str, *, cache_key: str, install_hint: str) -> bool:
+    if cache_key not in _availability_cache:
+        try:
+            __import__(module_name)
+            _availability_cache[cache_key] = True
+        except ImportError:
+            _availability_cache[cache_key] = False
+            logger.warning("%s not installed. %s", module_name, install_hint)
+    return _availability_cache[cache_key]
 
 
 def _check_funasr() -> bool:
-    if "result" not in _funasr_available_cache:
-        try:
-            import funasr  # noqa: F401, PLC0415  # type: ignore[import-not-found]
+    return _check_module(
+        "funasr",
+        cache_key="funasr",
+        install_hint="Install with: pip install funasr modelscope",
+    )
 
-            _funasr_available_cache["result"] = True
-        except ImportError:
-            _funasr_available_cache["result"] = False
-            logger.warning(
-                "funasr 未安装，说话人识别功能不可用。安装方法: pip install funasr modelscope"
-            )
-    return _funasr_available_cache["result"]
+
+def _check_speechbrain() -> bool:
+    return _check_module(
+        "speechbrain",
+        cache_key="speechbrain",
+        install_hint="Install with: pip install speechbrain",
+    )
+
+
+def _check_pyannote() -> bool:
+    return _check_module(
+        "pyannote.audio",
+        cache_key="pyannote_audio",
+        install_hint="Install with: pip install pyannote.audio",
+    )
+
+
+def _ensure_hf_hub_compat() -> None:
+    """Backwards compat for libs still passing `use_auth_token`."""
+    with contextlib.suppress(Exception):
+        import huggingface_hub  # noqa: PLC0415
+
+        hf_hub_download = getattr(huggingface_hub, "hf_hub_download", None)
+        if hf_hub_download is None:
+            return
+        sig = inspect.signature(hf_hub_download)
+        if "use_auth_token" in sig.parameters:
+            return
+
+        original = hf_hub_download
+
+        def _compat_hf_hub_download(*args: Any, **kwargs: Any) -> Any:
+            use_auth_token = kwargs.pop("use_auth_token", None)
+            if kwargs.get("token") is None and use_auth_token is not None:
+                kwargs["token"] = use_auth_token
+            try:
+                return original(*args, **kwargs)
+            except Exception:
+                repo_id = kwargs.get("repo_id") if "repo_id" in kwargs else (args[0] if args else "")
+                filename = (
+                    kwargs.get("filename")
+                    if "filename" in kwargs
+                    else (args[1] if len(args) > 1 else "")
+                )
+                if str(filename) == "custom.py" and str(repo_id).startswith("speechbrain/"):
+                    import tempfile  # noqa: PLC0415
+                    from pathlib import Path  # noqa: PLC0415
+
+                    placeholder = Path(tempfile.gettempdir()) / "speechbrain_empty_custom.py"
+                    if not placeholder.exists():
+                        placeholder.write_text("# placeholder custom module\n", encoding="utf-8")
+                    logger.warning(
+                        f"HuggingFace repo {repo_id} missing custom.py; "
+                        "using placeholder module"
+                    )
+                    return str(placeholder)
+                raise
+
+        huggingface_hub.hf_hub_download = _compat_hf_hub_download  # type: ignore[attr-defined]
+
+        with contextlib.suppress(Exception):
+            import huggingface_hub.file_download as _fd  # noqa: PLC0415
+
+            _fd.hf_hub_download = _compat_hf_hub_download  # type: ignore[attr-defined]
 
 
 class SpeakerEmbeddingClient:
-    """Extracts speaker embeddings via the local FunASR CAM++ model.
+    """Extracts speaker embeddings from raw PCM audio.
 
-    The model is loaded lazily on first call to ``extract_embedding``.
-    Thread-safe: the heavy model object is guarded by a lock.
+    The backend is configurable by ``audio.speaker.embedding_backend``:
+    ``campplus`` | ``speechbrain_ecapa`` | ``pyannote_embedding`` | ``auto``.
     """
 
     _instance: SpeakerEmbeddingClient | None = None
@@ -58,12 +131,21 @@ class SpeakerEmbeddingClient:
 
         self._model: Any = None
         self._lock = threading.Lock()
-        self._available = _check_funasr()
 
         cfg = settings.get("audio.speaker", {}) or {}
-        self._model_name: str = cfg.get("model", "iic/speech_campplus_sv_zh-cn_16k-common")
-        self._device: str = cfg.get("device", "cpu")
+        requested_backend = str(cfg.get("embedding_backend", "campplus")).strip().lower()
+        self._backend = self._resolve_backend(requested_backend)
+        self._campplus_model_name: str = cfg.get(
+            "model", "iic/speech_campplus_sv_zh-cn_16k-common"
+        )
+        self._speechbrain_model_name: str = cfg.get(
+            "speechbrain_model", "speechbrain/spkrec-ecapa-voxceleb"
+        )
+        self._pyannote_model_name: str = cfg.get("pyannote_embedding_model", "pyannote/embedding")
+        self._device: str = str(cfg.get("device", "cpu"))
         self._embedding_dim: int = int(cfg.get("embedding_dim", 192))
+        self._normalize_embedding: bool = bool(cfg.get("normalize_embedding", True))
+        self._available = self._check_backend_available(self._backend)
 
     @property
     def available(self) -> bool:
@@ -73,84 +155,199 @@ class SpeakerEmbeddingClient:
     def embedding_dim(self) -> int:
         return self._embedding_dim
 
+    @property
+    def backend(self) -> str:
+        return self._backend
+
+    def _resolve_backend(self, requested: str) -> str:
+        if requested == "auto":
+            if _check_speechbrain():
+                return "speechbrain_ecapa"
+            return "campplus"
+        if requested in {"campplus", "speechbrain_ecapa", "pyannote_embedding"}:
+            return requested
+        logger.warning("Unknown embedding backend %r; fallback to campplus", requested)
+        return "campplus"
+
+    def _check_backend_available(self, backend: str) -> bool:
+        if backend == "pyannote_embedding":
+            return _check_pyannote()
+        if backend == "speechbrain_ecapa":
+            return _check_speechbrain()
+        return _check_funasr()
+
+    def _fallback_to_campplus(self, reason: str) -> Any:
+        if _check_funasr():
+            logger.warning(f"{reason}; fallback to CAM++ model")
+            self._backend = "campplus"
+            return self._load_campplus_model()
+        raise RuntimeError(f"{reason}; CAM++ unavailable")
+
     def _ensure_model(self) -> Any:
-        """Load the CAM++ model if not yet loaded (thread-safe)."""
+        """Load embedding model lazily (thread-safe)."""
         if self._model is not None:
             return self._model
         with self._lock:
             if self._model is not None:
                 return self._model
             if not self._available:
-                raise RuntimeError("funasr 未安装，无法加载 CAM++ 模型")
-            from funasr import AutoModel  # noqa: PLC0415  # type: ignore[import-not-found]
+                raise RuntimeError(f"Embedding backend not available: {self._backend}")
+            if self._backend == "campplus":
+                self._model = self._load_campplus_model()
+                return self._model
+            if self._backend == "speechbrain_ecapa":
+                try:
+                    self._model = self._load_speechbrain_model()
+                except Exception as e:
+                    logger.warning(f"SpeechBrain backend load failed: {e}")
+                    self._model = self._fallback_to_campplus("SpeechBrain load failed")
+                return self._model
+            if self._backend == "pyannote_embedding":
+                try:
+                    self._model = self._load_pyannote_model()
+                except Exception as e:
+                    logger.warning(f"Pyannote embedding backend load failed: {e}")
+                    self._model = self._fallback_to_campplus("Pyannote load failed")
+                return self._model
 
-            logger.info(f"正在加载 CAM++ 说话人模型: {self._model_name} (device={self._device})")
-            self._model = AutoModel(
-                model=self._model_name,
-                device=self._device,
-                disable_pbar=True,
-                disable_log=True,
-                disable_update=True,
-                log_level="ERROR",
+            self._model = self._fallback_to_campplus(
+                f"Unsupported embedding backend: {self._backend}"
             )
-            logger.info("CAM++ 说话人模型加载完成")
             return self._model
 
+    def _load_campplus_model(self) -> Any:
+        from funasr import AutoModel  # noqa: PLC0415  # type: ignore[import-not-found]
+
+        logger.info(
+            f"Loading speaker embedding model: CAM++ ({self._campplus_model_name}, "
+            f"device={self._device})"
+        )
+        model = AutoModel(
+            model=self._campplus_model_name,
+            device=self._device,
+            disable_pbar=True,
+            disable_log=True,
+            disable_update=True,
+            log_level="ERROR",
+        )
+        logger.info("CAM++ speaker embedding model ready")
+        return model
+
+    def _load_speechbrain_model(self) -> Any:
+        from speechbrain.inference.speaker import (  # noqa: PLC0415
+            EncoderClassifier,
+        )
+        _ensure_hf_hub_compat()
+
+        logger.info(
+            f"Loading speaker embedding model: SpeechBrain ECAPA ({self._speechbrain_model_name}, "
+            f"device={self._device})"
+        )
+        model = EncoderClassifier.from_hparams(
+            source=self._speechbrain_model_name,
+            run_opts={"device": self._device},
+        )
+        logger.info("SpeechBrain ECAPA model ready")
+        return model
+
+    def _load_pyannote_model(self) -> Any:
+        _ensure_hf_hub_compat()
+        import torch  # noqa: PLC0415
+        from pyannote.audio import Inference, Model  # noqa: PLC0415
+
+        logger.info(
+            f"Loading speaker embedding model: Pyannote ({self._pyannote_model_name}, "
+            f"device={self._device})"
+        )
+        model = Model.from_pretrained(self._pyannote_model_name)
+        inference = Inference(model, window="whole", device=torch.device(self._device))
+        logger.info("Pyannote embedding model ready")
+        return inference
+
     def extract_embedding(self, pcm_bytes: bytes, sample_rate: int = 16000) -> np.ndarray:
-        """Extract a speaker embedding from raw PCM-16LE mono audio.
-
-        Args:
-            pcm_bytes: Raw PCM audio bytes (16-bit signed LE, mono).
-            sample_rate: Sample rate in Hz (must match the model expectation).
-
-        Returns:
-            1-D numpy float32 array of shape ``(embedding_dim,)``.
-
-        Raises:
-            RuntimeError: If funasr is not installed or model load fails.
-            ValueError: If the audio is too short (< 0.5 s).
-        """
+        """Extract a speaker embedding from PCM-16LE mono audio."""
         min_samples = sample_rate // 2  # 0.5 seconds minimum
         num_samples = len(pcm_bytes) // 2
         if num_samples < min_samples:
             raise ValueError(
-                f"音频太短: {num_samples} 采样 ({num_samples / sample_rate:.2f}s), "
-                f"最少需要 {min_samples} 采样 ({min_samples / sample_rate:.2f}s)"
+                f"Audio too short: {num_samples} samples ({num_samples / sample_rate:.2f}s), "
+                f"need >= {min_samples} ({min_samples / sample_rate:.2f}s)"
             )
 
         model = self._ensure_model()
-
         samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
-        result = model.generate(input=samples, output_dir=None, granularity="utterance")
+        if self._backend == "speechbrain_ecapa":
+            embedding = self._extract_speechbrain_embedding(model, samples, sample_rate)
+        elif self._backend == "pyannote_embedding":
+            embedding = self._extract_pyannote_embedding(model, samples, sample_rate)
+        else:
+            result = model.generate(input=samples, output_dir=None, granularity="utterance")
+            embedding = self._parse_campplus_embedding(result)
 
-        embedding = self._parse_embedding(result)
-        return embedding
+        if self._normalize_embedding:
+            norm = np.linalg.norm(embedding)
+            if norm > 0:
+                embedding = (embedding / norm).astype(np.float32)
+
+        if embedding.shape[0] != self._embedding_dim:
+            logger.warning(
+                "Embedding dim mismatch: expected=%d actual=%d backend=%s",
+                self._embedding_dim,
+                embedding.shape[0],
+                self._backend,
+            )
+
+        return embedding.astype(np.float32)
+
+    def _extract_speechbrain_embedding(
+        self, model: Any, samples: np.ndarray, sample_rate: int
+    ) -> np.ndarray:
+        import torch  # noqa: PLC0415
+        import torchaudio  # noqa: PLC0415
+
+        waveform = torch.from_numpy(samples).float().unsqueeze(0)  # [1, T]
+        if sample_rate != TARGET_SAMPLE_RATE:
+            waveform = torchaudio.functional.resample(
+                waveform, sample_rate, TARGET_SAMPLE_RATE
+            )
+        lengths = torch.ones(1)
+
+        with torch.no_grad():
+            embedding = model.encode_batch(waveform, lengths)  # usually [1, 1, D]
+        return np.asarray(embedding.detach().cpu().numpy(), dtype=np.float32).reshape(-1)
+
+    def _extract_pyannote_embedding(
+        self, model: Any, samples: np.ndarray, sample_rate: int
+    ) -> np.ndarray:
+        import torch  # noqa: PLC0415
+
+        waveform = torch.from_numpy(samples).float().unsqueeze(0)  # [1, T]
+        embedding = model({"waveform": waveform, "sample_rate": sample_rate})
+        return np.asarray(embedding, dtype=np.float32).reshape(-1)
 
     async def extract_embedding_async(
         self, pcm_bytes: bytes, sample_rate: int = 16000
     ) -> np.ndarray:
-        """Async wrapper – runs extraction in a thread pool."""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self.extract_embedding, pcm_bytes, sample_rate)
 
-    def _parse_embedding(self, result: Any) -> np.ndarray:
-        """Parse the model output into a 1-D numpy array."""
+    def _parse_campplus_embedding(self, result: Any) -> np.ndarray:
+        """Parse FunASR CAM++ output into a flat float32 array."""
         try:
-            if isinstance(result, list) and len(result) > 0:
+            if isinstance(result, list) and result:
                 item = result[0]
                 if isinstance(item, dict):
                     emb = item.get("spk_embedding")
                     if emb is None:
-                        raise KeyError("spk_embedding not found in model output")
+                        raise KeyError("spk_embedding not found in CAM++ output")
                     return self._to_numpy(emb)
                 return self._to_numpy(item)
             return self._to_numpy(result)
         except Exception as e:
-            raise RuntimeError(f"无法解析 CAM++ 模型输出: {e}") from e
+            raise RuntimeError(f"Failed to parse CAM++ embedding output: {e}") from e
 
     def _to_numpy(self, obj: Any) -> np.ndarray:
-        """Convert torch.Tensor or numpy array to a flat float32 numpy array."""
         try:
             import torch  # noqa: PLC0415
 
@@ -158,18 +355,23 @@ class SpeakerEmbeddingClient:
                 obj = obj.detach().cpu().numpy()
         except ImportError:
             pass
-        arr = np.asarray(obj, dtype=np.float32).flatten()
-        if arr.shape[0] != self._embedding_dim:
-            logger.warning(f"Embedding 维度不匹配: 期望 {self._embedding_dim}, 实际 {arr.shape[0]}")
-        return arr
+        return np.asarray(obj, dtype=np.float32).flatten()
 
     def reinitialize(self) -> None:
-        """Reload configuration (for hot-reload)."""
+        """Reload configuration and force lazy model reloading."""
         with self._lock:
             self._model = None
+
         cfg = settings.get("audio.speaker", {}) or {}
-        self._model_name = cfg.get("model", "iic/speech_campplus_sv_zh-cn_16k-common")
-        self._device = cfg.get("device", "cpu")
+        requested_backend = str(cfg.get("embedding_backend", "campplus")).strip().lower()
+        self._backend = self._resolve_backend(requested_backend)
+        self._campplus_model_name = cfg.get("model", "iic/speech_campplus_sv_zh-cn_16k-common")
+        self._speechbrain_model_name = cfg.get(
+            "speechbrain_model", "speechbrain/spkrec-ecapa-voxceleb"
+        )
+        self._pyannote_model_name = cfg.get("pyannote_embedding_model", "pyannote/embedding")
+        self._device = str(cfg.get("device", "cpu"))
         self._embedding_dim = int(cfg.get("embedding_dim", 192))
-        self._available = _check_funasr()
-        logger.info("SpeakerEmbeddingClient 已重新初始化")
+        self._normalize_embedding = bool(cfg.get("normalize_embedding", True))
+        self._available = self._check_backend_available(self._backend)
+        logger.info(f"SpeakerEmbeddingClient reinitialized (backend={self._backend})")

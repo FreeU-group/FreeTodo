@@ -220,6 +220,7 @@ class _StartSegmentMonitorContext:
         self.should_segment_ref = kwargs["should_segment_ref"]
         self.is_connected_ref = kwargs["is_connected_ref"]
         self.websocket = kwargs["websocket"]
+        self.speaker_diarizer = kwargs.get("speaker_diarizer")
         self._get_segment_functions = kwargs["_get_segment_functions"]
 
 
@@ -227,8 +228,6 @@ async def _start_segment_monitor_internal(
     *, ctx: _StartSegmentMonitorContext
 ) -> asyncio.Task | None:
     """启动分段监控任务"""
-    if not ctx.is_24x7:
-        return None
     _save_current_segment, _segment_monitor_task = ctx._get_segment_functions()
     return asyncio.create_task(
         _segment_monitor_task(
@@ -242,6 +241,7 @@ async def _start_segment_monitor_internal(
                 "should_segment_ref": ctx.should_segment_ref,
                 "is_connected_ref": ctx.is_connected_ref,
                 "websocket": ctx.websocket,
+                "speaker_diarizer": ctx.speaker_diarizer,
             },
             is_24x7=ctx.is_24x7,
         )
@@ -347,6 +347,7 @@ async def _create_handlers_and_monitor(
         should_segment_ref=state["should_segment_ref"],
         is_connected_ref=state["is_connected_ref"],
         websocket=websocket,
+        speaker_diarizer=state.get("speaker_diarizer"),
         _get_segment_functions=funcs["_get_segment_functions"],
     )
     segment_task = await _start_segment_monitor_internal(ctx=segment_ctx)

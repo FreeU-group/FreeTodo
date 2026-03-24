@@ -10,6 +10,7 @@ import asyncio
 import importlib
 import json
 import time
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -86,7 +87,46 @@ def _is_ws_connected(websocket: WebSocket, is_connected_ref: list[bool]) -> bool
     )
 
 
-def _create_result_callback(  # noqa: C901
+def _normalize_speaker_payload(result: Any, speaker_diarizer: Any) -> dict[str, Any]:
+    """Normalize speaker result into a JSON-serializable payload."""
+
+    def _read_attr(obj: Any, name: str) -> Any:
+        try:
+            return getattr(obj, name)
+        except AttributeError:
+            return None
+
+    if is_dataclass(result):
+        payload: dict[str, Any] = asdict(result)
+    elif isinstance(result, dict):
+        payload = dict(result)
+    else:
+        payload = {
+            "speaker_id": _read_attr(result, "speaker_id"),
+            "speaker_name": _read_attr(result, "speaker_name"),
+            "confidence": _read_attr(result, "confidence"),
+            "is_new": _read_attr(result, "is_new"),
+            "is_me": _read_attr(result, "is_me"),
+        }
+
+    backend = None
+    if hasattr(speaker_diarizer, "backend"):
+        backend = speaker_diarizer.backend
+    if isinstance(backend, str) and backend:
+        payload["backend"] = backend
+
+    overlap_candidates: Any = None
+    if hasattr(speaker_diarizer, "get_recent_overlap_speakers"):
+        getter = speaker_diarizer.get_recent_overlap_speakers
+        if callable(getter):
+            overlap_candidates = getter()
+    if isinstance(overlap_candidates, list) and overlap_candidates:
+        payload["overlap_speakers"] = overlap_candidates
+
+    return payload
+
+
+def _create_result_callback(  # noqa: C901, PLR0915
     *,
     websocket: WebSocket,
     logger,
@@ -127,9 +167,10 @@ def _create_result_callback(  # noqa: C901
         try:
             result = await speaker_diarizer.identify_current_speaker()
             if result is not None:
+                payload = _normalize_speaker_payload(result, speaker_diarizer)
                 if speaker_segments_ref is not None:
-                    speaker_segments_ref[0].append({"text": text, "speaker": result})
-                return result
+                    speaker_segments_ref[0].append({"text": text, "speaker": payload})
+                return payload
         except Exception as e:
             logger.debug(f"Speaker identification failed: {e}")
         return None
@@ -138,6 +179,30 @@ def _create_result_callback(  # noqa: C901
         """Identify speaker, then send the final result with speaker info."""
         speaker_info = await _identify_speaker(text)
         await _send_result(text, True, speaker_info=speaker_info)
+
+    def _get_partial_speaker_snapshot() -> dict[str, Any] | None:
+        """Best-effort realtime speaker snapshot for interim ASR updates."""
+        if not _spk_enabled or speaker_diarizer is None:
+            return None
+        diarizer_backend = None
+        if hasattr(speaker_diarizer, "backend"):
+            diarizer_backend = speaker_diarizer.backend
+        if diarizer_backend != "diart":
+            return None
+        getter = (
+            speaker_diarizer.get_current_speaker
+            if hasattr(speaker_diarizer, "get_current_speaker")
+            else None
+        )
+        if not callable(getter):
+            return None
+        try:
+            result = getter()
+            if result is None:
+                return None
+            return _normalize_speaker_payload(result, speaker_diarizer)
+        except Exception:
+            return None
 
     def on_result(text: str, is_final: bool) -> None:
         if not text or not _is_ws_connected(websocket, is_connected_ref):
@@ -155,7 +220,8 @@ def _create_result_callback(  # noqa: C901
             if is_final and _spk_enabled:
                 _track_task(task_set, _send_final_with_speaker(text))
             else:
-                _track_task(task_set, _send_result(text, is_final))
+                partial_speaker = _get_partial_speaker_snapshot() if not is_final else None
+                _track_task(task_set, _send_result(text, is_final, speaker_info=partial_speaker))
         except Exception as e:
             logger.warning(f"Failed to schedule sending TranscriptionResultChanged: {e}")
 

@@ -1,4 +1,4 @@
-# LifeTrace 默认配置文件
+﻿# LifeTrace 默认配置文件
 
 # ！！！重要提示：
 # 请勿编辑此文件 default_config.yaml，所有配置都应在 config.yaml 中进行设置
@@ -30,7 +30,6 @@ backend_modules:
   enabled:
     - health
     - config
-    - setup
     - system
     - logs
     - chat
@@ -74,7 +73,6 @@ sensor:
   screenshot_interval: 10.0
   proactive_ocr_enabled: true
   proactive_ocr_interval: 1.0
-  audio_enabled: true
 
 # 感知流（Perception Stream）配置
 perception:
@@ -310,9 +308,13 @@ audio:
     heartbeat: false # 是否开启长连接保持
   speaker:
     enabled: true # 是否启用说话人识别
-    # CAM++ 声纹模型配置（本地 FunASR，默认方案）
+    # 声纹模型配置（支持 CAM++ / SpeechBrain / Pyannote，可按需切换）
     model: iic/speech_campplus_sv_zh-cn_16k-common
+    embedding_backend: auto # campplus | speechbrain_ecapa | pyannote_embedding | auto
+    speechbrain_model: speechbrain/spkrec-ecapa-voxceleb
+    pyannote_embedding_model: pyannote/embedding
     device: cpu
+    normalize_embedding: true # 是否对 embedding 做 L2 归一化
     min_audio_duration: 2.5 # 最小音频时长（秒），低于此不提取声纹
     buffer_duration: 8.0 # 音频缓冲时长（秒），每次提取声纹的音频量
     vad_enabled: true # 是否启用 FSMN-VAD 语音切分（按说话轮次切段，提高多人对话识别准确率）
@@ -326,9 +328,32 @@ audio:
       delta_new: 1.0 # 新说话人检测阈值
       segmentation_model: pyannote/segmentation-3.0
       embedding_model: pyannote/embedding
+    segmentation:
+      monitor_interval_seconds: 0.5 # 轮询分段状态的间隔
+      min_segment_seconds: 1.0 # 触发切段前的最短片段时长
+      debounce_seconds: 0.35 # 新说话人需持续稳定的去抖时间
+      cooldown_seconds: 0.6 # 连续两次切段的最小间隔
+      max_segment_minutes: 30 # 兜底按时长切段上限
+      duration_fallback_without_turn_seconds: 180 # 无 turn 信号时按时长兜底切段
+      silence_check_interval_seconds: 2 # 静音检查间隔
+      silence_threshold_seconds: 600 # 长静音触发切段阈值
     # 声纹库配置（VoiceprintStore）
     embedding_dim: 192 # 声纹向量维度
     similarity_threshold: 0.68 # 余弦相似度匹配阈值（CAM++ 同人典型 0.7-0.95，不同人 0.3-0.6）
+    me_similarity_threshold: 0.84 # “我”的更严格匹配阈值
+    prioritize_me_first: true # 先判断“我/非我”，再区分其他说话人
+    me_margin_vs_others: 0.03 # “我”分数需领先其他人最小边际
+    similarity_margin: 0.04 # Top1 与 Top2 相似度边际，小于该值时视为歧义（暂不切换）
+    similarity_high_confidence: 0.88 # 当 Top1 高于此值时，即使边际较小也可放行
+    hybrid_raw_buffer_enabled: false # diart+reid 模式下是否允许 raw_buffer 直接匹配
+    hybrid_raw_min_duration: 2.8 # raw_buffer 最短时长（秒）
+    hybrid_raw_turn_stable_seconds: 1.2 # raw_buffer 匹配前 turn 稳定时长
+    hybrid_switch_confirmations: 2 # 说话人切换最少确认次数
+    hybrid_switch_window_seconds: 2.2 # 切换确认时间窗（秒）
+    hybrid_switch_min_confidence: 0.82 # 切换快速通过最低置信度
+    voiceprint_update_sources: [vad_segment, vad_ongoing] # 允许更新声纹库的来源
+    voiceprint_update_min_duration: 1.6 # 写入声纹最短时长
+    voiceprint_update_min_confidence: 0.82 # 写入声纹最低置信度
     new_speaker_confirm_count: 2 # 连续未匹配次数达到此值才创建新说话人（防止短暂波动）
     max_speakers: 100 # 声纹库最大说话人数
     auto_create_speaker: true # 未匹配时是否自动创建新说话人
@@ -338,6 +363,7 @@ audio:
   second_pass:
     enabled: true # 启用后对 /v4/listen 的音频进行离线二次转录
     model: paraformer-v2 # 离线 ASR 模型
+    base_url: "" # 可选：当 model=whisper-large-v3 时可指定 OpenAI 兼容转写服务地址
     min_duration_seconds: 0.5 # 最短音频时长（秒），低于此跳过二次处理（原 1.0s 易漏短句）
     debounce_seconds: 3 # 检测到句子结束后等待的去抖时间（秒），避免连续说话时频繁触发
     interval_seconds: 30 # 最大等待间隔（秒），持续说话时也会按此间隔触发

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useAudioRecordingStore } from "@/lib/store/audio-recording-store";
+import type { RealtimeSpeakerInfo } from "@/lib/store/audio-recording-store";
 
 /**
  * 音频录音 Hook
@@ -16,7 +17,11 @@ export function useAudioRecording() {
 
 	const startRecording = useCallback(
 		async (
-			onTranscription: (text: string, isFinal: boolean) => void,
+			onTranscription: (
+				text: string,
+				isFinal: boolean,
+				speaker?: RealtimeSpeakerInfo | null,
+			) => void,
 			onError?: (error: Error) => void,
 			is24x7: boolean = false,
 		) => {

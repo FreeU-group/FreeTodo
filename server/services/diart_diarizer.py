@@ -1,7 +1,7 @@
 """Real-time speaker diarization with automatic backend selection.
 
-Preferred backend (when enabled): **diart/pyannote** – overlap-aware.
-Default backend:                  **CAM++ (FunASR)** – buffered embedding + VoiceprintStore.
+Preferred backend (when enabled): **diart/pyannote** - overlap-aware.
+Default backend:                  **CAM++ (FunASR)** - buffered embedding + VoiceprintStore.
 
 The caller only sees a unified interface: ``feed_audio`` / ``identify_current_speaker``.
 """
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import inspect
 import queue
 import re
 import threading
@@ -38,6 +39,40 @@ _vad_model_singleton: Any = None
 _vad_model_attempted = False
 
 
+def _ensure_hf_hub_compat() -> None:
+    """Backwards-compat for libs still passing `use_auth_token` to hf_hub_download.
+
+    Newer huggingface_hub only accepts `token`. This shim is no-op when the
+    installed version still supports `use_auth_token`.
+    """
+    with contextlib.suppress(Exception):
+        import huggingface_hub  # noqa: PLC0415
+
+        hf_hub_download = getattr(huggingface_hub, "hf_hub_download", None)
+        if hf_hub_download is None:
+            return
+
+        sig = inspect.signature(hf_hub_download)
+        if "use_auth_token" in sig.parameters:
+            return
+
+        original = hf_hub_download
+
+        def _compat_hf_hub_download(*args: Any, **kwargs: Any) -> Any:
+            use_auth_token = kwargs.pop("use_auth_token", None)
+            if kwargs.get("token") is None and use_auth_token is not None:
+                kwargs["token"] = use_auth_token
+            return original(*args, **kwargs)
+
+        huggingface_hub.hf_hub_download = _compat_hf_hub_download  # type: ignore[attr-defined]
+
+        # Some libs import from submodule directly.
+        with contextlib.suppress(Exception):
+            import huggingface_hub.file_download as _fd  # noqa: PLC0415
+
+            _fd.hf_hub_download = _compat_hf_hub_download  # type: ignore[attr-defined]
+
+
 def _load_vad_model() -> Any | None:
     """Load the FSMN-VAD model (lazy singleton, thread-safe)."""
     global _vad_model_singleton, _vad_model_attempted  # noqa: PLW0603
@@ -54,22 +89,16 @@ def _load_vad_model() -> Any | None:
         try:
             from funasr import AutoModel as FunASRAutoModel  # noqa: PLC0415
 
-            logger.info("正在加载 FSMN-VAD 语音活动检测模型 ...")
-            _vad_model_singleton = FunASRAutoModel(
-                model="fsmn-vad",
-                disable_update=True,
-                disable_pbar=True,
-                disable_log=True,
-                log_level="ERROR",
-            )
-            logger.info("FSMN-VAD 模型加载完成")
+            logger.info("正在加载 FSMN-VAD 模型...")
+            _vad_model_singleton = FunASRAutoModel(model="fsmn-vad", disable_update=True)
+            logger.info("FSMN-VAD model loaded")
         except Exception as e:
-            logger.warning(f"FSMN-VAD 加载失败，将使用原始缓冲: {e}")
+            logger.warning(f"FSMN-VAD 加载失败，将不启用 VAD 分段: {e}")
         return _vad_model_singleton
 
 
 class DiartDiarizer:
-    """Real-time speaker diarizer – diart (opt-in) with CAM++ fallback.
+    """Real-time speaker diarizer: diart (opt-in) with CAM++ fallback.
 
     Usage::
 
@@ -80,7 +109,7 @@ class DiartDiarizer:
         diarizer.stop()            # on disconnect
     """
 
-    def __init__(self) -> None:
+    def __init__(self) -> None:  # noqa: PLR0915
         cfg = settings.get("audio.speaker", {}) or {}
         self._enabled = bool(cfg.get("enabled", False))
 
@@ -98,6 +127,37 @@ class DiartDiarizer:
         # --- CAM++ fallback config ---
         self._min_audio_duration = float(cfg.get("min_audio_duration", 2.0))
         self._buffer_duration = float(cfg.get("buffer_duration", 5.0))
+        self._hybrid_reid_enabled = bool(cfg.get("hybrid_reid_enabled", True))
+        self._fallback_min_audio_duration = float(
+            cfg.get("fallback_min_audio_duration", min(self._min_audio_duration, 0.8))
+        )
+        self._hybrid_raw_buffer_enabled = bool(cfg.get("hybrid_raw_buffer_enabled", False))
+        self._hybrid_raw_min_duration = float(
+            cfg.get("hybrid_raw_min_duration", max(self._min_audio_duration, 2.8))
+        )
+        self._hybrid_raw_turn_stable_seconds = float(
+            cfg.get("hybrid_raw_turn_stable_seconds", 1.2)
+        )
+        self._hybrid_switch_confirmations = int(cfg.get("hybrid_switch_confirmations", 2))
+        self._hybrid_switch_window_seconds = float(cfg.get("hybrid_switch_window_seconds", 2.2))
+        self._hybrid_switch_min_confidence = float(
+            cfg.get("hybrid_switch_min_confidence", 0.82)
+        )
+
+        update_sources = cfg.get("voiceprint_update_sources", ["vad_segment", "vad_ongoing"])
+        if isinstance(update_sources, str):
+            update_sources = [item.strip() for item in update_sources.split(",")]
+        if not isinstance(update_sources, list):
+            update_sources = ["vad_segment", "vad_ongoing"]
+        self._voiceprint_update_sources: set[str] = {
+            str(item).strip() for item in update_sources if str(item).strip()
+        } or {"vad_segment", "vad_ongoing"}
+        self._voiceprint_update_min_duration = float(
+            cfg.get("voiceprint_update_min_duration", max(self._min_audio_duration, 1.6))
+        )
+        self._voiceprint_update_min_confidence = float(
+            cfg.get("voiceprint_update_min_confidence", 0.82)
+        )
 
         # --- Runtime state ---
         self._backend: str = "none"  # "diart" | "campp" | "none"
@@ -107,6 +167,7 @@ class DiartDiarizer:
         self._audio_queue: queue.Queue[bytes | None] = queue.Queue()
         self._timeline_lock = threading.Lock()
         self._current_speaker: str | None = None
+        self._recent_overlap_labels: list[str] = []
         self._speaker_timeline: list[tuple[str, float, float]] = []
         self._thread: threading.Thread | None = None
         self._pipeline: Any = None
@@ -118,6 +179,16 @@ class DiartDiarizer:
         self._audio_buffer = bytearray()
         self._buffer_lock = threading.Lock()
         self._last_match: SpeakerMatch | None = None
+        self._last_match_at: float = 0.0
+        self._reuse_last_match = bool(cfg.get("reuse_last_match", True))
+        self._stale_match_seconds = float(cfg.get("stale_match_seconds", 4.0))
+        self._last_match_turn_key: str | None = None
+        self._observed_turn_key: str | None = None
+        self._observed_turn_started_at: float = 0.0
+        self._switch_candidate_id: int | None = None
+        self._switch_candidate_hits: int = 0
+        self._switch_candidate_first_at: float = 0.0
+        self._create_on_first_unmatched = bool(cfg.get("create_on_first_unmatched", True))
         # Pending unknown embeddings: (embedding, duration, monotonic_timestamp)
         # A new speaker is created when a later embedding matches one in the pool.
         # Entries expire after _pending_expiry_sec without being re-confirmed.
@@ -143,16 +214,65 @@ class DiartDiarizer:
     def backend(self) -> str:
         return self._backend
 
+    def get_current_turn_key(self) -> str | None:  # noqa: PLR0911
+        """Return a lightweight speaker-turn key for segmentation decisions."""
+        if self._backend == "diart":
+            with self._timeline_lock:
+                label = self._current_speaker
+                overlap_labels = sorted(self._recent_overlap_labels)
+            if label is None and not overlap_labels:
+                return None
+            if label is not None:
+                overlap_without_current = [item for item in overlap_labels if item != label]
+                if overlap_without_current:
+                    overlap_suffix = ",".join(overlap_without_current)
+                    return f"diart:{label}|ov:{overlap_suffix}"
+                return f"diart:{label}"
+            if overlap_labels:
+                overlap_suffix = ",".join(overlap_labels)
+                return f"diart:overlap:{overlap_suffix}"
+            return None
+
+        recent = self._get_recent_last_match()
+        if recent is None:
+            return None
+        if recent.speaker_id <= 0:
+            return None
+        return f"spk:{recent.speaker_id}"
+
+    def get_recent_overlap_speakers(self) -> list[dict[str, Any]]:
+        """Return overlap candidates from the latest diart chunk."""
+        if self._backend != "diart":
+            return []
+        with self._timeline_lock:
+            labels = list(self._recent_overlap_labels)
+            current = self._current_speaker
+
+        result: list[dict[str, Any]] = []
+        for label in labels:
+            speaker_id, speaker_name = _parse_diart_label(label)
+            result.append(
+                {
+                    "label": label,
+                    "speaker_id": speaker_id,
+                    "speaker_name": speaker_name,
+                    "is_current": label == current,
+                }
+            )
+        return result
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
     def start(self) -> None:
-        """Load models: try diart first (if enabled), fall back to CAM++."""
+        """Load models: try diart first (if enabled), fall back to embedding backend."""
         if not self._enabled:
             return
 
         if self._diart_enabled and self._start_diart():
+            if self._hybrid_reid_enabled:
+                self._init_campp_components(enable_vad=False)
             return
 
         self._start_campp()
@@ -168,7 +288,16 @@ class DiartDiarizer:
             self._completed_segments.clear()
             self._audio_buffer.clear()
             self._pending_embeddings.clear()
-            logger.debug("CAM++ 说话人识别已停止")
+            logger.debug("CAM++ 资源已释放并重置")
+        self._recent_overlap_labels = []
+        self._last_match = None
+        self._last_match_at = 0.0
+        self._last_match_turn_key = None
+        self._observed_turn_key = None
+        self._observed_turn_started_at = 0.0
+        self._switch_candidate_id = None
+        self._switch_candidate_hits = 0
+        self._switch_candidate_first_at = 0.0
         self._backend = "none"
         self._available = False
 
@@ -184,6 +313,12 @@ class DiartDiarizer:
         if self._backend == "diart":
             with contextlib.suppress(queue.Full):
                 self._audio_queue.put_nowait(pcm_chunk)
+            if self._hybrid_reid_enabled:
+                with self._buffer_lock:
+                    self._audio_buffer.extend(pcm_chunk)
+                    max_bytes = int(self._buffer_duration * SAMPLE_RATE * BYTES_PER_SAMPLE)
+                    if len(self._audio_buffer) > max_bytes:
+                        self._audio_buffer = self._audio_buffer[-max_bytes:]
         elif self._backend == "campp":
             with self._buffer_lock:
                 # Raw rolling buffer (fallback when VAD is unavailable)
@@ -204,15 +339,65 @@ class DiartDiarizer:
     def get_current_speaker(self) -> SpeakerMatch | None:
         """Sync speaker lookup."""
         if self._backend == "diart":
-            return self._get_diart_speaker()
+            turn_key = self.get_current_turn_key()
+            self._observe_turn_key(turn_key)
+            diart_match = self._get_diart_speaker()
+            if self._hybrid_reid_enabled and self._campp_client is not None:
+                campp_match = self._get_campp_speaker(
+                    min_duration=self._fallback_min_audio_duration
+                )
+                if campp_match is not None:
+                    if (
+                        diart_match is not None
+                        and diart_match.overlap_speakers
+                        and not campp_match.overlap_speakers
+                    ):
+                        campp_match.overlap_speakers = diart_match.overlap_speakers
+                    self._remember_match(campp_match, turn_key=turn_key)
+                    return campp_match
+            if diart_match is not None:
+                if not self._hybrid_reid_enabled:
+                    self._remember_match(diart_match, turn_key=turn_key)
+                return diart_match
+            return self._get_recent_last_match(current_turn_key=turn_key)
         if self._backend == "campp":
-            return self._get_campp_speaker()
-        return None
+            match = self._get_campp_speaker()
+            if match is not None:
+                self._remember_match(match)
+                return match
+            return self._get_recent_last_match()
+        return self._get_recent_last_match()
 
     async def identify_current_speaker(self) -> SpeakerMatch | None:
         """Async speaker lookup (matches old API signature)."""
+        if self._backend == "diart":
+            turn_key = self.get_current_turn_key()
+            self._observe_turn_key(turn_key)
+            diart_match = self._get_diart_speaker()
+            if self._hybrid_reid_enabled and self._campp_client is not None:
+                campp_match = await self._identify_campp_async(
+                    min_duration=self._fallback_min_audio_duration
+                )
+                if campp_match is not None:
+                    if (
+                        diart_match is not None
+                        and diart_match.overlap_speakers
+                        and not campp_match.overlap_speakers
+                    ):
+                        campp_match.overlap_speakers = diart_match.overlap_speakers
+                    self._remember_match(campp_match, turn_key=turn_key)
+                    return campp_match
+            if diart_match is not None:
+                if not self._hybrid_reid_enabled:
+                    self._remember_match(diart_match, turn_key=turn_key)
+                return diart_match
+            return self._get_recent_last_match(current_turn_key=turn_key)
         if self._backend == "campp":
-            return await self._identify_campp_async()
+            match = await self._identify_campp_async()
+            if match is not None:
+                self._remember_match(match)
+                return match
+            return self._get_recent_last_match()
         return self.get_current_speaker()
 
     # ==================================================================
@@ -221,6 +406,7 @@ class DiartDiarizer:
 
     def _start_diart(self) -> bool:
         try:
+            _ensure_hf_hub_compat()
             from diart import SpeakerDiarization, SpeakerDiarizationConfig  # noqa: PLC0415
             from diart.models import EmbeddingModel, SegmentationModel  # noqa: PLC0415
 
@@ -244,13 +430,13 @@ class DiartDiarizer:
             self._backend = "diart"
             self._available = True
             logger.info(
-                f"Diart 说话人分离已启动 (step={self._step}s, latency={self._latency}s, "
+                f"Diart 实时说话人分离已启动 (step={self._step}s, latency={self._latency}s, "
                 f"seg={self._seg_model}, emb={self._emb_model})"
             )
             return True
         except Exception as e:
             tb = traceback.format_exc()
-            logger.info(f"Diart 不可用，回退到 CAM++: {type(e).__name__}: {e}\n{tb}")
+            logger.info(f"Diart 初始化失败，回退到声纹识别后端: {type(e).__name__}: {e}\n{tb}")
             return False
 
     def _stop_diart(self) -> None:
@@ -259,7 +445,7 @@ class DiartDiarizer:
             self._source.close()
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=5.0)
-        logger.debug("Diart 说话人分离已停止")
+        logger.debug("Diart 已停止")
 
     def _run_diart(self) -> None:
         try:
@@ -273,18 +459,40 @@ class DiartDiarizer:
             inference.attach_hooks(self._on_diarization_result)
             inference()
         except Exception as e:
-            logger.error(f"Diart 管道异常退出: {e}", exc_info=True)
+            logger.error(f"Diart 运行异常: {e}", exc_info=True)
+            self._activate_campp_after_diart_failure(e)
+
+    def _activate_campp_after_diart_failure(self, err: Exception) -> None:
+        """Fallback to embedding backend if diart stream crashes at runtime."""
+        if self._backend != "diart":
+            return
+        logger.warning(f"Diart 运行失败，自动回退到声纹识别后端: {type(err).__name__}: {err}")
+        if self._init_campp_components(enable_vad=True):
+            self._backend = "campp"
+            self._available = True
+            backend = getattr(self._campp_client, "backend", "unknown")
+            logger.info(f"Auto fallback to speaker embedding backend: {backend}")
+        else:
+            self._available = False
+            logger.warning(
+                "Diart failed and embedding backend is unavailable; speaker identification disabled"
+            )
 
     def _on_diarization_result(self, result: tuple) -> None:
         annotation, _audio = result
         if annotation is None:
             return
-        if not annotation.get_labels():
-            return
+        latest_segments: list[tuple[float, float, str]] = []
         with self._timeline_lock:
             for segment, _track, label in annotation.itertracks(yield_label=True):
-                self._speaker_timeline.append((str(label), segment.start, segment.end))
-                self._current_speaker = str(label)
+                label_name = str(label)
+                self._speaker_timeline.append((label_name, segment.start, segment.end))
+                latest_segments.append((segment.start, segment.end, label_name))
+            if not latest_segments:
+                return
+            latest = max(latest_segments, key=lambda x: x[1])
+            self._current_speaker = latest[2]
+            self._recent_overlap_labels = _collect_overlap_labels(latest_segments)
             if len(self._speaker_timeline) > _TIMELINE_MAX:
                 self._speaker_timeline = self._speaker_timeline[-_TIMELINE_TRIM:]
 
@@ -293,39 +501,66 @@ class DiartDiarizer:
             if self._current_speaker is None:
                 return None
             speaker_id, speaker_name = _parse_diart_label(self._current_speaker)
-            return SpeakerMatch(speaker_id=speaker_id, speaker_name=speaker_name, confidence=1.0)
+            overlap_labels = list(self._recent_overlap_labels)
+            overlap_speakers = []
+            for label in overlap_labels:
+                sid, sname = _parse_diart_label(label)
+                overlap_speakers.append(
+                    {
+                        "label": label,
+                        "speaker_id": sid,
+                        "speaker_name": sname,
+                        "is_current": label == self._current_speaker,
+                    }
+                )
+            return SpeakerMatch(
+                speaker_id=speaker_id,
+                speaker_name=speaker_name,
+                confidence=1.0,
+                overlap_speakers=overlap_speakers or None,
+            )
 
     # ==================================================================
     # CAM++ fallback backend  (with optional FSMN-VAD segmentation)
     # ==================================================================
 
-    def _start_campp(self) -> None:
+    def _init_campp_components(self, *, enable_vad: bool) -> bool:
         try:
-            from services.speaker_embedding_client import (  # noqa: PLC0415
-                SpeakerEmbeddingClient,
-            )
-            from services.speaker_service import VoiceprintStore  # noqa: PLC0415
+            if self._campp_client is None:
+                from services.speaker_embedding_client import (  # noqa: PLC0415
+                    SpeakerEmbeddingClient,
+                )
 
-            client = SpeakerEmbeddingClient()
-            if not client.available:
-                logger.warning("说话人识别不可用: funasr 未安装 (pip install funasr modelscope)")
-                self._available = False
-                return
+                client = SpeakerEmbeddingClient()
+                if not client.available:
+                    logger.warning("说话人识别不可用：embedding backend unavailable")
+                    return False
+                self._campp_client = client
 
-            self._campp_client = client
-            self._voiceprint_store = VoiceprintStore()
+            if self._voiceprint_store is None:
+                from services.speaker_service import VoiceprintStore  # noqa: PLC0415
 
-            # Try loading FSMN-VAD for speech-turn segmentation
-            if self._vad_enabled:
+                self._voiceprint_store = VoiceprintStore()
+
+            if enable_vad and self._vad_enabled and self._vad_model is None:
                 self._vad_model = _load_vad_model()
                 self._vad_cache = {}
 
+            return True
+        except Exception as e:
+            logger.warning(f"Speaker embedding client 初始化失败: {e}")
+            return False
+
+    def _start_campp(self) -> None:
+        if self._init_campp_components(enable_vad=True):
             self._backend = "campp"
             self._available = True
-            vad_tag = "VAD 切分已启用" if self._vad_model else "无 VAD"
-            logger.info(f"CAM++ 说话人识别已启动 (FunASR + VoiceprintStore, {vad_tag})")
-        except Exception as e:
-            logger.warning(f"CAM++ 说话人识别初始化失败: {e}")
+            vad_tag = "VAD enabled" if self._vad_model else "VAD disabled"
+            backend = getattr(self._campp_client, "backend", "unknown")
+            logger.info(
+                f"Speaker embedding backend started (backend={backend}, VoiceprintStore, {vad_tag})"
+            )
+        else:
             self._available = False
 
     # ---- VAD chunk processing (called inside _buffer_lock) ----
@@ -345,7 +580,7 @@ class DiartDiarizer:
             )
             segments = result[0].get("value", []) if result else []
         except Exception as e:
-            logger.debug(f"VAD 处理异常: {e}")
+            logger.debug(f"VAD 濠㈣泛瀚幃濠傤嚕閸屾氨鍩? {e}")
             if self._in_speech:
                 self._current_speech_buf.extend(chunk_bytes)
             return
@@ -370,10 +605,10 @@ class DiartDiarizer:
         seg_duration = len(self._current_speech_buf) / (SAMPLE_RATE * BYTES_PER_SAMPLE)
         if seg_duration >= self._min_audio_duration:
             self._completed_segments.append(bytes(self._current_speech_buf))
-            logger.debug(f"VAD: 语音段完成 ({seg_duration:.1f}s)")
+            logger.debug(f"VAD: 完成语音片段 ({seg_duration:.1f}s)")
         else:
             logger.debug(
-                f"VAD: 语音段太短 ({seg_duration:.1f}s < {self._min_audio_duration}s), 丢弃"
+                f"VAD: segment too short ({seg_duration:.1f}s < {self._min_audio_duration}s), dropped"
             )
         self._current_speech_buf = bytearray()
 
@@ -410,6 +645,146 @@ class DiartDiarizer:
             entry for entry in self._pending_embeddings if entry[2] >= cutoff
         ]
 
+    def _observe_turn_key(self, turn_key: str | None) -> None:
+        """Track turn changes to gate raw-buffer fallback in hybrid mode."""
+        now = time.monotonic()
+        if turn_key is None:
+            self._observed_turn_key = None
+            self._observed_turn_started_at = now
+            return
+        if turn_key != self._observed_turn_key:
+            self._observed_turn_key = turn_key
+            self._observed_turn_started_at = now
+            self._switch_candidate_id = None
+            self._switch_candidate_hits = 0
+            self._switch_candidate_first_at = 0.0
+
+    def _current_turn_age(self, turn_key: str | None) -> float:
+        if turn_key is None or turn_key != self._observed_turn_key:
+            return 0.0
+        return max(0.0, time.monotonic() - self._observed_turn_started_at)
+
+    def _campp_skip_reason(
+        self, *, source: str, duration: float, turn_key: str | None
+    ) -> str | None:
+        """Return a non-empty reason when this CAM++ attempt should be skipped."""
+        if self._backend != "diart":
+            return None
+        if source != "raw_buffer":
+            return None
+        if not self._hybrid_raw_buffer_enabled:
+            return "hybrid raw_buffer disabled"
+        if duration < self._hybrid_raw_min_duration:
+            return (
+                f"raw_buffer too short ({duration:.2f}s < {self._hybrid_raw_min_duration:.2f}s)"
+            )
+        turn_age = self._current_turn_age(turn_key)
+        if turn_age < self._hybrid_raw_turn_stable_seconds:
+            return (
+                "turn not stable for raw_buffer "
+                f"({turn_age:.2f}s < {self._hybrid_raw_turn_stable_seconds:.2f}s)"
+            )
+        return None
+
+    def _voiceprint_update_skip_reason(
+        self, *, source: str, duration: float, confidence: float
+    ) -> str | None:
+        if duration < self._voiceprint_update_min_duration:
+            return (
+                "duration too short for voiceprint update "
+                f"({duration:.2f}s < {self._voiceprint_update_min_duration:.2f}s)"
+            )
+        if confidence < self._voiceprint_update_min_confidence:
+            return (
+                "confidence too low for voiceprint update "
+                f"({confidence:.3f} < {self._voiceprint_update_min_confidence:.3f})"
+            )
+        if self._backend == "diart" and source not in self._voiceprint_update_sources:
+            return f"source not allowed in hybrid mode ({source})"
+        return None
+
+    def _stabilize_hybrid_match(  # noqa: PLR0911
+        self,
+        match: SpeakerMatch,
+        *,
+        source: str,
+        turn_key: str | None,
+    ) -> SpeakerMatch | None:
+        """Reduce identity oscillation in diart+CAM++ hybrid mode."""
+        if self._backend != "diart":
+            return match
+
+        last = self._last_match
+        if last is None or last.speaker_id <= 0 or match.speaker_id <= 0:
+            self._switch_candidate_id = None
+            self._switch_candidate_hits = 0
+            self._switch_candidate_first_at = 0.0
+            return match
+        if last.speaker_id == match.speaker_id:
+            self._switch_candidate_id = None
+            self._switch_candidate_hits = 0
+            self._switch_candidate_first_at = 0.0
+            return match
+
+        now = time.monotonic()
+        if self._stale_match_seconds > 0 and (now - self._last_match_at) > self._stale_match_seconds:
+            self._switch_candidate_id = None
+            self._switch_candidate_hits = 0
+            self._switch_candidate_first_at = 0.0
+            return match
+
+        turn_changed = (
+            turn_key is not None
+            and self._last_match_turn_key is not None
+            and turn_key != self._last_match_turn_key
+        )
+        reliable_source = source in self._voiceprint_update_sources
+        strong_conf = match.confidence >= self._hybrid_switch_min_confidence
+
+        # Fast-path: clear turn change + clean segment + high confidence.
+        if turn_changed and reliable_source and strong_conf:
+            self._switch_candidate_id = None
+            self._switch_candidate_hits = 0
+            self._switch_candidate_first_at = 0.0
+            return match
+
+        if (
+            self._switch_candidate_id == match.speaker_id
+            and (now - self._switch_candidate_first_at) <= self._hybrid_switch_window_seconds
+        ):
+            self._switch_candidate_hits += 1
+        else:
+            self._switch_candidate_id = match.speaker_id
+            self._switch_candidate_hits = 1
+            self._switch_candidate_first_at = now
+
+        required_hits = max(1, self._hybrid_switch_confirmations)
+        if self._switch_candidate_hits >= required_hits and (strong_conf or reliable_source):
+            logger.debug(
+                "hybrid switch accepted: %s -> %s (hits=%d, conf=%.3f, source=%s)",
+                last.speaker_name,
+                match.speaker_name,
+                self._switch_candidate_hits,
+                match.confidence,
+                source,
+            )
+            self._switch_candidate_id = None
+            self._switch_candidate_hits = 0
+            self._switch_candidate_first_at = 0.0
+            return match
+
+        logger.debug(
+            "hybrid switch held: %s -> %s (hits=%d/%d, conf=%.3f, source=%s, turn=%s)",
+            last.speaker_name,
+            match.speaker_name,
+            self._switch_candidate_hits,
+            required_hits,
+            match.confidence,
+            source,
+            turn_key,
+        )
+        return None
+
     def _identify_with_confirmation(
         self, embedding: np.ndarray, duration: float, source: str
     ) -> SpeakerMatch | None:
@@ -420,8 +795,8 @@ class DiartDiarizer:
         one already in the pool (i.e. the same unknown voice is heard twice).
 
         Pending entries expire after ``_pending_expiry_sec`` seconds of not
-        being re-confirmed.  Matching a known speaker does **not** clear the
-        pool — other unknown voices keep accumulating independently.
+        being re-confirmed. Matching a known speaker does **not** clear the
+        pool - other unknown voices keep accumulating independently.
         """
         now = time.monotonic()
         self._prune_expired_pending(now)
@@ -430,13 +805,24 @@ class DiartDiarizer:
         match = store.find_speaker(embedding)
 
         if match is not None:
-            store.add_voiceprint_sample(match.speaker_id, embedding, duration)
-            self._last_match = match
+            skip_reason = self._voiceprint_update_skip_reason(
+                source=source, duration=duration, confidence=match.confidence
+            )
+            if skip_reason is None:
+                store.add_voiceprint_sample(match.speaker_id, embedding, duration)
+            else:
+                logger.debug(
+                    "skip voiceprint update for %s: %s", match.speaker_name, skip_reason
+                )
             logger.info(
-                f"说话人识别 [{source}] {duration:.1f}s → "
-                f"匹配 {match.speaker_name} (conf={match.confidence:.3f})"
+                f"说话人识别[{source}] {duration:.1f}s -> 命中 {match.speaker_name} "
+                f"(conf={match.confidence:.3f})"
             )
             return match
+
+        if self._backend == "diart" and source == "raw_buffer":
+            logger.debug("skip pending/new-speaker from raw_buffer in hybrid mode")
+            return None
 
         # Check against pending unknown embeddings
         threshold = store._similarity_threshold
@@ -450,58 +836,137 @@ class DiartDiarizer:
                 new_match = store.register_speaker(
                     avg_emb, audio_duration=max(duration, pending_dur)
                 )
-                self._last_match = new_match
                 # Only remove the matched entry, keep others
                 self._pending_embeddings.pop(idx)
                 logger.info(
-                    f"说话人识别 [{source}] {duration:.1f}s → "
-                    f"新建 {new_match.speaker_name} (同一声纹二次确认 sim={sim:.3f})"
+                    f"说话人识别[{source}] {duration:.1f}s -> 新建 {new_match.speaker_name} "
+                    f"(pending confirmed, sim={sim:.3f})"
                 )
                 return new_match
 
-        # No match anywhere — stash this embedding for future confirmation.
+        if self._create_on_first_unmatched:
+            with contextlib.suppress(Exception):
+                created_match = store.identify_or_create(embedding, audio_duration=duration)
+                if created_match is not None and created_match.speaker_id != -1:
+                    self._pending_embeddings.clear()
+                    logger.info(
+                        f"说话人识别[{source}] {duration:.1f}s -> 新建 {created_match.speaker_name} "
+                        "(single-shot)"
+                    )
+                    return created_match
+
+        # No match anywhere - stash this embedding for future confirmation.
         # Return None so the caller shows "unknown" instead of stale speaker.
         self._pending_embeddings.append((embedding, duration, now))
         if len(self._pending_embeddings) > self._max_pending:
             self._pending_embeddings.pop(0)
 
         logger.info(
-            f"说话人识别 [{source}] {duration:.1f}s → "
-            f"未匹配，等待二次确认 (pending={len(self._pending_embeddings)})"
+            f"说话人识别[{source}] {duration:.1f}s -> 未匹配，加入待确认池 "
+            f"(pending={len(self._pending_embeddings)})"
         )
         return None
 
     # ---- sync / async identification ----
 
-    def _get_campp_speaker(self) -> SpeakerMatch | None:
+    def _get_campp_speaker(  # noqa: PLR0911
+        self, *, min_duration: float | None = None
+    ) -> SpeakerMatch | None:
+        turn_key = self.get_current_turn_key() if self._backend == "diart" else None
+        if self._campp_client is None or self._voiceprint_store is None:
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
         with self._buffer_lock:
             segment, source = self._pick_best_segment()
 
         duration = len(segment) / (SAMPLE_RATE * BYTES_PER_SAMPLE)
-        if duration < self._min_audio_duration:
-            return self._last_match
+        threshold = self._min_audio_duration if min_duration is None else min_duration
+        if self._backend == "diart" and source == "raw_buffer":
+            threshold = max(threshold, self._hybrid_raw_min_duration)
+        if duration < threshold:
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
+        skip_reason = self._campp_skip_reason(source=source, duration=duration, turn_key=turn_key)
+        if skip_reason is not None:
+            logger.debug("skip CAM++ identify [%s]: %s", source, skip_reason)
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
 
         try:
             embedding = self._campp_client.extract_embedding(segment, SAMPLE_RATE)
-            return self._identify_with_confirmation(embedding, duration, source)
+            raw_match = self._identify_with_confirmation(embedding, duration, source)
+            if raw_match is None:
+                return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
+            if self._backend == "diart":
+                return self._stabilize_hybrid_match(raw_match, source=source, turn_key=turn_key)
+            return raw_match
         except Exception as e:
-            logger.debug(f"CAM++ 声纹提取失败: {e}")
-            return self._last_match
+            logger.debug(f"speaker embedding 提取失败: {e}")
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
 
-    async def _identify_campp_async(self) -> SpeakerMatch | None:
+    async def _identify_campp_async(  # noqa: PLR0911
+        self, *, min_duration: float | None = None
+    ) -> SpeakerMatch | None:
+        turn_key = self.get_current_turn_key() if self._backend == "diart" else None
+        if self._campp_client is None or self._voiceprint_store is None:
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
         with self._buffer_lock:
             segment, source = self._pick_best_segment()
 
         duration = len(segment) / (SAMPLE_RATE * BYTES_PER_SAMPLE)
-        if duration < self._min_audio_duration:
-            return self._last_match
+        threshold = self._min_audio_duration if min_duration is None else min_duration
+        if self._backend == "diart" and source == "raw_buffer":
+            threshold = max(threshold, self._hybrid_raw_min_duration)
+        if duration < threshold:
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
+        skip_reason = self._campp_skip_reason(source=source, duration=duration, turn_key=turn_key)
+        if skip_reason is not None:
+            logger.debug("skip CAM++ identify [%s]: %s", source, skip_reason)
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
 
         try:
             embedding = await self._campp_client.extract_embedding_async(segment, SAMPLE_RATE)
-            return self._identify_with_confirmation(embedding, duration, source)
+            raw_match = self._identify_with_confirmation(embedding, duration, source)
+            if raw_match is None:
+                return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
+            if self._backend == "diart":
+                return self._stabilize_hybrid_match(raw_match, source=source, turn_key=turn_key)
+            return raw_match
         except Exception as e:
-            logger.debug(f"CAM++ 声纹提取失败: {e}")
+            logger.debug(f"speaker embedding 提取失败: {e}")
+            return self._fallback_recent_match_for_campp(current_turn_key=turn_key)
+
+    def _fallback_recent_match_for_campp(
+        self, *, current_turn_key: str | None = None
+    ) -> SpeakerMatch | None:
+        """Fallback policy when CAM++ cannot produce a fresh embedding.
+
+        In diart-hybrid mode we avoid reusing stale speaker identities and let
+        diart provide the temporary label for the current turn. This prevents
+        old speaker IDs from being glued to new voices.
+        """
+        if self._backend == "diart":
+            return None
+        return self._get_recent_last_match(current_turn_key=current_turn_key)
+
+    def _remember_match(self, match: SpeakerMatch, turn_key: str | None = None) -> None:
+        self._last_match = match
+        self._last_match_at = time.monotonic()
+        self._last_match_turn_key = turn_key
+
+    def _get_recent_last_match(self, current_turn_key: str | None = None) -> SpeakerMatch | None:
+        if not self._reuse_last_match:
+            return None
+        if self._last_match is None:
+            return None
+        if (
+            current_turn_key is not None
+            and self._last_match_turn_key is not None
+            and current_turn_key != self._last_match_turn_key
+        ):
+            return None
+        if self._stale_match_seconds <= 0:
             return self._last_match
+        if (time.monotonic() - self._last_match_at) <= self._stale_match_seconds:
+            return self._last_match
+        return None
 
 
 # --------------------------------------------------------------------------
@@ -510,7 +975,7 @@ class DiartDiarizer:
 
 
 def _build_queue_audio_source(audio_queue: queue.Queue, *, sample_rate: int = 16000) -> Any:
-    """Factory – keeps diart import lazy."""
+    """Factory - keeps diart import lazy."""
     from diart.sources import AudioSource  # noqa: PLC0415
 
     class _QueueAudioSource(AudioSource):
@@ -521,12 +986,11 @@ def _build_queue_audio_source(audio_queue: queue.Queue, *, sample_rate: int = 16
             self._current_time = 0.0
 
         @property
-        def duration(self) -> float:
-            return float("inf")
+        def duration(self) -> float | None:
+            # Unknown-length live stream: let diart run without total-chunk estimation.
+            return None
 
         def read(self) -> None:
-            from pyannote.core import SlidingWindow, SlidingWindowFeature  # noqa: PLC0415
-
             while not self._closed:
                 try:
                     pcm_bytes = self._queue.get(timeout=1.0)
@@ -538,13 +1002,9 @@ def _build_queue_audio_source(audio_queue: queue.Queue, *, sample_rate: int = 16
                 num_samples = len(samples)
                 if num_samples == 0:
                     continue
-                waveform = samples[:, np.newaxis]  # (N, 1) mono
-                sw = SlidingWindow(
-                    start=self._current_time,
-                    duration=1.0 / self.sample_rate,
-                    step=1.0 / self.sample_rate,
-                )
-                self.stream.on_next(SlidingWindowFeature(waveform, sw))
+                # diart expects raw mono waveform chunks with shape (1, samples)
+                waveform = samples[np.newaxis, :]
+                self.stream.on_next(waveform)
                 self._current_time += num_samples / self.sample_rate
             self.stream.on_completed()
 
@@ -567,6 +1027,24 @@ def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a / na, b / nb))
 
 
+def _collect_overlap_labels(
+    segments: list[tuple[float, float, str]], min_overlap: float = 0.08
+) -> list[str]:
+    """Collect speaker labels that overlap in a diarization chunk."""
+    overlap_labels: set[str] = set()
+    for i in range(len(segments)):
+        si_start, si_end, si_label = segments[i]
+        for j in range(i + 1, len(segments)):
+            sj_start, sj_end, sj_label = segments[j]
+            if si_label == sj_label:
+                continue
+            overlap = min(si_end, sj_end) - max(si_start, sj_start)
+            if overlap >= min_overlap:
+                overlap_labels.add(si_label)
+                overlap_labels.add(sj_label)
+    return sorted(overlap_labels)
+
+
 def _classify_vad_events(segments: list) -> tuple[bool, bool]:
     """Return ``(speech_started, speech_ended)`` from FSMN-VAD segment list."""
     started = False
@@ -582,11 +1060,21 @@ def _classify_vad_events(segments: list) -> tuple[bool, bool]:
     return started, ended
 
 
-_LABEL_NUM_RE = re.compile(r"(\d+)")
+_DIART_SPEAKER_RE = re.compile(r"^SPEAKER_(\d+)$", re.IGNORECASE)
+_NON_NUM_LABEL_TO_ID: dict[str, int] = {}
 
 
 def _parse_diart_label(label: str) -> tuple[int, str]:
     """Convert a diart speaker label (e.g. ``'SPEAKER_01'``) to ``(id, name)``."""
-    m = _LABEL_NUM_RE.search(label)
-    speaker_id = int(m.group(1)) if m else abs(hash(label)) % 1000
-    return speaker_id, f"说话人 {speaker_id}"
+    raw = label.strip()
+    m_diart = _DIART_SPEAKER_RE.fullmatch(raw)
+    if m_diart:
+        speaker_id = int(m_diart.group(1)) + 1
+    else:
+        key = raw or "__empty__"
+        speaker_id = _NON_NUM_LABEL_TO_ID.setdefault(key, len(_NON_NUM_LABEL_TO_ID) + 1)
+    if speaker_id <= 0:
+        key = raw or "__empty__"
+        speaker_id = _NON_NUM_LABEL_TO_ID.setdefault(key, len(_NON_NUM_LABEL_TO_ID) + 1)
+    return speaker_id, f"说话人{speaker_id}"
+

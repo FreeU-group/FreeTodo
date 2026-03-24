@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
+from dataclasses import asdict, is_dataclass
 from typing import TYPE_CHECKING, Any
 
 from util.audio_utils import apply_agc_to_pcm, pcm16le_to_wav
 from util.logging_config import get_logger
+from util.settings import settings
 from util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
@@ -27,6 +30,69 @@ logger = get_logger()
 SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCK_SIZE = 1024
+
+
+def _read_positive_float_setting(path: str, default: float) -> float:
+    """Read a positive float setting with a safe fallback."""
+    try:
+        value = float(settings.get(path, default))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+SPEAKER_CHANGE_SEGMENT_MIN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.min_segment_seconds",
+    1.0,
+)
+SPEAKER_CHANGE_COOLDOWN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.cooldown_seconds",
+    0.6,
+)
+SPEAKER_CHANGE_DEBOUNCE_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.debounce_seconds",
+    0.35,
+)
+
+
+def _normalize_speaker_payload(result: Any, speaker_diarizer: Any) -> dict[str, Any]:
+    """Normalize speaker identification results into JSON-safe payload."""
+
+    def _read_attr(obj: Any, name: str) -> Any:
+        try:
+            return getattr(obj, name)
+        except AttributeError:
+            return None
+
+    if is_dataclass(result):
+        payload: dict[str, Any] = asdict(result)
+    elif isinstance(result, dict):
+        payload = dict(result)
+    else:
+        payload = {
+            "speaker_id": _read_attr(result, "speaker_id"),
+            "speaker_name": _read_attr(result, "speaker_name"),
+            "confidence": _read_attr(result, "confidence"),
+            "is_new": _read_attr(result, "is_new"),
+            "is_me": _read_attr(result, "is_me"),
+        }
+
+    backend = getattr(speaker_diarizer, "backend", None)
+    if isinstance(backend, str) and backend:
+        payload["backend"] = backend
+
+    overlap_candidates: Any = None
+    getter = (
+        speaker_diarizer.get_recent_overlap_speakers
+        if hasattr(speaker_diarizer, "get_recent_overlap_speakers")
+        else None
+    )
+    if callable(getter):
+        overlap_candidates = getter()
+    if isinstance(overlap_candidates, list) and overlap_candidates:
+        payload["overlap_speakers"] = overlap_candidates
+
+    return payload
 
 
 def _track(task_set: set[asyncio.Task], coro: Any) -> asyncio.Task:
@@ -65,6 +131,19 @@ class LocalMicCapture:
         self._subscribers: set[WebSocket] = set()
         self._bg_tasks: set[asyncio.Task] = set()
 
+        self._nlp_buffer = ""
+        self._nlp_last_emit = 0.0
+        self._nlp_pending: asyncio.Task[None] | None = None
+        self._nlp_throttle_seconds = 8.0
+
+        self._speaker_diarizer: Any = None
+        self._speaker_lock = asyncio.Lock()
+        self._segment_started_mono = time.monotonic()
+        self._segment_started_at = get_utc_now()
+        self._last_turn_key: str | None = None
+        self._pending_turn_key: str | None = None
+        self._pending_turn_key_since: float | None = None
+        self._last_segment_boundary_at: float | None = None
     @property
     def is_active(self) -> bool:
         return self._running and self._stream is not None
@@ -89,6 +168,27 @@ class LocalMicCapture:
         self._loop = asyncio.get_running_loop()
         self._started_at = get_utc_now()
         self._is_24x7 = is_24x7
+        self._segment_started_mono = time.monotonic()
+        self._segment_started_at = self._started_at
+        self._last_turn_key = None
+        self._pending_turn_key = None
+        self._pending_turn_key_since = None
+        self._last_segment_boundary_at = None
+
+        self._speaker_diarizer = None
+        with contextlib.suppress(Exception):
+            from services.diart_diarizer import DiartDiarizer  # noqa: PLC0415
+
+            diarizer = DiartDiarizer()
+            diarizer.start()
+            if diarizer.enabled:
+                self._speaker_diarizer = diarizer
+                logger.info(
+                    "[local-mic] Speaker diarization enabled "
+                    f"(backend={getattr(diarizer, 'backend', 'unknown')})"
+                )
+        if self._speaker_diarizer is None:
+            logger.info("[local-mic] Speaker diarization unavailable")
 
         self._stream = sd.InputStream(
             samplerate=SAMPLE_RATE,
@@ -119,6 +219,7 @@ class LocalMicCapture:
             with contextlib.suppress(TimeoutError, asyncio.CancelledError):
                 await asyncio.wait_for(self._asr_task, timeout=10.0)
 
+        self._stop_speaker_diarizer()
         logger.info("[local-mic] Capture stopped")
 
     # ── sounddevice callback (audio thread) ────────────────────────
@@ -132,6 +233,15 @@ class LocalMicCapture:
         self._audio_chunks.append(pcm_bytes)
         if self._loop is not None:
             self._loop.call_soon_threadsafe(self._audio_queue.put_nowait, pcm_bytes)
+            if self._speaker_diarizer is not None:
+                self._loop.call_soon_threadsafe(self._feed_speaker_audio, pcm_bytes)
+
+    def _feed_speaker_audio(self, pcm_bytes: bytes) -> None:
+        diarizer = self._speaker_diarizer
+        if diarizer is None:
+            return
+        with contextlib.suppress(Exception):
+            diarizer.feed_audio(pcm_bytes)
 
     # ── ASR ────────────────────────────────────────────────────────
 
@@ -176,13 +286,113 @@ class LocalMicCapture:
 
     # ── broadcast ──────────────────────────────────────────────────
 
-    async def _broadcast_result(self, text: str, is_final: bool) -> None:
+    def _get_current_turn_key(self) -> str | None:
+        diarizer = self._speaker_diarizer
+        if diarizer is None:
+            return None
+        getter = diarizer.get_current_turn_key if hasattr(diarizer, "get_current_turn_key") else None
+        if not callable(getter):
+            return None
+        try:
+            value = getter()
+        except Exception:
+            return None
+        return value if isinstance(value, str) and value else None
+
+    async def _resolve_speaker_payload(self, *, is_final: bool) -> dict[str, Any] | None:
+        diarizer = self._speaker_diarizer
+        if diarizer is None or not getattr(diarizer, "enabled", False):
+            return None
+        try:
+            if is_final:
+                result = await diarizer.identify_current_speaker()
+            else:
+                if getattr(diarizer, "backend", None) != "diart":
+                    return None
+                getter = diarizer.get_current_speaker if hasattr(diarizer, "get_current_speaker") else None
+                if not callable(getter):
+                    return None
+                result = getter()
+            if result is None:
+                return None
+            return _normalize_speaker_payload(result, diarizer)
+        except Exception as exc:
+            logger.debug(f"[local-mic] resolve speaker payload failed: {exc}")
+            return None
+
+    async def _maybe_emit_segment_boundary_by_turn(self) -> None:  # noqa: PLR0911
+        current_turn_key = self._get_current_turn_key()
+        if current_turn_key is None:
+            self._pending_turn_key = None
+            self._pending_turn_key_since = None
+            return
+
+        now_mono = time.monotonic()
+        if self._last_turn_key is None:
+            self._last_turn_key = current_turn_key
+            self._pending_turn_key = None
+            self._pending_turn_key_since = None
+            return
+
+        if current_turn_key == self._last_turn_key:
+            self._pending_turn_key = None
+            self._pending_turn_key_since = None
+            return
+
+        if self._pending_turn_key != current_turn_key:
+            self._pending_turn_key = current_turn_key
+            self._pending_turn_key_since = now_mono
+            return
+
+        if self._pending_turn_key_since is None:
+            self._pending_turn_key_since = now_mono
+            return
+
+        pending_elapsed = now_mono - self._pending_turn_key_since
+        if pending_elapsed < SPEAKER_CHANGE_DEBOUNCE_SECONDS:
+            return
+
+        segment_elapsed = now_mono - self._segment_started_mono
+        if segment_elapsed < SPEAKER_CHANGE_SEGMENT_MIN_SECONDS:
+            return
+
+        if self._last_segment_boundary_at is not None:
+            since_last = now_mono - self._last_segment_boundary_at
+            if since_last < SPEAKER_CHANGE_COOLDOWN_SECONDS:
+                return
+
+        self._last_turn_key = current_turn_key
+        self._pending_turn_key = None
+        self._pending_turn_key_since = None
+        self._last_segment_boundary_at = now_mono
+        boundary_start = self._segment_started_at
+        self._segment_started_mono = now_mono
+        self._segment_started_at = get_utc_now()
+
         await self._broadcast(
             {
-                "header": {"name": "TranscriptionResultChanged"},
-                "payload": {"result": text, "is_final": is_final},
+                "header": {"name": "SegmentSaved"},
+                "payload": {
+                    "message": "Segmented by speaker turn change.",
+                    "segment_start_time": boundary_start.isoformat(),
+                },
             }
         )
+
+    async def _broadcast_result(self, text: str, is_final: bool) -> None:
+        async with self._speaker_lock:
+            speaker_payload = await self._resolve_speaker_payload(is_final=is_final)
+            payload: dict[str, Any] = {"result": text, "is_final": is_final}
+            if speaker_payload is not None:
+                payload["speaker"] = speaker_payload
+            await self._broadcast(
+                {
+                    "header": {"name": "TranscriptionResultChanged"},
+                    "payload": payload,
+                }
+            )
+            if is_final:
+                await self._maybe_emit_segment_boundary_by_turn()
 
     async def _broadcast_error(self, error: str) -> None:
         await self._broadcast(
@@ -200,6 +410,14 @@ class LocalMicCapture:
             except Exception:
                 dead.add(ws)
         self._subscribers -= dead
+
+    def _stop_speaker_diarizer(self) -> None:
+        diarizer = self._speaker_diarizer
+        self._speaker_diarizer = None
+        if diarizer is None:
+            return
+        with contextlib.suppress(Exception):
+            diarizer.stop()
 
     # ── perception ─────────────────────────────────────────────────
 
@@ -296,6 +514,8 @@ class LocalMicCapture:
             )
         except Exception as exc:
             logger.error(f"[local-mic] Save failed: {exc}", exc_info=True)
+        finally:
+            self._stop_speaker_diarizer()
 
     # ── status ─────────────────────────────────────────────────────
 

@@ -108,8 +108,9 @@ def register_local_mic_routes(
         capture = await get_capture()
         if not capture or not capture.is_active:
             return {"status": "not_running"}
+        status_snapshot = capture.get_status()
         await capture.stop()
-        return {"status": "stopped"}
+        return {"status": "stopped", **status_snapshot}
 
     @router.get("/local-mic/status")
     async def local_mic_status() -> dict[str, Any]:

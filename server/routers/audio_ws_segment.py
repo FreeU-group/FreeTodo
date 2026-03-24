@@ -1,25 +1,59 @@
-"""Audio websocket segment monitoring and saving logic.
-
-Split from `audio_ws.py` to reduce file size and complexity.
-"""
+"""Audio websocket segment monitoring and background persistence."""
 
 from __future__ import annotations
 
 import asyncio
 import importlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from starlette.websockets import WebSocketState
 
+from util.settings import settings
 from util.time_utils import get_utc_now
 
 if TYPE_CHECKING:
     from datetime import datetime
 
-# 常量（从 audio_ws 复制以避免循环导入）
-SILENCE_CHECK_INTERVAL_SECONDS = 60
-SILENCE_DETECTION_THRESHOLD_SECONDS = 600
-SEGMENT_DURATION_MINUTES = 30
+def _read_positive_float_setting(path: str, default: float) -> float:
+    """Read a positive float from settings, fallback to default on invalid values."""
+    try:
+        value = float(settings.get(path, default))
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+# Monitor cadence (sub-second for low-latency speaker turn boundaries).
+SEGMENT_MONITOR_INTERVAL_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.monitor_interval_seconds", 0.5
+)
+
+# Kept local (mirrors audio_ws.py) to avoid circular imports.
+SILENCE_CHECK_INTERVAL_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.silence_check_interval_seconds", 2.0
+)
+SILENCE_DETECTION_THRESHOLD_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.silence_threshold_seconds", 600.0
+)
+SEGMENT_DURATION_MINUTES = _read_positive_float_setting(
+    "audio.speaker.segmentation.max_segment_minutes", 30.0
+)
+
+# Realtime segmentation by speaker turn changes.
+SPEAKER_CHANGE_SEGMENT_MIN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.min_segment_seconds", 1.0
+)
+SPEAKER_CHANGE_COOLDOWN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.cooldown_seconds", 0.6
+)
+SPEAKER_CHANGE_DEBOUNCE_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.debounce_seconds", 0.35
+)
+
+# If turn signals disappear, re-enable duration-based segmentation after this fallback window.
+DURATION_FALLBACK_WITHOUT_TURN_SECONDS = _read_positive_float_setting(
+    "audio.speaker.segmentation.duration_fallback_without_turn_seconds", 180.0
+)
 
 _segment_tasks: set[asyncio.Task] = set()
 
@@ -32,7 +66,7 @@ def _track_task(coro) -> asyncio.Task:
 
 
 class _SegmentMonitorContext:
-    """分段监控任务的上下文，用于减少参数数量"""
+    """Context object for the monitor loop."""
 
     def __init__(self, **kwargs):
         self.logger = kwargs["logger"]
@@ -44,10 +78,11 @@ class _SegmentMonitorContext:
         self.should_segment_ref = kwargs["should_segment_ref"]
         self.is_connected_ref = kwargs["is_connected_ref"]
         self.websocket = kwargs.get("websocket")
+        self.speaker_diarizer = kwargs.get("speaker_diarizer")
 
 
 class _SegmentSaveContext:
-    """分段保存的上下文，用于减少参数数量"""
+    """Context object for a single segment save."""
 
     def __init__(self, **kwargs):
         self.logger = kwargs["logger"]
@@ -62,7 +97,7 @@ class _SegmentSaveContext:
 
 
 async def _notify_segment_saved(ctx: _SegmentSaveContext) -> None:
-    """通知前端分段已保存"""
+    """Notify frontend that current segment was saved."""
     if not ctx.websocket or not ctx.is_connected_ref or not ctx.is_connected_ref[0]:
         return
 
@@ -71,7 +106,7 @@ async def _notify_segment_saved(ctx: _SegmentSaveContext) -> None:
             ctx.websocket.application_state == WebSocketState.CONNECTED
             and ctx.websocket.client_state == WebSocketState.CONNECTED
         ):
-            reason_message = ctx.segment_reason or "当前段已保存，开始新段"
+            reason_message = ctx.segment_reason or "Current segment saved. Started a new segment."
             await ctx.websocket.send_json(
                 {
                     "header": {"name": "SegmentSaved"},
@@ -81,9 +116,32 @@ async def _notify_segment_saved(ctx: _SegmentSaveContext) -> None:
                     },
                 }
             )
-            ctx.logger.info("已通知前端分段保存")
+            ctx.logger.info("SegmentSaved notification sent to client")
     except Exception as e:
-        ctx.logger.warning(f"通知前端分段保存失败: {e}")
+        ctx.logger.warning(f"Failed to notify SegmentSaved: {e}")
+
+
+async def _notify_segment_boundary_only(
+    *,
+    ctx: _SegmentMonitorContext,
+    segment_start_time: datetime,
+    segment_reason: str,
+) -> None:
+    """Emit a segment boundary event without persisting/clearing buffers."""
+    notify_ctx = _SegmentSaveContext(
+        **{
+            "logger": ctx.logger,
+            "audio_service": ctx.audio_service,
+            "audio_chunks": [],
+            "transcription_text_ref": [""],
+            "segment_timestamps_ref": [None],
+            "segment_start_time": segment_start_time,
+            "websocket": ctx.websocket,
+            "is_connected_ref": ctx.is_connected_ref,
+            "segment_reason": segment_reason,
+        }
+    )
+    await _notify_segment_saved(notify_ctx)
 
 
 async def _persist_segment_async(
@@ -95,14 +153,13 @@ async def _persist_segment_async(
     segment_timestamps: list[float] | None,
     segment_start_time: datetime,
 ) -> None:
-    """异步保存分段（不阻塞主流程）"""
-    # 延迟导入以避免循环导入
+    """Persist one segment in the background."""
     audio_ws_module = importlib.import_module("routers.audio_ws")
     _persist_recording = audio_ws_module._persist_recording
     _save_transcription_if_any = audio_ws_module._save_transcription_if_any
 
     try:
-        recording_id, _duration = _persist_recording(
+        recording_id, duration = _persist_recording(
             logger=logger,
             audio_service=audio_service,
             audio_chunks=audio_chunks,
@@ -115,13 +172,16 @@ async def _persist_segment_async(
             text=transcription_text,
             segment_timestamps=segment_timestamps,
         )
-        logger.info(f"分段保存完成: recording_id={recording_id}, duration={_duration:.2f}s")
+        if recording_id is not None and duration is not None:
+            logger.info(f"Segment persisted: recording_id={recording_id}, duration={duration:.2f}s")
+        else:
+            logger.info("Segment persistence skipped: empty audio/text")
     except Exception as e:
-        logger.error(f"保存分段失败: {e}", exc_info=True)
+        logger.error(f"Failed to persist segment: {e}", exc_info=True)
 
 
-async def _save_current_segment(*, params: dict) -> None:
-    """保存当前段并清空缓冲区"""
+async def _save_current_segment(*, params: dict[str, Any]) -> None:
+    """Save current segment and clear in-memory buffers."""
     logger = params["logger"]
     audio_service = params["audio_service"]
     audio_chunks = params["audio_chunks"]
@@ -133,20 +193,17 @@ async def _save_current_segment(*, params: dict) -> None:
     segment_reason = params.get("segment_reason")
 
     if not audio_chunks:
-        logger.debug("当前段没有音频数据，跳过保存")
+        logger.debug("Skip segment save: no audio chunks")
         return
 
-    # 保存当前段
     current_chunks = audio_chunks.copy()
     current_text = transcription_text_ref[0]
     current_timestamps = segment_timestamps_ref[0]
 
-    # 清空缓冲区，准备新段
     audio_chunks.clear()
     transcription_text_ref[0] = ""
     segment_timestamps_ref[0] = None
 
-    # 创建上下文
     ctx = _SegmentSaveContext(
         **{
             "logger": logger,
@@ -161,10 +218,8 @@ async def _save_current_segment(*, params: dict) -> None:
         }
     )
 
-    # 通知前端分段已保存
     await _notify_segment_saved(ctx)
 
-    # 异步保存当前段（不阻塞）
     _track_task(
         _persist_segment_async(
             logger=ctx.logger,
@@ -180,25 +235,25 @@ async def _save_current_segment(*, params: dict) -> None:
 async def _check_time_segment(
     ctx: _SegmentMonitorContext, now: datetime, segment_start_time: datetime
 ) -> bool:
-    """检查30分钟时间分段，返回是否已分段"""
     elapsed = (now - segment_start_time).total_seconds()
-    if elapsed >= SEGMENT_DURATION_MINUTES * 60:
-        ctx.logger.info("达到30分钟分段时间，保存当前段并开始新段")
-        await _save_current_segment(
-            params={
-                "logger": ctx.logger,
-                "audio_service": ctx.audio_service,
-                "audio_chunks": ctx.audio_chunks,
-                "transcription_text_ref": ctx.transcription_text_ref,
-                "segment_timestamps_ref": ctx.segment_timestamps_ref,
-                "segment_start_time": segment_start_time,
-                "websocket": ctx.websocket,
-                "is_connected_ref": ctx.is_connected_ref,
-                "segment_reason": "达到30分钟分段时间，保存当前段并开始新段",
-            }
-        )
-        return True
-    return False
+    if elapsed < SEGMENT_DURATION_MINUTES * 60:
+        return False
+
+    ctx.logger.info("Segment by fixed duration trigger")
+    await _save_current_segment(
+        params={
+            "logger": ctx.logger,
+            "audio_service": ctx.audio_service,
+            "audio_chunks": ctx.audio_chunks,
+            "transcription_text_ref": ctx.transcription_text_ref,
+            "segment_timestamps_ref": ctx.segment_timestamps_ref,
+            "segment_start_time": segment_start_time,
+            "websocket": ctx.websocket,
+            "is_connected_ref": ctx.is_connected_ref,
+            "segment_reason": "Segmented by max duration.",
+        }
+    )
+    return True
 
 
 async def _check_silence_segment(
@@ -207,50 +262,56 @@ async def _check_silence_segment(
     segment_start_time: datetime,
     silence_start_time: datetime | None,
 ) -> tuple[bool, datetime | None]:
-    """检查静音分段，返回(是否已分段, 新的静音开始时间)"""
     if len(ctx.audio_chunks) == 0:
         return False, silence_start_time
 
-    # 检查最近一段音频是否为静音
-    # 延迟导入以避免循环导入
     audio_ws_module = importlib.import_module("routers.audio_ws")
     _detect_silence = audio_ws_module._detect_silence
-    recent_chunks = ctx.audio_chunks[-10:]  # 检查最近10个chunk
+
+    recent_chunks = ctx.audio_chunks[-10:]
     recent_audio = b"".join(recent_chunks)
     is_silent = _detect_silence(recent_audio)
 
-    if is_silent:
-        if silence_start_time is None:
-            return False, now
-        silence_duration = (now - silence_start_time).total_seconds()
-        if silence_duration >= SILENCE_DETECTION_THRESHOLD_SECONDS:
-            ctx.logger.info(f"检测到长时间静音（{silence_duration:.0f}秒），保存当前段并开始新段")
-            await _save_current_segment(
-                params={
-                    "logger": ctx.logger,
-                    "audio_service": ctx.audio_service,
-                    "audio_chunks": ctx.audio_chunks,
-                    "transcription_text_ref": ctx.transcription_text_ref,
-                    "segment_timestamps_ref": ctx.segment_timestamps_ref,
-                    "segment_start_time": segment_start_time,
-                    "websocket": ctx.websocket,
-                    "is_connected_ref": ctx.is_connected_ref,
-                    "segment_reason": f"检测到长时间静音（{silence_duration:.0f}秒），保存当前段并开始新段",
-                }
-            )
-            return True, None
+    if not is_silent:
+        return False, None
+
+    if silence_start_time is None:
+        return False, now
+
+    silence_duration = (now - silence_start_time).total_seconds()
+    if silence_duration < SILENCE_DETECTION_THRESHOLD_SECONDS:
         return False, silence_start_time
-    # 有语音，重置静音计时
-    return False, None
+
+    ctx.logger.info(f"Segment by long silence trigger ({silence_duration:.0f}s)")
+    await _save_current_segment(
+        params={
+            "logger": ctx.logger,
+            "audio_service": ctx.audio_service,
+            "audio_chunks": ctx.audio_chunks,
+            "transcription_text_ref": ctx.transcription_text_ref,
+            "segment_timestamps_ref": ctx.segment_timestamps_ref,
+            "segment_start_time": segment_start_time,
+            "websocket": ctx.websocket,
+            "is_connected_ref": ctx.is_connected_ref,
+            "segment_reason": f"Segmented by long silence ({silence_duration:.0f}s).",
+        }
+    )
+    return True, None
 
 
 async def _check_manual_segment(
-    ctx: _SegmentMonitorContext, now: datetime, segment_start_time: datetime
+    ctx: _SegmentMonitorContext,
+    now: datetime,
+    segment_start_time: datetime,
+    *,
+    persist_segment: bool,
 ) -> bool:
-    """检查外部分段请求，返回是否已分段"""
     _ = now
-    if ctx.should_segment_ref[0]:
-        ctx.logger.info("收到分段请求，保存当前段并开始新段")
+    if not ctx.should_segment_ref[0]:
+        return False
+
+    ctx.logger.info("Segment by manual request trigger")
+    if persist_segment:
         await _save_current_segment(
             params={
                 "logger": ctx.logger,
@@ -261,16 +322,108 @@ async def _check_manual_segment(
                 "segment_start_time": segment_start_time,
                 "websocket": ctx.websocket,
                 "is_connected_ref": ctx.is_connected_ref,
-                "segment_reason": "收到分段请求，保存当前段并开始新段",
+                "segment_reason": "Segmented by manual request.",
             }
         )
-        ctx.should_segment_ref[0] = False
-        return True
-    return False
+    else:
+        await _notify_segment_boundary_only(
+            ctx=ctx,
+            segment_start_time=segment_start_time,
+            segment_reason="Segmented by manual request.",
+        )
+    ctx.should_segment_ref[0] = False
+    return True
 
 
-async def _segment_monitor_task(*, params: dict, is_24x7: bool) -> None:
-    """监控分段条件：30分钟时间分段 + 静音检测"""
+def _get_speaker_turn_key(ctx: _SegmentMonitorContext) -> str | None:
+    """Read current speaker turn key from diarizer with a lightweight method."""
+    diarizer = ctx.speaker_diarizer
+    if diarizer is None:
+        return None
+    getter = diarizer.get_current_turn_key if hasattr(diarizer, "get_current_turn_key") else None
+    if not callable(getter):
+        return None
+    try:
+        key = getter()
+        return key if isinstance(key, str) and key else None
+    except Exception:
+        return None
+
+
+async def _check_speaker_change_segment(  # noqa: C901, PLR0911, PLR0913
+    ctx: _SegmentMonitorContext,
+    now: datetime,
+    segment_start_time: datetime,
+    last_turn_key: str | None,
+    last_change_at: datetime | None,
+    current_turn_key: str | None,
+    pending_turn_key: str | None,
+    pending_turn_key_since: datetime | None,
+    *,
+    persist_segment: bool,
+) -> tuple[bool, str | None, datetime | None, str | None, datetime | None]:
+    """Segment in realtime when speaker turn changes."""
+    if current_turn_key is None:
+        return False, last_turn_key, last_change_at, None, None
+    if last_turn_key is None:
+        return False, current_turn_key, last_change_at, None, None
+    if current_turn_key == last_turn_key:
+        return False, current_turn_key, last_change_at, None, None
+    if not ctx.audio_chunks:
+        return False, last_turn_key, last_change_at, None, None
+
+    if pending_turn_key != current_turn_key:
+        return False, last_turn_key, last_change_at, current_turn_key, now
+    if pending_turn_key_since is None:
+        return False, last_turn_key, last_change_at, pending_turn_key, now
+
+    pending_elapsed = (now - pending_turn_key_since).total_seconds()
+    if pending_elapsed < SPEAKER_CHANGE_DEBOUNCE_SECONDS:
+        return False, last_turn_key, last_change_at, pending_turn_key, pending_turn_key_since
+
+    elapsed = (now - segment_start_time).total_seconds()
+    if elapsed < SPEAKER_CHANGE_SEGMENT_MIN_SECONDS:
+        return False, last_turn_key, last_change_at, pending_turn_key, pending_turn_key_since
+
+    if last_change_at is not None:
+        since_last_change = (now - last_change_at).total_seconds()
+        if since_last_change < SPEAKER_CHANGE_COOLDOWN_SECONDS:
+            return False, last_turn_key, last_change_at, pending_turn_key, pending_turn_key_since
+
+    ctx.logger.info(f"Segment by speaker turn change: {last_turn_key} -> {current_turn_key}")
+    if persist_segment:
+        await _save_current_segment(
+            params={
+                "logger": ctx.logger,
+                "audio_service": ctx.audio_service,
+                "audio_chunks": ctx.audio_chunks,
+                "transcription_text_ref": ctx.transcription_text_ref,
+                "segment_timestamps_ref": ctx.segment_timestamps_ref,
+                "segment_start_time": segment_start_time,
+                "websocket": ctx.websocket,
+                "is_connected_ref": ctx.is_connected_ref,
+                "segment_reason": "Segmented by speaker turn change.",
+            }
+        )
+    else:
+        await _notify_segment_boundary_only(
+            ctx=ctx,
+            segment_start_time=segment_start_time,
+            segment_reason="Segmented by speaker turn change.",
+        )
+    return True, current_turn_key, now, None, None
+
+
+def _has_speaker_turn_support(ctx: _SegmentMonitorContext) -> bool:
+    diarizer = ctx.speaker_diarizer
+    if diarizer is None:
+        return False
+    getter = diarizer.get_current_turn_key if hasattr(diarizer, "get_current_turn_key") else None
+    return callable(getter)
+
+
+async def _segment_monitor_task(*, params: dict[str, Any], is_24x7: bool) -> None:  # noqa: C901, PLR0912, PLR0915
+    """Monitor segmentation conditions and save segments asynchronously."""
     _ = is_24x7
     logger = params["logger"]
     recording_started_at = params["recording_started_at"]
@@ -278,41 +431,91 @@ async def _segment_monitor_task(*, params: dict, is_24x7: bool) -> None:
     ctx = _SegmentMonitorContext(**params)
     segment_start_time = recording_started_at
     silence_start_time: datetime | None = None
+    last_turn_key: str | None = None
+    last_speaker_change_at: datetime | None = None
+    pending_turn_key: str | None = None
+    pending_turn_key_since: datetime | None = None
+    last_silence_check_at: datetime | None = None
+    last_turn_seen_at: datetime | None = None
+    has_turn_support = _has_speaker_turn_support(ctx)
 
     while ctx.is_connected_ref[0]:
         try:
-            await asyncio.sleep(SILENCE_CHECK_INTERVAL_SECONDS)
-
+            await asyncio.sleep(SEGMENT_MONITOR_INTERVAL_SECONDS)
             if not ctx.is_connected_ref[0]:
                 break
 
             now = get_utc_now()
+            current_turn_key = _get_speaker_turn_key(ctx)
+            if current_turn_key is not None:
+                last_turn_seen_at = now
 
-            # 检查30分钟时间分段
-            if await _check_time_segment(ctx, now, segment_start_time):
-                segment_start_time = now
-                silence_start_time = None
-                ctx.recording_started_at = now
-                continue
-
-            # 检查静音（仅在最近有语音的情况下检查）
-            was_segmented, silence_start_time = await _check_silence_segment(
-                ctx, now, segment_start_time, silence_start_time
+            (
+                speaker_changed,
+                last_turn_key,
+                last_speaker_change_at,
+                pending_turn_key,
+                pending_turn_key_since,
+            ) = await _check_speaker_change_segment(
+                ctx,
+                now,
+                segment_start_time,
+                last_turn_key,
+                last_speaker_change_at,
+                current_turn_key,
+                pending_turn_key,
+                pending_turn_key_since,
+                persist_segment=is_24x7,
             )
-            if was_segmented:
+            if speaker_changed:
                 segment_start_time = now
+                silence_start_time = None
+                last_silence_check_at = None
                 ctx.recording_started_at = now
                 continue
 
-            # 检查外部分段请求
-            if await _check_manual_segment(ctx, now, segment_start_time):
+            if is_24x7:
+                should_use_duration_segment = True
+                if has_turn_support:
+                    turn_reference = last_turn_seen_at or segment_start_time
+                    no_turn_elapsed = (now - turn_reference).total_seconds()
+                    should_use_duration_segment = (
+                        no_turn_elapsed >= DURATION_FALLBACK_WITHOUT_TURN_SECONDS
+                    )
+                if should_use_duration_segment and await _check_time_segment(
+                    ctx, now, segment_start_time
+                ):
+                    segment_start_time = now
+                    silence_start_time = None
+                    last_silence_check_at = None
+                    ctx.recording_started_at = now
+                    continue
+
+            if is_24x7:
+                should_check_silence = (
+                    last_silence_check_at is None
+                    or (now - last_silence_check_at).total_seconds() >= SILENCE_CHECK_INTERVAL_SECONDS
+                )
+                if should_check_silence:
+                    last_silence_check_at = now
+                    was_segmented, silence_start_time = await _check_silence_segment(
+                        ctx, now, segment_start_time, silence_start_time
+                    )
+                    if was_segmented:
+                        segment_start_time = now
+                        last_silence_check_at = None
+                        ctx.recording_started_at = now
+                        continue
+
+            if await _check_manual_segment(ctx, now, segment_start_time, persist_segment=is_24x7):
                 segment_start_time = now
                 silence_start_time = None
+                last_silence_check_at = None
                 ctx.recording_started_at = now
 
         except asyncio.CancelledError:
-            logger.info("分段监控任务已取消")
+            logger.info("Segment monitor task cancelled")
             break
         except Exception as e:
-            logger.error(f"分段监控任务错误: {e}", exc_info=True)
-            await asyncio.sleep(5)  # 出错后等待5秒再继续
+            logger.error(f"Segment monitor task error: {e}", exc_info=True)
+            await asyncio.sleep(5)
