@@ -9,6 +9,12 @@ import httpx
 from fastapi import APIRouter, HTTPException
 
 from services.config_service import ConfigService, is_llm_configured, is_masked_api_key
+from services.diary_illustration_service import (
+    DEFAULT_VOLCENGINE_BASE_URL,
+    DEFAULT_VOLCENGINE_IMAGE_MODEL,
+    DEFAULT_VOLCENGINE_IMAGE_SIZE,
+    test_diary_provider_config,
+)
 from util.agent_os_utils import resolve_agent_os_base_url
 from util.logging_config import get_logger
 from util.prompt_loader import get_prompt
@@ -119,6 +125,49 @@ def _get_config_value(config_data: dict[str, Any], camel_key: str, snake_key: st
         配置值，如果都不存在则返回 None
     """
     return config_data.get(camel_key) or config_data.get(snake_key)
+
+
+def _extract_diary_provider_config(
+    provider: str,
+    config_data: dict[str, Any],
+) -> dict[str, Any]:
+    provider_name = provider.strip().lower()
+    if provider_name == "gemini":
+        return {
+            "api_key": _get_config_value(config_data, "banna2ApiKey", "banna2_api_key") or "",
+            "ref_image_path": _get_config_value(
+                config_data,
+                "banna2RefImagePath",
+                "banna2_ref_image_path",
+            )
+            or "",
+        }
+
+    if provider_name == "volcengine":
+        return {
+            "api_key": _get_config_value(config_data, "volcengineApiKey", "volcengine_api_key")
+            or "",
+            "base_url": _get_config_value(
+                config_data,
+                "volcengineBaseUrl",
+                "volcengine_base_url",
+            )
+            or DEFAULT_VOLCENGINE_BASE_URL,
+            "image_model": _get_config_value(
+                config_data,
+                "volcengineImageModel",
+                "volcengine_image_model",
+            )
+            or DEFAULT_VOLCENGINE_IMAGE_MODEL,
+            "image_size": _get_config_value(
+                config_data,
+                "volcengineImageSize",
+                "volcengine_image_size",
+            )
+            or DEFAULT_VOLCENGINE_IMAGE_SIZE,
+        }
+
+    raise ValueError(f"Unsupported diary illustration provider: {provider}")
 
 
 async def _reload_agent_os_if_running() -> dict[str, Any]:
@@ -233,6 +282,22 @@ async def test_tavily_config(config_data: dict[str, str]):
         error_msg = str(e)
         logger.error(f"Tavily配置测试失败: {error_msg}")
         return {"success": False, "error": error_msg}
+
+
+@router.post("/test-diary-illustration-provider")
+async def test_diary_illustration_provider(config_data: dict[str, Any]):
+    """测试日记插画图片提供商是否可用。"""
+    provider = str(_get_config_value(config_data, "provider", "provider") or "").strip().lower()
+    if not provider:
+        return {"success": False, "error": "缺少 provider 字段"}
+
+    try:
+        provider_config = _extract_diary_provider_config(provider, config_data)
+        result = await asyncio.to_thread(test_diary_provider_config, provider, provider_config)
+        return {"success": True, **result}
+    except Exception as exc:
+        logger.error("测试日记插画提供商失败 provider=%s error=%s", provider, exc)
+        return {"success": False, "error": str(exc), "provider": provider}
 
 
 def _parse_asr_config(config_data: dict[str, Any]) -> dict[str, Any]:

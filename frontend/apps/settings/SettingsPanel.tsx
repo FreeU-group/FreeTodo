@@ -38,6 +38,7 @@ import {
 	SettingsSection,
 	VersionInfoSection,
 	VoiceprintSection,
+	VolcengineConfigSection,
 } from "./components";
 import { useSettingsSearchMatchStats } from "./hooks/useSettingsSearchMatchStats";
 
@@ -171,6 +172,7 @@ export function SettingsPanel() {
 					<>
 						<LlmConfigSection config={config} loading={loading} />
 						<GeminiConfigSection config={config} loading={loading} />
+						<VolcengineConfigSection config={config} loading={loading} />
 					</>
 				);
 			case "sensing":

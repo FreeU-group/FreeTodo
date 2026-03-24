@@ -35,3 +35,4 @@ export { TavilyConfigSection } from "./TavilyConfigSection";
 export { ToggleSwitch } from "./ToggleSwitch";
 export { VersionInfoSection } from "./VersionInfoSection";
 export { VoiceprintSection } from "./VoiceprintSection";
+export { VolcengineConfigSection } from "./VolcengineConfigSection";

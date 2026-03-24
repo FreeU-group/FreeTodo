@@ -190,6 +190,7 @@ jobs:
     name: 日记插画生成
     enabled: false
     cron: "0 22 * * *"
+    provider: gemini
 
 # 向量数据库配置
 vector_db:
@@ -287,6 +288,13 @@ tavily:
 banna2:
   api_key: YOUR_GOOGLE_GEMINI_API_KEY_HERE
   ref_image_path: ""
+
+# 火山引擎图像生成配置（日记插画备用）
+volcengine:
+  api_key: ""
+  base_url: https://ark.cn-beijing.volces.com/api/v3
+  image_model: doubao-seedream-5-0-260128
+  image_size: 1024x1024
 
 # 音频识别配置（阿里云Fun-ASR）
 audio:

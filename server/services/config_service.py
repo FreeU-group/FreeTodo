@@ -114,6 +114,7 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "tavily_": (7, "tavily"),
     "sensor_": (7, "sensor"),
     "banna2_": (7, "banna2"),
+    "volcengine_": (11, "volcengine"),
     "setup_": (6, "setup"),
     "agno_": (5, "agno"),
 }
@@ -145,12 +146,22 @@ _MIN_JOBS_PARTS = 3
 DIARY_ILLUSTRATION_RUNTIME_KEYS = {
     "jobs.diary_illustration.enabled",
     "jobs.diary_illustration.cron",
+    "jobs.diary_illustration.provider",
     "jobs_diary_illustration_enabled",
     "jobs_diary_illustration_cron",
+    "jobs_diary_illustration_provider",
     "banna2.api_key",
     "banna2.ref_image_path",
     "banna2_api_key",
     "banna2_ref_image_path",
+    "volcengine.api_key",
+    "volcengine.base_url",
+    "volcengine.image_model",
+    "volcengine.image_size",
+    "volcengine_api_key",
+    "volcengine_base_url",
+    "volcengine_image_model",
+    "volcengine_image_size",
     *LLM_RELATED_BACKEND_KEYS,
 }
 
@@ -407,8 +418,13 @@ class ConfigService:
             # Diary illustration
             "banna2.api_key",
             "banna2.ref_image_path",
+            "volcengine.api_key",
+            "volcengine.base_url",
+            "volcengine.image_model",
+            "volcengine.image_size",
             "jobs.diary_illustration.enabled",
             "jobs.diary_illustration.cron",
+            "jobs.diary_illustration.provider",
             # Identity / setup
             "setup.user_name",
             "setup.agent_name",

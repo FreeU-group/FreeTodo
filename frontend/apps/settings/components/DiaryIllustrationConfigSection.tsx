@@ -20,6 +20,7 @@ export function DiaryIllustrationConfigSection({
 	const t = useTranslations("diaryIllustration");
 	const refImageInputId = "diary-illustration-ref-image";
 	const cronInputId = "diary-illustration-cron";
+	const providerInputId = "diary-illustration-provider";
 	const saveConfigMutation = useSaveConfig();
 	const [refImagePath, setRefImagePath] = useState(
 		(config?.banna2RefImagePath as string) ?? "",
@@ -29,6 +30,9 @@ export function DiaryIllustrationConfigSection({
 	);
 	const [cron, setCron] = useState(
 		(config?.jobsDiaryIllustrationCron as string) ?? "0 22 * * *",
+	);
+	const [provider, setProvider] = useState(
+		(config?.jobsDiaryIllustrationProvider as string) ?? "gemini",
 	);
 	const [generating, setGenerating] = useState(false);
 	const isLoading = loading || saveConfigMutation.isPending;
@@ -43,6 +47,9 @@ export function DiaryIllustrationConfigSection({
 		}
 		if (config.jobsDiaryIllustrationCron !== undefined) {
 			setCron((config.jobsDiaryIllustrationCron as string) ?? "0 22 * * *");
+		}
+		if (config.jobsDiaryIllustrationProvider !== undefined) {
+			setProvider((config.jobsDiaryIllustrationProvider as string) ?? "gemini");
 		}
 	}, [config]);
 
@@ -85,7 +92,7 @@ export function DiaryIllustrationConfigSection({
 		<SettingsSection
 			title={t("title")}
 			description={t("description")}
-			searchKeywords={["diary", "illustration", "comic", "gemini", "manga"]}
+			searchKeywords={["diary", "illustration", "comic", "gemini", "volcengine", "manga"]}
 		>
 			<div className="space-y-5">
 				<div className="flex items-center justify-between">
@@ -109,6 +116,30 @@ export function DiaryIllustrationConfigSection({
 
 				<div className="space-y-1.5">
 					<label
+						htmlFor={providerInputId}
+						className="text-sm font-medium text-foreground"
+					>
+						{t("providerLabel")}
+					</label>
+					<select
+						id={providerInputId}
+						value={provider}
+						onChange={(event) => {
+							const nextProvider = event.target.value;
+							setProvider(nextProvider);
+							void handleSave({ jobsDiaryIllustrationProvider: nextProvider });
+						}}
+						disabled={isLoading}
+						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+					>
+						<option value="gemini">{t("providerGemini")}</option>
+						<option value="volcengine">{t("providerVolcengine")}</option>
+					</select>
+					<p className="text-xs text-muted-foreground">{t("providerHint")}</p>
+				</div>
+
+				<div className="space-y-1.5">
+					<label
 						htmlFor={refImageInputId}
 						className="flex items-center gap-2 text-sm font-medium text-foreground"
 					>
@@ -127,7 +158,9 @@ export function DiaryIllustrationConfigSection({
 						disabled={isLoading}
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
 					/>
-					<p className="text-xs text-muted-foreground">{t("refImageHint")}</p>
+					<p className="text-xs text-muted-foreground">
+						{provider === "gemini" ? t("refImageGeminiHint") : t("refImageHint")}
+					</p>
 				</div>
 
 				<div className="space-y-1.5">
