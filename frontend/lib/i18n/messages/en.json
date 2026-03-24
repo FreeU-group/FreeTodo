@@ -268,6 +268,8 @@
 			"notificationPopupHint": "When enabled, a notification will appear at the bottom-left corner when new tasks are detected.",
 			"developerSectionTitle": "Developer Options",
 			"developerSectionDescription": "Advanced and experimental settings for developers or power users.",
+			"extensionPanelsTitle": "Panel Extensions",
+			"extensionPanelsDescription": "These extension panels are hidden from the dock by default; you can enable them here when needed.",
 			"devPanelsTitle": "Panels in Development",
 			"devPanelsDescription": "These panels are still under development. They are hidden from the dock by default; you can enable them here.",
 			"modeSwitcherTitle": "Chat Mode Switcher",

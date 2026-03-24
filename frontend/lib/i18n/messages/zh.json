@@ -268,6 +268,8 @@
 			"notificationPopupHint": "启用后，当检测到新任务时会在左下角弹出通知提醒。",
 			"developerSectionTitle": "开发者选项",
 			"developerSectionDescription": "高级和实验性功能配置，仅推荐开发者或高级用户使用。",
+			"extensionPanelsTitle": "面板扩展",
+			"extensionPanelsDescription": "这些扩展面板默认不会显示在底部 Dock 中，你可以在这里按需开启。",
 			"devPanelsTitle": "开发中的面板",
 			"devPanelsDescription": "这些面板仍在开发中，默认不会显示在底部 Dock 中，你可以在这里手动开启。",
 			"modeSwitcherTitle": "聊天模式切换器",

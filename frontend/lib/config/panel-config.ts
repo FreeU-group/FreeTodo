@@ -63,6 +63,12 @@ export const DEV_IN_PROGRESS_FEATURES: PanelFeature[] = [
 ];
 
 /**
+ * 面板扩展功能列表
+ * 这些扩展面板默认在 UI 中处于关闭状态，由用户手动开启
+ */
+export const EXTENSION_PANEL_FEATURES: PanelFeature[] = ["crawler", "crawlerDetail"];
+
+/**
  * 所有可用的功能列表
  */
 export const ALL_PANEL_FEATURES: PanelFeature[] = [

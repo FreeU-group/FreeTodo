@@ -6,6 +6,7 @@ import { CollapsibleSection } from "@/components/common/layout/CollapsibleSectio
 import {
 	ALL_PANEL_FEATURES,
 	DEV_IN_PROGRESS_FEATURES,
+	EXTENSION_PANEL_FEATURES,
 	FEATURE_ICON_MAP,
 	type PanelFeature,
 } from "@/lib/config/panel-config";
@@ -36,6 +37,7 @@ export function PanelSwitchesSection({
 	const backendDisabledFeatures = useUiStore(
 		(state) => state.backendDisabledFeatures,
 	);
+	const [showExtensionPanels, setShowExtensionPanels] = useState(false);
 	const [showDevPanels, setShowDevPanels] = useState(false);
 	const searchQuery = useSettingsSearchQuery();
 
@@ -44,15 +46,28 @@ export function PanelSwitchesSection({
 		(feature) => feature !== "settings",
 	);
 
-	// 开发中的面板 & 常规面板分组
+	// 面板分组
+	const extensionPanels = availablePanels.filter((feature) =>
+		EXTENSION_PANEL_FEATURES.includes(feature),
+	);
 	const devPanels = availablePanels.filter((feature) =>
 		DEV_IN_PROGRESS_FEATURES.includes(feature),
 	);
 	const regularPanels = availablePanels.filter(
-		(feature) => !DEV_IN_PROGRESS_FEATURES.includes(feature),
+		(feature) =>
+			!DEV_IN_PROGRESS_FEATURES.includes(feature) &&
+			!EXTENSION_PANEL_FEATURES.includes(feature),
 	);
-	const panelKeywords = [...regularPanels, ...devPanels].map(
+	const panelKeywords = [...regularPanels, ...extensionPanels, ...devPanels].map(
 		(feature) => tBottomDock(feature) || feature,
+	);
+
+	const extensionPanelKeywords = useMemo(
+		() =>
+			extensionPanels
+				.map((feature) => tBottomDock(feature) || feature)
+				.filter(Boolean),
+		[extensionPanels, tBottomDock],
 	);
 
 	const devPanelKeywords = useMemo(
@@ -60,6 +75,16 @@ export function PanelSwitchesSection({
 			devPanels.map((feature) => tBottomDock(feature) || feature).filter(Boolean),
 		[devPanels, tBottomDock],
 	);
+
+	const shouldAutoExpandExtensionPanels = useMemo(() => {
+		if (!extensionPanels.length) return false;
+		const hasSearchQuery = searchQuery.trim().length > 0;
+		if (!hasSearchQuery) return false;
+		return doesSearchMatch(searchQuery, [
+			tSettings("extensionPanelsTitle"),
+			...extensionPanelKeywords,
+		]);
+	}, [extensionPanels.length, searchQuery, tSettings, extensionPanelKeywords]);
 
 	const shouldAutoExpandDevPanels = useMemo(() => {
 		if (!devPanels.length) return false;
@@ -70,6 +95,12 @@ export function PanelSwitchesSection({
 			...devPanelKeywords,
 		]);
 	}, [devPanels.length, searchQuery, tSettings, devPanelKeywords]);
+
+	useEffect(() => {
+		if (shouldAutoExpandExtensionPanels) {
+			setShowExtensionPanels(true);
+		}
+	}, [shouldAutoExpandExtensionPanels]);
 
 	useEffect(() => {
 		if (shouldAutoExpandDevPanels) {
@@ -96,6 +127,34 @@ export function PanelSwitchesSection({
 		}
 	};
 
+	const renderPanelToggle = (feature: PanelFeature) => {
+		const enabled = isFeatureEnabled(feature);
+		const backendDisabled = backendDisabledFeatures.includes(feature);
+		const panelLabel = tBottomDock(feature) || feature;
+		const Icon = FEATURE_ICON_MAP[feature];
+
+		return (
+			<div key={feature} className="flex items-center justify-between">
+				<div className="flex-1 flex items-center gap-2">
+					{Icon && <Icon className="h-4 w-4 text-muted-foreground shrink-0" />}
+					<label
+						htmlFor={`panel-toggle-${feature}`}
+						className="text-sm font-medium text-foreground cursor-pointer"
+					>
+						<SettingsSearchHighlight text={panelLabel} />
+					</label>
+				</div>
+				<ToggleSwitch
+					id={`panel-toggle-${feature}`}
+					enabled={enabled}
+					disabled={loading || backendDisabled}
+					onToggle={(newEnabled) => handleTogglePanel(feature, newEnabled)}
+					ariaLabel={panelLabel}
+				/>
+			</div>
+		);
+	};
+
 	return (
 		<SettingsSection
 			title={tSettings("panelSwitchesTitle")}
@@ -103,37 +162,27 @@ export function PanelSwitchesSection({
 			searchKeywords={panelKeywords}
 		>
 			<div className="space-y-3">
-				{regularPanels.map((feature) => {
-					const enabled = isFeatureEnabled(feature);
-					const backendDisabled = backendDisabledFeatures.includes(feature);
-					const panelLabel = tBottomDock(feature) || feature;
-					const Icon = FEATURE_ICON_MAP[feature];
+				{regularPanels.map(renderPanelToggle)}
 
-					return (
-						<div key={feature} className="flex items-center justify-between">
-							<div className="flex-1 flex items-center gap-2">
-								{Icon && (
-									<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-								)}
-								<label
-									htmlFor={`panel-toggle-${feature}`}
-									className="text-sm font-medium text-foreground cursor-pointer"
-								>
-									<SettingsSearchHighlight text={panelLabel} />
-								</label>
+				{extensionPanels.length > 0 && (
+					<CollapsibleSection
+						title={tSettings("extensionPanelsTitle")}
+						show={showExtensionPanels}
+						onToggle={() => setShowExtensionPanels((prev) => !prev)}
+						className="mt-4"
+						contentClassName="mt-3"
+					>
+						<SettingsSection
+							title={tSettings("extensionPanelsTitle")}
+							description={tSettings("extensionPanelsDescription")}
+							searchKeywords={extensionPanelKeywords}
+						>
+							<div className="space-y-3">
+								{extensionPanels.map(renderPanelToggle)}
 							</div>
-							<ToggleSwitch
-								id={`panel-toggle-${feature}`}
-								enabled={enabled}
-								disabled={loading || backendDisabled}
-								onToggle={(newEnabled) =>
-									handleTogglePanel(feature, newEnabled)
-								}
-								ariaLabel={panelLabel}
-							/>
-						</div>
-					);
-				})}
+						</SettingsSection>
+					</CollapsibleSection>
+				)}
 
 				{/* 开发中的面板（折叠分组，位于面板开关内部底部） */}
 				{devPanels.length > 0 && (
@@ -150,41 +199,7 @@ export function PanelSwitchesSection({
 							searchKeywords={devPanelKeywords}
 						>
 							<div className="space-y-3">
-								{devPanels.map((feature) => {
-									const enabled = isFeatureEnabled(feature);
-									const backendDisabled =
-										backendDisabledFeatures.includes(feature);
-									const panelLabel = tBottomDock(feature) || feature;
-									const Icon = FEATURE_ICON_MAP[feature];
-
-									return (
-										<div
-											key={feature}
-											className="flex items-center justify-between"
-										>
-											<div className="flex-1 flex items-center gap-2">
-												{Icon && (
-													<Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-												)}
-												<label
-													htmlFor={`panel-toggle-${feature}`}
-													className="text-sm font-medium text-foreground cursor-pointer"
-												>
-													<SettingsSearchHighlight text={panelLabel} />
-												</label>
-											</div>
-											<ToggleSwitch
-												id={`panel-toggle-${feature}`}
-												enabled={enabled}
-												disabled={loading || backendDisabled}
-												onToggle={(newEnabled) =>
-													handleTogglePanel(feature, newEnabled)
-												}
-												ariaLabel={panelLabel}
-											/>
-										</div>
-									);
-								})}
+								{devPanels.map(renderPanelToggle)}
 							</div>
 						</SettingsSection>
 					</CollapsibleSection>
