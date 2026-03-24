@@ -217,8 +217,8 @@ pnpm --dir frontend dev
 
 详细的分步部署说明请参考：
 
-- **[本地部署指南](deploy_in_local.md)** — 在本地电脑上部署全套服务（Server + Frontend + Client），无需 Docker
-- **[云端部署指南](deploy_in_cloud.md)** — 将 Server 部署到云服务器（Docker 方式），本地连接 Frontend 和 Client
+- **[本地部署指南](docs/guides/deployment/deploy_in_local.md)** — 在本地电脑上部署全套服务（Server + Frontend + Client），无需 Docker
+- **[云端部署指南](docs/guides/deployment/deploy_in_cloud.md)** — 将 Server 部署到云服务器（Docker 方式），本地连接 Frontend 和 Client
 
 快速 Docker 部署（云端）：
 
