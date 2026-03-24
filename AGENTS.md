@@ -65,7 +65,8 @@ Packaging:
 ## Commit & Pull Request Guidelines
 - Commit messages follow Conventional Commits.
 - Example: `feat(frontend): add calendar drag and drop`.
-- In worktrees, prefer small, frequent commits. After each small feature change and relevant checks pass, commit promptly.
+- In worktrees, make small, frequent commits. After each small feature change and relevant checks pass, create a commit immediately.
+- Treat each self-contained code change as its own commit so review and rollback stay simple.
 - If all pending changes are committed, notify the user or collaborating agent that the commit is done.
 - PRs should include a clear description, linked issues such as `Closes #123`, testing notes, and screenshots for UI changes.
 - Use the `.github` PR template when available.
@@ -81,7 +82,6 @@ Packaging:
 - `user` should come from the current git username.
 - `short-task` should be a short summary with at most 3 words.
 - If a task name is provided, create the worktree first and then make changes in that worktree.
-- Helper script: `python scripts/new_worktree.py "<task-name>"`.
 - Keep task branches in sync with the intended mainline branch.
 - Do not assume the mainline branch is `main` or `master`.
 - Do not assume the default remote is `origin`.
