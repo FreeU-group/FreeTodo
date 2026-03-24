@@ -24,6 +24,7 @@ import time
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 import numpy as np
@@ -69,6 +70,12 @@ def _is_self_window(app_name: str, window_title: str) -> bool:
         if any(p.search(title_lower) for p in _SELF_WINDOW_PATTERNS_REGEX):
             return True
     return False
+
+
+def _is_local_center(center_url: str) -> bool:
+    """Return True when center endpoint points to local machine."""
+    host = (urlparse(center_url).hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "::1"}
 
 
 # ---------------------------------------------------------------------------
@@ -746,9 +753,13 @@ class SensorDaemon:
 
         ws_url = self.center_url.replace("http://", "ws://").replace("https://", "wss://")
         ws_url = f"{ws_url}/api/audio/transcribe?source=mic_pc&node_id={self.node_id}"
+        connect_kwargs: dict[str, Any] = {"close_timeout": 5}
+        if _is_local_center(self.center_url):
+            # Local development should bypass env proxies to avoid socks dependency errors.
+            connect_kwargs["proxy"] = None
 
         logger.info(f"[audio] Connecting to {ws_url}")
-        async with websockets.connect(ws_url, close_timeout=5) as ws:
+        async with websockets.connect(ws_url, **connect_kwargs) as ws:
             await ws.send(json.dumps({"is_24x7": True}))
             logger.info("[audio] WebSocket connected, starting sounddevice capture")
 
