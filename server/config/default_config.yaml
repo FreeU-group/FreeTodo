@@ -294,7 +294,7 @@ volcengine:
   api_key: ""
   base_url: https://ark.cn-beijing.volces.com/api/v3
   image_model: doubao-seedream-5-0-260128
-  image_size: 1024x1024
+  image_size: 2048x2048
 
 # 音频识别配置（阿里云Fun-ASR）
 audio:

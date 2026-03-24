@@ -27,7 +27,7 @@ export function VolcengineConfigSection({
 		(config?.volcengineImageModel as string) ?? "doubao-seedream-5-0-260128",
 	);
 	const [imageSize, setImageSize] = useState(
-		(config?.volcengineImageSize as string) ?? "1024x1024",
+		(config?.volcengineImageSize as string) ?? "2048x2048",
 	);
 	const [saved, setSaved] = useState(false);
 	const isLoading = loading || saveConfigMutation.isPending;
@@ -48,7 +48,7 @@ export function VolcengineConfigSection({
 			);
 		}
 		if (config?.volcengineImageSize !== undefined) {
-			setImageSize((config.volcengineImageSize as string) ?? "1024x1024");
+			setImageSize((config.volcengineImageSize as string) ?? "2048x2048");
 		}
 	}, [config]);
 
@@ -197,7 +197,7 @@ export function VolcengineConfigSection({
 							setImageSize(event.target.value);
 							setSaved(false);
 						}}
-						placeholder="1024x1024"
+						placeholder="2048x2048"
 						disabled={isLoading}
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
 					/>
