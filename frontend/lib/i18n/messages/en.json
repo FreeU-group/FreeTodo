@@ -190,10 +190,6 @@
 			"panelEnabled": "Enabled",
 			"panelDisabled": "Disabled",
 			"llmConfig": "LLM Configuration",
-			"difyConfigTitle": "Dify Test Configuration",
-			"difyEnabledLabel": "Enable Dify test mode",
-			"difyEnabledDescription": "When enabled, the Dify Test mode in chat will use Dify API for responses.",
-			"difySaveSuccess": "Dify configuration saved",
 			"tavilyConfigTitle": "Tavily Web Search Configuration",
 			"tavilySaveSuccess": "Tavily configuration saved",
 			"tavilyApiKeyHint": "How to get API Key? Please visit",
@@ -601,9 +597,6 @@
 			"subtitle": "Your intelligent todo assistant for breaking down tasks, prioritizing, and getting things done"
 		},
 		"planModeInputPlaceholder": "e.g. Help me plan the todos for moving this weekend",
-		"difyTest": {
-			"inputPlaceholder": "Prompt for Dify test channel..."
-		},
 		"aiThinking": "AI is thinking...",
 		"aiResponding": "Answering......",
 		"generatingQuestions": "AI is generating questions...",
@@ -729,10 +722,6 @@
 			"edit": {
 				"label": "Edit",
 				"description": "Generate and append to notes"
-			},
-			"difyTest": {
-				"label": "Dify Test",
-				"description": "Use Dify API test channel for replies"
 			},
 			"agno": {
 				"label": "Agno",

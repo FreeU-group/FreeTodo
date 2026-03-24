@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 /**
  * Todo UI 状态管理
@@ -80,9 +80,15 @@ function validateTodoSelectionState(state: {
 	};
 }
 
-export const useTodoStore = create<TodoUIState>()(
-	persist(
-		(set, get) => ({
+export const useTodoStore = createPersistedStore<
+	TodoUIState,
+	{
+		selectedTodoId: number | null;
+		selectedTodoIds: number[];
+		collapsedTodoIds: number[];
+	}
+>(
+	(set, get) => ({
 			selectedTodoId: null,
 			selectedTodoIds: [],
 			collapsedTodoIds: new Set<number>(),
@@ -244,5 +250,4 @@ export const useTodoStore = create<TodoUIState>()(
 				};
 			},
 		},
-	),
 );

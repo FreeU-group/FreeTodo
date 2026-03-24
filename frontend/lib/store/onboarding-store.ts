@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 /**
  * Onboarding state interface
@@ -74,9 +74,8 @@ const onboardingStorage = {
  * Onboarding store hook
  * Manages the state of the user onboarding tour
  */
-export const useOnboardingStore = create<OnboardingState>()(
-	persist(
-		(set) => ({
+export const useOnboardingStore = createPersistedStore<OnboardingState>(
+	(set) => ({
 			hasCompletedTour: false,
 			currentStep: null,
 
@@ -96,5 +95,4 @@ export const useOnboardingStore = create<OnboardingState>()(
 			name: STORAGE_KEY,
 			storage: createJSONStorage(() => onboardingStorage),
 		},
-	),
 );

@@ -5,7 +5,6 @@ export { AutoTodoDetectionSection } from "./AutoTodoDetectionSection";
 export { CookiesConfigSection } from "./CookiesConfigSection";
 export { CrawlerConfigSection } from "./CrawlerConfigSection";
 export { DiaryIllustrationConfigSection } from "./DiaryIllustrationConfigSection";
-export { DifyConfigSection } from "./DifyConfigSection";
 export { DirectoryScanSection } from "./DirectoryScanSection";
 export { DockDisplayModeSection } from "./DockDisplayModeSection";
 export { GeminiConfigSection } from "./GeminiConfigSection";

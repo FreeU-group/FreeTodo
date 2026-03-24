@@ -16,7 +16,6 @@ import {
 	CrawlerConfigSection,
 	DiaryIllustrationConfigSection,
 	DirectoryScanSection,
-	// DifyConfigSection,
 	DockDisplayModeSection,
 	GeminiConfigSection,
 	JournalSettingsSection,
@@ -202,7 +201,6 @@ export function SettingsPanel() {
 			case "developer":
 				return (
 					<>
-						{/* <DifyConfigSection config={config} loading={loading} /> */}
 						<SchedulerSection
 							loading={loading}
 							excludeJobIds={PERCEPTION_JOB_IDS}

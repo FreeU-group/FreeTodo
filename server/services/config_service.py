@@ -71,7 +71,6 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "llm_": (4, "llm"),
     "server_": (7, "server"),
     "chat_": (5, "chat"),
-    "dify_": (5, "dify"),
     "tavily_": (7, "tavily"),
     "sensor_": (7, "sensor"),
     "banna2_": (7, "banna2"),
@@ -331,10 +330,6 @@ class ConfigService:
             # 自动待办检测配置
             "jobs.auto_todo_detection.enabled",
             "jobs.auto_todo_detection.params.whitelist.apps",
-            # Dify 配置
-            "dify.enabled",
-            "dify.api_key",
-            "dify.base_url",
             # Tavily 配置（联网搜索）
             "tavily.api_key",
             # 音频录制配置

@@ -1,7 +1,6 @@
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
 import type { PanelFeature, PanelPosition } from "@/lib/config/panel-config";
 import { ALL_PANEL_FEATURES } from "@/lib/config/panel-config";
+import { createPersistedStore } from "../create-persisted-store";
 import { createLayoutActions } from "./layout-actions";
 import { createUiStoreStorage } from "./storage";
 import type { UiStoreState } from "./types";
@@ -28,8 +27,7 @@ async function syncNotificationPopupConfig(
 	}
 }
 
-export const useUiStore = create<UiStoreState>()(
-	persist(
+export const useUiStore = createPersistedStore<UiStoreState>(
 		(set, get) => ({
 			// 位置槽位初始状态
 			isPanelAOpen: DEFAULT_PANEL_STATE.isPanelAOpen,
@@ -492,5 +490,4 @@ export const useUiStore = create<UiStoreState>()(
 			name: "ui-panel-config",
 			storage: createUiStoreStorage(),
 		},
-	),
 );

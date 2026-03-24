@@ -190,10 +190,6 @@
 			"panelEnabled": "已启用",
 			"panelDisabled": "已禁用",
 			"llmConfig": "LLM 配置",
-			"difyConfigTitle": "Dify 测试配置",
-			"difyEnabledLabel": "启用 Dify 测试模式",
-			"difyEnabledDescription": "开启后，聊天面板中的 Dify Test 模式将通过 Dify API 返回回复。",
-			"difySaveSuccess": "Dify 配置已保存",
 			"tavilyConfigTitle": "Tavily 联网搜索配置",
 			"tavilySaveSuccess": "Tavily 配置已保存",
 			"tavilyApiKeyHint": "如何获取 API Key？请访问",
@@ -601,9 +597,6 @@
 			"subtitle": "智能待办助手，帮你拆解任务、规划优先级、提升效率"
 		},
 		"planModeInputPlaceholder": "例如：帮我规划周末搬家需要做的事",
-		"difyTest": {
-			"inputPlaceholder": "这里是 Dify 测试通道的提示词..."
-		},
 		"aiThinking": "AI 正在思考...",
 		"aiResponding": "正在回答......",
 		"generatingQuestions": "AI正在拆解待办...",
@@ -729,10 +722,6 @@
 			"edit": {
 				"label": "Edit 模式",
 				"description": "生成内容追加到待办备注"
-			},
-			"difyTest": {
-				"label": "Dify Test 模式",
-				"description": "通过 Dify 测试通道返回回复"
 			},
 			"agno": {
 				"label": "Agno 模式",

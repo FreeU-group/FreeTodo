@@ -1,5 +1,5 @@
-import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage } from "zustand/middleware";
+import { createPersistedStore } from "./create-persisted-store";
 
 export type JournalRefreshMode = "fixed" | "workHours" | "custom";
 
@@ -37,9 +37,8 @@ const journalStorage = {
 	},
 };
 
-export const useJournalStore = create<JournalSettingsState>()(
-	persist(
-		(set) => ({
+export const useJournalStore = createPersistedStore<JournalSettingsState>(
+	(set) => ({
 			refreshMode: "fixed",
 			fixedTime: "04:00",
 			workHoursStart: "10:00",
@@ -63,5 +62,4 @@ export const useJournalStore = create<JournalSettingsState>()(
 			name: "journal-settings",
 			storage: createJSONStorage(() => journalStorage),
 		},
-	),
 );
