@@ -425,22 +425,6 @@ export const useSendMessage = ({
 									.openFromPath(normalizePath(rawPath), "chat");
 							}
 						}
-
-						if (
-							event.type === "tool_call_end" &&
-							event.tool_name &&
-							previewFileTools.has(event.tool_name)
-						) {
-							const rawPath = extractPathFromToolEvent(
-								event.tool_args,
-								event.result_preview,
-							);
-							if (rawPath) {
-								void usePreviewStore
-									.getState()
-									.openFromPath(normalizePath(rawPath), "chat");
-							}
-						}
 					},
 					() => {
 						if (attachments?.length) {
