@@ -533,6 +533,42 @@ class VoiceprintStore:
         logger.info("All speakers cleared: %d", count)
         return count
 
+    def delete_speaker(self, speaker_id: int) -> bool:
+        """Soft-delete a single speaker and all related voiceprints."""
+        from util.time_utils import get_utc_now  # noqa: PLC0415
+
+        if speaker_id <= 0:
+            return False
+
+        now = get_utc_now()
+        with get_session() as session:
+            profile = session.get(SpeakerProfile, speaker_id)
+            if not profile or profile.deleted_at is not None:
+                return False
+
+            profile.deleted_at = now
+            profile.is_active = False
+            profile.is_me = False
+
+            voiceprints = list(
+                session.exec(
+                    select(SpeakerVoiceprint).where(
+                        col(SpeakerVoiceprint.speaker_profile_id) == speaker_id,
+                        col(SpeakerVoiceprint.deleted_at).is_(None),
+                    )
+                ).all()
+            )
+            for voiceprint in voiceprints:
+                voiceprint.deleted_at = now
+
+            session.commit()
+
+        with self._lock:
+            self._cache = [entry for entry in self._cache if entry[0] != speaker_id]
+
+        logger.info("Speaker deleted: %d", speaker_id)
+        return True
+
     def set_as_me(self, speaker_id: int) -> bool:
         """Mark one speaker as 'me'. Only one speaker can be me at a time."""
         with get_session() as session:

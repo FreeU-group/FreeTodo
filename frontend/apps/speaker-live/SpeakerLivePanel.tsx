@@ -52,6 +52,13 @@ type KnownSpeaker = {
 	isMe: boolean;
 };
 
+type VoiceprintSpeaker = {
+	id: number;
+	name: string | null;
+	isMe: boolean;
+	sampleCount: number;
+};
+
 const MAX_LINES = 200;
 const ALL_FILTER = "__all__";
 
@@ -129,8 +136,13 @@ export function SpeakerLivePanel() {
 	const [meSpeakerId, setMeSpeakerId] = useState<number | null>(null);
 	const [autoAssignState, setAutoAssignState] = useState<AutoAssignState>("idle");
 	const [isListOpen, setIsListOpen] = useState(false);
+	const [isVoiceprintOpen, setIsVoiceprintOpen] = useState(false);
 	const [activeSpeakerFilter, setActiveSpeakerFilter] = useState<string>(ALL_FILTER);
 	const [clearingSpeakers, setClearingSpeakers] = useState(false);
+	const [voiceprintLoading, setVoiceprintLoading] = useState(false);
+	const [voiceprintMutatingId, setVoiceprintMutatingId] = useState<number | null>(null);
+	const [voiceprintBulkMutating, setVoiceprintBulkMutating] = useState(false);
+	const [voiceprintSpeakers, setVoiceprintSpeakers] = useState<VoiceprintSpeaker[]>([]);
 	const [lastBackend, setLastBackend] = useState<string | null>(null);
 
 	const isStartingRef = useRef(false);
@@ -185,11 +197,17 @@ export function SpeakerLivePanel() {
 			const res = await fetch("/api/audio/speakers");
 			if (!res.ok) return;
 			const data = (await res.json()) as {
-				speakers?: Array<{ id?: number; name?: string; is_me?: boolean }>;
+				speakers?: Array<{
+					id?: number;
+					name?: string;
+					is_me?: boolean;
+					sample_count?: number;
+				}>;
 			};
 			if (!Array.isArray(data.speakers)) return;
 
 			const next = new Map<number, KnownSpeaker>();
+			const nextVoiceprintSpeakers: VoiceprintSpeaker[] = [];
 			let meId: number | null = null;
 			for (const item of data.speakers) {
 				if (typeof item?.id !== "number" || item.id <= 0) continue;
@@ -197,15 +215,31 @@ export function SpeakerLivePanel() {
 					typeof item.name === "string" && item.name.trim().length > 0 ? item.name.trim() : null;
 				const isMe = item.is_me === true;
 				next.set(item.id, { name: normalizedName, isMe });
+				nextVoiceprintSpeakers.push({
+					id: item.id,
+					name: normalizedName,
+					isMe,
+					sampleCount: typeof item.sample_count === "number" ? item.sample_count : 0,
+				});
 				if (isMe) {
 					meId = item.id;
 				}
 			}
+
 			knownSpeakersRef.current = next;
+			setVoiceprintSpeakers(
+				nextVoiceprintSpeakers.sort((a, b) => {
+					if (a.isMe !== b.isMe) return a.isMe ? -1 : 1;
+					return b.sampleCount - a.sampleCount;
+				}),
+			);
+
 			if (meId !== null) {
 				autoAssignedRef.current = true;
 				setMeSpeaker(meId);
 				setAutoAssignState("success");
+			} else {
+				setMeSpeaker(null);
 			}
 		} catch {
 			// Ignore preload failure; live stream can still work.
@@ -285,6 +319,7 @@ export function SpeakerLivePanel() {
 			if (!res.ok) throw new Error(`${res.status}`);
 			const data = (await res.json()) as { cleared?: number };
 			knownSpeakersRef.current = new Map();
+			setVoiceprintSpeakers([]);
 			setMeSpeaker(null);
 			autoAssignedRef.current = false;
 			setAutoAssignState("idle");
@@ -295,6 +330,92 @@ export function SpeakerLivePanel() {
 			setClearingSpeakers(false);
 		}
 	}, [setMeSpeaker, t]);
+
+	const openVoiceprintLibrary = useCallback(async () => {
+		setIsVoiceprintOpen(true);
+		setVoiceprintLoading(true);
+		try {
+			await loadKnownSpeakers();
+		} finally {
+			setVoiceprintLoading(false);
+		}
+	}, [loadKnownSpeakers]);
+
+	const handleSetSpeakerAsMe = useCallback(
+		async (speakerId: number) => {
+			setVoiceprintMutatingId(speakerId);
+			try {
+				const res = await fetch(`/api/audio/speakers/${speakerId}/set-as-me`, { method: "POST" });
+				if (!res.ok) {
+					const data = (await res.json().catch(() => ({}))) as { error?: string };
+					throw new Error(data.error || `${res.status}`);
+				}
+				setKnownSpeakerAsMe(speakerId);
+				setMeSpeaker(speakerId);
+				setAutoAssignState("success");
+				await loadKnownSpeakers();
+			} catch (error) {
+				const msg = error instanceof Error ? error.message : "Failed to set me speaker";
+				window.alert(msg);
+			} finally {
+				setVoiceprintMutatingId(null);
+			}
+		},
+		[loadKnownSpeakers, setKnownSpeakerAsMe, setMeSpeaker],
+	);
+
+	const handleDeleteSingleSpeaker = useCallback(
+		async (speaker: VoiceprintSpeaker) => {
+			const displayName = speaker.isMe ? t("me") : (speaker.name ?? t("speakerWithId", { id: speaker.id }));
+			if (!window.confirm(`确认删除「${displayName}」的音色吗？`)) return;
+			setVoiceprintMutatingId(speaker.id);
+			try {
+				const res = await fetch(`/api/audio/speakers/${speaker.id}`, { method: "DELETE" });
+				if (!res.ok) {
+					const data = (await res.json().catch(() => ({}))) as { error?: string };
+					throw new Error(data.error || `${res.status}`);
+				}
+				if (speaker.isMe || meSpeakerIdRef.current === speaker.id) {
+					setMeSpeaker(null);
+					setAutoAssignState("idle");
+				}
+				await loadKnownSpeakers();
+			} catch (error) {
+				const msg = error instanceof Error ? error.message : "Failed to delete speaker";
+				window.alert(msg);
+			} finally {
+				setVoiceprintMutatingId(null);
+			}
+		},
+		[loadKnownSpeakers, setMeSpeaker, t],
+	);
+
+	const handleDeleteOthers = useCallback(async () => {
+		const targets = voiceprintSpeakers.filter((speaker) => !speaker.isMe);
+		if (targets.length === 0) {
+			window.alert("当前没有可删除的“其他说话人”");
+			return;
+		}
+		if (!window.confirm(`确认删除 ${targets.length} 个“其他说话人”音色吗？`)) return;
+
+		setVoiceprintBulkMutating(true);
+		try {
+			for (const speaker of targets) {
+				// Keep sequential to reduce DB write contention and keep errors obvious.
+				const res = await fetch(`/api/audio/speakers/${speaker.id}`, { method: "DELETE" });
+				if (!res.ok) {
+					const data = (await res.json().catch(() => ({}))) as { error?: string };
+					throw new Error(data.error || `${res.status}`);
+				}
+			}
+			await loadKnownSpeakers();
+		} catch (error) {
+			const msg = error instanceof Error ? error.message : "Failed to delete other speakers";
+			window.alert(msg);
+		} finally {
+			setVoiceprintBulkMutating(false);
+		}
+	}, [loadKnownSpeakers, voiceprintSpeakers]);
 
 	const handleStartRecording = useCallback(async () => {
 		if (isRecording || isStartingRef.current) return;
@@ -565,6 +686,14 @@ export function SpeakerLivePanel() {
 					>
 						<Users className="h-4 w-4" />
 						{t("openList", { count: lines.length })}
+					</button>
+					<button
+						type="button"
+						className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/40"
+						onClick={() => void openVoiceprintLibrary()}
+					>
+						<Fingerprint className="h-4 w-4" />
+						音色库
 					</button>
 					<button
 						type="button"
@@ -930,6 +1059,123 @@ export function SpeakerLivePanel() {
 								})}
 							</div>
 						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={isVoiceprintOpen} onOpenChange={setIsVoiceprintOpen}>
+				<DialogContent className="w-[94vw] max-w-3xl overflow-hidden p-0">
+					<div className="border-b border-border bg-gradient-to-r from-muted/50 via-background to-muted/30 px-4 py-3">
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<DialogTitle>音色库管理</DialogTitle>
+								<DialogDescription className="mt-1">
+									用于测试时管理“我”和其他说话人的声纹样本
+								</DialogDescription>
+							</div>
+							<div className="flex items-center gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-8 gap-1 px-2 text-xs"
+									onClick={() => void handleDeleteOthers()}
+									disabled={voiceprintBulkMutating || voiceprintLoading}
+								>
+									<UserX className="h-3.5 w-3.5" />
+									删除其他人
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="h-8 gap-1 px-2 text-xs"
+									onClick={() => void handleClearVoiceprints()}
+									disabled={clearingSpeakers || voiceprintBulkMutating || voiceprintLoading}
+								>
+									<Trash2 className="h-3.5 w-3.5" />
+									清空全部
+								</Button>
+								<DialogClose asChild>
+									<Button type="button" variant="ghost" size="icon" className="h-8 w-8">
+										<X className="h-4 w-4" />
+									</Button>
+								</DialogClose>
+							</div>
+						</div>
+					</div>
+
+					<div className="max-h-[72vh] space-y-3 overflow-y-auto p-4">
+						<div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
+							当前共 {voiceprintSpeakers.length} 位说话人，正在录音时识别结果会优先匹配“我”，其余进入“其他说话人”区分。
+						</div>
+
+						{voiceprintLoading ? (
+							<div className="rounded-lg border border-dashed border-border bg-background px-3 py-6 text-center text-sm text-muted-foreground">
+								加载中...
+							</div>
+						) : voiceprintSpeakers.length === 0 ? (
+							<div className="rounded-lg border border-dashed border-border bg-background px-3 py-6 text-center text-sm text-muted-foreground">
+								音色库为空，先开始录音或在初始化流程录入“我”的声纹
+							</div>
+						) : (
+							<div className="space-y-2">
+								{voiceprintSpeakers.map((speaker) => {
+									const isMutating = voiceprintMutatingId === speaker.id;
+									const displayName = speaker.isMe
+										? t("me")
+										: (speaker.name ?? t("speakerWithId", { id: speaker.id }));
+									return (
+										<div
+											key={`voiceprint-${speaker.id}`}
+											className="rounded-lg border border-border bg-background px-3 py-2"
+										>
+											<div className="flex flex-wrap items-center justify-between gap-2">
+												<div className="flex min-w-0 items-center gap-2">
+													<span
+														className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+															speaker.isMe
+																? "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"
+																: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
+														}`}
+													>
+														{displayName}
+													</span>
+													<span className="text-xs text-muted-foreground">
+														ID {speaker.id} · 样本 {speaker.sampleCount}
+													</span>
+												</div>
+												<div className="flex items-center gap-2">
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														className="h-7 px-2 text-xs"
+														onClick={() => void handleSetSpeakerAsMe(speaker.id)}
+														disabled={
+															speaker.isMe || isMutating || voiceprintBulkMutating || voiceprintLoading
+														}
+													>
+														设为我
+													</Button>
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														className="h-7 gap-1 border-red-300 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-700/60 dark:text-red-300 dark:hover:bg-red-900/20"
+														onClick={() => void handleDeleteSingleSpeaker(speaker)}
+														disabled={isMutating || voiceprintBulkMutating || voiceprintLoading}
+													>
+														<Trash2 className="h-3.5 w-3.5" />
+														删除
+													</Button>
+												</div>
+											</div>
+										</div>
+									);
+								})}
+							</div>
+						)}
 					</div>
 				</DialogContent>
 			</Dialog>
