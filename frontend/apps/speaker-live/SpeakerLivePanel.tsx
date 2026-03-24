@@ -344,26 +344,7 @@ export function SpeakerLivePanel() {
 					if (parsed.backend) {
 						setBackend(parsed.backend);
 					}
-					const recentKnown = lastKnownSpeakerRef.current;
-					const shouldBorrowLastSpeaker =
-						parsed.speakerId === null &&
-						!parsed.speakerName &&
-						parsed.overlapLabels.length === 0 &&
-						recentKnown !== null &&
-						now - recentKnown.at <= 1200 &&
-						text.trim().length <= 24;
-
-					const maybeBorrowedSpeaker = shouldBorrowLastSpeaker
-						? {
-								...parsed,
-								speakerId: recentKnown.speakerId,
-								speakerName: recentKnown.speakerName,
-								confidence: recentKnown.confidence,
-								isMe: recentKnown.isMe,
-								backend: parsed.backend ?? recentKnown.backend,
-							}
-						: parsed;
-					const effectiveSpeaker = applyKnownSpeakerMeta(maybeBorrowedSpeaker);
+					const effectiveSpeaker = applyKnownSpeakerMeta(parsed);
 
 					if (effectiveSpeaker.speakerId !== null || effectiveSpeaker.speakerName) {
 						lastKnownSpeakerRef.current = {

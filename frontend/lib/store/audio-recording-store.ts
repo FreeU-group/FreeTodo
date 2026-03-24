@@ -543,8 +543,13 @@ async function startBackendCapture(is24x7: boolean): Promise<void> {
 				if (data.header?.name === "TranscriptionResultChanged") {
 					const text = data.payload?.result;
 					const isFinal = data.payload?.is_final || false;
+					const rawSpeaker = data.payload?.speaker;
+					const speaker =
+						typeof rawSpeaker === "object" && rawSpeaker !== null
+							? (rawSpeaker as RealtimeSpeakerInfo)
+							: null;
 					if (text && currentOnTranscription) {
-						currentOnTranscription(text, isFinal);
+						currentOnTranscription(text, isFinal, speaker);
 					}
 					return;
 				}
