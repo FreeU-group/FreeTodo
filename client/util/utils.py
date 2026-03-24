@@ -16,6 +16,7 @@ logger = get_logger()
 MIN_WINDOW_SIZE = 100
 BYTES_PER_KB = 1024
 DEFAULT_SCREEN_ID = 1
+MACOS_WINDOW_LAYER = 0
 
 try:
     import psutil
@@ -41,6 +42,77 @@ def _load_quartz() -> Any | None:
         return importlib.import_module("Quartz")
     except Exception:
         return None
+
+
+def _has_macos_screen_recording_permission(quartz: Any) -> bool | None:
+    preflight = getattr(quartz, "CGPreflightScreenCaptureAccess", None)
+    if not callable(preflight):
+        return None
+    try:
+        return bool(preflight())
+    except Exception as e:
+        logger.debug(f"检测macOS屏幕录制权限失败: {e}")
+        return None
+
+
+def _get_macos_window_candidates(
+    window_list: list[Any], app_name: str | None, app_pid: int | None
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for raw_window in window_list:
+        if not isinstance(raw_window, dict):
+            continue
+
+        owner_pid = raw_window.get("kCGWindowOwnerPID")
+        owner_name = raw_window.get("kCGWindowOwnerName")
+        if app_pid is not None and owner_pid == app_pid:
+            candidates.append(raw_window)
+            continue
+        if app_name and owner_name == app_name:
+            candidates.append(raw_window)
+
+    def _candidate_score(window: dict[str, Any]) -> tuple[int, int, int]:
+        bounds = window.get("kCGWindowBounds") or {}
+        area = int(bounds.get("Width", 0)) * int(bounds.get("Height", 0))
+        return (
+            int(window.get("kCGWindowOwnerPID") == app_pid),
+            int(window.get("kCGWindowLayer") == MACOS_WINDOW_LAYER),
+            area,
+        )
+
+    return sorted(candidates, key=_candidate_score, reverse=True)
+
+
+def _get_macos_window_title(quartz: Any, app_name: str, app_pid: int | None) -> str | None:
+    try:
+        window_list = quartz.CGWindowListCopyWindowInfo(
+            quartz.kCGWindowListOptionOnScreenOnly | quartz.kCGWindowListExcludeDesktopElements,
+            quartz.kCGNullWindowID,
+        )
+    except Exception as window_error:
+        has_permission = _has_macos_screen_recording_permission(quartz)
+        if has_permission is False:
+            logger.warning("无法获取窗口标题: 缺少macOS屏幕录制权限")
+        else:
+            logger.warning(f"无法获取窗口标题: Quartz窗口列表调用失败: {window_error}")
+        return None
+
+    if not window_list:
+        logger.info(f"未获取到任何可见窗口记录: app={app_name}")
+        return None
+
+    candidates = _get_macos_window_candidates(list(window_list), app_name, app_pid)
+    if not candidates:
+        logger.info(f"未找到前台应用对应的窗口记录: app={app_name}, pid={app_pid}")
+        return None
+
+    for window in candidates:
+        window_title = str(window.get("kCGWindowName") or "").strip()
+        if window_title:
+            return window_title
+
+    logger.info(f"前台应用存在窗口记录但未暴露窗口标题: app={app_name}, pid={app_pid}")
+    return None
 
 
 def get_file_hash(file_path: str) -> str:
@@ -94,34 +166,25 @@ def _get_windows_active_window() -> tuple[str | None, str | None]:
 
 
 def _get_macos_active_window() -> tuple[str | None, str | None]:
+    app_name: str | None = None
     try:
         appkit = _load_appkit()
         quartz = _load_quartz()
         if appkit is None or quartz is None:
-            return None, None
+            logger.warning("macOS依赖未安装, 无法获取窗口信息")
+        else:
+            workspace = appkit.NSWorkspace.sharedWorkspace()
+            active_app = workspace.activeApplication()
+            app_name = active_app.get("NSApplicationName", None) if active_app else None
+            app_pid = active_app.get("NSApplicationProcessIdentifier", None) if active_app else None
 
-        workspace = appkit.NSWorkspace.sharedWorkspace()
-        active_app = workspace.activeApplication()
-        app_name = active_app.get("NSApplicationName", None) if active_app else None
-
-        try:
-            window_list = quartz.CGWindowListCopyWindowInfo(
-                quartz.kCGWindowListOptionOnScreenOnly, quartz.kCGNullWindowID
-            )
-            if window_list:
-                for window in window_list:
-                    if window.get("kCGWindowOwnerName") == app_name:
-                        window_title = window.get("kCGWindowName", "")
-                        if window_title:
-                            return app_name, window_title
-        except Exception as window_error:
-            logger.warning(f"无法获取窗口标题: {window_error}")
-            return app_name, None
-
-        return app_name, None
+            if app_name is None:
+                logger.info("无法识别当前前台应用, 跳过窗口标题获取")
+            else:
+                return app_name, _get_macos_window_title(quartz, app_name, app_pid)
     except Exception as e:
         logger.error(f"获取macOS窗口信息失败: {e}")
-    return None, None
+    return app_name, None
 
 
 def _get_macos_active_window_bounds(app_name: str) -> dict | None:
