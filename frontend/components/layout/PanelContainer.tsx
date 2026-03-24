@@ -89,10 +89,10 @@ export function PanelContainer({
 				"overflow-hidden",
 				// 边框样式：正常状态 vs 拖拽悬停状态
 				isOver && isVisible
-					? "border-2 border-primary/70"
-					: "border border-[oklch(var(--border))]",
+					? "border-2 border-primary/70 shadow-[inset_0_0_0_1px_oklch(var(--primary)/0.18)]"
+					: "border border-[oklch(var(--border))] shadow-[inset_0_0_0_1px_oklch(var(--border)/0.45)]",
 				// 当不可见时，隐藏边框和背景，避免残留视觉元素
-				!isVisible && "border-transparent bg-transparent",
+				!isVisible && "border-transparent bg-transparent shadow-none",
 				className,
 			)}
 			initial={false}
