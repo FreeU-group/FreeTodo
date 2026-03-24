@@ -5,9 +5,9 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { useSaveConfig } from "@/lib/query";
 import { toastError, toastSuccess } from "@/lib/toast";
+import { RecorderConfigInline } from "./RecorderConfigSection";
 import { SettingsSection } from "./SettingsSection";
 import { ToggleSwitch } from "./ToggleSwitch";
-import { RecorderConfigInline } from "./RecorderConfigSection";
 
 interface SensorNode {
 	node_id: string;

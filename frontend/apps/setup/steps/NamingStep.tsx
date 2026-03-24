@@ -1,6 +1,6 @@
 "use client";
 
-import { UserCircle, Sparkles } from "lucide-react";
+import { Sparkles, UserCircle } from "lucide-react";
 import { useSetupStore } from "@/lib/store/setup-store";
 
 interface NamingStepProps {
@@ -17,6 +17,8 @@ export function NamingStep({ onNext, onBack }: NamingStepProps) {
 		setAgentName,
 		setUserNameManuallySet,
 	} = useSetupStore();
+	const userNameId = "setup-user-name";
+	const agentNameId = "setup-agent-name";
 
 	const handleUserNameChange = (value: string) => {
 		setUserName(value);
@@ -39,16 +41,19 @@ export function NamingStep({ onNext, onBack }: NamingStepProps) {
 
 			<div className="space-y-4">
 				<div>
-					<label className="mb-1 block text-xs font-medium text-white/70">
+					<label
+						htmlFor={userNameId}
+						className="mb-1 block text-xs font-medium text-white/70"
+					>
 						你的名字
 					</label>
 					<input
+						id={userNameId}
 						type="text"
 						className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/30 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
 						placeholder="输入你的名字或昵称"
 						value={userName}
 						onChange={(e) => handleUserNameChange(e.target.value)}
-						autoFocus
 					/>
 					{guessedUserName && userName === guessedUserName ? (
 						<p className="mt-1 flex items-center gap-1 text-xs text-primary/60">
@@ -63,10 +68,14 @@ export function NamingStep({ onNext, onBack }: NamingStepProps) {
 				</div>
 
 				<div>
-					<label className="mb-1 block text-xs font-medium text-white/70">
+					<label
+						htmlFor={agentNameId}
+						className="mb-1 block text-xs font-medium text-white/70"
+					>
 						Agent 的名字
 					</label>
 					<input
+						id={agentNameId}
 						type="text"
 						className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder-white/30 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
 						placeholder="Free U"

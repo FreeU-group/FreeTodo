@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Cpu } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const STAGES = [
 	{ label: "初始化核心引擎", duration: 1200 },

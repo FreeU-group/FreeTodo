@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface VoiceprintStepProps {
 	onNext: () => void;
@@ -10,6 +10,7 @@ interface VoiceprintStepProps {
 
 const RECORD_SECONDS = 5;
 const BAR_COUNT = 40;
+const BAR_IDS = Array.from({ length: BAR_COUNT }, (_, index) => `bar-${index}`);
 
 export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 	const [phase, setPhase] = useState<"idle" | "recording" | "stopping" | "done" | "error">("idle");
@@ -99,12 +100,13 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 
 			if (analyser && freqData) {
 				// Real mic frequency data for visualization
-				analyser.getByteFrequencyData(freqData);
+				const currentFreqData = freqData;
+				analyser.getByteFrequencyData(currentFreqData);
 				const binCount = analyser.frequencyBinCount;
 				const step = Math.max(1, Math.floor(binCount / BAR_COUNT));
 				newBars = Array.from({ length: BAR_COUNT }, (_, i) => {
 					const idx = Math.min(i * step, binCount - 1);
-					return freqData![idx] / 255;
+					return currentFreqData[idx] / 255;
 				});
 			} else {
 				// Fallback: simulated waveform
@@ -154,12 +156,13 @@ export function VoiceprintStep({ onNext, onBack }: VoiceprintStepProps) {
 
 			{/* Waveform visualizer */}
 			<div className="flex h-16 items-center justify-center gap-[2px] rounded-xl border border-white/10 bg-black/20 px-4">
-				{bars.map((level, i) => {
+				{BAR_IDS.map((barId, i) => {
+					const level = bars[i] ?? 0;
 					const isActive = phase === "recording";
 					const h = isActive ? Math.max(4, level * 56) : 4;
 					return (
 						<div
-							key={i}
+							key={barId}
 							className="w-1.5 rounded-full"
 							style={{
 								height: `${h}px`,

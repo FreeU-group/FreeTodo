@@ -1,6 +1,7 @@
 "use client";
 
 import { Bot, ImageIcon, Loader2, Sparkles } from "lucide-react";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { DiaryTabs, type JournalTab } from "@/apps/diary/DiaryTabs";
@@ -150,14 +151,16 @@ export function DiaryEditor({
 									key={url}
 									className="rounded-2xl border border-border"
 								>
-									{/* eslint-disable-next-line @next/next/no-img-element */}
-									<img
+									<Image
 										src={`${url}?v=${imgKey}`}
 										alt={t("illustrationAlt", {
 											index:
 												illustrationUrls.indexOf(url) +
 												1,
 										})}
+										width={1200}
+										height={900}
+										unoptimized
 										className="w-full h-auto rounded-2xl"
 									/>
 								</div>

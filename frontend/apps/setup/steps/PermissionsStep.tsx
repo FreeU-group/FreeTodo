@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import {
-	MessageCircle,
-	Globe,
 	CalendarDays,
 	FolderOpen,
+	Globe,
+	MessageCircle,
 	ShieldCheck,
 } from "lucide-react";
-import { useSetupStore } from "@/lib/store/setup-store";
+import { useState } from "react";
 import { useCompleteSetup } from "@/lib/query/setup";
+import { useSetupStore } from "@/lib/store/setup-store";
 
 interface PermissionsStepProps {
 	onComplete: () => void;

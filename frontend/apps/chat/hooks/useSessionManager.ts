@@ -8,8 +8,8 @@ import type {
 	ToolCallStep,
 } from "@/apps/chat/types";
 import { createId } from "@/apps/chat/utils/id";
-import { snakeToCamel } from "@/lib/generated/case-transform";
 import type { ChatHistoryItem } from "@/lib/api";
+import { snakeToCamel } from "@/lib/generated/case-transform";
 import { useChatStore } from "@/lib/store/chat-store";
 
 type ToolEvent = {
@@ -134,7 +134,7 @@ const parseAttachments = (extraData?: string): ChatAttachment[] | undefined => {
 			return undefined;
 		}
 		const normalized = snakeToCamel<ChatAttachment[]>(parsed.attachments);
-		return normalized.filter((item) => item && item.id);
+		return normalized.filter((item) => item?.id);
 	} catch (error) {
 		console.warn("Failed to parse attachments from history:", error);
 		return undefined;

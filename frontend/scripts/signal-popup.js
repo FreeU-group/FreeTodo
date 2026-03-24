@@ -127,7 +127,7 @@ function buildButtonsHtml(data) {
 		return '<button class="btn btn-primary" data-action="close">确认</button>';
 	}
 	return buttons
-		.map((b, i) => {
+		.map((b, _i) => {
 			const style = b.style === "secondary" ? "btn-secondary" : "btn-primary";
 			const copyAttr = b.copyText
 				? ` data-copy='${b.copyText.replace(/'/g, "&#39;")}'`

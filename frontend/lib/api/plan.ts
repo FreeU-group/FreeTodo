@@ -1,3 +1,4 @@
+import { getStreamApiBaseUrl } from "@/lib/api/base";
 import type {
 	PlanEvent,
 	PlanRunInfo,
@@ -5,7 +6,6 @@ import type {
 	PlanRunStepInfo,
 	PlanSpec,
 } from "@/lib/types/plan";
-import { getStreamApiBaseUrl } from "@/lib/api/base";
 
 // Plan 执行事件标记（与后端保持一致）
 const PLAN_EVENT_PREFIX = "\n[PLAN_EVENT:";

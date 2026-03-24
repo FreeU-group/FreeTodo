@@ -1,7 +1,4 @@
 export { AudioAsrConfigSection } from "./AudioAsrConfigSection";
-export { DirectoryScanSection } from "./DirectoryScanSection";
-export { NamingSection } from "./NamingSection";
-export { VoiceprintSection } from "./VoiceprintSection";
 export { AudioConfigSection } from "./AudioConfigSection";
 export { AutomationTasksSection } from "./AutomationTasksSection";
 export { AutoTodoDetectionSection } from "./AutoTodoDetectionSection";
@@ -9,11 +6,13 @@ export { CookiesConfigSection } from "./CookiesConfigSection";
 export { CrawlerConfigSection } from "./CrawlerConfigSection";
 export { DiaryIllustrationConfigSection } from "./DiaryIllustrationConfigSection";
 export { DifyConfigSection } from "./DifyConfigSection";
+export { DirectoryScanSection } from "./DirectoryScanSection";
 export { DockDisplayModeSection } from "./DockDisplayModeSection";
 export { GeminiConfigSection } from "./GeminiConfigSection";
 export { JournalSettingsSection } from "./JournalSettingsSection";
 export { KdlConfigSection } from "./KdlConfigSection";
 export { LlmConfigSection } from "./LlmConfigSection";
+export { NamingSection } from "./NamingSection";
 export { NotificationPermissionSection } from "./NotificationPermissionSection";
 export { NotificationPopupSection } from "./NotificationPopupSection";
 export { OnboardingSection } from "./OnboardingSection";
@@ -36,3 +35,4 @@ export {
 export { TavilyConfigSection } from "./TavilyConfigSection";
 export { ToggleSwitch } from "./ToggleSwitch";
 export { VersionInfoSection } from "./VersionInfoSection";
+export { VoiceprintSection } from "./VoiceprintSection";

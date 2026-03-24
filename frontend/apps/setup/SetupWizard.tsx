@@ -2,12 +2,12 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useSetupStore } from "@/lib/store/setup-store";
-import { StartupStep } from "./steps/StartupStep";
 import { ApiKeyStep } from "./steps/ApiKeyStep";
 import { DirectoryScanStep } from "./steps/DirectoryScanStep";
 import { NamingStep } from "./steps/NamingStep";
-import { VoiceprintStep } from "./steps/VoiceprintStep";
 import { PermissionsStep } from "./steps/PermissionsStep";
+import { StartupStep } from "./steps/StartupStep";
+import { VoiceprintStep } from "./steps/VoiceprintStep";
 
 interface SetupWizardProps {
 	onSetupComplete: () => void;
@@ -100,13 +100,13 @@ export function SetupWizard({ onSetupComplete }: SetupWizardProps) {
 				{/* Step indicator dots */}
 				{showDots && (
 					<div className="mt-8 flex items-center gap-2">
-						{Array.from({ length: totalSteps }).map((_, i) => (
+						{Array.from({ length: totalSteps }, (_, step) => step).map((step) => (
 							<div
-								key={i}
+								key={`step-${step}`}
 								className={`h-1.5 rounded-full transition-all duration-300 ${
-									i === currentStep
+									step === currentStep
 										? "w-6 bg-primary"
-										: i < currentStep
+										: step < currentStep
 											? "w-1.5 bg-primary/40"
 											: "w-1.5 bg-white/15"
 								}`}

@@ -54,7 +54,9 @@ export function VoiceprintSection({ loading = false }: VoiceprintSectionProps) {
 				if (e.data.size > 0) chunksRef.current.push(e.data);
 			};
 			recorder.onstop = async () => {
-				stream.getTracks().forEach((track) => track.stop());
+				stream.getTracks().forEach((track) => {
+					track.stop();
+				});
 				const blob = new Blob(chunksRef.current, { type: "audio/webm" });
 				await uploadVoiceprint(blob);
 			};

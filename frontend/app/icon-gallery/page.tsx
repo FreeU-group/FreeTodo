@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircle, Globe, CalendarDays, FolderOpen, ShieldCheck } from "lucide-react";
+import { CalendarDays, FolderOpen, Globe, MessageCircle, ShieldCheck } from "lucide-react";
 
 // --- Icon Set 1: Lucide Line Icons (极简线框) ---
 const LucideSet = [
@@ -37,7 +37,13 @@ const DuotoneSet = [
 		name: "微信",
 		desc: "关注微信消息，识别邀约和待办",
 		icon: (
-			<svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-[#07C160]">
+			<svg
+				viewBox="0 0 24 24"
+				fill="none"
+				className="h-6 w-6 text-[#07C160]"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<path d="M8.5 14.5C11.5376 14.5 14 12.2614 14 9.5C14 6.73858 11.5376 4.5 8.5 4.5C5.46243 4.5 3 6.73858 3 9.5C3 11.0028 3.7317 12.3503 4.88147 13.235L4.5 15L6.11853 14.235C6.8683 14.4072 7.66243 14.5 8.5 14.5Z" fill="currentColor" opacity="0.3" />
 				<path d="M15.5 19.5C18.5376 19.5 21 17.2614 21 14.5C21 11.7386 18.5376 9.5 15.5 9.5C12.4624 9.5 10 11.7386 10 14.5C10 16.0028 10.7317 17.3503 11.8815 18.235L11.5 20L13.1185 19.235C13.8683 19.4072 14.6624 19.5 15.5 19.5Z" fill="currentColor" />
 			</svg>
@@ -48,7 +54,13 @@ const DuotoneSet = [
 		name: "Chrome 浏览器",
 		desc: "感知浏览内容，辅助信息检索",
 		icon: (
-			<svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-blue-500">
+			<svg
+				viewBox="0 0 24 24"
+				fill="none"
+				className="h-6 w-6 text-blue-500"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2" />
 				<circle cx="12" cy="12" r="4" fill="currentColor" />
 				<path d="M12 8C14.2091 8 16 9.79086 16 12H22C22 6.47715 17.5228 2 12 2V8Z" fill="currentColor" opacity="0.6" />
@@ -60,7 +72,13 @@ const DuotoneSet = [
 		name: "系统日历",
 		desc: "读取日程安排，检测冲突",
 		icon: (
-			<svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-red-500">
+			<svg
+				viewBox="0 0 24 24"
+				fill="none"
+				className="h-6 w-6 text-red-500"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<rect x="3" y="4" width="18" height="18" rx="2" ry="2" fill="currentColor" opacity="0.2" />
 				<path d="M3 10H21V20C21 21.1046 20.1046 22 19 22H5C3.89543 22 3 21.1046 3 20V10Z" fill="currentColor" opacity="0.4" />
 				<rect x="7" y="14" width="4" height="4" rx="1" fill="currentColor" />
@@ -73,7 +91,13 @@ const DuotoneSet = [
 		name: "文件管理器",
 		desc: "监测文件变动，辅助文件检索",
 		icon: (
-			<svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-yellow-500">
+			<svg
+				viewBox="0 0 24 24"
+				fill="none"
+				className="h-6 w-6 text-yellow-500"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<path d="M4 3H9.33333L11.3333 5H20C21.1046 5 22 5.89543 22 7V10H2V5C2 3.89543 2.89543 3 4 3Z" fill="currentColor" opacity="0.4" />
 				<path d="M22 10V19C22 20.1046 21.1046 21 20 21H4C2.89543 21 2 20.1046 2 19V10H22Z" fill="currentColor" />
 			</svg>
@@ -88,7 +112,13 @@ const MacStyleSet = [
 		name: "微信",
 		desc: "关注微信消息，识别邀约和待办",
 		icon: (
-			<svg viewBox="0 0 32 32" fill="none" className="h-7 w-7">
+			<svg
+				viewBox="0 0 32 32"
+				fill="none"
+				className="h-7 w-7"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<defs>
 					<linearGradient id="wx_grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
 						<stop stopColor="#22D369" />
@@ -108,7 +138,13 @@ const MacStyleSet = [
 		name: "Chrome 浏览器",
 		desc: "感知浏览内容，辅助信息检索",
 		icon: (
-			<svg viewBox="0 0 32 32" fill="none" className="h-7 w-7">
+			<svg
+				viewBox="0 0 32 32"
+				fill="none"
+				className="h-7 w-7"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<defs>
 					<linearGradient id="chrome_grad" x1="0" y1="0" x2="32" y2="32">
 						<stop stopColor="#4285F4" />
@@ -132,7 +168,13 @@ const MacStyleSet = [
 		name: "系统日历",
 		desc: "读取日程安排，检测冲突",
 		icon: (
-			<svg viewBox="0 0 32 32" fill="none" className="h-7 w-7">
+			<svg
+				viewBox="0 0 32 32"
+				fill="none"
+				className="h-7 w-7"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<defs>
 					<linearGradient id="cal_grad" x1="16" y1="4" x2="16" y2="28">
 						<stop stopColor="#FFFFFF" />
@@ -158,7 +200,13 @@ const MacStyleSet = [
 		name: "文件管理器",
 		desc: "监测文件变动，辅助文件检索",
 		icon: (
-			<svg viewBox="0 0 32 32" fill="none" className="h-7 w-7">
+			<svg
+				viewBox="0 0 32 32"
+				fill="none"
+				className="h-7 w-7"
+				aria-hidden="true"
+				focusable="false"
+			>
 				<defs>
 					<linearGradient id="folder_back" x1="16" y1="4" x2="16" y2="28">
 						<stop stopColor="#FBBF24" />
@@ -240,8 +288,11 @@ export default function IconGalleryPage() {
 				</p>
 
 				<div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-					{SETS.map((set, idx) => (
-						<div key={idx} className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-white/[0.02] p-8">
+					{SETS.map((set) => (
+						<div
+							key={set.name}
+							className="flex flex-col gap-5 rounded-2xl border border-white/10 bg-white/[0.02] p-8"
+						>
 							<div className="text-center">
 								<div className="mb-4 flex justify-center">
 									<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/20 text-primary">
