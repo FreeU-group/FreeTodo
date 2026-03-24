@@ -2,10 +2,10 @@
  * 爬虫状态管理
  */
 import { create } from "zustand";
+import { getCrawlerApiBaseUrl } from "./api-base";
 import type { CrawlerPlatform, CrawlerStatus, CrawlerTask, CrawlerType, CrawlResultItem } from "./types";
 
-// API 基础 URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8100";
+const API_BASE_URL = getCrawlerApiBaseUrl();
 
 // localStorage key for viewed items
 const VIEWED_ITEMS_KEY = "crawler_viewed_items";

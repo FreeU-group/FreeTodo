@@ -23,6 +23,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { cn } from "@/lib/utils";
+import { getCrawlerApiBaseUrl } from "./api-base";
 import { useCrawlerStore } from "./store";
 import type { CrawlResultItem } from "./types";
 
@@ -416,8 +417,7 @@ function getPlatformFromUrl(url: string): string {
 	return "xhs";
 }
 
-// API 基础 URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8100";
+const API_BASE_URL = getCrawlerApiBaseUrl();
 
 // 需要使用代理的平台列表（这些平台的视频有防盗链，需要通过后端代理加载）
 const PLATFORMS_NEED_PROXY = ["douyin", "kuaishou", "xhs"];

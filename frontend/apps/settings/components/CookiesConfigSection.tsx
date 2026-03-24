@@ -2,10 +2,10 @@
 
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
+import { getCrawlerApiBaseUrl } from "@/apps/crawler/api-base";
 import { SettingsSection } from "./SettingsSection";
 
-// API 基础 URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8100";
+const API_BASE_URL = getCrawlerApiBaseUrl();
 
 // 支持的平台列表
 const PLATFORMS = [
