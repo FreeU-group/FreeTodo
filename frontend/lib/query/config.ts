@@ -49,11 +49,16 @@ export interface AppConfig {
 	llmMaxTokens?: number;
 	banna2ApiKey?: string;
 	banna2RefImagePath?: string;
+	volcengineApiKey?: string;
+	volcengineBaseUrl?: string;
+	volcengineImageModel?: string;
+	volcengineImageSize?: string;
 	// 录制配置
 	jobsRecorderEnabled?: boolean;
 	jobsRecorderInterval?: number;
 	jobsDiaryIllustrationEnabled?: boolean;
 	jobsDiaryIllustrationCron?: string;
+	jobsDiaryIllustrationProvider?: string;
 	jobsRecorderParamsBlacklistEnabled?: boolean;
 	jobsRecorderParamsBlacklistApps?: string[];
 	[key: string]: unknown;

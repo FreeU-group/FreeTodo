@@ -161,6 +161,10 @@ settings = Dynaconf(
         Validator("tavily.exclude_domains", default=[]),
         Validator("banna2.api_key", default="YOUR_GOOGLE_GEMINI_API_KEY_HERE"),
         Validator("banna2.ref_image_path", default=""),
+        Validator("volcengine.api_key", default=""),
+        Validator("volcengine.base_url", default="https://ark.cn-beijing.volces.com/api/v3"),
+        Validator("volcengine.image_model", default="doubao-seedream-5-0-260128"),
+        Validator("volcengine.image_size", default="1024x1024"),
         # 音频配置
         Validator("audio.is_24x7", default=False, is_type_of=bool),
         Validator("audio.asr.api_key", default="YOUR_LLM_KEY_HERE"),
@@ -200,6 +204,7 @@ settings = Dynaconf(
         Validator("jobs.diary_illustration.id", default="diary_illustration"),
         Validator("jobs.diary_illustration.enabled", default=False, is_type_of=bool),
         Validator("jobs.diary_illustration.cron", default="0 22 * * *"),
+        Validator("jobs.diary_illustration.provider", default="gemini"),
         # 后端模块启用配置
         Validator("backend_modules.enabled", default=[], is_type_of=list),
         Validator("backend_modules.disabled", default=[], is_type_of=list),

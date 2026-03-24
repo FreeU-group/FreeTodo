@@ -30,7 +30,7 @@ DEFAULT_VOLCENGINE_IMAGE_MODEL = "doubao-seedream-5-0-260128"
 DEFAULT_VOLCENGINE_IMAGE_SIZE = "1024x1024"
 DEFAULT_MIN_PIXEL_IMAGE_SIZE = "1024x1024"
 DOUBAO_SEEDREAM_MIN_PIXELS = 1_048_576
-DEFAULT_DIARY_PROVIDER = "volcengine"
+DEFAULT_DIARY_PROVIDER = "gemini"
 SUPPORTED_DIARY_PROVIDERS = {"volcengine", "gemini"}
 SUPPORTED_VOLCENGINE_IMAGE_SIZES = {
     "auto",
@@ -247,7 +247,7 @@ class DiaryIllustrationService:
                     scene_title,
                     len(prompt),
                 )
-                image_bytes = await self._call_gemini(prompt)
+                image_bytes = await self._call_image_provider(prompt)
                 out_path = self._illustrations_dir / f"{date_str}_{idx + 1}.png"
                 out_path.write_bytes(image_bytes)
                 saved_paths.append(str(out_path))
@@ -388,12 +388,25 @@ class DiaryIllustrationService:
         return scenes[:3]
 
     async def _call_image_provider(self, prompt: str) -> bytes:
-        provider = _get_diary_provider()
-        if provider == "gemini":
-            return await self._call_gemini(prompt)
-        if provider == "volcengine":
-            return await self._call_volcengine(prompt)
-        raise ValueError(f"Unsupported diary illustration provider: {provider}")
+        provider_errors: list[str] = []
+        for provider in _get_diary_provider_order():
+            try:
+                if provider == "gemini":
+                    return await self._call_gemini(prompt)
+                if provider == "volcengine":
+                    return await self._call_volcengine(prompt)
+            except Exception as exc:
+                logger.warning(
+                    "DiaryIllustration: provider=%s failed, trying fallback if available: %s",
+                    provider,
+                    exc,
+                )
+                provider_errors.append(f"{provider}: {exc}")
+
+        if provider_errors:
+            raise ValueError("; ".join(provider_errors))
+
+        raise ValueError("No diary illustration provider is configured")
 
     async def _call_gemini(self, prompt: str) -> bytes:
         cfg = _get_banna2_config()
@@ -567,6 +580,40 @@ def _get_diary_provider() -> str:
     return DEFAULT_DIARY_PROVIDER
 
 
+def _has_gemini_config(config: dict[str, Any] | None = None) -> bool:
+    cfg = config if config is not None else _get_banna2_config()
+    api_key = str(cfg.get("api_key", "")).strip()
+    return bool(api_key and not api_key.startswith("YOUR_"))
+
+
+def _has_volcengine_config(config: dict[str, Any] | None = None) -> bool:
+    cfg = config if config is not None else _get_volcengine_config()
+    api_key = str(cfg.get("api_key", "")).strip()
+    return bool(api_key and not api_key.startswith("YOUR_"))
+
+
+def _get_diary_provider_order() -> list[str]:
+    preferred = _get_diary_provider()
+    fallback = "volcengine" if preferred == "gemini" else "gemini"
+
+    provider_order: list[str] = []
+    if preferred == "gemini":
+        if _has_gemini_config():
+            provider_order.append("gemini")
+        if _has_volcengine_config():
+            provider_order.append("volcengine")
+    else:
+        if _has_volcengine_config():
+            provider_order.append("volcengine")
+        if _has_gemini_config():
+            provider_order.append("gemini")
+
+    if provider_order:
+        return provider_order
+
+    return [preferred, fallback]
+
+
 def _normalize_volcengine_image_size(model: str, size: str) -> str:
     normalized = size if size in SUPPORTED_VOLCENGINE_IMAGE_SIZES else DEFAULT_VOLCENGINE_IMAGE_SIZE
     if normalized == "auto":
@@ -586,6 +633,62 @@ def _parse_image_size(size: str) -> tuple[int, int]:
         return int(width_text), int(height_text)
     except (AttributeError, ValueError):
         return 0, 0
+
+
+def test_diary_provider_config(
+    provider: str,
+    config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    provider_name = provider.strip().lower()
+
+    if provider_name == "gemini":
+        cfg = config if config is not None else _get_banna2_config()
+        api_key = str(cfg.get("api_key", "")).strip()
+        ref_image_path = str(cfg.get("ref_image_path", "")).strip()
+        if not api_key:
+            raise ValueError("banna2.api_key is not configured")
+
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{GEMINI_MODEL}:generateContent?key={api_key}"
+        )
+        parts = [{"text": "Generate a tiny test image of a blue circle."}]
+
+        ref_path = Path(ref_image_path) if ref_image_path else None
+        if ref_path and ref_path.exists():
+            suffix = ref_path.suffix.lower()
+            mime_type = (
+                "image/jpeg" if suffix in {".jpg", ".jpeg"} else f"image/{suffix.lstrip('.')}"
+            )
+            img_b64 = base64.b64encode(ref_path.read_bytes()).decode()
+            parts.insert(0, {"inline_data": {"mime_type": mime_type, "data": img_b64}})
+
+        payload = {
+            "contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
+        }
+        DiaryIllustrationService._gemini_request(url, payload)
+        return {"provider": "gemini", "message": "Gemini image generation is available"}
+
+    if provider_name == "volcengine":
+        cfg = config if config is not None else _get_volcengine_config()
+        api_key = str(cfg.get("api_key", "")).strip()
+        base_url = str(cfg.get("base_url", DEFAULT_VOLCENGINE_BASE_URL)).strip()
+        model = str(cfg.get("image_model", DEFAULT_VOLCENGINE_IMAGE_MODEL)).strip()
+        size = str(cfg.get("image_size", DEFAULT_VOLCENGINE_IMAGE_SIZE)).strip()
+        if not api_key:
+            raise ValueError("volcengine.api_key is not configured")
+
+        DiaryIllustrationService._volcengine_request(
+            base_url,
+            api_key,
+            model,
+            "Generate a tiny test image of a blue circle.",
+            size,
+        )
+        return {"provider": "volcengine", "message": "Volcengine image generation is available"}
+
+    raise ValueError(f"Unsupported diary illustration provider: {provider}")
 
 
 _SERVICE_HOLDER: dict[str, DiaryIllustrationService | None] = {"service": None}
