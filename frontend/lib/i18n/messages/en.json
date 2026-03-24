@@ -373,6 +373,7 @@
 					"audio_extraction": "Audio Todo/Schedule",
 					"audio_transcription": "Transcription Optimization",
 					"journal_generation": "Journal Generation",
+					"diary_illustration": "Diary Illustration",
 				"rag_fallback": "RAG Direct Reply",
 				"rag_retrieval": "RAG Retrieval Q&A",
 				"web_search": "Web Search",
@@ -997,7 +998,8 @@
 			"activity_aggregator_job": "Activity Aggregator",
 			"deadline_reminder_job": "DDL Reminder",
 			"proactive_ocr_job": "Proactive OCR",
-			"audio_recording_job": "Audio Recording"
+			"audio_recording_job": "Audio Recording",
+			"diary_illustration_job": "Diary Illustration"
 		},
 		"jobDescriptions": {
 			"recorder_job": "Capture screenshots periodically",
@@ -1008,7 +1010,8 @@
 			"activity_aggregator_job": "Aggregate user activity events",
 			"deadline_reminder_job": "Check todo deadlines and send notifications based on reminder settings",
 			"proactive_ocr_job": "Automatically detect and process WeChat/Feishu windows for OCR (Windows only)",
-			"audio_recording_job": "7x24 continuous audio recording with real-time transcription and information extraction"
+			"audio_recording_job": "7x24 continuous audio recording with real-time transcription and information extraction",
+			"diary_illustration_job": "Generate diary illustrations on schedule and write the results back into diary entries"
 		}
 	},
 	"common": {

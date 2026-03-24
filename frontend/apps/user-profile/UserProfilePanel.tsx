@@ -37,6 +37,7 @@ function renderInlineMarkdown(text: string): ReactNode {
 }
 
 interface ProfileSection {
+	key: string;
 	title: string;
 	content: string;
 	icon: LucideIcon;
@@ -73,6 +74,7 @@ function parseProfileMarkdown(markdown: string): {
 	let header = "";
 	let lastUpdate = "";
 	const sections: ProfileSection[] = [];
+	const sectionCounts = new Map<string, number>();
 	let currentTitle = "";
 	let currentLines: string[] = [];
 
@@ -81,7 +83,14 @@ function parseProfileMarkdown(markdown: string): {
 			const content = currentLines.join("\n").trim();
 			if (content) {
 				const icon = SECTION_ICON_MAP[currentTitle] ?? Briefcase;
-				sections.push({ title: currentTitle, content, icon });
+				const nextCount = (sectionCounts.get(currentTitle) ?? 0) + 1;
+				sectionCounts.set(currentTitle, nextCount);
+				sections.push({
+					key: `${currentTitle}-${nextCount}`,
+					title: currentTitle,
+					content,
+					icon,
+				});
 			}
 		}
 		currentLines = [];
@@ -401,7 +410,7 @@ export function UserProfilePanel() {
 						<div className="grid grid-cols-1 gap-3">
 							{parsed.sections.map((section) => (
 								<ProfileSectionCard
-									key={section.title}
+									key={section.key}
 									section={section}
 								/>
 							))}

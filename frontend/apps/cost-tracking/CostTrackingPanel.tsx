@@ -65,15 +65,11 @@ export function CostTrackingPanel() {
 			typeof t
 		>[0];
 
-		// 尝试获取翻译
-		const translation = t(translationKey);
-
-		// 如果翻译结果包含完整的命名空间路径（说明翻译不存在），返回原始 ID
-		if (translation.includes("page.costTracking.featureNames.")) {
+		if (!t.has(translationKey)) {
 			return featureId || t("featureNames.unknown");
 		}
 
-		return translation;
+		return t(translationKey);
 	};
 
 	const recentData = useMemo(() => {

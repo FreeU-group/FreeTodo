@@ -373,6 +373,7 @@
 					"audio_extraction": "音频待办/日程提取",
 					"audio_transcription": "转录文本优化",
 					"journal_generation": "日记生成",
+					"diary_illustration": "日记插画",
 				"rag_fallback": "RAG 直答",
 				"rag_retrieval": "RAG 检索问答",
 				"web_search": "联网搜索",
@@ -997,7 +998,8 @@
 			"activity_aggregator_job": "活动聚合",
 			"deadline_reminder_job": "DDL提醒",
 			"proactive_ocr_job": "主动OCR",
-			"audio_recording_job": "音频录制"
+			"audio_recording_job": "音频录制",
+			"diary_illustration_job": "日记插画生成"
 		},
 		"jobDescriptions": {
 			"recorder_job": "定时截取屏幕截图",
@@ -1008,7 +1010,8 @@
 			"activity_aggregator_job": "聚合用户活动事件",
 			"deadline_reminder_job": "检查待办事项的截止日期，根据提醒设置发送通知",
 			"proactive_ocr_job": "自动检测并处理微信/飞书窗口进行OCR识别（仅Windows）",
-			"audio_recording_job": "7x24小时持续录音，实时转录和提取信息（间隔为状态检查间隔，非录音间隔）"
+			"audio_recording_job": "7x24小时持续录音，实时转录和提取信息（间隔为状态检查间隔，非录音间隔）",
+			"diary_illustration_job": "按计划为日记生成插画，并将结果回写到日记内容中"
 		}
 	},
 	"common": {

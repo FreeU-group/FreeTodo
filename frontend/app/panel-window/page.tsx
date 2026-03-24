@@ -50,8 +50,14 @@ export default function PanelWindowPage() {
 
 	const plugin = feature ? getPanelPlugin(feature) : null;
 	const LazyPanel = feature ? getPanelLazyComponent(feature) : null;
-	const label = plugin ? t(plugin.labelKey) : tDock("unknown");
-	const placeholder = plugin ? t(plugin.placeholderKey) : tDock("unknown");
+	const label =
+		plugin && t.has(plugin.labelKey as Parameters<typeof t>[0])
+			? t(plugin.labelKey as Parameters<typeof t>[0])
+			: plugin?.id ?? tDock("unknown");
+	const placeholder =
+		plugin && t.has(plugin.placeholderKey as Parameters<typeof t>[0])
+			? t(plugin.placeholderKey as Parameters<typeof t>[0])
+			: label;
 	const Icon = plugin?.icon || null;
 
 	useEffect(() => {

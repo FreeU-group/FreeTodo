@@ -407,6 +407,10 @@ function pipelineStepState(
 function PipelineIndicator({ record }: { record: TodoIntentProcessingRecord }) {
 	const t = useTranslations("todoIntentPanel");
 	const reached = derivePipelineReached(record);
+	const labelFor = (key: string, fallback: string) =>
+		t.has(key as Parameters<typeof t>[0])
+			? t(key as Parameters<typeof t>[0])
+			: fallback;
 	return (
 		<div className="flex items-center gap-0.5">
 			{PIPELINE_STEPS.map((step, idx) => {
@@ -422,7 +426,7 @@ function PipelineIndicator({ record }: { record: TodoIntentProcessingRecord }) {
 								state === "pending" && "bg-muted text-muted-foreground/50",
 							)}
 						>
-							{t(PIPELINE_STEP_KEYS[step])}
+							{labelFor(PIPELINE_STEP_KEYS[step], step)}
 						</div>
 						{idx < PIPELINE_STEPS.length - 1 && (
 							<div className={cn(
@@ -458,6 +462,10 @@ function memoryMatchTone(action?: MemoryMatchAction): string {
 function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 	const t = useTranslations("todoIntentPanel");
 	const tPerception = useTranslations("perceptionStream");
+	const labelFor = (key: string, fallback: string) =>
+		t.has(key as Parameters<typeof t>[0])
+			? t(key as Parameters<typeof t>[0])
+			: fallback;
 	const metadata = record.metadata ?? {};
 	const appName = String(metadata.app_name ?? "");
 	const windowTitle = String(metadata.window_title ?? "");
@@ -475,7 +483,7 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 							statusTone(record.status),
 						)}
 					>
-						{t(`status.${record.status}`)}
+						{labelFor(`status.${record.status}`, record.status)}
 					</span>
 					{record.gate_decision && (
 						<span className="inline-flex h-6 items-center rounded-md border px-2 text-xs font-medium">
@@ -622,7 +630,7 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 							{candidate.memory_match && candidate.memory_match.action !== "new" && (
 								<div className={cn("rounded-md border px-2 py-1 text-xs", memoryMatchTone(candidate.memory_match.action))}>
 									<span className="font-medium">
-										{t("memoryMatch")}: {t(`memoryAction.${candidate.memory_match.action}`)}
+										{t("memoryMatch")}: {labelFor(`memoryAction.${candidate.memory_match.action}`, candidate.memory_match.action)}
 									</span>
 									{candidate.memory_match.matched_todo_name && (
 										<span className="ml-1.5">&rarr; {candidate.memory_match.matched_todo_name}</span>
@@ -695,6 +703,9 @@ function WorkerCard({
 }) {
 	const t = useTranslations("todoIntentPanel");
 	const stateKey = isActive ? "workerActive" : isRunning ? "workerIdle" : "workerOffline";
+	const stateLabel = t.has(stateKey as Parameters<typeof t>[0])
+		? t(stateKey as Parameters<typeof t>[0])
+		: stateKey;
 	const stateTone = isActive
 		? "bg-green-50 text-green-700 border-green-200"
 		: isRunning
@@ -706,11 +717,11 @@ function WorkerCard({
 			<div className="flex items-center justify-between gap-2">
 				<div className="text-sm font-medium">Worker #{workerId}</div>
 				<span className={cn("rounded-md border px-2 py-0.5 text-xs", stateTone)}>
-					{t(stateKey)}
+					{stateLabel}
 				</span>
 			</div>
 			<div className="mt-2 text-xs text-muted-foreground">
-				{t("workerState")}: {t(stateKey)}
+				{t("workerState")}: {stateLabel}
 			</div>
 		</div>
 	);
