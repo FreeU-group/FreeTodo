@@ -60,6 +60,7 @@ export const DEV_IN_PROGRESS_FEATURES: PanelFeature[] = [
 	"audio",
 	"perceptionStream",
 	"todoIntent",
+	"preview",
 ];
 
 /**
