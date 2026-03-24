@@ -7,6 +7,7 @@
  */
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IslandHeader } from "@/components/island/IslandHeader";
@@ -29,6 +30,7 @@ interface IslandSidebarContentProps {
 }
 
 export function IslandSidebarContent({ onModeChange, onHeaderDragStart, isDragging: isDraggingProp }: IslandSidebarContentProps) {
+  const t = useTranslations("island");
   const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [isLeftExpanded, setIsLeftExpanded] = useState(false); // Panel A
@@ -345,8 +347,8 @@ export function IslandSidebarContent({ onModeChange, onHeaderDragStart, isDraggi
                        text-[oklch(var(--muted-foreground))] hover:text-[oklch(var(--foreground))] hover:opacity-100
                        hover:bg-[oklch(var(--card))]/90
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(var(--ring))] focus-visible:ring-offset-2"
-            aria-label={isLeftExpanded ? "收起左侧栏" : "展开左侧栏"}
-            title={isLeftExpanded ? "收起左侧" : "展开左侧"}
+            aria-label={isLeftExpanded ? t("collapseLeftSidebar") : t("expandLeftSidebar")}
+            title={isLeftExpanded ? t("collapseLeft") : t("expandLeft")}
           >
             {isLeftExpanded ? (
               <ChevronRight className="mx-auto h-5 w-5" />
@@ -422,8 +424,8 @@ export function IslandSidebarContent({ onModeChange, onHeaderDragStart, isDraggi
                        text-[oklch(var(--muted-foreground))] hover:text-[oklch(var(--foreground))]
                        hover:bg-[oklch(var(--card))] dark:hover:bg-background hover:opacity-100
                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[oklch(var(--ring))] focus-visible:ring-offset-2"
-            aria-label={isRightExpanded ? "收起右侧栏" : "展开右侧栏"}
-            title={isRightExpanded ? "收起右侧" : "展开右侧"}
+            aria-label={isRightExpanded ? t("collapseRightSidebar") : t("expandRightSidebar")}
+            title={isRightExpanded ? t("collapseRight") : t("expandRight")}
           >
             {isRightExpanded ? (
               <ChevronLeft className="mx-auto h-5 w-5" />

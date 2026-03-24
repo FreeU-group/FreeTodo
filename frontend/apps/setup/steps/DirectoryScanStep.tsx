@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, FolderKanban, Sparkles } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAnalyzeFiles, useScanDirectory } from "@/lib/query/setup";
 import { useSetupStore } from "@/lib/store/setup-store";
@@ -24,6 +25,7 @@ function formatTime(ts: number): string {
 }
 
 export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
+	const t = useTranslations("onboarding");
 	const {
 		scanDirectory,
 		setScanDirectory,
@@ -54,13 +56,13 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 		try {
 			const res = await scanMutation.mutateAsync({ directory: dir, maxFiles: 200 });
 			if (!res.valid) {
-				setError("目录不存在或无效，请重新输入");
+				setError(t("directoryInvalidPath"));
 				setScanned(false);
 			} else {
 				setScanned(true);
 			}
 		} catch {
-			setError("扫描失败，请检查路径");
+			setError(t("directoryScanFailed"));
 			setScanned(false);
 		}
 	};
@@ -101,7 +103,7 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 
 	const extCounts: Record<string, number> = {};
 	for (const f of files) {
-		const ext = f.ext || "(无后缀)";
+		const ext = f.ext || t("directoryNoExtension");
 		extCounts[ext] = (extCounts[ext] || 0) + 1;
 	}
 	const topExts = Object.entries(extCounts)
@@ -116,9 +118,9 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 						<FolderKanban className="h-6 w-6" />
 					</div>
 				</div>
-				<h2 className="text-xl font-bold text-white">工作区设置</h2>
+				<h2 className="text-xl font-bold text-white">{t("directoryTitle")}</h2>
 				<p className="mt-1 text-sm text-white/60">
-					选择 Free U Agent 工作目录，仅读取文件名，不会访问内容
+					{t("directoryDescription")}
 				</p>
 			</div>
 
@@ -139,7 +141,7 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 					onClick={handleScan}
 					disabled={scanMutation.isPending}
 					className="shrink-0 flex items-center justify-center rounded-lg bg-primary/80 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary disabled:opacity-40"
-					title="验证并扫描"
+					title={t("directoryScan")}
 				>
 					{scanMutation.isPending ? (
 						<div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white" />
@@ -160,10 +162,10 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 				<div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
 					<div className="flex items-center justify-between text-sm">
 						<span className="text-white/70">
-							目前工作区已有 <strong className="text-white">{scanMutation.data.file_count}</strong> 个文件
+							{t("directoryFileCount", { count: scanMutation.data.file_count })}
 						</span>
 						<span className="text-xs text-white/40">
-							耗时 {scanMutation.data.scan_time_ms}ms
+							{t("directoryScanDuration", { time: scanMutation.data.scan_time_ms })}
 						</span>
 					</div>
 
@@ -204,21 +206,21 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 			{scanned && analyzeMutation.isPending && (
 				<div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
 					<Sparkles className="h-4 w-4 animate-pulse text-primary" />
-					<span className="text-sm text-white/70">AI 正在分析文件，了解你的使用习惯…</span>
+					<span className="text-sm text-white/70">{t("directoryAnalyzing")}</span>
 				</div>
 			)}
 			{scanned && analyzeMutation.isSuccess && analyzeMutation.data?.guessed_name && (
 				<div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
 					<Sparkles className="h-4 w-4 text-emerald-400" />
 					<span className="text-sm text-white/70">
-						AI 猜测你可能是 <strong className="text-white">{analyzeMutation.data.guessed_name}</strong>，下一步可以修改
+						{t("directoryGuessedName", { name: analyzeMutation.data.guessed_name })}
 					</span>
 				</div>
 			)}
 			{scanned && analyzeMutation.isSuccess && !analyzeMutation.data?.guessed_name && (
 				<div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
 					<Sparkles className="h-4 w-4 text-white/40" />
-					<span className="text-sm text-white/50">AI 分析完成，下一步请告诉我你的名字</span>
+					<span className="text-sm text-white/50">{t("directoryAnalyzeComplete")}</span>
 				</div>
 			)}
 
@@ -228,7 +230,7 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 					onClick={onBack}
 					className="flex-1 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/10"
 				>
-					上一步
+					{t("prevBtn")}
 				</button>
 				<button
 					type="button"
@@ -236,7 +238,7 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 					disabled={!scanned}
 					className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110 disabled:opacity-40"
 				>
-					下一步
+					{t("nextBtn")}
 				</button>
 			</div>
 		</div>

@@ -1,34 +1,38 @@
 "use client";
 
 import { Cpu } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-const STAGES = [
-	{ label: "初始化核心引擎", duration: 1200 },
-	{ label: "加载配置模块", duration: 1000 },
-	{ label: "启动感知服务", duration: 1400 },
-	{ label: "初始化记忆模块", duration: 1200 },
-	{ label: "就绪", duration: 800 },
-];
+const STAGE_KEYS = [
+	"startupStageCoreEngine",
+	"startupStageConfigModule",
+	"startupStagePerceptionService",
+	"startupStageMemoryModule",
+	"startupStageReady",
+] as const;
+
+const STAGE_DURATIONS = [1200, 1000, 1400, 1200, 800] as const;
 
 interface StartupStepProps {
 	onComplete: () => void;
 }
 
 export function StartupStep({ onComplete }: StartupStepProps) {
+	const t = useTranslations("onboarding");
 	const [stageIdx, setStageIdx] = useState(0);
 	const [progress, setProgress] = useState(0);
 
 	useEffect(() => {
-		if (stageIdx >= STAGES.length) {
+		if (stageIdx >= STAGE_KEYS.length) {
 			const t = setTimeout(onComplete, 400);
 			return () => clearTimeout(t);
 		}
 
-		const stage = STAGES[stageIdx];
-		const targetProgress = ((stageIdx + 1) / STAGES.length) * 100;
-		const startProgress = (stageIdx / STAGES.length) * 100;
-		const step = (targetProgress - startProgress) / (stage.duration / 30);
+		const duration = STAGE_DURATIONS[stageIdx];
+		const targetProgress = ((stageIdx + 1) / STAGE_KEYS.length) * 100;
+		const startProgress = (stageIdx / STAGE_KEYS.length) * 100;
+		const step = (targetProgress - startProgress) / (duration / 30);
 		let current = startProgress;
 
 		const interval = setInterval(() => {
@@ -44,7 +48,7 @@ export function StartupStep({ onComplete }: StartupStepProps) {
 	}, [stageIdx, onComplete]);
 
 	const currentLabel =
-		stageIdx < STAGES.length ? STAGES[stageIdx].label : "完成";
+		stageIdx < STAGE_KEYS.length ? t(STAGE_KEYS[stageIdx]) : t("startupStageDone");
 
 	return (
 		<div className="flex flex-col items-center gap-8">

@@ -8,6 +8,7 @@
 
 import { Maximize2, Minimize2, Pin, PinOff, X } from "lucide-react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { useState } from "react";
 import { LayoutSelector } from "@/components/common/layout/LayoutSelector";
@@ -33,6 +34,7 @@ interface IslandHeaderProps {
 }
 
 export function IslandHeader({ mode, onModeChange, isExpanded = false, onDragStart, isDragging = false }: IslandHeaderProps) {
+  const t = useTranslations("island");
   const isSidebar = mode === IslandMode.SIDEBAR;
   const isFullscreen = mode === IslandMode.FULLSCREEN;
 
@@ -81,14 +83,14 @@ export function IslandHeader({ mode, onModeChange, isExpanded = false, onDragSta
         <div className="relative h-8 w-8 shrink-0">
           <Image
             src="/hi_dog2.png"
-            alt="Free Todo Logo"
+            alt={t("logoAlt")}
             width={32}
             height={32}
             className="object-contain w-full h-full"
           />
         </div>
         <h1 className="text-lg font-semibold tracking-tight text-foreground">
-          {isSidebar ? "FreeTodo" : "Free Todo: Your AI Secretary"}
+          {isSidebar ? t("appNameCompact") : t("appNameFull")}
         </h1>
       </div>
 
@@ -128,7 +130,7 @@ export function IslandHeader({ mode, onModeChange, isExpanded = false, onDragSta
                            ? "text-primary hover:text-primary"
                            : "text-muted-foreground hover:text-foreground"
                        }`}
-            title={isPinned ? "取消固定（窗口将在失焦时最小化）" : "固定窗口（始终保持在桌面上）"}
+            title={isPinned ? t("unpinWindow") : t("pinWindow")}
           >
             {isPinned ? <Pin size={14} /> : <PinOff size={14} />}
           </button>
@@ -143,7 +145,7 @@ export function IslandHeader({ mode, onModeChange, isExpanded = false, onDragSta
                        hover:bg-accent active:bg-accent/80
                        text-muted-foreground hover:text-foreground
                        transition-colors"
-            title="全屏"
+            title={t("fullscreen")}
           >
             <Maximize2 size={14} />
           </button>
@@ -155,7 +157,7 @@ export function IslandHeader({ mode, onModeChange, isExpanded = false, onDragSta
                        hover:bg-accent active:bg-accent/80
                        text-muted-foreground hover:text-foreground
                        transition-colors"
-            title="缩小"
+            title={t("minimize")}
           >
             <Minimize2 size={14} />
           </button>
@@ -169,7 +171,7 @@ export function IslandHeader({ mode, onModeChange, isExpanded = false, onDragSta
                      hover:bg-destructive/10 active:bg-destructive/20
                      text-muted-foreground hover:text-destructive
                      transition-colors"
-          title="收起"
+          title={t("collapse")}
         >
           <X size={14} />
         </button>
