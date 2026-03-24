@@ -9,6 +9,7 @@ import {
   Mic,
 } from "lucide-react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { IslandMode } from "@/lib/island/types";
 
@@ -57,56 +58,60 @@ interface FloatContentProps {
 
 // --- 1. FLOAT STATE: 三个功能图标 - 录音、截图、全屏 ---
 // 紧凑胶囊设计：完美的圆角胶囊，图标靠近边缘，黄金比例布局
-export const FloatContent: React.FC<FloatContentProps> = ({ onModeChange }) => (
-  <motion.div
-    variants={fadeVariants}
-    initial="initial"
-    animate="animate"
-    exit="exit"
-    className="w-full h-full flex items-center justify-center relative"
-  >
-    {/* 胶囊容器 - 统一背景，完美圆角，填满整个窗口 */}
-    <div className="w-full h-full rounded-full bg-card/95 backdrop-blur-md
-                    border-2 border-border/60 shadow-xl
-                    flex items-center justify-between px-5">
-      {/* 录音按钮 - 红色 */}
-      <IconButton
-        icon={<Mic size={16} strokeWidth={2.5} />}
-        title="开始录音"
-        color="text-red-500 hover:text-red-400"
-        hoverBgColor="hover:bg-red-500/10"
-        onClick={() => {
-          // TODO: 触发录音功能，可能会切换到形态2
-          console.log("Start recording");
-        }}
-      />
+export const FloatContent: React.FC<FloatContentProps> = ({ onModeChange }) => {
+  const t = useTranslations("island");
 
-      {/* 截图按钮 - 绿色 */}
-      <IconButton
-        icon={<Camera size={16} strokeWidth={2.5} />}
-        title="截图"
-        color="text-green-500 hover:text-green-400"
-        hoverBgColor="hover:bg-green-500/10"
-        onClick={() => {
-          // TODO: 触发截图功能，可能会切换到形态2
-          console.log("Take screenshot");
-        }}
-      />
+  return (
+    <motion.div
+      variants={fadeVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="w-full h-full flex items-center justify-center relative"
+    >
+      {/* 胶囊容器 - 统一背景，完美圆角，填满整个窗口 */}
+      <div className="w-full h-full rounded-full bg-card/95 backdrop-blur-md
+                      border-2 border-border/60 shadow-xl
+                      flex items-center justify-between px-5">
+        {/* 录音按钮 - 红色 */}
+        <IconButton
+          icon={<Mic size={16} strokeWidth={2.5} />}
+          title={t("startRecording")}
+          color="text-red-500 hover:text-red-400"
+          hoverBgColor="hover:bg-red-500/10"
+          onClick={() => {
+            // TODO: 触发录音功能，可能会切换到形态2
+            console.log("Start recording");
+          }}
+        />
 
-      {/* 全屏按钮 - 蓝色，点击进入形态3 */}
-      <IconButton
-        icon={<Hexagon size={16} strokeWidth={2.5} />}
-        title="展开"
-        color="text-primary hover:text-primary/80"
-        hoverBgColor="hover:bg-primary/10"
-        onClick={() => {
-          // 切换到侧边栏模式（形态3）
-          onModeChange?.(IslandMode.SIDEBAR);
-        }}
-      />
-    </div>
-  </motion.div>
-);
+        {/* 截图按钮 - 绿色 */}
+        <IconButton
+          icon={<Camera size={16} strokeWidth={2.5} />}
+          title={t("takeScreenshot")}
+          color="text-green-500 hover:text-green-400"
+          hoverBgColor="hover:bg-green-500/10"
+          onClick={() => {
+            // TODO: 触发截图功能，可能会切换到形态2
+            console.log("Take screenshot");
+          }}
+        />
+
+        {/* 全屏按钮 - 蓝色，点击进入形态3 */}
+        <IconButton
+          icon={<Hexagon size={16} strokeWidth={2.5} />}
+          title={t("expand")}
+          color="text-primary hover:text-primary/80"
+          hoverBgColor="hover:bg-primary/10"
+          onClick={() => {
+            // 切换到侧边栏模式（形态3）
+            onModeChange?.(IslandMode.SIDEBAR);
+          }}
+        />
+      </div>
+    </motion.div>
+  );
+};
 
 // --- 2. POPUP STATE: FreeTodo 风格的通知弹窗 ---
 interface PopupContentProps {
@@ -115,6 +120,7 @@ interface PopupContentProps {
 }
 
 export const PopupContent: React.FC<PopupContentProps> = ({ todos, onOpenSidebar }) => {
+  const t = useTranslations("island");
   const todoCount = todos.length;
 
   return (
@@ -137,7 +143,7 @@ export const PopupContent: React.FC<PopupContentProps> = ({ todos, onOpenSidebar
         <div className="w-14 h-14 flex items-center justify-center">
           <Image
             src="/hi_dog2.png"
-            alt="Free Todo Logo"
+            alt={t("logoAlt")}
             width={56}
             height={56}
             className="object-contain"
@@ -152,14 +158,14 @@ export const PopupContent: React.FC<PopupContentProps> = ({ todos, onOpenSidebar
       <div className="flex flex-col flex-1 min-w-0 justify-center z-10">
         <div className="flex items-center justify-between mb-1">
           <span className="text-base font-semibold text-foreground tracking-tight">
-            待办提醒
+            {t("todoReminder")}
           </span>
-          <span className="text-[10px] text-muted-foreground font-medium">刚刚</span>
+          <span className="text-[10px] text-muted-foreground font-medium">{t("justNow")}</span>
         </div>
         <p className="text-sm text-muted-foreground leading-snug line-clamp-2">
           {todoCount > 0
-            ? `已识别出 ${todoCount} 条待办，点击查看详情`
-            : "已识别出新的待办，点击查看详情"}
+            ? t("detectedTodos", { count: todoCount })
+            : t("detectedTodoSingle")}
         </p>
         {todoCount > 0 && (
           <div className="mt-1.5 max-h-16 overflow-hidden">
@@ -170,7 +176,7 @@ export const PopupContent: React.FC<PopupContentProps> = ({ todos, onOpenSidebar
                   className="px-2 py-0.5 rounded-full bg-accent/70 border border-border/60 text-[11px] text-foreground/90 max-w-[140px] truncate"
                   title={todo.name}
                 >
-                  {todo.name || "未命名待办"}
+                  {todo.name || t("untitledTodo")}
                 </span>
               ))}
             </div>
@@ -183,7 +189,7 @@ export const PopupContent: React.FC<PopupContentProps> = ({ todos, onOpenSidebar
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent border border-border hover:bg-accent/80 transition-colors cursor-pointer"
           >
             <MessageCircle size={12} className="text-primary" />
-            <span className="text-[11px] text-muted-foreground font-medium">查看详情</span>
+            <span className="text-[11px] text-muted-foreground font-medium">{t("viewDetails")}</span>
           </button>
         </div>
       </div>

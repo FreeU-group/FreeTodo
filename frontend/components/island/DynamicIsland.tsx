@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslations } from "next-intl";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { unwrapApiData } from "@/lib/api/fetcher";
@@ -22,6 +23,7 @@ interface DynamicIslandProps {
 }
 
 const DynamicIsland: React.FC<DynamicIslandProps> = ({ mode, onModeChange }) => {
+  const tIsland = useTranslations("island");
   const prevModeRef = useRef<IslandMode | null>(null);
   const queryClient = useQueryClient();
   const [popupTodos, setPopupTodos] = useState<{ id: number; name: string }[]>([]);
@@ -158,10 +160,10 @@ const DynamicIsland: React.FC<DynamicIslandProps> = ({ mode, onModeChange }) => 
         }
 
         const simplified = todos
-          .filter((t) => typeof t.id === "number")
-          .map((t) => ({
-            id: t.id as number,
-            name: t.name || "未命名待办",
+          .filter((todo) => typeof todo.id === "number")
+          .map((todo) => ({
+            id: todo.id as number,
+            name: todo.name || tIsland("untitledTodo"),
           }));
 
         if (!isMounted || simplified.length === 0) {
@@ -197,7 +199,7 @@ const DynamicIsland: React.FC<DynamicIslandProps> = ({ mode, onModeChange }) => 
       isMounted = false;
       window.clearInterval(timer);
     };
-  }, [mode, onModeChange, queryClient]);
+  }, [mode, onModeChange, queryClient, tIsland]);
 
   // Electron Click-Through Handling & Window Resizing
   useEffect(() => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
 import { useSetupStore } from "@/lib/store/setup-store";
 import { ApiKeyStep } from "./steps/ApiKeyStep";
@@ -14,6 +15,7 @@ interface SetupWizardProps {
 }
 
 export function SetupWizard({ onSetupComplete }: SetupWizardProps) {
+	const t = useTranslations("onboarding");
 	const { currentStep, setStep, totalSteps } = useSetupStore();
 	const [transitioning, setTransitioning] = useState(false);
 
@@ -81,7 +83,7 @@ export function SetupWizard({ onSetupComplete }: SetupWizardProps) {
 							Free U
 						</h1>
 						<p className="text-sm text-white/50">
-							你的专属 AI Agent，正在为你启动…
+							{t("startupTagline")}
 						</p>
 					</div>
 				)}

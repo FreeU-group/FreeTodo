@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { type ReactNode, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ export function SectionHeader({
 	showToggleButton = true,
 	isHovered: externalIsHovered,
 }: SectionHeaderProps) {
+	const t = useTranslations("sectionHeader");
 	const [internalIsHovered, setInternalIsHovered] = useState(false);
 
 	// 如果外部提供了 isHovered，使用外部的；否则使用内部状态
@@ -59,7 +61,7 @@ export function SectionHeader({
 					type="button"
 					onClick={onToggle}
 					aria-pressed={show}
-					aria-label={show ? "折叠" : "展开"}
+					aria-label={show ? t("collapse") : t("expand")}
 					className={cn(
 						"rounded-md px-2 py-1 transition-all hover:bg-muted/40 text-muted-foreground",
 						isHovered ? "opacity-100" : "opacity-0 pointer-events-none",

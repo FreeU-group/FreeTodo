@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { isDesktop, isTauri } from "@/lib/utils/platform";
@@ -14,6 +15,7 @@ function getBackendHealthUrl(): string {
 }
 
 export function BackendReadyGate({ children }: BackendReadyGateProps) {
+	const t = useTranslations("appBoot");
 	const [ready, setReady] = useState(false);
 	const [visible, setVisible] = useState(true);
 	const [phase, setPhase] = useState<"boot" | "backend">("boot");
@@ -80,10 +82,10 @@ export function BackendReadyGate({ children }: BackendReadyGateProps) {
 				<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-neutral-950/90 text-white backdrop-blur">
 					<div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-neutral-900/80 px-6 py-5 shadow-lg">
 						<div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-						<div className="text-sm font-medium tracking-wide">
-							{phase === "boot" ? "正在启动前端界面" : "正在连接后端服务"}
-						</div>
-						<div className="text-xs text-white/60">首次启动可能需要几秒钟…</div>
+					<div className="text-sm font-medium tracking-wide">
+						{phase === "boot" ? t("startingFrontend") : t("connectingBackend")}
+					</div>
+					<div className="text-xs text-white/60">{t("firstLaunchHint")}</div>
 						{logs.length > 0 && (
 							<div className="mt-2 max-h-40 w-[min(560px,80vw)] overflow-auto rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-[11px] leading-5 text-white/80">
 								{logs.map((line, index) => (

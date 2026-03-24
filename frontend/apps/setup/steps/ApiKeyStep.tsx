@@ -1,6 +1,7 @@
 "use client";
 
 import { KeyRound } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useSaveAndInitLlmApiSaveAndInitLlmPost } from "@/lib/generated/config/config";
 import { useSaveConfig } from "@/lib/query";
@@ -11,6 +12,7 @@ interface ApiKeyStepProps {
 }
 
 export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
+	const t = useTranslations("onboarding");
 	const { apiKey, apiBaseUrl, apiModel, setApiKey, setApiBaseUrl, setApiModel } =
 		useSetupStore();
 	const apiKeyId = "setup-api-key";
@@ -38,12 +40,12 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 			})) as { success?: boolean; error?: string };
 
 			if (result.success) {
-				setMsg({ ok: true, text: "连接成功！" });
+				setMsg({ ok: true, text: t("apiConnectSuccess") });
 			} else {
-				setMsg({ ok: false, text: result.error || "连接失败" });
+				setMsg({ ok: false, text: result.error || t("apiConnectFailed") });
 			}
 		} catch (e) {
-			setMsg({ ok: false, text: e instanceof Error ? e.message : "网络错误" });
+			setMsg({ ok: false, text: e instanceof Error ? e.message : t("apiNetworkError") });
 		} finally {
 			setTesting(false);
 		}
@@ -73,9 +75,9 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 						<KeyRound className="h-6 w-6" />
 					</div>
 				</div>
-				<h2 className="text-xl font-bold text-white">配置 AI 服务</h2>
+				<h2 className="text-xl font-bold text-white">{t("apiSetupTitle")}</h2>
 				<p className="mt-1 text-sm text-white/60">
-					填入你的大语言模型 API Key，用于驱动 Agent 的核心能力
+					{t("apiSetupDescription")}
 				</p>
 			</div>
 
@@ -96,14 +98,14 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 						onChange={(e) => setApiKey(e.target.value)}
 					/>
 					<p className="mt-1 text-xs text-white/40">
-						推荐使用{" "}
+						{t("apiKeyProviderPrefix")}{" "}
 						<a
 							href="https://bailian.console.aliyun.com/?tab=api#/api"
 							target="_blank"
 							rel="noopener noreferrer"
 							className="text-primary/80 hover:underline"
 						>
-							阿里云百炼
+							{t("apiKeyProviderName")}
 						</a>{" "}
 						API Key
 					</p>
@@ -131,7 +133,7 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 						htmlFor={apiModelId}
 						className="mb-1 block text-xs font-medium text-white/70"
 					>
-						模型
+						{t("apiModelLabel")}
 					</label>
 					<input
 						id={apiModelId}
@@ -163,7 +165,7 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 					disabled={!canProceed || testing}
 					className="flex-1 rounded-lg border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-40"
 				>
-					{testing ? "测试中…" : "测试连接并保存"}
+					{testing ? t("apiTesting") : t("apiTestAndSave")}
 				</button>
 				<button
 					type="button"
@@ -171,7 +173,7 @@ export function ApiKeyStep({ onNext }: ApiKeyStepProps) {
 					disabled={!canProceed}
 					className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110 disabled:opacity-40"
 				>
-					下一步
+					{t("nextBtn")}
 				</button>
 			</div>
 		</div>

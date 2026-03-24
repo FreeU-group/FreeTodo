@@ -212,8 +212,8 @@ The actual frontend URL and backend connection status will be displayed in the c
 
 For detailed step-by-step deployment instructions, see:
 
-- **[Local Deployment Guide](deploy_in_local.md)** — Deploy all services (Server + Frontend + Client) on your local machine, no Docker required
-- **[Cloud Deployment Guide](deploy_in_cloud.md)** — Deploy Server to a cloud server with Docker, connect Frontend & Client from local machines
+- **[Local Deployment Guide](docs/guides/deployment/deploy_in_local.md)** — Deploy all services (Server + Frontend + Client) on your local machine, no Docker required
+- **[Cloud Deployment Guide](docs/guides/deployment/deploy_in_cloud.md)** — Deploy Server to a cloud server with Docker, connect Frontend & Client from local machines
 
 Quick Docker deployment (cloud):
 
