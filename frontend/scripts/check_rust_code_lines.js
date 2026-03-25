@@ -15,7 +15,11 @@ const { existsSync, readdirSync, readFileSync } = require("node:fs");
 const { dirname, isAbsolute, join, relative, resolve } = require("node:path");
 
 const DEFAULT_INCLUDE = ["src-tauri/src"];
-const DEFAULT_EXCLUDE = ["src-tauri/target"];
+const DEFAULT_EXCLUDE = [
+  "src-tauri/.tauri-lint-dist",
+  "src-tauri/gen",
+  "src-tauri/target",
+];
 const DEFAULT_MAX_LINES = 500;
 
 function parseArgs() {
