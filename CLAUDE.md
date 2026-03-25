@@ -1,5 +1,7 @@
 # Repository Guidelines
 
+This file mirrors the repo-level working rules from `AGENTS.md` for tools that only load `CLAUDE.md`.
+
 ## Project Structure & Module Organization
 - `server/`: FastAPI backend for APIs, LLM orchestration, storage, jobs, and core services.
 - `server/config/`: server runtime configuration. `config.yaml` is generated from `default_config.yaml`.
@@ -31,32 +33,32 @@ Python environments:
 - Do not assume a repo-root `.venv` contains the correct dependencies for all modules.
 
 Backend (`server/`):
-- `uv sync --directory server` — install backend dependencies.
-- `uv run --directory server python server.py` — start the FastAPI server.
-- `uv run --directory server python agent_os.py` — start the AgentOS process used by Agno mode.
-- `uv run --directory server ruff check .` — lint backend code.
-- `uv run --directory server ruff format .` — format backend code.
-- `uv run --directory server pytest` — run backend tests.
+- `uv sync --directory server` - install backend dependencies.
+- `uv run --directory server python server.py` - start the FastAPI server.
+- `uv run --directory server python agent_os.py` - start the AgentOS process used by Agno mode.
+- `uv run --directory server ruff check .` - lint backend code.
+- `uv run --directory server ruff format .` - format backend code.
+- `uv run --directory server pytest` - run backend tests.
 
 Client (`client/`):
-- `uv sync --directory client` — install client dependencies.
-- `uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC` — start the local perception client.
-- `uv run --directory client ruff check .` — lint client code.
-- `uv run --directory client pytest` — run client tests if present.
+- `uv sync --directory client` - install client dependencies.
+- `uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC` - start the local perception client.
+- `uv run --directory client ruff check .` - lint client code.
+- `uv run --directory client pytest` - run client tests if present.
 
 Frontend (`frontend/`):
-- `pnpm --dir frontend install` — install frontend dependencies.
-- `pnpm --dir frontend dev` — start the frontend dev server.
-- `pnpm --dir frontend lint` — run frontend linting.
-- `pnpm --dir frontend format` — format frontend files.
-- `pnpm --dir frontend check` — run Biome checks.
-- `pnpm --dir frontend type-check` — run TypeScript checks.
+- `pnpm --dir frontend install` - install frontend dependencies.
+- `pnpm --dir frontend dev` - start the frontend dev server.
+- `pnpm --dir frontend lint` - run frontend linting.
+- `pnpm --dir frontend format` - format frontend files.
+- `pnpm --dir frontend check` - run Biome checks.
+- `pnpm --dir frontend type-check` - run TypeScript checks.
 
 Packaging:
-- `pnpm --dir frontend electron:build` — build the Electron app.
-- `pnpm --dir frontend electron:build-win|mac|linux` — build Electron for a target platform.
-- `pnpm --dir frontend tauri:dev` — run the Tauri dev flow.
-- `pnpm --dir frontend tauri:build` — build the Tauri app.
+- `pnpm --dir frontend electron:build` - build the Electron app.
+- `pnpm --dir frontend electron:build-win|mac|linux` - build Electron for a target platform.
+- `pnpm --dir frontend tauri:dev` - run the Tauri dev flow.
+- `pnpm --dir frontend tauri:build` - build the Tauri app.
 
 ## Coding Style & Naming Conventions
 - Python: PEP 8, type hints, docstrings, and Ruff formatting with 4-space indentation and 100-char lines.
