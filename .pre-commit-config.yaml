@@ -42,16 +42,14 @@ repos:
         files: ^frontend/.*\.(js|jsx|ts|tsx|json|jsonc|css|astro|vue|svelte|graphql|gql)$
         pass_filenames: true
 
-      # Temporarily disabled local hooks. Restore these blocks when the local
-      # Bandit / Pyright toolchain is ready to be enforced again.
-      # - id: bandit
-      #   name: Bandit security scan
-      #   # Avoid uv venv sync races in concurrent hooks (Windows file-lock issues).
-      #   entry: uv run --no-sync bandit -c bandit.yaml
-      #   language: system
-      #   files: ^(server|scripts)/.*\.py$
-      #   pass_filenames: true
-      #   require_serial: true
+      - id: bandit
+        name: Bandit security scan
+        # Keep the server toolchain isolated while running from repo root.
+        entry: uv run --project server --no-sync bandit -c bandit.yaml
+        language: system
+        files: ^(server|scripts)/.*\.py$
+        pass_filenames: true
+        require_serial: true
 
       # - id: pyright
       #   name: Pyright type check
