@@ -116,7 +116,7 @@ async def reload_agent(request: Request):
 
 
 if __name__ == "__main__":
-    host = str(settings.get("agno.agent_os.host", "0.0.0.0"))
+    host = str(settings.get("agno.agent_os.host", "127.0.0.1"))
     port = int(settings.get("agno.agent_os.port", 8002))
     debug = bool(settings.get("agno.agent_os.debug", False))
     agent_os.serve(

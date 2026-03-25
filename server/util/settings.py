@@ -91,7 +91,7 @@ settings = Dynaconf(
     # 验证器
     validators=[
         # 服务器配置
-        Validator("server.host", default="0.0.0.0"),
+        Validator("server.host", default="127.0.0.1"),
         Validator("server.port", default=8001, is_type_of=int),
         Validator("server.debug", default=False, is_type_of=bool),
         # 基础目录配置
@@ -136,7 +136,7 @@ settings = Dynaconf(
         Validator("agno.default_workspace", default="."),
         # AgentOS 配置
         Validator("agno.agent_os.enabled", default=True, is_type_of=bool),
-        Validator("agno.agent_os.host", default="0.0.0.0"),
+        Validator("agno.agent_os.host", default="127.0.0.1"),
         Validator("agno.agent_os.port", default=8002, is_type_of=int),
         Validator("agno.agent_os.base_url", default=""),
         Validator("agno.agent_os.agent_id", default="lifetrace-agent"),

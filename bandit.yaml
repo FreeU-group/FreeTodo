@@ -3,10 +3,13 @@ exclude_dirs:
   - data
   - dist
   - build
+  - cli/tests
+  - client/tests
   - migrations/versions
   - server/.venv
   - server/data
   - server/migrations/versions
+  - server/tests
   - server/build
   - server/dist
 skips: []

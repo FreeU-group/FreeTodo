@@ -405,7 +405,7 @@ def main() -> None:
     parser.add_argument(
         "--port", type=int, default=9876, help="本地 API 端口（需 fastapi）"
     )
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument(
         "--center-url",
         default="",

@@ -10,6 +10,6 @@ def resolve_agent_os_base_url() -> str:
     if base_url:
         return str(base_url).rstrip("/")
 
-    host = str(settings.get("agno.agent_os.host", "0.0.0.0"))
+    host = str(settings.get("agno.agent_os.host", "127.0.0.1"))
     port = int(settings.get("agno.agent_os.port", 8002))
     return f"http://{host}:{port}"
