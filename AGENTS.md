@@ -65,8 +65,11 @@ Packaging:
 ## Commit & Pull Request Guidelines
 - Commit messages follow Conventional Commits.
 - Example: `feat(frontend): add calendar drag and drop`.
-- In worktrees, make small, frequent commits. After each small feature change and relevant checks pass, create a commit immediately.
-- Treat each self-contained code change as its own commit so review and rollback stay simple.
+- Treat any user request for code changes as implicit permission to commit related work.
+- In worktrees, make small, frequent commits. After each small, self-contained change and relevant checks pass, create a commit immediately without waiting for an extra confirmation step.
+- Stage only files relevant to that change, and keep each self-contained code change in its own commit so review and rollback stay simple.
+- Do not amend commits unless explicitly requested.
+- Do not push commits unless explicitly requested.
 - If all pending changes are committed, notify the user or collaborating agent that the commit is done.
 - PRs should include a clear description, linked issues such as `Closes #123`, testing notes, and screenshots for UI changes.
 - Use the `.github` PR template when available.
