@@ -17,7 +17,7 @@ use log::info;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use tauri::{Manager, RunEvent};
 
 /// Initialize the Tauri application with all required plugins and setup
 /// Note: Currently only Web mode is supported
@@ -27,7 +27,7 @@ pub fn run() {
 
     info!("Starting FreeTodo application...");
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -75,8 +75,16 @@ pub fn run() {
             hide_window,
             preview_read_file,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app, event| match event {
+        RunEvent::Exit | RunEvent::ExitRequested { .. } => {
+            nextjs::cleanup();
+            backend::cleanup();
+        }
+        _ => {}
+    });
 }
 
 /// Get the backend server URL
