@@ -12,6 +12,7 @@ Pre-commit 会在每次 `git commit` 时自动检查并修复以下问题：
 - 行尾空格删除
 - Python 代码规范检查（ruff）
 - Python 代码格式化（ruff-format）
+- Client / CLI Python 检查
 - 前端代码检查（Biome）
 - 前端 TypeScript 类型检查
 - **前端代码行数检查**（单文件有效代码行数不超过 500 行）
@@ -236,9 +237,9 @@ repos:
       # 后端代码行数检查（有效代码行数上限 500 行）
       - id: check-python-code-lines
         name: Check Python code lines (max 500)
-        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
+        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,cli,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build,cli/.venv,cli/__pycache__,cli/dist,cli/build
         language: system
-        files: ^(server|client|scripts)/.*\.py$
+        files: ^(server|client|cli|scripts)/.*\.py$
         pass_filenames: true
 
       # Tauri Rust 代码行数检查（有效代码行数上限 500 行）
@@ -251,7 +252,7 @@ repos:
 ```
 
 **主要配置**：
-- `files: ^(server|client|scripts)/` - 只检查 `server/`、`client/` 和 `scripts/` 下的 Python 文件
+- `files: ^(server|client|cli|scripts)/` - 只检查 `server/`、`client/`、`cli/` 和 `scripts/` 下的 Python 文件
 - `files: ^(frontend|scripts)/` - 只检查 `frontend/` 和 `scripts/` 下的前端文件
 - `files: ^frontend/src-tauri/` - 只检查 `frontend/src-tauri/` 下的 Tauri Rust 文件
 - `language_version: python3.12` - 指定 Python 版本

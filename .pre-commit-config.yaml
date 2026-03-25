@@ -33,6 +33,15 @@ repos:
         language_version: python3.12
         files: ^client/
         types_or: [ python, pyi ]
+      - id: ruff
+        language_version: python3.12
+        files: ^cli/
+        types_or: [ python, pyi ]
+        args: [ --fix ]
+      - id: ruff-format
+        language_version: python3.12
+        files: ^cli/
+        types_or: [ python, pyi ]
   - repo: local
     hooks:
       - id: biome-check
@@ -47,7 +56,7 @@ repos:
         # Keep the server toolchain isolated while running from repo root.
         entry: uv run --project server --no-sync bandit -c bandit.yaml
         language: system
-        files: ^(server|scripts)/.*\.py$
+        files: ^(server|client|cli|scripts)/.*\.py$
         pass_filenames: true
         require_serial: true
 
@@ -87,9 +96,9 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-python-code-lines
         name: Check Python code lines (max 500)
-        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
+        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,cli,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build,cli/.venv,cli/__pycache__,cli/dist,cli/build
         language: system
-        files: ^(server|client|scripts)/.*\.py$
+        files: ^(server|client|cli|scripts)/.*\.py$
         pass_filenames: true
         require_serial: true
 
