@@ -7,6 +7,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { Button } from "@/components/ui/button";
+import { getRuntimeBackendUrl } from "@/lib/runtime-backend-url";
 import {
 	type MemoryMatchAction,
 	type TodoIntentConnectionState,
@@ -121,12 +122,7 @@ const markdownComponents: Components = {
 };
 
 function getApiBaseUrl(): string {
-	return (
-		process.env.NEXT_PUBLIC_API_URL ||
-		(typeof window !== "undefined" &&
-			(window as Window & { __BACKEND_URL__?: string }).__BACKEND_URL__) ||
-		"http://127.0.0.1:8100"
-	);
+	return getRuntimeBackendUrl("http://127.0.0.1:8100");
 }
 
 async function fetchTodoIntentStatus(): Promise<TodoIntentSubscriberStatus | null> {

@@ -25,6 +25,16 @@ function copyDir(src, dest) {
 	console.log(`Copied ${src} -> ${dest}`);
 }
 
+function copyFile(src, dest) {
+	if (!fs.existsSync(src)) {
+		console.warn(`Source not found, skipping: ${src}`);
+		return;
+	}
+	fs.mkdirSync(path.dirname(dest), { recursive: true });
+	fs.copyFileSync(src, dest);
+	console.log(`Copied ${src} -> ${dest}`);
+}
+
 function findLatestReleaseDir(targetRoot) {
 	if (!fs.existsSync(targetRoot)) {
 		return null;
@@ -76,6 +86,25 @@ const standaloneSrc = path.join(rootDir, ".next", "standalone");
 const standaloneDest = path.join(resourcesDir, "standalone");
 copyDir(standaloneSrc, standaloneDest);
 
-const backendSrc = path.join(rootDir, "..", "dist-backend");
-const backendDest = path.join(resourcesDir, "dist-backend");
-copyDir(backendSrc, backendDest);
+const desktopConfigSrc = path.join(rootDir, "src-tauri", "desktop-config.default.json");
+copyFile(desktopConfigSrc, path.join(resourcesDir, "desktop-config.default.json"));
+
+const macosBundleDir = path.join(tauriTargetDir, "release", "bundle", "macos");
+if (fs.existsSync(macosBundleDir)) {
+	for (const entry of fs.readdirSync(macosBundleDir, { withFileTypes: true })) {
+		if (!entry.isDirectory() || !entry.name.endsWith(".app")) {
+			continue;
+		}
+		const bundleResourcesDir = path.join(
+			macosBundleDir,
+			entry.name,
+			"Contents",
+			"Resources",
+		);
+		copyDir(standaloneSrc, path.join(bundleResourcesDir, "standalone"));
+		copyFile(
+			desktopConfigSrc,
+			path.join(bundleResourcesDir, "desktop-config.default.json"),
+		);
+	}
+}

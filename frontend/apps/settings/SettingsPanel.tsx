@@ -10,11 +10,12 @@ import { cn } from "@/lib/utils";
 import {
 	AudioAsrConfigSection,
 	AudioConfigSection,
-	AutomationTasksSection,
-	AutoTodoDetectionSection,
-	CookiesConfigSection,
-	CrawlerConfigSection,
-	DiaryIllustrationConfigSection,
+		AutomationTasksSection,
+		AutoTodoDetectionSection,
+		CookiesConfigSection,
+		CrawlerConfigSection,
+		DesktopServerSection,
+		DiaryIllustrationConfigSection,
 	DirectoryScanSection,
 	DockDisplayModeSection,
 	GeminiConfigSection,
@@ -203,6 +204,7 @@ export function SettingsPanel() {
 			case "developer":
 				return (
 					<>
+						<DesktopServerSection />
 						<SchedulerSection
 							loading={loading}
 							excludeJobIds={PERCEPTION_JOB_IDS}

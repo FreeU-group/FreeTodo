@@ -10,30 +10,32 @@ use axum::{
 use log::warn;
 use reqwest::Client;
 use serde_json::json;
-use std::sync::{
-    atomic::{AtomicBool, AtomicU16, Ordering},
-    Arc,
-};
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 #[derive(Clone)]
 pub struct ProxyState {
-    backend_port: Arc<AtomicU16>,
-    ready: Arc<AtomicBool>,
+    remote_base_url: Arc<RwLock<String>>,
     client: Client,
 }
 
 impl ProxyState {
-    pub fn new(backend_port: Arc<AtomicU16>, ready: Arc<AtomicBool>) -> Self {
+    pub fn new(remote_base_url: Arc<RwLock<String>>) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap_or_default();
         Self {
-            backend_port,
-            ready,
+            remote_base_url,
             client,
         }
+    }
+
+    fn target_url(&self) -> String {
+        self.remote_base_url
+            .read()
+            .map(|value| value.clone())
+            .unwrap_or_else(|_| String::new())
     }
 }
 
@@ -54,17 +56,10 @@ pub async fn start_proxy_server(port: u16, state: ProxyState) -> Result<(), Stri
 }
 
 async fn proxy_handler(State(state): State<ProxyState>, req: Request<Body>) -> Response<Body> {
+    let target_url = state.target_url();
     let path = req.uri().path();
     if path == "/ready" {
-        let backend_port = state.backend_port.load(Ordering::Relaxed);
-        let ready = state.ready.load(Ordering::Relaxed);
-        return ready_response(ready, backend_port);
-    }
-
-    let backend_port = state.backend_port.load(Ordering::Relaxed);
-    let ready = state.ready.load(Ordering::Relaxed);
-    if backend_port == 0 || !ready {
-        return ready_response(false, backend_port);
+        return ready_response(&target_url);
     }
 
     let path_and_query = req
@@ -72,7 +67,7 @@ async fn proxy_handler(State(state): State<ProxyState>, req: Request<Body>) -> R
         .path_and_query()
         .map(|value| value.as_str())
         .unwrap_or("/");
-    let url = format!("http://127.0.0.1:{}{}", backend_port, path_and_query);
+    let url = format!("{}{}", target_url, path_and_query);
 
     let (parts, body) = req.into_parts();
     let mut builder = state.client.request(parts.method, &url);
@@ -87,7 +82,7 @@ async fn proxy_handler(State(state): State<ProxyState>, req: Request<Body>) -> R
         Ok(bytes) => bytes,
         Err(err) => {
             warn!("Proxy body read failed: {}", err);
-            return ready_response(false, backend_port);
+            return bad_gateway_response(err.to_string());
         }
     };
 
@@ -99,7 +94,7 @@ async fn proxy_handler(State(state): State<ProxyState>, req: Request<Body>) -> R
                 Ok(body) => body,
                 Err(err) => {
                     warn!("Proxy response read failed: {}", err);
-                    return ready_response(false, backend_port);
+                    return bad_gateway_response(err.to_string());
                 }
             };
 
@@ -113,33 +108,38 @@ async fn proxy_handler(State(state): State<ProxyState>, req: Request<Body>) -> R
             builder = builder.header(header::CONTENT_LENGTH, bytes.len().to_string());
             builder
                 .body(Body::from(bytes))
-                .unwrap_or_else(|_| ready_response(false, backend_port))
+                .unwrap_or_else(|_| bad_gateway_response("Invalid proxy response".to_string()))
         }
         Err(err) => {
             warn!("Proxy request failed: {}", err);
-            ready_response(false, backend_port)
+            bad_gateway_response(err.to_string())
         }
     }
 }
 
-fn ready_response(ready: bool, backend_port: u16) -> Response<Body> {
-    let payload = if ready {
-        json!({
-            "status": "ready",
-            "backend_port": backend_port,
-        })
-    } else {
-        json!({
-            "status": "starting",
-        })
-    };
+fn ready_response(remote_base_url: &str) -> Response<Body> {
+    let payload = json!({
+        "status": "ready",
+        "target": remote_base_url,
+    });
 
     let mut response = Response::new(Body::from(payload.to_string()));
-    *response.status_mut() = if ready {
-        StatusCode::OK
-    } else {
-        StatusCode::SERVICE_UNAVAILABLE
-    };
+    *response.status_mut() = StatusCode::OK;
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/json"),
+    );
+    response
+}
+
+fn bad_gateway_response(message: String) -> Response<Body> {
+    let payload = json!({
+        "status": "error",
+        "message": message,
+    });
+
+    let mut response = Response::new(Body::from(payload.to_string()));
+    *response.status_mut() = StatusCode::BAD_GATEWAY;
     response.headers_mut().insert(
         header::CONTENT_TYPE,
         header::HeaderValue::from_static("application/json"),

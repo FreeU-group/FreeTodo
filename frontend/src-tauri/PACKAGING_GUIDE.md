@@ -1,117 +1,162 @@
-# FreeTodo Tauri Packaging Guide (Web Mode)
+# FreeTodo Tauri Packaging Guide
 
-This document describes how to build and locate Tauri packaging outputs for the **Web mode** app.
+This document describes the current Tauri packaging flow for the desktop app.
 
-Island mode is **not packaged** yet (still in development).
+The desktop app now ships in a single **Web mode** only:
 
-## Table of Contents
+- Tauri launches a bundled Next.js standalone server locally
+- Tauri exposes a small local proxy at `http://127.0.0.1:8100`
+- The proxy forwards requests to the remote backend configured in the desktop settings file
 
-- [Quick Start](#quick-start)
-- [Build Outputs](#build-outputs)
-- [Build Notes](#build-notes)
-- [Troubleshooting](#troubleshooting)
+Island mode and Python/PyInstaller backend packaging are no longer part of the Tauri build flow.
 
-## Quick Start
+## Requirements
 
-Run from the repository root:
+Run from the repository root and make sure these are installed first:
+
+- Node.js 20+
+- `pnpm`
+- Rust / Cargo (`rustup`)
+
+Install frontend dependencies:
 
 ```bash
-cd free-todo-frontend
-
-# Web mode (default)
-pnpm build:tauri:web:full
-
-# Platform specific
-pnpm build:tauri:web:full:win
-pnpm build:tauri:web:full:mac
-pnpm build:tauri:web:full:linux
+pnpm --dir frontend install
 ```
 
-## Build Outputs
+## Build Commands
 
-Tauri build artifacts are written under:
+Recommended full packaging command:
 
-```
-free-todo-frontend/src-tauri/target/<profile>/bundle/
-```
-
-Where `<profile>` is:
-- `release` for `tauri build` (default)
-- `debug` for `tauri build --debug`
-
-### Windows (NSIS)
-
-```
-free-todo-frontend/src-tauri/target/release/bundle/nsis/
-  FreeTodo_<version>_x64-setup.exe
+```bash
+pnpm --dir frontend build:tauri:web:script:full
 ```
 
-### macOS (app / dmg)
+This command will:
 
-```
-free-todo-frontend/src-tauri/target/release/bundle/macos/
-  FreeTodo.app
-  FreeTodo_<version>_universal.dmg
-```
+1. Build the frontend with `next build`
+2. Prepare the Tauri loading page and standalone assets
+3. Run `tauri build` with the Web-mode config
+4. Copy standalone assets and desktop config into the packaged app bundle
 
-### Linux (AppImage / deb)
+You can also run the base Tauri build directly:
 
-```
-free-todo-frontend/src-tauri/target/release/bundle/
-  appimage/FreeTodo_<version>_amd64.AppImage
-  deb/free-todo_<version>_amd64.deb
+```bash
+pnpm --dir frontend tauri:build
 ```
 
-## Build Notes
+But `build:tauri:web:script:full` is the safer command because it includes the final resource copy step.
 
-### Web Mode Only
+## Output Locations
 
-Current Tauri configuration builds **Web mode only**:
+The main build outputs are written under:
 
-- Standard window (1200x800)
-- With window decorations
-- Non-transparent
-
-Island mode is not packaged by default.
-
-### Frontend Assets
-
-Tauri uses a local loading page:
-
-```
-free-todo-frontend/src-tauri/dist/index.html
+```text
+frontend/src-tauri/target/release/bundle/
 ```
 
-This page redirects to the running Next.js server.
+macOS outputs:
 
-### Next.js Build
-
-The build command runs:
-
-```
-pnpm build:frontend:web
+```text
+frontend/src-tauri/target/release/bundle/macos/FreeTodo.app
+frontend/src-tauri/target/release/bundle/dmg/FreeTodo_0.1.2_aarch64.dmg
 ```
 
-Next.js artifacts:
+## Runtime Config
 
+On first launch, the desktop app creates a config file here:
+
+```text
+~/Library/Application Support/com.freeugroup.freetodo/config.json
 ```
-free-todo-frontend/.next/
+
+Default contents:
+
+```json
+{
+  "apiBaseUrl": "http://127.0.0.1:8001"
+}
+```
+
+Change `apiBaseUrl` to your real remote backend, or update it inside the app from:
+
+- `Settings`
+- `Developer`
+- `Desktop server`
+
+## How the App Runs
+
+When you open the packaged app:
+
+1. Tauri starts the local proxy on `127.0.0.1:8100`
+2. Tauri starts the bundled Next.js standalone server on a local port such as `3100+`
+3. The frontend loads inside the Tauri window
+4. API requests go through the local proxy and then to your configured remote backend
+
+## Running the Packaged App
+
+### macOS
+
+Open the app bundle directly:
+
+```bash
+open "frontend/src-tauri/target/release/bundle/macos/FreeTodo.app"
+```
+
+Or double-click:
+
+```text
+frontend/src-tauri/target/release/bundle/macos/FreeTodo.app
+```
+
+If you want to distribute it, use the generated DMG:
+
+```text
+frontend/src-tauri/target/release/bundle/dmg/FreeTodo_0.1.2_aarch64.dmg
 ```
 
 ## Troubleshooting
 
-### Where is the app after build?
+### Build succeeds but app opens blank
 
-Check:
+Check that the packaged app contains standalone assets:
 
+```text
+frontend/src-tauri/target/release/bundle/macos/FreeTodo.app/Contents/Resources/standalone/
 ```
-free-todo-frontend/src-tauri/target/release/bundle/
+
+If that directory is missing, rebuild with:
+
+```bash
+pnpm --dir frontend build:tauri:web:script:full
 ```
 
-### Build uses the wrong window mode
+### App opens but API calls fail
 
-Tauri currently packages **Web mode only**. Island mode is intentionally excluded.
+Check the desktop config file:
+
+```text
+~/Library/Application Support/com.freeugroup.freetodo/config.json
+```
+
+Make sure `apiBaseUrl` points to a reachable remote backend.
+
+### Local proxy health check
+
+While the app is running, this should respond with JSON:
+
+```bash
+curl http://127.0.0.1:8100/ready
+```
+
+### Rebuild after changing code
+
+Always use the full command so packaged resources stay in sync:
+
+```bash
+pnpm --dir frontend build:tauri:web:script:full
+```
 
 ---
 
-**Last Updated**: 2026-01-29
+Last updated: 2026-03-25
