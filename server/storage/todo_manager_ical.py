@@ -3,70 +3,32 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.exc import SQLAlchemyError
 
 from storage.models import Todo
+from storage.todo_manager_ical_support import (
+    normalize_todo_datetimes,
+    prepare_create_todo_kwargs,
+    todo_to_dict,
+)
 from storage.todo_manager_utils import (
     _normalize_percent,
-    _normalize_reminder_offsets,
     _safe_int_list,
     _serialize_reminder_offsets,
 )
 from util.logging_config import get_logger
-from util.time_utils import db_datetime_as_utc, get_utc_now, utc_to_storage
+from util.time_utils import get_utc_now
 
 logger = get_logger()
 
 _UNSET = object()
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from storage.database_base import DatabaseBase
-
-
-def _to_ical_status(status: str | None) -> str | None:
-    if not status:
-        return None
-    mapping = {
-        "active": "NEEDS-ACTION",
-        "completed": "COMPLETED",
-        "canceled": "CANCELLED",
-        "draft": "NEEDS-ACTION",
-    }
-    return mapping.get(status, "NEEDS-ACTION")
-
-
-_TODO_DATETIME_FIELDS = (
-    "deadline",
-    "start_time",
-    "end_time",
-    "dtstart",
-    "dtend",
-    "due",
-    "dtstamp",
-    "created",
-    "last_modified",
-    "recurrence_id",
-    "completed_at",
-)
-
-
-def _normalize_todo_datetime(value: datetime | None) -> datetime | None:
-    return utc_to_storage(value)
-
-
-def _normalize_todo_datetimes(values: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(values)
-    for field in _TODO_DATETIME_FIELDS:
-        if field in normalized and isinstance(normalized[field], datetime | type(None)):
-            normalized[field] = _normalize_todo_datetime(normalized[field])
-    return normalized
-
-
-def _restore_todo_datetime(value: datetime | None) -> datetime | None:
-    return db_datetime_as_utc(value)
 
 
 class TodoIcalMixin:
@@ -91,77 +53,9 @@ class TodoIcalMixin:
         ) -> bool: ...
 
     def _todo_to_dict(self, session, todo: Todo) -> dict[str, Any]:
-        todo_id = todo.id
-        if todo_id is None:
-            raise ValueError("Todo must have an id before serialization.")
-        summary = getattr(todo, "summary", None) or todo.name
-        dtstart = getattr(todo, "dtstart", None) or todo.start_time
-        dtend = getattr(todo, "dtend", None) or todo.end_time
-        due = getattr(todo, "due", None) or todo.deadline
-        tzid = getattr(todo, "tzid", None) or getattr(todo, "time_zone", None)
-        created = getattr(todo, "created", None) or todo.created_at
-        last_modified = getattr(todo, "last_modified", None) or todo.updated_at
-        dtstamp = getattr(todo, "dtstamp", None) or todo.updated_at
-        ical_status = getattr(todo, "ical_status", None) or _to_ical_status(todo.status)
-        is_all_day = getattr(todo, "is_all_day", None)
-        if is_all_day is None:
-            is_all_day = False
-        return {
-            "id": todo_id,
-            "uid": getattr(todo, "uid", None),
-            "name": todo.name,
-            "summary": summary,
-            "description": todo.description,
-            "user_notes": todo.user_notes,
-            "who_founder": getattr(todo, "who_founder", None),
-            "who_executor": getattr(todo, "who_executor", None),
-            "parent_todo_id": todo.parent_todo_id,
-            "item_type": getattr(todo, "item_type", None),
-            "location": getattr(todo, "location", None),
-            "categories": getattr(todo, "categories", None),
-            "classification": getattr(todo, "classification", None),
-            "deadline": _restore_todo_datetime(todo.deadline),
-            "start_time": _restore_todo_datetime(todo.start_time),
-            "end_time": _restore_todo_datetime(todo.end_time),
-            "dtstart": _restore_todo_datetime(dtstart),
-            "dtend": _restore_todo_datetime(dtend),
-            "due": _restore_todo_datetime(due),
-            "duration": getattr(todo, "duration", None),
-            "time_zone": getattr(todo, "time_zone", None),
-            "tzid": tzid,
-            "is_all_day": bool(is_all_day),
-            "dtstamp": _restore_todo_datetime(dtstamp),
-            "created": _restore_todo_datetime(created),
-            "last_modified": _restore_todo_datetime(last_modified),
-            "sequence": getattr(todo, "sequence", 0),
-            "rdate": getattr(todo, "rdate", None),
-            "exdate": getattr(todo, "exdate", None),
-            "recurrence_id": _restore_todo_datetime(getattr(todo, "recurrence_id", None)),
-            "related_to_uid": getattr(todo, "related_to_uid", None),
-            "related_to_reltype": getattr(todo, "related_to_reltype", None),
-            "ical_status": ical_status,
-            "reminder_offsets": _normalize_reminder_offsets(
-                getattr(todo, "reminder_offsets", None)
-            ),
-            "status": todo.status,
-            "priority": todo.priority,
-            "completed_at": _restore_todo_datetime(getattr(todo, "completed_at", None)),
-            "percent_complete": (
-                todo.percent_complete if getattr(todo, "percent_complete", None) is not None else 0
-            ),
-            "rrule": getattr(todo, "rrule", None),
-            "order": getattr(todo, "order", 0),
-            "tags": self._get_todo_tags(session, todo_id),
-            "attachments": self._get_todo_attachments(session, todo_id),
-            "related_activities": _safe_int_list(todo.related_activities),
-            "source_type": getattr(todo, "source_type", None),
-            "source_key": getattr(todo, "source_key", None),
-            "source_date": getattr(todo, "source_date", None),
-            "created_at": _restore_todo_datetime(todo.created_at),
-            "updated_at": _restore_todo_datetime(todo.updated_at),
-        }
+        return todo_to_dict(self, session, todo)
 
-    def create_todo(  # noqa: PLR0913, C901, PLR0912
+    def create_todo(  # noqa: PLR0913
         self,
         *,
         name: str,
@@ -207,89 +101,51 @@ class TodoIcalMixin:
         related_activities: list[int] | None = None,
     ) -> int | None:
         try:
-            resolved_percent = (
-                _normalize_percent(percent_complete) if percent_complete is not None else None
-            )
-            if resolved_percent is None:
-                resolved_percent = 100 if status == "completed" else 0
-
-            resolved_completed_at = completed_at
-            if resolved_completed_at is None and status == "completed":
-                resolved_completed_at = get_utc_now()
-
-            cleaned_rrule = (rrule or "").strip() or None
-            cleaned_uid = (uid or "").strip() or None
-
             with self.db_base.get_session() as session:
-                if dtstart is None:
-                    dtstart = start_time or deadline or due
-                if due is None:
-                    due = deadline
-                if dtend is None:
-                    dtend = end_time
-                if start_time is None and dtstart is not None:
-                    start_time = dtstart
-                if end_time is None and dtend is not None:
-                    end_time = dtend
-                if deadline is None and due is not None:
-                    deadline = due
-
-                resolved_summary = summary or name
-                resolved_item_type = (item_type or "VTODO").upper()
-                resolved_tzid = tzid or time_zone
-                now = get_utc_now()
-                if created is None:
-                    created = now
-                if last_modified is None:
-                    last_modified = now
-                if dtstamp is None:
-                    dtstamp = now
-
-                todo_kwargs: dict[str, Any] = {
-                    "name": name,
-                    "summary": resolved_summary,
-                    "description": description,
-                    "user_notes": user_notes,
-                    "who_founder": (who_founder or "").strip() or None,
-                    "who_executor": (who_executor or "").strip() or None,
-                    "parent_todo_id": parent_todo_id,
-                    "item_type": resolved_item_type,
-                    "location": location,
-                    "categories": categories,
-                    "classification": classification,
-                    "deadline": deadline,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "dtstart": dtstart,
-                    "dtend": dtend,
-                    "due": due,
-                    "duration": duration,
-                    "time_zone": time_zone,
-                    "tzid": resolved_tzid,
-                    "is_all_day": bool(is_all_day) if is_all_day is not None else False,
-                    "dtstamp": dtstamp,
-                    "created": created,
-                    "last_modified": last_modified,
-                    "sequence": sequence if sequence is not None else 0,
-                    "rdate": rdate,
-                    "exdate": exdate,
-                    "recurrence_id": recurrence_id,
-                    "related_to_uid": related_to_uid,
-                    "related_to_reltype": related_to_reltype,
-                    "ical_status": ical_status,
-                    "reminder_offsets": _serialize_reminder_offsets(reminder_offsets),
-                    "status": status,
-                    "priority": priority,
-                    "completed_at": resolved_completed_at,
-                    "percent_complete": resolved_percent,
-                    "rrule": cleaned_rrule,
-                    "order": order,
-                    "related_activities": json.dumps(_safe_int_list(related_activities)),
-                }
-                if cleaned_uid:
-                    todo_kwargs["uid"] = cleaned_uid
-
-                todo = Todo(**_normalize_todo_datetimes(todo_kwargs))
+                todo = Todo(
+                    **prepare_create_todo_kwargs(
+                        name=name,
+                        summary=summary,
+                        description=description,
+                        user_notes=user_notes,
+                        who_founder=who_founder,
+                        who_executor=who_executor,
+                        parent_todo_id=parent_todo_id,
+                        item_type=item_type,
+                        location=location,
+                        categories=categories,
+                        classification=classification,
+                        deadline=deadline,
+                        start_time=start_time,
+                        end_time=end_time,
+                        dtstart=dtstart,
+                        dtend=dtend,
+                        due=due,
+                        duration=duration,
+                        time_zone=time_zone,
+                        tzid=tzid,
+                        is_all_day=is_all_day,
+                        dtstamp=dtstamp,
+                        created=created,
+                        last_modified=last_modified,
+                        sequence=sequence,
+                        rdate=rdate,
+                        exdate=exdate,
+                        recurrence_id=recurrence_id,
+                        related_to_uid=related_to_uid,
+                        related_to_reltype=related_to_reltype,
+                        ical_status=ical_status,
+                        reminder_offsets=reminder_offsets,
+                        status=status,
+                        priority=priority,
+                        completed_at=completed_at,
+                        percent_complete=percent_complete,
+                        rrule=rrule,
+                        uid=uid,
+                        order=order,
+                        related_activities=related_activities,
+                    )
+                )
                 session.add(todo)
                 session.flush()
 
@@ -394,7 +250,7 @@ class TodoIcalMixin:
             "order": order,
         }
 
-        for attr, value in _normalize_todo_datetimes(updates).items():
+        for attr, value in normalize_todo_datetimes(updates).items():
             if value is not _UNSET:
                 setattr(todo, attr, value)
 
