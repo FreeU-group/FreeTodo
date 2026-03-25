@@ -33,16 +33,10 @@ uv sync --group dev
 ### 2. Configure Git Hooks (Repo-Local)
 
 This repo uses a shared `.githooks/` directory (repo-local) instead of `pre-commit install`.
-Hooks are configured automatically when you run `pnpm install` in `free-todo-frontend` or use
-the install scripts. If you cloned the repo without running those, run the setup script once
-per clone/worktree to set `core.hooksPath`:
+Configure `core.hooksPath` once per clone/worktree:
 
 ```bash
-# macOS/Linux
-bash scripts/setup_hooks_here.sh
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+git config core.hooksPath .githooks
 ```
 
 **Note**: After `core.hooksPath` is set, `pre-commit install` will refuse to run. This is expected.
@@ -56,13 +50,8 @@ pre-commit run --all-files
 
 ## Repo Hooks (Post-checkout)
 
-This repo also ships a `post-checkout` hook under `.githooks/` to keep worktree
-dependencies linked. It runs:
-
-- `scripts/link_worktree_deps_here.sh` (preferred)
-- falls back to `scripts/link_worktree_deps_here.ps1` if needed
-
-The hook is safe to run repeatedly and will skip existing links unless `--force` is used.
+The repo still ships a `post-checkout` hook under `.githooks/`, but worktree dependency
+linking is disabled. Install dependencies locally in each worktree.
 
 ## Usage
 
@@ -286,10 +275,8 @@ uv run pre-commit --version
 # Ensure hooksPath is set
 git config --get core.hooksPath
 
-# Re-run repo hook setup (in repo root)
-bash scripts/setup_hooks_here.sh
-# or
-powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+# Reconfigure hooksPath (in repo root)
+git config core.hooksPath .githooks
 ```
 
 ### Issue: pre-commit install fails with core.hooksPath
@@ -330,13 +317,12 @@ pre-commit run --all-files
    pre-commit autoupdate
    ```
 
-3. ✅ **Ensure all team members have hooks installed when collaborating**
+3. ✅ **Ensure all team members have hooks configured when collaborating**
    ```bash
    git clone <repo>
    cd <repo>
    uv sync --group dev
-   bash scripts/setup_hooks_here.sh
-   # or: powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+   git config core.hooksPath .githooks
    pre-commit run --all-files
    ```
 

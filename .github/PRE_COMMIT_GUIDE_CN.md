@@ -33,14 +33,10 @@ uv sync --group dev
 ### 2. 配置 Git Hooks（仓库内）
 
 本仓库使用共享的 `.githooks/` 目录（仓库内），不使用 `pre-commit install`。
-每个 clone/worktree 执行一次即可：
+每个 clone/worktree 配置一次即可：
 
 ```bash
-# macOS/Linux
-bash scripts/setup_hooks_here.sh
-
-# Windows（PowerShell）
-powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+git config core.hooksPath .githooks
 ```
 
 **注意**：设置了 `core.hooksPath` 后，`pre-commit install` 会拒绝执行，这是预期行为。
@@ -54,12 +50,8 @@ pre-commit run --all-files
 
 ## 仓库 Hook（post-checkout）
 
-本仓库还在 `.githooks/` 中提供了 `post-checkout` hook，用于自动连接 worktree 依赖。它会执行：
-
-- `scripts/link_worktree_deps_here.sh`（优先）
-- 若失败则回退到 `scripts/link_worktree_deps_here.ps1`
-
-该 hook 可重复执行，已存在的链接会被跳过（除非使用 `--force`）。
+仓库仍保留 `.githooks/` 下的 `post-checkout` hook，但 worktree 依赖自动链接已停用。
+请在每个 worktree 内单独安装依赖。
 
 ## 使用方法
 
@@ -283,10 +275,8 @@ uv run pre-commit --version
 # 确认 hooksPath
 git config --get core.hooksPath
 
-# 重新执行仓库 hook 配置（在仓库根目录）
-bash scripts/setup_hooks_here.sh
-# 或
-powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+# 重新配置 hooksPath（在仓库根目录）
+git config core.hooksPath .githooks
 ```
 
 ### 问题：pre-commit install 报错 core.hooksPath
@@ -327,13 +317,12 @@ pre-commit run --all-files
    pre-commit autoupdate
    ```
 
-3. ✅ **团队协作时确保每个人都安装了 hooks**
+3. ✅ **团队协作时确保每个人都配置了 hooks**
    ```bash
    git clone <repo>
    cd <repo>
    uv sync --group dev
-   bash scripts/setup_hooks_here.sh
-   # 或：powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+   git config core.hooksPath .githooks
    pre-commit run --all-files
    ```
 

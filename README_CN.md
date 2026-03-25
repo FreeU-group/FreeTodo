@@ -316,16 +316,10 @@ Free Todo 的面板开关栏里有一些正在开发中的面板，这些面板�
 
 ### Git Hooks（Pre-commit）
 
-本仓库使用共享的 `.githooks/` 目录。运行 `frontend` 里的 `pnpm install` 或
-一键安装脚本时会自动配置 Hooks。若你只是手动 clone 而未执行上述步骤，则每个
-clone/worktree 需要手动执行一次：
+本仓库使用共享的 `.githooks/` 目录。每个 clone/worktree 只需手动配置一次：
 
 ```bash
-# macOS/Linux
-bash scripts/setup_hooks_here.sh
-
-# Windows（PowerShell）
-powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+git config core.hooksPath .githooks
 ```
 
 > **注意**：不要在此仓库里运行 `pre-commit install`。仓库使用 `core.hooksPath`，因此 `pre-commit install` 会拒绝执行。

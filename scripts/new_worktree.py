@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import getpass
-import os
 import re
 import shutil
 import subprocess  # nosec B404
@@ -26,46 +25,6 @@ def run_git(
         capture_output=True,
         check=check,
     )
-
-
-def run_link_deps(root: Path, worktree_path: Path, force: bool) -> int:
-    script_dir = root / "scripts"
-    if os.name == "nt":
-        script = script_dir / "link_worktree_deps.ps1"
-        if not script.exists():
-            print(f"Missing script: {script}", file=sys.stderr)
-            return 1
-        cmd = [
-            "powershell",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(script),
-            "-Main",
-            str(root),
-            "-Worktree",
-            str(worktree_path),
-        ]
-        if force:
-            cmd.append("-Force")
-    else:
-        script = script_dir / "link_worktree_deps.sh"
-        if not script.exists():
-            print(f"Missing script: {script}", file=sys.stderr)
-            return 1
-        cmd = [
-            "bash",
-            str(script),
-            "--main",
-            str(root),
-            "--worktree",
-            str(worktree_path),
-        ]
-        if force:
-            cmd.append("--force")
-
-    result = subprocess.run(cmd, check=False)  # nosec B603
-    return result.returncode
 
 
 def configure_hooks(worktree_path: Path) -> None:
@@ -169,24 +128,6 @@ def main() -> int:
         "--user",
         help="Git username. Defaults to git config user.name (or user.email).",
     )
-    parser.add_argument(
-        "--link-deps",
-        dest="link_deps",
-        action="store_true",
-        default=False,
-        help="Link worktree deps (.venv, node_modules) from the main worktree (disabled by default).",
-    )
-    parser.add_argument(
-        "--no-link-deps",
-        dest="link_deps",
-        action="store_false",
-        help="Skip linking worktree deps from the main worktree (default).",
-    )
-    parser.add_argument(
-        "--force-link",
-        action="store_true",
-        help="Force replace existing linked deps.",
-    )
     args = parser.parse_args()
 
     root = get_repo_root()
@@ -217,14 +158,10 @@ def main() -> int:
 
     configure_hooks(worktree_path)
 
-    if args.link_deps:
-        link_code = run_link_deps(root, worktree_path, force=args.force_link)
-        if link_code != 0:
-            return link_code
-    else:
-        print("Worktree deps not linked. Create local environments in the worktree:")
-        print("  uv sync --group dev")
-        print("  pnpm install")
+    print("Create local environments in the worktree:")
+    print("  uv sync --directory server")
+    print("  uv sync --directory client")
+    print("  pnpm --dir frontend install")
 
     print(f"Worktree ready: {worktree_path}")
     print(f"Branch: {branch}")
