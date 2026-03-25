@@ -10,24 +10,32 @@ use axum::{
 use log::warn;
 use reqwest::Client;
 use serde_json::json;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 #[derive(Clone)]
 pub struct ProxyState {
-    remote_base_url: String,
+    remote_base_url: Arc<RwLock<String>>,
     client: Client,
 }
 
 impl ProxyState {
-    pub fn new(remote_base_url: String) -> Self {
+    pub fn new(remote_base_url: Arc<RwLock<String>>) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap_or_default();
         Self {
-            remote_base_url: remote_base_url.trim_end_matches('/').to_string(),
+            remote_base_url,
             client,
         }
+    }
+
+    fn target_url(&self) -> String {
+        self.remote_base_url
+            .read()
+            .map(|value| value.clone())
+            .unwrap_or_else(|_| String::new())
     }
 }
 
@@ -48,9 +56,10 @@ pub async fn start_proxy_server(port: u16, state: ProxyState) -> Result<(), Stri
 }
 
 async fn proxy_handler(State(state): State<ProxyState>, req: Request<Body>) -> Response<Body> {
+    let target_url = state.target_url();
     let path = req.uri().path();
     if path == "/ready" {
-        return ready_response(&state.remote_base_url);
+        return ready_response(&target_url);
     }
 
     let path_and_query = req
@@ -58,7 +67,7 @@ async fn proxy_handler(State(state): State<ProxyState>, req: Request<Body>) -> R
         .path_and_query()
         .map(|value| value.as_str())
         .unwrap_or("/");
-    let url = format!("{}{}", state.remote_base_url, path_and_query);
+    let url = format!("{}{}", target_url, path_and_query);
 
     let (parts, body) = req.into_parts();
     let mut builder = state.client.request(parts.method, &url);

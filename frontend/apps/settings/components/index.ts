@@ -4,6 +4,7 @@ export { AutomationTasksSection } from "./AutomationTasksSection";
 export { AutoTodoDetectionSection } from "./AutoTodoDetectionSection";
 export { CookiesConfigSection } from "./CookiesConfigSection";
 export { CrawlerConfigSection } from "./CrawlerConfigSection";
+export { DesktopServerSection } from "./DesktopServerSection";
 export { DiaryIllustrationConfigSection } from "./DiaryIllustrationConfigSection";
 export { DirectoryScanSection } from "./DirectoryScanSection";
 export { DockDisplayModeSection } from "./DockDisplayModeSection";

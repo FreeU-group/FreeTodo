@@ -4,6 +4,7 @@ import { getLocale, getMessages } from "next-intl/server";
 import { ThemeProvider } from "@/components/common/theme/ThemeProvider";
 import { BackendReadyGate } from "@/components/common/ui/BackendReadyGate";
 import { CapabilitiesSync } from "@/components/common/ui/CapabilitiesSync";
+import { DesktopBackendConfigSync } from "@/components/common/ui/DesktopBackendConfigSync";
 import { DockTriggerZone } from "@/components/common/ui/DockTriggerZone";
 import { LocaleSync } from "@/components/common/ui/LocaleSync";
 import { QuerySync } from "@/components/common/ui/QuerySync";
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 				suppressHydrationWarning
 			>
 				<script>{`window.__BACKEND_URL__ = ${JSON.stringify(remoteBackendUrl)};`}</script>
+				<DesktopBackendConfigSync />
 				<ScrollbarController />
 				<QueryProvider>
 					<NextIntlClientProvider messages={messages}>

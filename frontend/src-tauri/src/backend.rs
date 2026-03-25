@@ -4,14 +4,15 @@ use crate::backend_proxy::{start_proxy_server, ProxyState};
 use crate::config::{self, ServerMode};
 use log::info;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::Arc;
+use std::sync::{OnceLock, RwLock};
 use tauri::AppHandle;
 
 struct BackendState {
     proxy_started: AtomicBool,
     ready: AtomicBool,
     proxy_port: AtomicU16,
-    remote_api_url: Mutex<Option<String>>,
+    remote_api_url: Arc<RwLock<String>>,
 }
 
 static STATE: OnceLock<BackendState> = OnceLock::new();
@@ -21,7 +22,7 @@ fn state() -> &'static BackendState {
         proxy_started: AtomicBool::new(false),
         ready: AtomicBool::new(false),
         proxy_port: AtomicU16::new(0),
-        remote_api_url: Mutex::new(None),
+        remote_api_url: Arc::new(RwLock::new(String::new())),
     })
 }
 
@@ -39,11 +40,19 @@ pub fn get_backend_url() -> String {
 }
 
 pub fn get_remote_backend_url() -> Option<String> {
-    state()
-        .remote_api_url
-        .lock()
-        .ok()
-        .and_then(|guard| guard.clone())
+    state().remote_api_url.read().ok().and_then(|guard| {
+        if guard.is_empty() {
+            None
+        } else {
+            Some(guard.clone())
+        }
+    })
+}
+
+pub fn update_remote_backend_url(remote_api_url: String) {
+    if let Ok(mut guard) = state().remote_api_url.write() {
+        *guard = remote_api_url.trim().trim_end_matches('/').to_string();
+    }
 }
 
 pub async fn check_backend_health(
@@ -61,12 +70,10 @@ pub async fn start_backend(
 
     state().proxy_port.store(proxy_port, Ordering::Relaxed);
     state().ready.store(true, Ordering::Relaxed);
-    if let Ok(mut guard) = state().remote_api_url.lock() {
-        *guard = Some(remote_api_url.clone());
-    }
+    update_remote_backend_url(remote_api_url.clone());
 
     if !state().proxy_started.swap(true, Ordering::Relaxed) {
-        start_proxy_server(proxy_port, ProxyState::new(remote_api_url.clone())).await?;
+        start_proxy_server(proxy_port, ProxyState::new(state().remote_api_url.clone())).await?;
     }
 
     info!("Remote backend target: {}", remote_api_url);

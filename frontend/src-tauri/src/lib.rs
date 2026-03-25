@@ -68,6 +68,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_backend_url,
             get_backend_status,
+            get_desktop_settings,
+            update_desktop_settings,
             toggle_window,
             show_window,
             hide_window,
@@ -89,6 +91,47 @@ async fn get_backend_status() -> Result<bool, String> {
     backend::check_backend_health(config::get_backend_port())
         .await
         .map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopSettingsResponse {
+    api_base_url: String,
+    config_path: String,
+}
+
+#[tauri::command]
+fn get_desktop_settings(app: tauri::AppHandle) -> Result<DesktopSettingsResponse, String> {
+    let desktop_config = config::ensure_desktop_config(&app)?;
+    let config_path = config::get_desktop_config_path(&app)?;
+    Ok(DesktopSettingsResponse {
+        api_base_url: desktop_config.api_base_url,
+        config_path: config_path.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+fn update_desktop_settings(
+    app: tauri::AppHandle,
+    api_base_url: String,
+) -> Result<DesktopSettingsResponse, String> {
+    let normalized = api_base_url.trim().trim_end_matches('/').to_string();
+    if normalized.is_empty() {
+        return Err("Server URL cannot be empty".to_string());
+    }
+
+    let config_path = config::save_desktop_config(
+        &app,
+        &config::DesktopConfig {
+            api_base_url: normalized.clone(),
+        },
+    )?;
+    backend::update_remote_backend_url(normalized.clone());
+
+    Ok(DesktopSettingsResponse {
+        api_base_url: normalized,
+        config_path: config_path.to_string_lossy().to_string(),
+    })
 }
 
 /// Toggle main window visibility

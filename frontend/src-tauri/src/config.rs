@@ -152,6 +152,18 @@ pub fn ensure_desktop_config(app: &AppHandle) -> Result<DesktopConfig, String> {
     Ok(DesktopConfig { api_base_url })
 }
 
+pub fn save_desktop_config(app: &AppHandle, config: &DesktopConfig) -> Result<PathBuf, String> {
+    let config_path = get_desktop_config_path(app)?;
+    let normalized = DesktopConfig {
+        api_base_url: config.api_base_url.trim().trim_end_matches('/').to_string(),
+    };
+    let json = serde_json::to_string_pretty(&normalized)
+        .map_err(|e| format!("Failed to serialize desktop config: {}", e))?;
+    fs::write(&config_path, format!("{}\n", json))
+        .map_err(|e| format!("Failed to write desktop config: {}", e))?;
+    Ok(config_path)
+}
+
 pub fn get_remote_backend_url(app: &AppHandle) -> Result<String, String> {
     Ok(ensure_desktop_config(app)?.api_base_url)
 }
