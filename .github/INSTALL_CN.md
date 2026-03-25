@@ -26,13 +26,15 @@ iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/in
 
 `mode=tauri`、`variant=web`、`frontend=build`、`backend=script`。
 
+注意：当前桌面打包流程只维护 **Web 模式 Tauri**，Island 和 PyInstaller 打包路径已不再维护。
+
 ## 可选环境变量
 
 - `LIFETRACE_DIR`：安装目录（默认使用仓库名）
 - `LIFETRACE_REPO`：仓库地址（默认 `https://github.com/FreeU-group/FreeTodo.git`）
 - `LIFETRACE_REF`：分支或标签（默认 `main`，不稳定开发版使用 `dev`）
-- `LIFETRACE_MODE`：`web`、`tauri`、`electron` 或 `island`
-- `LIFETRACE_VARIANT`：`web` 或 `island`
+- `LIFETRACE_MODE`：`web`、`tauri` 或 `electron`
+- `LIFETRACE_VARIANT`：使用 `web`
 - `LIFETRACE_FRONTEND`：`build` 或 `dev`（`web` 默认 `dev`）
 - `LIFETRACE_BACKEND`：`script` 或 `pyinstaller`
 - `LIFETRACE_RUN`：`1`（默认）安装后自动运行，`0` 仅安装
@@ -43,14 +45,11 @@ iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/in
 # Web 开发
 curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode web --frontend dev
 
-# Tauri 开发（启动后端 + 前端 dev，再运行 tauri dev）
+# Tauri 开发
 curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode tauri --frontend dev
 
-# Electron Island 开发
-curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode electron --variant island --frontend dev
-
-# Tauri 构建（后端 PyInstaller）
-curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode tauri --frontend build --backend pyinstaller
+# Tauri 构建（推荐的 Web-only 打包流程）
+curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode tauri --frontend build --backend script
 
 # 切换分支
 curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --ref dev
@@ -60,14 +59,11 @@ curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/i
 # Web 开发
 $env:LIFETRACE_MODE="web"; $env:LIFETRACE_FRONTEND="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
 
-# Tauri 开发（启动后端 + 前端 dev，再运行 tauri dev）
+# Tauri 开发
 $env:LIFETRACE_MODE="tauri"; $env:LIFETRACE_FRONTEND="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
 
-# Electron Island 开发
-$env:LIFETRACE_MODE="electron"; $env:LIFETRACE_VARIANT="island"; $env:LIFETRACE_FRONTEND="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
-
-# Tauri 构建（后端 PyInstaller）
-$env:LIFETRACE_MODE="tauri"; $env:LIFETRACE_FRONTEND="build"; $env:LIFETRACE_BACKEND="pyinstaller"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
+# Tauri 构建（推荐的 Web-only 打包流程）
+$env:LIFETRACE_MODE="tauri"; $env:LIFETRACE_FRONTEND="build"; $env:LIFETRACE_BACKEND="script"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
 
 # 切换分支
 $env:LIFETRACE_REF="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex

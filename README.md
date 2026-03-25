@@ -39,7 +39,7 @@
 - **Responsive Design**: Optimized for various screen sizes
 
 ### 💻 Desktop Application
-- **Electron App**: Native desktop experience on Windows & macOS
+- **Tauri App**: Web-mode desktop shell with a bundled Next.js frontend
 - **System Integration**: Native notifications and system tray support
 
 ## System Architecture
@@ -48,7 +48,12 @@ FreeTodo adopts a **distributed multi-module** architecture with three core comp
 
 - **Server** (`server/`): FastAPI (Python) - Center node deployed on cloud or local server, handling LLM processing, data storage, and business APIs
 - **Client** (`client/`): Python perception daemon - Lightweight sensing agent running on local devices for screen capture, OCR recognition, and data forwarding
-- **Frontend** (`frontend/`): Next.js (React + TypeScript) - Modern web interface with Electron desktop app support
+- **Frontend** (`frontend/`): Next.js (React + TypeScript) - Modern web interface with Tauri desktop packaging support
+
+Desktop packaging notes:
+
+- Recommended Tauri packaging command: `pnpm --dir frontend build:tauri:web:script:full`
+- Packaging guide: `frontend/src-tauri/PACKAGING_GUIDE.md`
 
 Supporting modules:
 

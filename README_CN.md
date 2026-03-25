@@ -44,7 +44,7 @@
 
 ### 💻 桌面应用
 
-- **Electron 应用**：Windows 和 macOS 原生桌面体验
+- **Tauri 应用**：基于 Web 模式桌面壳的原生打包体验
 - **系统集成**：原生通知和系统托盘支持
 
 ## 系统架构
@@ -53,7 +53,12 @@ FreeTodo 采用**分布式多模块**架构，包含三大核心组件：
 
 - **Server**（`server/`）：FastAPI (Python) — 中心节点，部署在云端或本地服务器，负责 LLM 处理、数据存储和业务 API
 - **Client**（`client/`）：Python 感知守护进程 — 轻量级感知代理，运行在本地设备上，负责屏幕截图、OCR 识别和数据转发
-- **Frontend**（`frontend/`）：Next.js (React + TypeScript) — 现代化 Web 界面，支持 Electron 桌面应用
+- **Frontend**（`frontend/`）：Next.js (React + TypeScript) — 现代化 Web 界面，支持 Tauri 桌面打包
+
+桌面打包说明：
+
+- 推荐的 Tauri 打包命令：`pnpm --dir frontend build:tauri:web:script:full`
+- 打包文档：`frontend/src-tauri/PACKAGING_GUIDE.md`
 
 辅助模块：
 

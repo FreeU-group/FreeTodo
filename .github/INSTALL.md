@@ -26,13 +26,15 @@ iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/in
 
 `mode=tauri`, `variant=web`, `frontend=build`, `backend=script`.
 
+Note: the current desktop packaging flow is **Web-mode Tauri only**. Island and PyInstaller packaging paths are no longer maintained.
+
 ## Environment variables
 
 - `LIFETRACE_DIR`: install directory (defaults to repo name)
 - `LIFETRACE_REPO`: repo URL (defaults to `https://github.com/FreeU-group/FreeTodo.git`)
 - `LIFETRACE_REF`: branch or tag (defaults to `main`, use `dev` for unstable builds)
-- `LIFETRACE_MODE`: `web`, `tauri`, `electron`, or `island`
-- `LIFETRACE_VARIANT`: `web` or `island`
+- `LIFETRACE_MODE`: `web`, `tauri`, or `electron`
+- `LIFETRACE_VARIANT`: use `web`
 - `LIFETRACE_FRONTEND`: `build` or `dev` (web defaults to `dev`)
 - `LIFETRACE_BACKEND`: `script` or `pyinstaller`
 - `LIFETRACE_RUN`: `1` (default) to run after install, `0` to only install
@@ -43,14 +45,11 @@ iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/in
 # Web dev
 curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode web --frontend dev
 
-# Tauri dev (starts backend + frontend dev server, then tauri dev)
+# Tauri dev
 curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode tauri --frontend dev
 
-# Electron island dev
-curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode electron --variant island --frontend dev
-
-# Tauri build with PyInstaller backend
-curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode tauri --frontend build --backend pyinstaller
+# Tauri build (recommended Web-only packaging flow)
+curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --mode tauri --frontend build --backend script
 
 # Switch ref
 curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.sh | bash -s -- --ref dev
@@ -60,14 +59,11 @@ curl -fsSL https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/i
 # Web dev
 $env:LIFETRACE_MODE="web"; $env:LIFETRACE_FRONTEND="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
 
-# Tauri dev (starts backend + frontend dev server, then tauri dev)
+# Tauri dev
 $env:LIFETRACE_MODE="tauri"; $env:LIFETRACE_FRONTEND="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
 
-# Electron island dev
-$env:LIFETRACE_MODE="electron"; $env:LIFETRACE_VARIANT="island"; $env:LIFETRACE_FRONTEND="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
-
-# Tauri build with PyInstaller backend
-$env:LIFETRACE_MODE="tauri"; $env:LIFETRACE_FRONTEND="build"; $env:LIFETRACE_BACKEND="pyinstaller"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
+# Tauri build (recommended Web-only packaging flow)
+$env:LIFETRACE_MODE="tauri"; $env:LIFETRACE_FRONTEND="build"; $env:LIFETRACE_BACKEND="script"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
 
 # Switch ref
 $env:LIFETRACE_REF="dev"; iwr -useb https://raw.githubusercontent.com/FreeU-group/FreeTodo/main/scripts/install.ps1 | iex
