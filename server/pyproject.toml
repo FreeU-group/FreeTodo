@@ -63,6 +63,7 @@ dependencies = [
     "openinference-instrumentation-openai>=0.1.41",
     "pandas>=3.0.1",
     "arize-phoenix>=13.15.0",
+    "python-socks>=2.8.1",
 ]
 
 [dependency-groups]
