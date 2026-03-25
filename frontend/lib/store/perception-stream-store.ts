@@ -1,4 +1,5 @@
 import { create, type StateCreator } from "zustand";
+import { getRuntimeBackendUrl } from "@/lib/runtime-backend-url";
 
 export type PerceptionSource =
 	| "mic_pc"
@@ -62,18 +63,7 @@ let shouldReconnect = false;
 let activeWsPath: (typeof WS_PATH_CANDIDATES)[number] | null = null;
 
 function getWsApiBaseUrl(): string {
-	if (typeof window !== "undefined") {
-		const host = window.location.hostname;
-		if (host === "localhost" || host === "127.0.0.1") {
-			return `http://${host}:8001`;
-		}
-	}
-	return (
-		process.env.NEXT_PUBLIC_API_URL ||
-		(typeof window !== "undefined" &&
-			(window as Window & { __BACKEND_URL__?: string }).__BACKEND_URL__) ||
-		"http://127.0.0.1:8001"
-	);
+	return getRuntimeBackendUrl("http://127.0.0.1:8001");
 }
 
 function buildWsUrl(path: string): string {

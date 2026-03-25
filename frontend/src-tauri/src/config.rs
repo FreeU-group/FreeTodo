@@ -2,13 +2,13 @@
 //!
 //! Centralized configuration management for ports, timeouts, and paths.
 //!
-//! ## Window Modes
-//!
-//! The application supports two window modes (matching Electron):
-//! - **Web**: Standard window (1200x800, with decorations)
-//! - **Island**: Transparent floating window (separate build config)
+//! This desktop shell uses a single Web window configuration.
 
+use serde::{Deserialize, Serialize};
 use std::env;
+use std::fs;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
 
 /// Server mode (development or production)
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -93,17 +93,71 @@ pub mod health_check {
     pub const BACKEND_INTERVAL: u64 = 30_000;
 }
 
-/// Process configuration
-pub mod process {
-    /// Backend executable name (platform-specific)
-    #[cfg(windows)]
-    pub const BACKEND_EXEC_NAME: &str = "lifetrace.exe";
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopConfig {
+    pub api_base_url: String,
+}
 
-    #[cfg(not(windows))]
-    pub const BACKEND_EXEC_NAME: &str = "lifetrace";
+impl Default for DesktopConfig {
+    fn default() -> Self {
+        Self {
+            api_base_url: "http://127.0.0.1:8001".to_string(),
+        }
+    }
+}
 
-    /// Backend data directory name
-    pub const BACKEND_DATA_DIR: &str = "lifetrace-data";
+const DEFAULT_DESKTOP_CONFIG_JSON: &str = "{\n  \"apiBaseUrl\": \"http://127.0.0.1:8001\"\n}\n";
+
+fn bundled_desktop_config(app: &AppHandle) -> Option<String> {
+    let resource_dir = app.path().resource_dir().ok()?;
+    let bundled_path = resource_dir.join("desktop-config.default.json");
+    fs::read_to_string(bundled_path).ok()
+}
+
+pub fn get_desktop_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to get app config dir: {}", e))?;
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir)
+            .map_err(|e| format!("Failed to create app config dir: {}", e))?;
+    }
+    Ok(config_dir.join("config.json"))
+}
+
+pub fn ensure_desktop_config(app: &AppHandle) -> Result<DesktopConfig, String> {
+    let config_path = get_desktop_config_path(app)?;
+
+    if !config_path.exists() {
+        let template =
+            bundled_desktop_config(app).unwrap_or_else(|| DEFAULT_DESKTOP_CONFIG_JSON.to_string());
+        fs::write(&config_path, template)
+            .map_err(|e| format!("Failed to write desktop config: {}", e))?;
+    }
+
+    let raw = fs::read_to_string(&config_path)
+        .map_err(|e| format!("Failed to read desktop config: {}", e))?;
+    let parsed: DesktopConfig =
+        serde_json::from_str(&raw).map_err(|e| format!("Failed to parse desktop config: {}", e))?;
+    let api_base_url = parsed.api_base_url.trim().trim_end_matches('/').to_string();
+    if api_base_url.is_empty() {
+        return Err(format!(
+            "Desktop config is missing apiBaseUrl: {:?}",
+            config_path
+        ));
+    }
+
+    Ok(DesktopConfig { api_base_url })
+}
+
+pub fn get_remote_backend_url(app: &AppHandle) -> Result<String, String> {
+    Ok(ensure_desktop_config(app)?.api_base_url)
+}
+
+pub fn get_local_proxy_url() -> String {
+    format!("http://127.0.0.1:{}", get_backend_port())
 }
 
 /// Get the default backend port based on environment or mode
@@ -128,7 +182,7 @@ pub fn get_frontend_port() -> u16 {
 
 /// Get backend URL
 pub fn get_backend_url() -> String {
-    format!("http://127.0.0.1:{}", get_backend_port())
+    get_local_proxy_url()
 }
 
 /// Get frontend URL

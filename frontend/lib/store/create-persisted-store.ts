@@ -1,5 +1,5 @@
-import { persist } from "zustand/middleware";
 import type { PersistOptions } from "zustand/middleware";
+import { persist } from "zustand/middleware";
 import type { UseBoundStore } from "zustand/react";
 import { create } from "zustand/react";
 import type { StateCreator, StoreApi } from "zustand/vanilla";

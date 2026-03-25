@@ -1,20 +1,12 @@
 //! FreeTodo - Tauri Application Library
 //!
 //! This module contains the core functionality for the FreeTodo desktop application,
-//! including backend management, Next.js server management, system tray, and global shortcuts.
+//! including API proxying, Next.js server management, system tray, and global shortcuts.
 //!
-//! ## Window Modes
-//!
-//! The application supports two window modes (matching Electron implementation):
-//! - **Web Mode**: Standard window with decorations
-//! - **Island Mode**: Transparent floating window like Dynamic Island (separate build config)
+//! The application currently ships a single Web mode desktop shell.
 
 pub mod backend;
-mod backend_log;
-mod backend_paths;
 mod backend_proxy;
-mod backend_python;
-mod backend_support;
 pub mod config;
 pub mod nextjs;
 pub mod shortcut;
@@ -26,18 +18,6 @@ use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
-
-/// Window mode configuration
-/// Currently only Web mode is supported
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-#[allow(dead_code)]
-pub enum WindowMode {
-    /// Standard window with decorations (default, currently supported)
-    #[default]
-    Web,
-    /// Transparent floating window like Dynamic Island (TODO: not yet implemented)
-    Island,
-}
 
 /// Initialize the Tauri application with all required plugins and setup
 /// Note: Currently only Web mode is supported
@@ -56,7 +36,7 @@ pub fn run() {
 
             info!("Application setup starting...");
 
-            // Start Python backend
+            // Start the local API proxy that forwards to the configured remote backend.
             let backend_handle = handle.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = backend::start_backend(&backend_handle).await {
@@ -64,7 +44,7 @@ pub fn run() {
                 }
             });
 
-            // Start Next.js server (only in release mode)
+            // Start the bundled Next.js standalone server (only in release mode).
             #[cfg(not(debug_assertions))]
             {
                 let nextjs_handle = handle.clone();

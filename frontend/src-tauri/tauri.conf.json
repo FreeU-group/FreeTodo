@@ -46,7 +46,10 @@
       "icons/icon.ico"
     ],
     "targets": "all",
-    "resources": [],
+    "resources": [
+      "../.next/standalone",
+      "desktop-config.default.json"
+    ],
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",

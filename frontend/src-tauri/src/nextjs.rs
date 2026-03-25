@@ -3,7 +3,6 @@
 //! This module handles the lifecycle of the Next.js standalone server,
 //! including starting, health checking, and stopping the process.
 
-use crate::backend;
 use crate::config::{self, timeouts};
 use log::{error, info, warn};
 use reqwest::Client;
@@ -102,13 +101,30 @@ fn get_server_path(app: &AppHandle) -> Result<PathBuf, String> {
         .resource_dir()
         .map_err(|e| format!("Failed to get resource dir: {}", e))?;
 
-    let server_path = resource_path.join("standalone").join("server.js");
+    let candidates = [
+        resource_path.join("standalone").join("server.js"),
+        resource_path
+            .join(".next")
+            .join("standalone")
+            .join("server.js"),
+        resource_path
+            .join("_up_")
+            .join("standalone")
+            .join("server.js"),
+        resource_path
+            .join("_up_")
+            .join(".next")
+            .join("standalone")
+            .join("server.js"),
+    ];
 
-    if server_path.exists() {
-        Ok(server_path)
-    } else {
-        Err(format!("Server file not found at {:?}", server_path))
+    for server_path in candidates {
+        if server_path.exists() {
+            return Ok(server_path);
+        }
     }
+
+    Err(format!("Server file not found under {:?}", resource_path))
 }
 
 /// Start the Next.js server
@@ -159,8 +175,10 @@ pub async fn start_nextjs(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
     set_frontend_port(port);
     info!("Frontend will use port: {}", port);
 
-    // Get backend URL for environment variable
-    let backend_url = backend::get_backend_url();
+    // Route HTTP requests through the stable local proxy while exposing the real
+    // remote backend URL to browser code that needs direct websocket access.
+    let backend_url = config::get_local_proxy_url();
+    let remote_backend_url = config::get_remote_backend_url(app)?;
 
     // Check for Node.js
     let node_path = which_node()?;
@@ -174,6 +192,8 @@ pub async fn start_nextjs(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
         .env("HOSTNAME", "localhost")
         .env("NODE_ENV", "production")
         .env("NEXT_PUBLIC_API_URL", &backend_url)
+        .env("API_REWRITE_URL", &backend_url)
+        .env("FREETODO_REMOTE_API_URL", &remote_backend_url)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

@@ -25,6 +25,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: RootLayoutProps) {
 	const locale = await getLocale();
 	const messages = await getMessages();
+	const remoteBackendUrl = process.env.FREETODO_REMOTE_API_URL || "";
 
 	return (
 		<html lang={locale} suppressHydrationWarning>
@@ -32,6 +33,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 				className="min-h-screen bg-background text-foreground antialiased"
 				suppressHydrationWarning
 			>
+				<script>{`window.__BACKEND_URL__ = ${JSON.stringify(remoteBackendUrl)};`}</script>
 				<ScrollbarController />
 				<QueryProvider>
 					<NextIntlClientProvider messages={messages}>
