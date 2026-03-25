@@ -28,10 +28,10 @@ jobs:
               - 'bandit.yaml'
               - '.pre-commit-config.yaml'
             frontend:
-              - 'free-todo-frontend/**'
+              - 'frontend/**'
               - '.pre-commit-config.yaml'
             rust:
-              - 'free-todo-frontend/src-tauri/**'
+              - 'frontend/src-tauri/**'
               - 'scripts/precommit_rustfmt.py'
               - 'scripts/precommit_clippy.py'
               - '.pre-commit-config.yaml'
@@ -182,13 +182,13 @@ jobs:
           version: "9"
       - name: Install frontend deps
         run: pnpm install
-        working-directory: free-todo-frontend
+        working-directory: frontend
       - name: Install pre-commit
         run: python -m pip install --upgrade pip pre-commit
       - name: Run frontend hooks
         run: |
           pre-commit run biome-check --all-files
-          pre-commit run tsc-free-todo-frontend --all-files
+          pre-commit run tsc-frontend --all-files
           pre-commit run check-frontend-code-lines --all-files
 
   precommit-rust:

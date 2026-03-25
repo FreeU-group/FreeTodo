@@ -132,7 +132,7 @@ python -m lifetrace.server
 
 ```bash
 # Navigate to frontend directory
-cd free-todo-frontend
+cd frontend
 
 # Install pnpm (if not already installed)
 npm install -g pnpm
@@ -299,7 +299,7 @@ For detailed frontend guidelines, see: [**Frontend Development Guidelines**](FRO
 **Quick Check**:
 
 ```bash
-cd free-todo-frontend
+cd frontend
 
 # Run ESLint
 pnpm lint

@@ -265,7 +265,7 @@ function getFilesToCheck(config, rootDir) {
 function main() {
   const config = parseArgs();
 
-  // Frontend root (script lives in free-todo-frontend/scripts/)
+  // Frontend root (script lives in frontend/scripts/)
   const rootDir = dirname(__dirname);
 
   // Collect files to check

@@ -125,13 +125,13 @@ flowchart TB
 
 1. **Electron 主进程**（约 200-300 行代码）
 
-   - 新增 [electron/audio-recorder.ts](free-todo-frontend/electron/audio-recorder.ts)：使用 `node-record-lpcm16` 或 `node-microphone` 录音
-   - 修改 [electron/ipc-handlers.ts](free-todo-frontend/electron/ipc-handlers.ts)：添加录音控制 IPC 通道
-   - 修改 [electron/preload.ts](free-todo-frontend/electron/preload.ts)：暴露录音 API
+   - 新增 [electron/audio-recorder.ts](frontend/electron/audio-recorder.ts)：使用 `node-record-lpcm16` 或 `node-microphone` 录音
+   - 修改 [electron/ipc-handlers.ts](frontend/electron/ipc-handlers.ts)：添加录音控制 IPC 通道
+   - 修改 [electron/preload.ts](frontend/electron/preload.ts)：暴露录音 API
 
 2. **前端组件**（约 50-100 行代码）
 
-   - 修改 [apps/audio/hooks/useAudioRecording.ts](free-todo-frontend/apps/audio/hooks/useAudioRecording.ts)：改用 IPC 调用主进程录音
+   - 修改 [apps/audio/hooks/useAudioRecording.ts](frontend/apps/audio/hooks/useAudioRecording.ts)：改用 IPC 调用主进程录音
    - 可选：添加全局录音状态 store
 
 3. **后端无需改动**：继续通过 WebSocket 接收音频流

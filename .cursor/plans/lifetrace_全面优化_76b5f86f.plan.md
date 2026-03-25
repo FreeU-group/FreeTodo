@@ -72,7 +72,7 @@ def get_db_base() -> DatabaseBase:
 
 **1.4 Electron 预启动优化**
 
-修改 [`electron/main.ts`](free-todo-frontend/electron/main.ts)：
+修改 [`electron/main.ts`](frontend/electron/main.ts)：
 
 - 先显示启动画面/骨架屏
 - 后端和前端服务并行启动
@@ -171,7 +171,7 @@ audio = [
 
 **3.1 前端插件系统**
 
-创建 [`lib/plugins/`](free-todo-frontend/lib/plugins/) 目录：
+创建 [`lib/plugins/`](frontend/lib/plugins/) 目录：
 
 ```typescript
 // lib/plugins/types.ts
@@ -196,7 +196,7 @@ class PluginRegistry {
 }
 ```
 
-修改 [`components/layout/PanelContent.tsx`](free-todo-frontend/components/layout/PanelContent.tsx)：
+修改 [`components/layout/PanelContent.tsx`](frontend/components/layout/PanelContent.tsx)：
 
 - 从硬编码 if-else 改为注册表驱动
 - 使用 `React.lazy()` + `Suspense` 实现懒加载
