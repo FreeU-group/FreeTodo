@@ -110,6 +110,9 @@ pre-commit run check-frontend-code-lines --all-files
 
 # 仅运行 Python 代码行数检查
 pre-commit run check-python-code-lines --all-files
+
+# 仅运行 Tauri Rust 代码行数检查
+pre-commit run check-tauri-rust-code-lines --all-files
 ```
 
 #### 查看详细输出
@@ -237,11 +240,20 @@ repos:
         language: system
         files: ^(server|client|scripts)/.*\.py$
         pass_filenames: true
+
+      # Tauri Rust 代码行数检查（有效代码行数上限 500 行）
+      - id: check-tauri-rust-code-lines
+        name: Check Tauri Rust code lines (max 500)
+        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
+        language: system
+        files: ^frontend/src-tauri/.*\.rs$
+        pass_filenames: true
 ```
 
 **主要配置**：
 - `files: ^(server|client|scripts)/` - 只检查 `server/`、`client/` 和 `scripts/` 下的 Python 文件
 - `files: ^(frontend|scripts)/` - 只检查 `frontend/` 和 `scripts/` 下的前端文件
+- `files: ^frontend/src-tauri/` - 只检查 `frontend/src-tauri/` 下的 Tauri Rust 文件
 - `language_version: python3.12` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
 - `additional_dependencies` - 为 Biome 指定依赖版本
@@ -340,6 +352,7 @@ pre-commit run --all-files
 
 - **前端（TS/TSX）**：单文件有效代码行数不超过 500 行
 - **后端（Python）**：单文件有效代码行数不超过 500 行
+- **Tauri Rust**：单文件有效代码行数不超过 500 行
 
 ### 计数规则
 
@@ -359,6 +372,10 @@ pre-commit run --all-files
 - 包含：`server/`、`client/`、`scripts/`
 - 排除：`.venv/`、`server/.venv/`、`server/__pycache__/`、`server/dist/`、`server/migrations/versions/`、`client/.venv/`、`client/__pycache__/`、`client/dist/`、`client/build/`
 
+**Tauri Rust 检查目录**（可通过参数调整）：
+- 包含：`src-tauri/src/`
+- 排除：`src-tauri/.tauri-lint-dist/`、`src-tauri/gen/`、`src-tauri/target/`
+
 ### 手动运行检查
 
 脚本支持两种运行模式：
@@ -372,9 +389,13 @@ node frontend/scripts/check_code_lines.js
 # 检查 server/client/scripts 下的所有 Python 文件
 uv run --project server --no-sync python server/scripts/check_code_lines.py
 
+# 检查所有 Tauri Rust 文件
+node frontend/scripts/check_rust_code_lines.js
+
 # 使用自定义参数
 node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,dist,node_modules,lib/generated --max 600
 uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,client/.venv --max 600
+node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target --max 600
 ```
 
 **模式 2：检查指定文件（pre-commit 模式）**
@@ -383,6 +404,7 @@ uv run --project server --no-sync python server/scripts/check_code_lines.py --in
 # 只检查指定的文件
 node frontend/scripts/check_code_lines.js frontend/apps/chat/ChatPanel.tsx frontend/apps/todo/TodoList.tsx
 uv run --project server --no-sync python server/scripts/check_code_lines.py server/routers/chat.py server/services/todo.py
+node frontend/scripts/check_rust_code_lines.js frontend/src-tauri/src/backend.rs frontend/src-tauri/src/main.rs
 ```
 
 > **注意**：在 `git commit` 时，pre-commit 会自动传入暂存的文件，只检查这些文件而不是整个目录。

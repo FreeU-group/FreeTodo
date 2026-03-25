@@ -110,6 +110,9 @@ pre-commit run check-frontend-code-lines --all-files
 
 # Run Python code line count check only
 pre-commit run check-python-code-lines --all-files
+
+# Run Tauri Rust code line count check only
+pre-commit run check-tauri-rust-code-lines --all-files
 ```
 
 #### View Detailed Output
@@ -237,11 +240,20 @@ repos:
         language: system
         files: ^(server|client|scripts)/.*\.py$
         pass_filenames: true
+
+      # Tauri Rust code line count check (max 500 lines of effective code)
+      - id: check-tauri-rust-code-lines
+        name: Check Tauri Rust code lines (max 500)
+        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
+        language: system
+        files: ^frontend/src-tauri/.*\.rs$
+        pass_filenames: true
 ```
 
 **Key Configuration**:
 - `files: ^(server|client|scripts)/` - Only check Python files in `server/`, `client/`, and `scripts/`
 - `files: ^(frontend|scripts)/` - Only check frontend files in `frontend/` and `scripts/`
+- `files: ^frontend/src-tauri/` - Only check Tauri Rust files in `frontend/src-tauri/`
 - `language_version: python3.12` - Specify Python version
 - `args: [ --fix ]` - Automatically fix fixable issues
 - `additional_dependencies` - Specify dependency version for Biome
@@ -340,6 +352,7 @@ To maintain code readability and maintainability, the project limits the effecti
 
 - **Frontend (TS/TSX)**: Max 500 lines of effective code per file
 - **Backend (Python)**: Max 500 lines of effective code per file
+- **Tauri Rust**: Max 500 lines of effective code per file
 
 ### Counting Rules
 
@@ -359,6 +372,10 @@ Line count statistics **exclude** the following:
 - Include: `server/`, `client/`, `scripts/`
 - Exclude: `.venv/`, `server/.venv/`, `server/__pycache__/`, `server/dist/`, `server/migrations/versions/`, `client/.venv/`, `client/__pycache__/`, `client/dist/`, `client/build/`
 
+**Tauri Rust Check Directories** (adjustable via parameters):
+- Include: `src-tauri/src/`
+- Exclude: `src-tauri/.tauri-lint-dist/`, `src-tauri/gen/`, `src-tauri/target/`
+
 ### Manual Check Execution
 
 The script supports two execution modes:
@@ -372,9 +389,13 @@ node frontend/scripts/check_code_lines.js
 # Check all Python files in server/client/scripts
 uv run --project server --no-sync python server/scripts/check_code_lines.py
 
+# Check all Tauri Rust files
+node frontend/scripts/check_rust_code_lines.js
+
 # Use custom parameters
 node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,dist,node_modules,lib/generated --max 600
 uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,client/.venv --max 600
+node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target --max 600
 ```
 
 **Mode 2: Check Specific Files (Pre-commit Mode)**
@@ -383,6 +404,7 @@ uv run --project server --no-sync python server/scripts/check_code_lines.py --in
 # Check only specified files
 node frontend/scripts/check_code_lines.js frontend/apps/chat/ChatPanel.tsx frontend/apps/todo/TodoList.tsx
 uv run --project server --no-sync python server/scripts/check_code_lines.py server/routers/chat.py server/services/todo.py
+node frontend/scripts/check_rust_code_lines.js frontend/src-tauri/src/backend.rs frontend/src-tauri/src/main.rs
 ```
 
 > **Note**: During `git commit`, pre-commit automatically passes staged files, checking only these files instead of the entire directory.
