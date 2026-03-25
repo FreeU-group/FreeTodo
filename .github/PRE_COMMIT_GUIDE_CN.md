@@ -108,8 +108,11 @@ pre-commit run biome-check --all-files
 # 仅运行前端代码行数检查
 pre-commit run check-frontend-code-lines --all-files
 
-# 仅运行后端代码行数检查
-pre-commit run check-backend-code-lines --all-files
+# 仅运行 Python 代码行数检查
+pre-commit run check-python-code-lines --all-files
+
+# 仅运行 Tauri Rust 代码行数检查
+pre-commit run check-tauri-rust-code-lines --all-files
 ```
 
 #### 查看详细输出
@@ -195,13 +198,13 @@ repos:
       # Run the linter.
       - id: ruff
         language_version: python3.12
-        files: ^lifetrace/
+        files: ^server/
         types_or: [ python, pyi ]
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
         language_version: python3.12
-        files: ^lifetrace/
+        files: ^server/
         types_or: [ python, pyi ]
   # Biome for frontend (JavaScript/TypeScript)
   - repo: https://github.com/biomejs/pre-commit
@@ -209,39 +212,48 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.13"]
-        files: ^(free-todo-frontend/)
+        files: ^frontend/
 
   # Local hooks
   - repo: local
     hooks:
       # TypeScript 类型检查
-      - id: tsc-free-todo-frontend
-        name: TypeScript type check (free-todo-frontend)
-        entry: bash -c 'cd free-todo-frontend && pnpm run type-check'
+      - id: tsc-frontend
+        name: TypeScript type check (frontend)
+        entry: bash -c 'cd frontend && pnpm run type-check'
         language: system
-        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
 
       # 前端代码行数检查（有效代码行数上限 500 行）
       - id: check-frontend-code-lines
-        name: Check frontend TS/TSX code lines (max 500)
-        entry: node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron,lib --exclude lib/generated
+        name: Check frontend TS/TSX/JS/JSX code lines (max 500)
+        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,.vercel,build,coverage,dist,dist-electron,node_modules,out,lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
         language: system
-        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
 
       # 后端代码行数检查（有效代码行数上限 500 行）
-      - id: check-backend-code-lines
-        name: Check backend Python code lines (max 500)
-        entry: uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
+      - id: check-python-code-lines
+        name: Check Python code lines (max 500)
+        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
         language: system
-        files: ^lifetrace/.*\.py$
+        files: ^(server|client|scripts)/.*\.py$
+        pass_filenames: true
+
+      # Tauri Rust 代码行数检查（有效代码行数上限 500 行）
+      - id: check-tauri-rust-code-lines
+        name: Check Tauri Rust code lines (max 500)
+        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
+        language: system
+        files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: true
 ```
 
 **主要配置**：
-- `files: ^lifetrace/` - 只检查 `lifetrace/` 目录下的 Python 文件
-- `files: ^free-todo-frontend/` - 只检查 `free-todo-frontend/` 目录下的前端文件
+- `files: ^(server|client|scripts)/` - 只检查 `server/`、`client/` 和 `scripts/` 下的 Python 文件
+- `files: ^(frontend|scripts)/` - 只检查 `frontend/` 和 `scripts/` 下的前端文件
+- `files: ^frontend/src-tauri/` - 只检查 `frontend/src-tauri/` 下的 Tauri Rust 文件
 - `language_version: python3.12` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
 - `additional_dependencies` - 为 Biome 指定依赖版本
@@ -340,6 +352,7 @@ pre-commit run --all-files
 
 - **前端（TS/TSX）**：单文件有效代码行数不超过 500 行
 - **后端（Python）**：单文件有效代码行数不超过 500 行
+- **Tauri Rust**：单文件有效代码行数不超过 500 行
 
 ### 计数规则
 
@@ -352,12 +365,16 @@ pre-commit run --all-files
 ### 检查范围
 
 **前端检查目录**（可通过参数调整）：
-- 包含：`apps/`、`components/`、`electron/`、`lib/`
-- 排除：`lib/generated/`（Orval 自动生成的 API 代码）
+- 包含：`apps/`、`components/`、`electron/`、`lib/`、`scripts/`
+- 排除：`.next/`、`.turbo/`、`.vercel/`、`build/`、`coverage/`、`dist/`、`dist-electron/`、`node_modules/`、`out/`、`lib/generated/`，以及少数白名单超长文件
 
 **后端检查目录**（可通过参数调整）：
-- 包含：`lifetrace/`
-- 排除：`lifetrace/__pycache__/`、`lifetrace/dist/`、`lifetrace/migrations/versions/`
+- 包含：`server/`、`client/`、`scripts/`
+- 排除：`.venv/`、`server/.venv/`、`server/__pycache__/`、`server/dist/`、`server/migrations/versions/`、`client/.venv/`、`client/__pycache__/`、`client/dist/`、`client/build/`
+
+**Tauri Rust 检查目录**（可通过参数调整）：
+- 包含：`src-tauri/src/`
+- 排除：`src-tauri/.tauri-lint-dist/`、`src-tauri/gen/`、`src-tauri/target/`
 
 ### 手动运行检查
 
@@ -366,23 +383,28 @@ pre-commit run --all-files
 **模式 1：扫描整个目录（单独运行）**
 
 ```bash
-# 检查前端所有 TS/TSX 文件
-node free-todo-frontend/scripts/check_code_lines.js
+# 检查前端所有 TS/TSX/JS/JSX 文件
+node frontend/scripts/check_code_lines.js
 
-# 检查后端所有 Python 文件
-uv run python lifetrace/scripts/check_code_lines.py
+# 检查 server/client/scripts 下的所有 Python 文件
+uv run --project server --no-sync python server/scripts/check_code_lines.py
+
+# 检查所有 Tauri Rust 文件
+node frontend/scripts/check_rust_code_lines.js
 
 # 使用自定义参数
-node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron --exclude lib/generated --max 600
-uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__ --max 600
+node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,dist,node_modules,lib/generated --max 600
+uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,client/.venv --max 600
+node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target --max 600
 ```
 
 **模式 2：检查指定文件（pre-commit 模式）**
 
 ```bash
 # 只检查指定的文件
-node free-todo-frontend/scripts/check_code_lines.js apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
-uv run python lifetrace/scripts/check_code_lines.py lifetrace/routers/chat.py lifetrace/services/todo.py
+node frontend/scripts/check_code_lines.js frontend/apps/chat/ChatPanel.tsx frontend/apps/todo/TodoList.tsx
+uv run --project server --no-sync python server/scripts/check_code_lines.py server/routers/chat.py server/services/todo.py
+node frontend/scripts/check_rust_code_lines.js frontend/src-tauri/src/backend.rs frontend/src-tauri/src/main.rs
 ```
 
 > **注意**：在 `git commit` 时，pre-commit 会自动传入暂存的文件，只检查这些文件而不是整个目录。

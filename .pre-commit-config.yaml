@@ -80,7 +80,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX/JS/JSX code lines (max 500)
-        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
+        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,.vercel,build,coverage,dist,dist-electron,node_modules,out,lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
         language: system
         files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
@@ -89,7 +89,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-python-code-lines
         name: Check Python code lines (max 500)
-        entry: uv run --directory server --no-sync python ../server/scripts/check_code_lines.py --include server,client,scripts --exclude server/__pycache__,server/dist,server/migrations/versions,client/__pycache__,client/dist,client/build
+        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
         language: system
         files: ^(server|client|scripts)/.*\.py$
         pass_filenames: true
@@ -99,7 +99,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-tauri-rust-code-lines
         name: Check Tauri Rust code lines (max 500)
-        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/target
+        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
         language: system
         files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: true

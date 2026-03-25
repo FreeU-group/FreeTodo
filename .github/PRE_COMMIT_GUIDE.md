@@ -108,8 +108,11 @@ pre-commit run biome-check --all-files
 # Run frontend code line count check only
 pre-commit run check-frontend-code-lines --all-files
 
-# Run backend code line count check only
-pre-commit run check-backend-code-lines --all-files
+# Run Python code line count check only
+pre-commit run check-python-code-lines --all-files
+
+# Run Tauri Rust code line count check only
+pre-commit run check-tauri-rust-code-lines --all-files
 ```
 
 #### View Detailed Output
@@ -195,13 +198,13 @@ repos:
       # Run the linter.
       - id: ruff
         language_version: python3.12
-        files: ^lifetrace/
+        files: ^server/
         types_or: [ python, pyi ]
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
         language_version: python3.12
-        files: ^lifetrace/
+        files: ^server/
         types_or: [ python, pyi ]
   # Biome for frontend (JavaScript/TypeScript)
   - repo: https://github.com/biomejs/pre-commit
@@ -209,39 +212,48 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.13"]
-        files: ^(free-todo-frontend/)
+        files: ^frontend/
 
   # Local hooks
   - repo: local
     hooks:
       # TypeScript type checking
-      - id: tsc-free-todo-frontend
-        name: TypeScript type check (free-todo-frontend)
-        entry: bash -c 'cd free-todo-frontend && pnpm run type-check'
+      - id: tsc-frontend
+        name: TypeScript type check (frontend)
+        entry: bash -c 'cd frontend && pnpm run type-check'
         language: system
-        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
 
       # Frontend code line count check (max 500 lines of effective code)
       - id: check-frontend-code-lines
-        name: Check frontend TS/TSX code lines (max 500)
-        entry: node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron,lib --exclude lib/generated
+        name: Check frontend TS/TSX/JS/JSX code lines (max 500)
+        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,.vercel,build,coverage,dist,dist-electron,node_modules,out,lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
         language: system
-        files: ^free-todo-frontend/.*\.(ts|tsx)$
+        files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
 
       # Backend code line count check (max 500 lines of effective code)
-      - id: check-backend-code-lines
-        name: Check backend Python code lines (max 500)
-        entry: uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__,lifetrace/dist,lifetrace/migrations/versions
+      - id: check-python-code-lines
+        name: Check Python code lines (max 500)
+        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
         language: system
-        files: ^lifetrace/.*\.py$
+        files: ^(server|client|scripts)/.*\.py$
+        pass_filenames: true
+
+      # Tauri Rust code line count check (max 500 lines of effective code)
+      - id: check-tauri-rust-code-lines
+        name: Check Tauri Rust code lines (max 500)
+        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
+        language: system
+        files: ^frontend/src-tauri/.*\.rs$
         pass_filenames: true
 ```
 
 **Key Configuration**:
-- `files: ^lifetrace/` - Only check Python files in the `lifetrace/` directory
-- `files: ^free-todo-frontend/` - Only check frontend files in the `free-todo-frontend/` directory
+- `files: ^(server|client|scripts)/` - Only check Python files in `server/`, `client/`, and `scripts/`
+- `files: ^(frontend|scripts)/` - Only check frontend files in `frontend/` and `scripts/`
+- `files: ^frontend/src-tauri/` - Only check Tauri Rust files in `frontend/src-tauri/`
 - `language_version: python3.12` - Specify Python version
 - `args: [ --fix ]` - Automatically fix fixable issues
 - `additional_dependencies` - Specify dependency version for Biome
@@ -340,6 +352,7 @@ To maintain code readability and maintainability, the project limits the effecti
 
 - **Frontend (TS/TSX)**: Max 500 lines of effective code per file
 - **Backend (Python)**: Max 500 lines of effective code per file
+- **Tauri Rust**: Max 500 lines of effective code per file
 
 ### Counting Rules
 
@@ -352,12 +365,16 @@ Line count statistics **exclude** the following:
 ### Check Scope
 
 **Frontend Check Directories** (adjustable via parameters):
-- Include: `apps/`, `components/`, `electron/`, `lib/`
-- Exclude: `lib/generated/` (Orval auto-generated API code)
+- Include: `apps/`, `components/`, `electron/`, `lib/`, `scripts/`
+- Exclude: `.next/`, `.turbo/`, `.vercel/`, `build/`, `coverage/`, `dist/`, `dist-electron/`, `node_modules/`, `out/`, `lib/generated/`, plus specific allowlisted oversized files
 
 **Backend Check Directories** (adjustable via parameters):
-- Include: `lifetrace/`
-- Exclude: `lifetrace/__pycache__/`, `lifetrace/dist/`, `lifetrace/migrations/versions/`
+- Include: `server/`, `client/`, `scripts/`
+- Exclude: `.venv/`, `server/.venv/`, `server/__pycache__/`, `server/dist/`, `server/migrations/versions/`, `client/.venv/`, `client/__pycache__/`, `client/dist/`, `client/build/`
+
+**Tauri Rust Check Directories** (adjustable via parameters):
+- Include: `src-tauri/src/`
+- Exclude: `src-tauri/.tauri-lint-dist/`, `src-tauri/gen/`, `src-tauri/target/`
 
 ### Manual Check Execution
 
@@ -366,23 +383,28 @@ The script supports two execution modes:
 **Mode 1: Scan Entire Directory (Standalone Execution)**
 
 ```bash
-# Check all frontend TS/TSX files
-node free-todo-frontend/scripts/check_code_lines.js
+# Check all frontend TS/TSX/JS/JSX files
+node frontend/scripts/check_code_lines.js
 
-# Check all backend Python files
-uv run python lifetrace/scripts/check_code_lines.py
+# Check all Python files in server/client/scripts
+uv run --project server --no-sync python server/scripts/check_code_lines.py
+
+# Check all Tauri Rust files
+node frontend/scripts/check_rust_code_lines.js
 
 # Use custom parameters
-node free-todo-frontend/scripts/check_code_lines.js --include apps,components,electron --exclude lib/generated --max 600
-uv run python lifetrace/scripts/check_code_lines.py --include lifetrace --exclude lifetrace/__pycache__ --max 600
+node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,dist,node_modules,lib/generated --max 600
+uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,client/.venv --max 600
+node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target --max 600
 ```
 
 **Mode 2: Check Specific Files (Pre-commit Mode)**
 
 ```bash
 # Check only specified files
-node free-todo-frontend/scripts/check_code_lines.js apps/chat/ChatPanel.tsx apps/todo/TodoList.tsx
-uv run python lifetrace/scripts/check_code_lines.py lifetrace/routers/chat.py lifetrace/services/todo.py
+node frontend/scripts/check_code_lines.js frontend/apps/chat/ChatPanel.tsx frontend/apps/todo/TodoList.tsx
+uv run --project server --no-sync python server/scripts/check_code_lines.py server/routers/chat.py server/services/todo.py
+node frontend/scripts/check_rust_code_lines.js frontend/src-tauri/src/backend.rs frontend/src-tauri/src/main.rs
 ```
 
 > **Note**: During `git commit`, pre-commit automatically passes staged files, checking only these files instead of the entire directory.

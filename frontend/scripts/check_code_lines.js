@@ -26,7 +26,18 @@ const { dirname, isAbsolute, join, relative, resolve } = require("node:path");
 
 // Default configuration
 const DEFAULT_INCLUDE = ["apps", "components", "electron", "lib"];
-const DEFAULT_EXCLUDE = ["lib/generated"];
+const DEFAULT_EXCLUDE = [
+  ".next",
+  ".turbo",
+  ".vercel",
+  "build",
+  "coverage",
+  "dist",
+  "dist-electron",
+  "node_modules",
+  "out",
+  "lib/generated",
+];
 const DEFAULT_MAX_LINES = 500;
 
 /**

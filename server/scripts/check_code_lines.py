@@ -25,9 +25,13 @@ from pathlib import Path
 # Default configuration
 DEFAULT_INCLUDE = ["."]
 DEFAULT_EXCLUDE = [
+    ".venv",
+    "server/.venv",
     "__pycache__",
     "dist",
     "migrations/versions",
+    "client/.venv",
+    "node_modules",
     "lifetrace",
 ]
 DEFAULT_MAX_LINES = 500
