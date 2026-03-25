@@ -311,16 +311,10 @@ Free Todo's panel switch bar contains some panels that are currently under devel
 
 ### Git Hooks (Pre-commit)
 
-This repo uses a shared `.githooks/` directory. Hooks are configured automatically when you run
-`pnpm install` in `frontend` or use the install scripts. If you cloned the repo without
-running those, run the setup script once per clone/worktree:
+This repo uses a shared `.githooks/` directory. Configure it once per clone/worktree:
 
 ```bash
-# macOS/Linux
-bash scripts/setup_hooks_here.sh
-
-# Windows (PowerShell)
-powershell -ExecutionPolicy Bypass -File scripts/setup_hooks_here.ps1
+git config core.hooksPath .githooks
 ```
 
 > **Note**: Do not run `pre-commit install` here. The repo uses `core.hooksPath` and `pre-commit install` will refuse when it is set.

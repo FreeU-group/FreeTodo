@@ -6,7 +6,6 @@
 	"scripts": {
 		"dev": "next dev --port 3001",
 		"autodev": "node scripts/dev-with-auto-port.js",
-		"postinstall": "node -e \"const fs=require('fs');const path=require('path');const script=path.resolve(process.cwd(),'../scripts/ensure_hooks_here.js');if(fs.existsSync(script)){require(script);}\"",
 		"dev:frontend:web": "next dev --port 3001",
 		"dev:frontend:island": "next dev --port 3001",
 		"dev:frontend:default-port": "next dev",
