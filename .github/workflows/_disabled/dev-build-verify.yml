@@ -113,27 +113,3 @@ jobs:
         run: uv sync --group dev
       - name: Backend CLI smoke check
         run: uv run python -m lifetrace.server --help
-
-  install-ps1-verify:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run install.ps1 (no-run)
-        env:
-          LIFETRACE_REPO: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.clone_url || format('https://github.com/{0}.git', github.repository) }}
-          LIFETRACE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
-          LIFETRACE_DIR: ${{ runner.temp }}\\lifetrace-install
-          LIFETRACE_MODE: web
-          LIFETRACE_FRONTEND: build
-          LIFETRACE_BACKEND: script
-          LIFETRACE_RUN: "0"
-        run: >
-          powershell -ExecutionPolicy Bypass -File scripts/install.ps1
-          -Repo "$env:LIFETRACE_REPO"
-          -Ref "$env:LIFETRACE_REF"
-          -Dir "$env:LIFETRACE_DIR"
-          -Mode "$env:LIFETRACE_MODE"
-          -Variant "web"
-          -Frontend "$env:LIFETRACE_FRONTEND"
-          -Backend "$env:LIFETRACE_BACKEND"
-          -Run "$env:LIFETRACE_RUN"
