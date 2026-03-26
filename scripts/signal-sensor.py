@@ -31,6 +31,14 @@ from pathlib import Path
 
 import httpx
 
+try:
+    import pystray
+    from PIL import Image
+
+    _HAS_TRAY = True
+except ImportError:
+    _HAS_TRAY = False
+
 sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -398,6 +406,72 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# System Tray (pystray)
+# ---------------------------------------------------------------------------
+
+TRAY_ICON_PATH = REPO_ROOT / "scripts" / "freeu_tray.ico"
+
+
+def _open_frontend() -> None:
+    """Open the frontend URL in the default browser."""
+    import webbrowser
+
+    port = os.environ.get("FRONTEND_PORT", "3001")
+    webbrowser.open(f"http://127.0.0.1:{port}")
+
+
+def _open_api_docs() -> None:
+    import webbrowser
+
+    webbrowser.open("http://127.0.0.1:9876/docs")
+
+
+def _build_tray_icon() -> "pystray.Icon | None":
+    if not _HAS_TRAY:
+        return None
+    try:
+        image = Image.open(str(TRAY_ICON_PATH))
+    except Exception:
+        image = Image.new("RGB", (64, 64), (129, 140, 248))
+
+    def on_open_ui(icon, item):
+        _open_frontend()
+
+    def on_api_docs(icon, item):
+        _open_api_docs()
+
+    def on_quit(icon, item):
+        icon.stop()
+        os._exit(0)
+
+    menu = pystray.Menu(
+        pystray.MenuItem("打开 Free U", on_open_ui, default=True),
+        pystray.MenuItem("API 文档", on_api_docs),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem(
+            "状态",
+            pystray.Menu(
+                pystray.MenuItem(
+                    lambda item: f"Center: {_state.center_url or '未连接'}",
+                    None,
+                    enabled=False,
+                ),
+                pystray.MenuItem(
+                    lambda item: f"Node: {_state.node_id}",
+                    None,
+                    enabled=False,
+                ),
+            ),
+        ),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("退出 Free U", on_quit),
+    )
+
+    icon = pystray.Icon("freeu", image, "Free U Agent", menu)
+    return icon
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Signal Sensor — 统一通知守护进程（Center 轮询 + 交互式弹窗）"
@@ -460,14 +534,33 @@ def main() -> None:
     threading.Thread(target=_poll_draft_todos, args=(http_client,), daemon=True).start()
     threading.Thread(target=_poll_local_trigger, daemon=True).start()
 
+    # Start HTTP API in a background thread (if fastapi available)
     if _HAS_FASTAPI:
         import uvicorn
 
         print(f"[signal-sensor] 本地 API: http://{args.host}:{args.port}")
         print(f"[signal-sensor] API 文档: http://{args.host}:{args.port}/docs")
         print()
-        uvicorn.run(_app, host=args.host, port=args.port, log_level="warning")
+        threading.Thread(
+            target=uvicorn.run,
+            kwargs={
+                "app": _app,
+                "host": args.host,
+                "port": args.port,
+                "log_level": "warning",
+            },
+            daemon=True,
+        ).start()
+
+    # System tray (blocks main thread on Windows via pystray message loop)
+    tray_icon = _build_tray_icon() if _HAS_TRAY else None
+    if tray_icon:
+        print("[signal-sensor] 系统托盘已启动（右下角图标）")
+        print()
+        tray_icon.run()
     else:
+        if not _HAS_TRAY:
+            print("[signal-sensor] 系统托盘不可用（安装: pip install pystray pillow）")
         print("[signal-sensor] 所有轮询线程已启动，主线程等待中...")
         print("[signal-sensor] 按 Ctrl+C 退出")
         print()
