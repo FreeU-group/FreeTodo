@@ -270,7 +270,82 @@ def _poll_draft_todos(client: httpx.Client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 通知源 4：本地文件触发（demo_trigger.txt → 非零值时弹窗）
+# 通知源 4：待办即将到期提醒（每 60 秒扫描一次）
+# ---------------------------------------------------------------------------
+
+TODO_REMINDER_POLL_INTERVAL = 60.0
+TODO_REMINDER_AHEAD_MINUTES = 10
+_reminded_todo_ids: set[int] = set()
+
+
+def _poll_upcoming_todos(client: httpx.Client) -> None:
+    """后台线程：定期扫描即将到期的待办，弹窗提醒。"""
+    url = f"{_state.center_url}/api/todos"
+    print(
+        f"[signal-sensor] 待办提醒轮询已启动 "
+        f"(endpoint={url}, ahead={TODO_REMINDER_AHEAD_MINUTES}min, interval={TODO_REMINDER_POLL_INTERVAL}s)"
+    )
+
+    while True:
+        try:
+            resp = client.get(url, params={"status": "active", "limit": 100})
+            resp.raise_for_status()
+            todos = resp.json().get("todos", [])
+
+            from datetime import datetime, timedelta, timezone
+
+            now = datetime.now(timezone.utc)
+            window_start = now
+            window_end = now + timedelta(minutes=TODO_REMINDER_AHEAD_MINUTES)
+
+            for todo in todos:
+                todo_id = todo.get("id")
+                if todo_id in _reminded_todo_ids:
+                    continue
+
+                due_str = (
+                    todo.get("due")
+                    or todo.get("start_time")
+                    or todo.get("deadline")
+                    or todo.get("dtstart")
+                )
+                if not due_str:
+                    continue
+
+                try:
+                    due_dt = datetime.fromisoformat(due_str.replace("Z", "+00:00"))
+                    if due_dt.tzinfo is None:
+                        due_dt = due_dt.replace(tzinfo=timezone.utc)
+                except (TypeError, ValueError):
+                    continue
+
+                if window_start <= due_dt <= window_end:
+                    remaining_min = max(0, int((due_dt - now).total_seconds() // 60))
+                    todo_name = todo.get("name", "待办事项")
+                    print(
+                        f"[signal-sensor] ⏰ 待办即将到期: {todo_name} (还有 {remaining_min} 分钟)"
+                    )
+
+                    _launch_popup(
+                        {
+                            "title": f"⏰ 待办提醒：{todo_name}",
+                            "subtitle": f"还有 {remaining_min} 分钟到期\n{todo.get('description', '')}".strip(),
+                        }
+                    )
+                    _reminded_todo_ids.add(todo_id)
+                    time.sleep(1)
+
+            # Clean up old reminded IDs (keep set from growing indefinitely)
+            active_ids = {t.get("id") for t in todos}
+            _reminded_todo_ids.difference_update(_reminded_todo_ids - active_ids)
+
+        except Exception as exc:
+            print(f"[signal-sensor] 待办提醒轮询失败: {exc}")
+        time.sleep(TODO_REMINDER_POLL_INTERVAL)
+
+
+# ---------------------------------------------------------------------------
+# 通知源 5：本地文件触发（demo_trigger.txt → 非零值时弹窗）
 # ---------------------------------------------------------------------------
 
 DEMO_TRIGGER_FILE = REPO_ROOT / "scripts" / "demo_trigger.txt"
@@ -519,7 +594,10 @@ def main() -> None:
         f"    [3] 待办草稿  /api/todos?status=draft      (每 {DRAFT_TODO_POLL_INTERVAL}s)"
     )
     print(
-        f"    [4] 本地触发  {DEMO_TRIGGER_FILE.name}       (每 {LOCAL_FILE_POLL_INTERVAL}s)"
+        f"    [4] 待办提醒  提前{TODO_REMINDER_AHEAD_MINUTES}分钟            (每 {TODO_REMINDER_POLL_INTERVAL}s)"
+    )
+    print(
+        f"    [5] 本地触发  {DEMO_TRIGGER_FILE.name}       (每 {LOCAL_FILE_POLL_INTERVAL}s)"
     )
     print()
 
@@ -545,6 +623,9 @@ def main() -> None:
         target=_poll_general_notifications, args=(http_client,), daemon=True
     ).start()
     threading.Thread(target=_poll_draft_todos, args=(http_client,), daemon=True).start()
+    threading.Thread(
+        target=_poll_upcoming_todos, args=(http_client,), daemon=True
+    ).start()
     threading.Thread(target=_poll_local_trigger, daemon=True).start()
 
     # Start HTTP API in a background thread (if fastapi available)
