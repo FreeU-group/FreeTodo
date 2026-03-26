@@ -4,6 +4,16 @@ const { execSync } = require("node:child_process");
 
 const distDir = path.join(__dirname, "..", "src-tauri", "dist");
 const indexPath = path.join(distDir, "index.html");
+const rootDir = path.join(__dirname, "..");
+
+let buildToken = String(Date.now());
+try {
+	buildToken = `${execSync("git rev-parse --short HEAD", { cwd: rootDir })
+		.toString()
+		.trim()}-${Date.now().toString(36)}`;
+} catch {
+	// Fall back to a timestamp token when git is unavailable.
+}
 
 fs.mkdirSync(distDir, { recursive: true });
 
@@ -69,6 +79,7 @@ const html = `<!doctype html>
       const maxAttempts = 50;
       const retryDelayMs = 600;
       const maxWaitMs = 30000;
+      const buildToken = ${JSON.stringify(buildToken)};
 
       const startTime = Date.now();
 
@@ -85,7 +96,7 @@ const html = `<!doctype html>
         const url = "http://localhost:" + port;
         const ok = await isServerUp(url);
         if (ok) {
-          window.location.replace(url);
+          window.location.replace(url + "/?appBuild=" + encodeURIComponent(buildToken));
           return true;
         }
         return false;
@@ -125,7 +136,6 @@ function copyDir(src, dest) {
 	fs.cpSync(src, dest, { recursive: true, force: true });
 }
 
-const rootDir = path.join(__dirname, "..");
 const nextDir = path.join(rootDir, ".next");
 const standaloneDir = path.join(nextDir, "standalone");
 
