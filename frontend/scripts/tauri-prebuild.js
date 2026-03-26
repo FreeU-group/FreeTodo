@@ -92,7 +92,7 @@ const html = `<!doctype html>
       }
 
       async function poll() {
-        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        for (let attempt = maxAttempts - 1; attempt >= 0; attempt -= 1) {
           const port = startPort + attempt;
           const ready = await tryPort(port);
           if (ready) {
