@@ -20,7 +20,7 @@ const fs = require("node:fs");
 
 const MARGIN = 16;
 const DEFAULT_WIDTH = 380;
-const MIN_HEIGHT = 120;
+const MIN_HEIGHT = 220;
 const MAX_HEIGHT = 600;
 const HEADER_HEIGHT = 56;
 const BUTTON_HEIGHT = 50;
