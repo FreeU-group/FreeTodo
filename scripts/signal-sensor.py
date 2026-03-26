@@ -525,6 +525,19 @@ def main() -> None:
 
     http_client = httpx.Client(timeout=10)
 
+    # Wait for backend to be ready before starting poll threads
+    health_url = f"{_state.center_url}/health"
+    print(f"[signal-sensor] 等待后端就绪 ({health_url})...")
+    while True:
+        try:
+            resp = http_client.get(health_url, timeout=3)
+            if resp.status_code == 200:
+                print("[signal-sensor] ✅ 后端已就绪")
+                break
+        except Exception:
+            pass
+        time.sleep(2)
+
     threading.Thread(
         target=_poll_sensor_notifications, args=(http_client,), daemon=True
     ).start()
