@@ -328,7 +328,7 @@ def _poll_upcoming_todos(client: httpx.Client) -> None:
 
                     _launch_popup(
                         {
-                            "title": f"⏰ 待办提醒：{todo_name}",
+                            "title": f"待办提醒：{todo_name}",
                             "subtitle": f"还有 {remaining_min} 分钟到期\n{todo.get('description', '')}".strip(),
                         }
                     )
