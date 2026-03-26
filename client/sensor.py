@@ -529,7 +529,7 @@ class SensorDaemon:
 
         return np.array(canvas)
 
-    async def run_proactive_ocr_cycle(self) -> None:  # noqa: C901, PLR0912
+    async def run_proactive_ocr_cycle(self) -> None:  # noqa: C901, PLR0912, PLR0911, PLR0915
         if not self._proactive_ocr_enabled:
             return
 
@@ -537,6 +537,13 @@ class SensorDaemon:
         if result is None:
             return
         _frame, image_to_ocr, app_type, window = result
+
+        if self._blacklist_enabled and self._blacklist_apps:
+            app_name = getattr(window, "process_name", "") or getattr(window, "title", "")
+            skip = self._should_skip_window(app_name, getattr(window, "title", ""))
+            if skip:
+                logger.debug(f"Proactive OCR skipped: {skip}")
+                return
 
         self._save_debug_image(_frame.data, f"proactive_{app_type.value}_full")
         self._save_debug_image(image_to_ocr, f"proactive_{app_type.value}_roi")
@@ -559,7 +566,7 @@ class SensorDaemon:
                             title_ocr.lines,
                         )
                         self._save_debug_image(annotated_title, "wechat_title_ocr")
-                    logger.info("WeChat title OCR: '%s'", wechat_title_ocr_text)
+                    logger.info(f"WeChat title OCR: '{wechat_title_ocr_text}'")
             except Exception:
                 logger.debug("Failed to OCR title area", exc_info=True)
 
@@ -678,11 +685,7 @@ class SensorDaemon:
                 )
                 if ctx is not None and ctx.messages:
                     structured = ctx.to_structured_text()
-                    logger.info(
-                        "WeChat structured OCR (%d msgs):\n%s",
-                        len(ctx.messages),
-                        structured,
-                    )
+                    logger.info(f"WeChat structured OCR ({len(ctx.messages)} msgs):\n{structured}")
                     return structured, ctx.to_metadata_dict()
                 logger.debug("WeChat parser returned empty, using flat text")
             except Exception:
