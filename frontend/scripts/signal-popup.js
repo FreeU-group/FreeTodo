@@ -124,7 +124,7 @@ function buildLinksHtml(links) {
 function buildButtonsHtml(data) {
 	const buttons = data.buttons;
 	if (!buttons || buttons.length === 0) {
-		return '<button class="btn btn-primary" data-action="close">确认</button>';
+		return '<button class="btn btn-secondary" data-action="close">忽略</button><button class="btn btn-primary" data-action="close">确认</button>';
 	}
 	return buttons
 		.map((b, _i) => {
@@ -303,13 +303,13 @@ function getPanelHtml(data) {
 		flex-shrink:0;
 		padding:12px 16px 14px;
 		display:flex;
+		justify-content:flex-end;
 		gap:8px;
 		border-top:1px solid rgba(255,255,255,.05);
 		background:rgba(0,0,0,.2);
 	}
 	.btn{
-		flex:1;
-		padding:9px 0;
+		padding:9px 16px;
 		border:none;
 		border-radius:12px;
 		font-size:13px;
@@ -447,6 +447,9 @@ function getPanelHtml(data) {
 			<div class="title-wrap">
 				<div class="title">${title}</div>
 			</div>
+			<button class="close-btn" id="closeBtn" title="关闭">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+			</button>
 		</div>
 		<div class="body">
 			${bodyContent}
@@ -458,6 +461,9 @@ function getPanelHtml(data) {
 </div>
 <div class="copy-toast" id="copyToast">✅ 已复制到剪贴板</div>
 <script>
+	document.getElementById('closeBtn').addEventListener('click', function(){
+		window.__electronConfirm && window.__electronConfirm();
+	});
 	document.querySelectorAll('.btn').forEach(function(el){
 		el.addEventListener('click', function(e){
 			e.preventDefault();
