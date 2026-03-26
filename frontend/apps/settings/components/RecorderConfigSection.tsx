@@ -1,10 +1,9 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { MessageCircle, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSaveConfig } from "@/lib/query";
-import { toastError } from "@/lib/toast";
+import { toastError, toastSuccess } from "@/lib/toast";
 import { SettingsSection } from "./SettingsSection";
 import { ToggleSwitch } from "./ToggleSwitch";
 
@@ -13,215 +12,136 @@ interface RecorderConfigSectionProps {
 	loading?: boolean;
 }
 
-/**
- * 录制配置区块组件（应用黑名单设置）
- * 注：录制开关已移至定时任务管理中的"屏幕录制"任务
- */
+const WECHAT_NAMES = ["WeChat", "微信", "WeChatMainWndForPC", "WeChatStore"];
+const BROWSER_NAMES = [
+	"Google Chrome",
+	"chrome",
+	"Chrome",
+	"Microsoft Edge",
+	"msedge",
+	"Edge",
+	"Firefox",
+	"firefox",
+	"Safari",
+	"Arc",
+	"Brave Browser",
+	"Opera",
+];
+
+function parseBlacklist(raw: unknown): string[] {
+	if (Array.isArray(raw)) return raw as string[];
+	const s = String(raw || "");
+	if (!s) return [];
+	return s.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+function isAppBlocked(blacklist: string[], names: string[]): boolean {
+	return names.some((n) => blacklist.includes(n));
+}
+
+function toggleAppInBlacklist(
+	blacklist: string[],
+	names: string[],
+	blocked: boolean,
+): string[] {
+	if (blocked) {
+		return [...blacklist, ...names.filter((n) => !blacklist.includes(n))];
+	}
+	const removeSet = new Set(names);
+	return blacklist.filter((n) => !removeSet.has(n));
+}
+
 export function RecorderConfigSection({
 	config,
 	loading = false,
 }: RecorderConfigSectionProps) {
-	const t = useTranslations("page.settings");
 	const saveConfigMutation = useSaveConfig();
 
-	// 黑名单配置状态
-	const [blacklistEnabled, setBlacklistEnabled] = useState(
-		(config?.jobsRecorderParamsBlacklistEnabled as boolean) ?? false,
+	const [blacklistApps, setBlacklistApps] = useState<string[]>(() =>
+		parseBlacklist(config?.jobsRecorderParamsBlacklistApps),
 	);
-	const [blacklistApps, setBlacklistApps] = useState<string[]>(() => {
-		const apps = config?.jobsRecorderParamsBlacklistApps;
-		if (Array.isArray(apps)) {
-			return apps as string[];
-		}
-		const appsStr = String(apps || "");
-		if (appsStr) {
-			return appsStr
-				.split(",")
-				.map((s: string) => s.trim())
-				.filter((s: string) => s);
-		}
-		return [];
-	});
-	const [blacklistInput, setBlacklistInput] = useState("");
 
 	const isLoading = loading || saveConfigMutation.isPending;
 
-	// 当配置加载完成后，同步本地状态
 	useEffect(() => {
-		if (config) {
-			// 只在配置值存在时更新，避免覆盖用户正在编辑的值
-			if (config.jobsRecorderParamsBlacklistEnabled !== undefined) {
-				setBlacklistEnabled(
-					(config.jobsRecorderParamsBlacklistEnabled as boolean) ?? false,
-				);
-			}
-			if (config.jobsRecorderParamsBlacklistApps !== undefined) {
-				const apps = config.jobsRecorderParamsBlacklistApps;
-				if (Array.isArray(apps)) {
-					setBlacklistApps(apps as string[]);
-				} else {
-					const appsStr = String(apps || "");
-					if (appsStr) {
-						setBlacklistApps(
-							appsStr
-								.split(",")
-								.map((s: string) => s.trim())
-								.filter((s: string) => s),
-						);
-					} else {
-						setBlacklistApps([]);
-					}
-				}
-			}
+		if (config?.jobsRecorderParamsBlacklistApps !== undefined) {
+			setBlacklistApps(
+				parseBlacklist(config.jobsRecorderParamsBlacklistApps),
+			);
 		}
 	}, [config]);
 
-	// 黑名单处理
-	const handleAddBlacklistApp = async (app: string) => {
-		const trimmedApp = app.trim();
-		if (trimmedApp && !blacklistApps.includes(trimmedApp)) {
-			const newApps = [...blacklistApps, trimmedApp];
-			setBlacklistApps(newApps);
-			setBlacklistInput("");
-			try {
-				await saveConfigMutation.mutateAsync({
-					data: {
-						jobsRecorderParamsBlacklistApps: newApps,
-					},
-				});
-			} catch (error) {
-				setBlacklistApps(blacklistApps);
-				console.error("保存黑名单失败:", error);
-			}
-		}
-	};
+	const wechatBlocked = isAppBlocked(blacklistApps, WECHAT_NAMES);
+	const browserBlocked = isAppBlocked(blacklistApps, BROWSER_NAMES);
 
-	const handleRemoveBlacklistApp = async (app: string) => {
-		const newApps = blacklistApps.filter((a) => a !== app);
-		const oldApps = blacklistApps;
-		setBlacklistApps(newApps);
-		try {
-			await saveConfigMutation.mutateAsync({
-				data: {
-					jobsRecorderParamsBlacklistApps: newApps,
-				},
-			});
-		} catch (error) {
-			setBlacklistApps(oldApps);
-			console.error("保存黑名单失败:", error);
-		}
-	};
-
-	const handleBlacklistKeyDown = async (
-		e: React.KeyboardEvent<HTMLInputElement>,
+	const handleToggle = async (
+		names: string[],
+		currentlyBlocked: boolean,
 	) => {
-		if (e.key === "Enter" && blacklistInput.trim()) {
-			e.preventDefault();
-			await handleAddBlacklistApp(blacklistInput);
-		} else if (
-			e.key === "Backspace" &&
-			!blacklistInput &&
-			blacklistApps.length > 0
-		) {
-			const lastApp = blacklistApps[blacklistApps.length - 1];
-			await handleRemoveBlacklistApp(lastApp);
-		}
-	};
-
-	const handleToggleBlacklist = async (newValue: boolean) => {
-		setBlacklistEnabled(newValue);
+		const shouldBlock = !currentlyBlocked;
+		const newList = toggleAppInBlacklist(blacklistApps, names, shouldBlock);
+		const oldList = blacklistApps;
+		setBlacklistApps(newList);
 		try {
 			await saveConfigMutation.mutateAsync({
 				data: {
-					jobsRecorderParamsBlacklistEnabled: newValue,
+					jobsRecorderParamsBlacklistEnabled: newList.length > 0,
+					jobsRecorderParamsBlacklistApps: newList,
 				},
 			});
+			toastSuccess("已保存");
 		} catch (error) {
-			setBlacklistEnabled(blacklistEnabled);
-			console.error("保存黑名单设置失败:", error);
-			const errorMsg = error instanceof Error ? error.message : String(error);
-			toastError(t("saveFailed", { error: errorMsg }));
+			setBlacklistApps(oldList);
+			const msg = error instanceof Error ? error.message : String(error);
+			toastError(`保存失败: ${msg}`);
 		}
 	};
 
 	return (
-		<div className="space-y-4">
-			{/* 启用黑名单 */}
-				<div className="flex items-center justify-between">
-					<div className="flex-1">
-						<p className="text-sm font-medium text-foreground">
-							{t("enableBlacklist")}
-						</p>
-						<p className="mt-0.5 text-xs text-muted-foreground">
-							{t("enableBlacklistDesc")}
+		<div className="space-y-3">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-3 flex-1">
+					<MessageCircle className="h-4 w-4 text-[#07C160] shrink-0" />
+					<div>
+						<p className="text-sm font-medium text-foreground">微信</p>
+						<p className="text-xs text-muted-foreground">
+							{wechatBlocked ? "已屏蔽截图" : "允许截图感知"}
 						</p>
 					</div>
-					<ToggleSwitch
-						enabled={blacklistEnabled}
-						disabled={isLoading}
-						onToggle={handleToggleBlacklist}
-					/>
 				</div>
+				<ToggleSwitch
+					enabled={!wechatBlocked}
+					disabled={isLoading}
+					onToggle={() => handleToggle(WECHAT_NAMES, wechatBlocked)}
+				/>
+			</div>
 
-				{/* 应用黑名单列表 */}
-				{blacklistEnabled && (
-					<div className="pl-4 border-l-2 border-border">
-						<label
-							htmlFor="blacklist-input"
-							className="mb-1 block text-sm font-medium text-foreground"
-						>
-							{t("appBlacklist")}
-						</label>
-						<div className="min-h-[38px] flex flex-wrap gap-1.5 items-center rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 transition-all">
-							{blacklistApps.map((app) => (
-								<span
-									key={app}
-									className="inline-flex items-center gap-1 px-2 py-0.5 text-sm bg-primary/10 text-primary rounded-md border border-primary/20"
-								>
-									{app}
-									<button
-										type="button"
-										onClick={() => handleRemoveBlacklistApp(app)}
-										className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-										aria-label={`删除 ${app}`}
-									>
-										<X className="h-3 w-3" />
-									</button>
-								</span>
-							))}
-							<input
-								id="blacklist-input"
-								type="text"
-								className="flex-1 min-w-[120px] outline-none bg-transparent text-sm placeholder:text-muted-foreground px-1"
-								placeholder={t("blacklistPlaceholder")}
-								value={blacklistInput}
-								onChange={(e) => setBlacklistInput(e.target.value)}
-								onKeyDown={handleBlacklistKeyDown}
-								disabled={isLoading}
-							/>
-						</div>
-						<p className="mt-1 text-xs text-muted-foreground">
-							{t("blacklistDesc")}
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-3 flex-1">
+					<Globe className="h-4 w-4 text-blue-400 shrink-0" />
+					<div>
+						<p className="text-sm font-medium text-foreground">浏览器</p>
+						<p className="text-xs text-muted-foreground">
+							{browserBlocked ? "已屏蔽截图" : "允许截图感知"}
 						</p>
 					</div>
-				)}
+				</div>
+				<ToggleSwitch
+					enabled={!browserBlocked}
+					disabled={isLoading}
+					onToggle={() => handleToggle(BROWSER_NAMES, browserBlocked)}
+				/>
+			</div>
 		</div>
 	);
 }
 
-/**
- * 独立的 SettingsSection 版本（向后兼容，目前不再单独使用）
- */
 export function RecorderConfigStandalone(props: RecorderConfigSectionProps) {
-	const t = useTranslations("page.settings");
 	return (
-		<SettingsSection title={t("basicSettings")}>
+		<SettingsSection title="屏幕录制设置">
 			<RecorderConfigSection {...props} />
 		</SettingsSection>
 	);
 }
 
-/**
- * 内联版本别名，方便 SensorNodesSection 导入
- */
 export const RecorderConfigInline = RecorderConfigSection;
