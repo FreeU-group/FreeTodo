@@ -184,7 +184,7 @@ function getPanelHtml(data) {
 		display:flex;
 		flex-direction:column;
 		border-radius:16px;
-		background:rgba(24,24,27,.95);
+		background:rgba(24,24,27,.98);
 		backdrop-filter:blur(20px);
 		-webkit-backdrop-filter:blur(20px);
 		box-shadow:0 8px 32px rgba(0,0,0,.5);
