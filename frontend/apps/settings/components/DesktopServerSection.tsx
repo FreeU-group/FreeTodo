@@ -14,6 +14,10 @@ export function DesktopServerSection() {
 	const isDesktopTauri = isTauri();
 	const runtimeBackendUrl =
 		typeof window !== "undefined" ? window.__BACKEND_URL__ || "" : "";
+	const runtimeFrontendOrigin =
+		typeof window !== "undefined" ? window.location.origin || "" : "";
+	const runtimeFrontendPort =
+		typeof window !== "undefined" ? window.location.port || "" : "";
 
 	useEffect(() => {
 		setPlatform(getPlatform());
@@ -77,6 +81,10 @@ export function DesktopServerSection() {
 				<div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
 					<div className="font-medium text-foreground/90">Runtime diagnostics</div>
 					<div className="mt-1">Detected platform: {platform}</div>
+					<div className="mt-1 break-all font-mono text-[11px] text-foreground/80">
+						Current local frontend: {runtimeFrontendOrigin || "(not set)"}
+					</div>
+					<div className="mt-1">Connected local port: {runtimeFrontendPort || "(none)"}</div>
 					<div className="mt-1 break-all font-mono text-[11px] text-foreground/80">
 						Current runtime backend: {runtimeBackendUrl || "(not set)"}
 					</div>
