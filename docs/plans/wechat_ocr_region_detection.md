@@ -241,4 +241,11 @@ client/sensor_debug/wechat_test/results/
 | `client/proactive_ocr/wechat_message_parser.py` | 消息解析器：时间戳/编辑框/昵称/说话人分类 |
 | `client/proactive_ocr/models.py` | ChatMessage、ChatContext、ChatType 数据模型 |
 | `client/proactive_ocr/ocr_engine_winrt.py` | WinRT OCR 引擎（word bbox 聚合为 line bbox） |
-| `client/sensor.py` | 集成入口：截图→ROI→分隔→OCR→解析→发送 |
+| `client/proactive_ocr/sensor_pipeline.py` | 主动 OCR 集成辅助：窗口捕获、ROI 应用、调试图、微信标题/消息 OCR 拼装 |
+| `client/sensor.py` | 运行入口：调度截图 OCR、主动 OCR、音频流与上报循环 |
+
+## 入口拆分说明
+
+- `client/sensor.py` 保持现有运行入口和 CLI 行为不变，继续作为 `uv run --directory client python sensor.py` 的启动点。
+- 主动 OCR 的辅助逻辑已下沉到 `client/proactive_ocr/sensor_pipeline.py`，这样入口文件只保留调度与守护进程职责。
+- 与入口强相关但可复用的通用逻辑分别放到 `client/sensor_helpers.py`（窗口过滤、截图、哈希）和 `client/sensor_audio.py`（PC 音频 WebSocket 流）。

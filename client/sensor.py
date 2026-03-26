@@ -15,68 +15,23 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
-import json
 import os
 import platform
-import re
 import time
-from contextlib import suppress
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import httpx
-import numpy as np
 
 from perception.models import Modality, PerceptionEvent, SourceType
 from proactive_ocr.ocr_engine import OcrEngineConfig
+from proactive_ocr.sensor_pipeline import run_proactive_ocr_cycle
+from sensor_audio import audio_loop, run_audio_stream
+from sensor_helpers import is_self_window, mss_grab_in_thread, text_hash
 from util.logging_config import get_logger
 from util.time_utils import get_utc_now
 
 logger = get_logger()
-
-# ---------------------------------------------------------------------------
-# Self-window exclusion patterns (migrated from server recorder_config.py)
-# ---------------------------------------------------------------------------
-
-_SELF_WINDOW_PATTERNS_STR = [
-    "lifetrace",
-    "freetodo",
-]
-
-_SELF_WINDOW_PATTERNS_REGEX = [
-    re.compile(r"localhost:80\d{2}"),
-    re.compile(r"127\.0\.0\.1:80\d{2}"),
-    re.compile(r"localhost:30\d{2}"),
-    re.compile(r"127\.0\.0\.1:30\d{2}"),
-]
-
-_BROWSER_APPS = ["chrome", "msedge", "firefox", "electron"]
-_PYTHON_APPS = ["python", "pythonw"]
-
-
-def _is_self_window(app_name: str, window_title: str) -> bool:
-    """Check whether the foreground window belongs to FreeTodo/LifeTrace itself."""
-    title_lower = (window_title or "").lower()
-    if any(p in title_lower for p in _SELF_WINDOW_PATTERNS_STR):
-        return True
-    if any(p.search(title_lower) for p in _SELF_WINDOW_PATTERNS_REGEX):
-        return True
-    app_lower = (app_name or "").lower()
-    if any(b in app_lower for b in _BROWSER_APPS + _PYTHON_APPS) and title_lower:
-        if any(p in title_lower for p in _SELF_WINDOW_PATTERNS_STR):
-            return True
-        if any(p.search(title_lower) for p in _SELF_WINDOW_PATTERNS_REGEX):
-            return True
-    return False
-
-
-def _is_local_center(center_url: str) -> bool:
-    """Return True when center endpoint points to local machine."""
-    host = (urlparse(center_url).hostname or "").lower()
-    return host in {"localhost", "127.0.0.1", "::1"}
-
 
 # ---------------------------------------------------------------------------
 # Lazy singletons for heavy components (created on first use)
@@ -86,24 +41,6 @@ _window_capture = None
 _app_router = None
 _roi_extractor = None
 _ocr_engine = None
-_WECHAT_MIN_MESSAGE_HEIGHT = 10
-
-
-def _mss_grab_in_thread() -> np.ndarray | None:
-    """Capture primary monitor inside the calling thread."""
-    import mss  # noqa: PLC0415
-
-    try:
-        with mss.mss() as sct:
-            monitor = sct.monitors[1]
-            shot = sct.grab(monitor)
-            arr = np.array(shot)
-            if arr.shape[2] == BGRA_CHANNELS:
-                arr = arr[:, :, :3]
-            return arr[:, :, ::-1].copy()
-    except Exception as exc:
-        logger.error(f"mss screenshot failed: {exc}")
-        return None
 
 
 def _get_window_capture():
@@ -156,17 +93,12 @@ def _get_ocr_engine():
 # Helpers
 # ---------------------------------------------------------------------------
 
-BGRA_CHANNELS = 4
 _MIN_OCR_CONFIDENCE = 0.8
 _MIN_TEXT_LEN = 5
 _BLANK_IMAGE_STD_THRESHOLD = 5.0
 _MIN_ROI_AREA_RATIO = 0.10
 _CONFIG_POLL_INTERVAL = 15.0
 _HEARTBEAT_INTERVAL = 30.0
-
-
-def _text_hash(text: str) -> str:
-    return hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +113,7 @@ class SensorDaemon:
         self.center_url = center_url.rstrip("/")
         self.node_id = node_id
         self.client = httpx.AsyncClient(timeout=30)
+        self.logger = logger
         self._debug_images = debug_images
 
         self._last_screenshot_hash: str = ""
@@ -319,7 +252,7 @@ class SensorDaemon:
 
     def _should_skip_window(self, app_name: str, window_title: str) -> str:
         """Return a skip reason if the window should be excluded, else empty string."""
-        if _is_self_window(app_name, window_title):
+        if is_self_window(app_name, window_title):
             return f"self-window: {app_name}/{window_title[:60]}"
         if not self._blacklist_enabled or not self._blacklist_apps:
             return ""
@@ -347,7 +280,7 @@ class SensorDaemon:
                 logger.debug(f"Screenshot OCR skipped: {skip}")
                 return
 
-        image = await asyncio.to_thread(_mss_grab_in_thread)
+        image = await asyncio.to_thread(mss_grab_in_thread, self.logger)
         if image is None:
             return
 
@@ -363,7 +296,7 @@ class SensorDaemon:
         if len(text) < _MIN_TEXT_LEN:
             return
 
-        h = _text_hash(text)
+        h = text_hash(text)
         if h == self._last_screenshot_hash:
             logger.debug("Screenshot OCR: text unchanged, skipping")
             return
@@ -388,308 +321,18 @@ class SensorDaemon:
     # Proactive OCR cycle
     # ------------------------------------------------------------------
 
-    async def _get_target_window(self):
-        capture = _get_window_capture()
-        router = _get_app_router()
-
-        window = await asyncio.to_thread(capture.get_foreground_window)
-        if window is None:
-            return None
-
-        skip = self._should_skip_window(window.process_name or "", window.title or "")
-        if skip:
-            logger.debug(f"Proactive OCR skipped: {skip}")
-            return None
-
-        from proactive_ocr.models import AppType  # noqa: PLC0415
-
-        app_type, _reason = router.identify_app(window)
-        if app_type == AppType.UNKNOWN or window.is_minimized:
-            return None
-        return window, app_type
-
-    async def _capture_target_window(self):
-        capture = _get_window_capture()
-        target_window = await self._get_target_window()
-        if target_window is None:
-            return None
-        window, app_type = target_window
-
-        frame = await asyncio.to_thread(capture.capture_window, window)
-        if frame is None:
-            logger.debug(f"Proactive OCR: window capture failed ({app_type.value})")
-            return None
-
-        img_std = float(np.std(frame.data))
-        if img_std < _BLANK_IMAGE_STD_THRESHOLD:
-            logger.debug("Proactive OCR: blank image, skipping")
-            return None
-
-        image_to_ocr = await self._apply_roi(frame, app_type)
-        if image_to_ocr is None:
-            return None
-
-        return frame, image_to_ocr, app_type, window
-
-    async def _apply_roi(self, frame, app_type) -> np.ndarray | None:
-        roi_extractor = _get_roi_extractor()
-        roi_result = await asyncio.to_thread(
-            roi_extractor.extract_with_details, frame.data, app_type
+    async def run_proactive_ocr_cycle(self) -> None:
+        await run_proactive_ocr_cycle(
+            self,
+            get_window_capture=_get_window_capture,
+            get_app_router=_get_app_router,
+            get_roi_extractor=_get_roi_extractor,
+            get_ocr_engine=_get_ocr_engine,
+            min_ocr_confidence=_MIN_OCR_CONFIDENCE,
+            min_text_len=_MIN_TEXT_LEN,
+            blank_image_std_threshold=_BLANK_IMAGE_STD_THRESHOLD,
+            min_roi_area_ratio=_MIN_ROI_AREA_RATIO,
         )
-        if roi_result is None:
-            return None
-        if roi_result:
-            roi_area = roi_result.width * roi_result.height
-            full_area = frame.width * frame.height
-            if full_area > 0 and roi_area / full_area >= _MIN_ROI_AREA_RATIO:
-                return roi_result.image
-        return frame.data
-
-    _DEBUG_MAX_FILES = 1000
-    _DEBUG_CLEANUP_COUNT = 500
-
-    def _save_debug_image(self, image: np.ndarray, label: str) -> None:
-        if not self._debug_images:
-            return
-        from PIL import Image  # noqa: PLC0415
-
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        path = self._debug_dir / f"{label}_{ts}.png"
-        Image.fromarray(image).save(path)
-        logger.debug(f"Debug image saved: {path}")
-        self._maybe_cleanup_debug_dir()
-
-    def _maybe_cleanup_debug_dir(self) -> None:
-        if not hasattr(self, "_debug_cleanup_counter"):
-            self._debug_cleanup_counter = 0
-        self._debug_cleanup_counter += 1
-        if self._debug_cleanup_counter % 50 != 0:
-            return
-        try:
-            files = sorted(self._debug_dir.glob("*.png"), key=lambda f: f.stat().st_mtime)
-            if len(files) > self._DEBUG_MAX_FILES:
-                to_delete = files[: self._DEBUG_CLEANUP_COUNT]
-                for f in to_delete:
-                    f.unlink(missing_ok=True)
-                logger.info(
-                    "Debug cleanup: deleted %d oldest files (%d remaining)",
-                    len(to_delete),
-                    len(files) - len(to_delete),
-                )
-        except Exception:
-            logger.debug("Debug cleanup failed", exc_info=True)
-
-    @staticmethod
-    def _build_ocr_annotated_image(
-        image: np.ndarray,
-        ocr_lines: list,
-    ) -> np.ndarray:
-        """Render all OCR bounding boxes with confidence scores on the image.
-
-        Color coding: green (>=0.8), orange (>=0.6), red (<0.6).
-        """
-        from PIL import Image, ImageDraw, ImageFont  # noqa: PLC0415
-
-        canvas = Image.fromarray(image.copy())
-        draw = ImageDraw.Draw(canvas)
-
-        label_font = ImageFont.load_default()
-        for name in ("msyh.ttc", "msyhl.ttc", "simhei.ttf", "arial.ttf"):
-            try:
-                label_font = ImageFont.truetype(name, 14)
-                break
-            except OSError:
-                continue
-
-        _high, _med = 0.8, 0.6
-        img_w = image.shape[1]
-        for ln in ocr_lines:
-            score = ln.score
-            if score >= _high:
-                color = (80, 220, 80)
-            elif score >= _med:
-                color = (255, 180, 40)
-            else:
-                color = (255, 60, 60)
-
-            b = ln.bbox_px
-            x1, y1 = max(0, b.x), max(0, b.y)
-            x2, y2 = b.x + b.width, b.y + b.height
-            draw.rectangle((x1, y1, x2, y2), outline=color, width=2)
-
-            label = f"{score:.2f} {ln.text}"
-            try:
-                tw = draw.textlength(label, font=label_font)
-            except (AttributeError, TypeError):
-                tw = len(label) * 9
-            ty = max(0, y1 - 18)
-            bg_x2 = min(int(x1 + tw + 6), img_w)
-            draw.rectangle((x1, ty, bg_x2, ty + 17), fill=(30, 30, 30))
-            draw.text((x1 + 3, ty + 1), label, fill=color, font=label_font)
-
-        return np.array(canvas)
-
-    async def run_proactive_ocr_cycle(self) -> None:  # noqa: C901, PLR0912
-        if not self._proactive_ocr_enabled:
-            return
-
-        result = await self._capture_target_window()
-        if result is None:
-            return
-        _frame, image_to_ocr, app_type, window = result
-
-        self._save_debug_image(_frame.data, f"proactive_{app_type.value}_full")
-        self._save_debug_image(image_to_ocr, f"proactive_{app_type.value}_roi")
-
-        ocr_target, wechat_divider_y = self._prepare_ocr_target(image_to_ocr, app_type)
-        wechat_title_ocr_text = ""
-        if wechat_divider_y is not None:
-            title_img = image_to_ocr[:wechat_divider_y, :]
-            self._save_debug_image(title_img, "wechat_title")
-            self._save_debug_image(ocr_target, "wechat_messages")
-            try:
-                title_ocr = await asyncio.to_thread(_get_ocr_engine().ocr, title_img)
-                if title_ocr.lines:
-                    wechat_title_ocr_text = " ".join(
-                        ln.text for ln in title_ocr.lines if ln.score >= _MIN_OCR_CONFIDENCE
-                    ).strip()
-                    if self._debug_images:
-                        annotated_title = self._build_ocr_annotated_image(
-                            title_img,
-                            title_ocr.lines,
-                        )
-                        self._save_debug_image(annotated_title, "wechat_title_ocr")
-                    logger.info("WeChat title OCR: '%s'", wechat_title_ocr_text)
-            except Exception:
-                logger.debug("Failed to OCR title area", exc_info=True)
-
-        engine = _get_ocr_engine()
-        try:
-            ocr_result = await asyncio.to_thread(engine.ocr, ocr_target)
-        except Exception as ocr_exc:
-            logger.error(
-                f"OCR engine.ocr() raised {type(ocr_exc).__name__}: {ocr_exc}",
-                exc_info=True,
-            )
-            return
-
-        if self._debug_images and ocr_result.lines:
-            try:
-                annotated = self._build_ocr_annotated_image(ocr_target, ocr_result.lines)
-                self._save_debug_image(annotated, f"proactive_{app_type.value}_ocr")
-            except Exception:
-                logger.debug("Failed to build OCR annotated debug image", exc_info=True)
-
-        valid_lines = [ln for ln in ocr_result.lines if ln.score >= _MIN_OCR_CONFIDENCE]
-        if not valid_lines:
-            return
-
-        title_for_parser = wechat_title_ocr_text or window.title
-        text, extra_metadata = self._build_ocr_text(
-            ocr_target,
-            ocr_result,
-            valid_lines,
-            app_type,
-            window_title=title_for_parser,
-        )
-        if len(text) < _MIN_TEXT_LEN:
-            return
-
-        h = _text_hash(text)
-        if h == self._last_proactive_hash:
-            return
-        self._last_proactive_hash = h
-
-        metadata = {
-            "app_name": app_type.value,
-            "window_title": window.title[:100],
-            "ocr_lines": len(valid_lines),
-            "ocr_latency_ms": round(ocr_result.latency_ms, 1),
-            "todo_relevant": True,
-            **extra_metadata,
-        }
-
-        event = PerceptionEvent(
-            timestamp=get_utc_now(),
-            source=SourceType.OCR_PROACTIVE,
-            modality=Modality.TEXT,
-            content_text=text,
-            metadata=metadata,
-        )
-        ok = await self._safe_post(event)
-        if ok:
-            self._last_proactive_ocr_at = get_utc_now().isoformat()
-            logger.info(
-                f"Proactive OCR ({app_type.value}) -> Center: "
-                f"{len(valid_lines)} lines, {len(text)} chars"
-            )
-
-    @staticmethod
-    def _prepare_ocr_target(
-        roi_image: np.ndarray,
-        app_type,
-    ) -> tuple[np.ndarray, int | None]:
-        """For WeChat, crop to message area below the title divider.
-        Returns (image_to_ocr, divider_y_or_none)."""
-        from proactive_ocr.models import AppType  # noqa: PLC0415
-
-        if app_type != AppType.WECHAT:
-            return roi_image, None
-        try:
-            from proactive_ocr.priors.wechat import WeChatPrior  # noqa: PLC0415
-
-            prior = WeChatPrior()
-            dy = prior.find_title_divider_y(roi_image)
-            if dy is not None and dy > 0:
-                msg_image = roi_image[dy + 2 :, :]
-                if msg_image.shape[0] > _WECHAT_MIN_MESSAGE_HEIGHT:
-                    logger.debug("WeChat: OCR target cropped to message area (divider_y=%d)", dy)
-                    return msg_image, dy
-        except Exception:
-            logger.debug("WeChat divider detection failed, OCR full ROI", exc_info=True)
-        return roi_image, None
-
-    @staticmethod
-    def _build_ocr_text(
-        image: np.ndarray,
-        ocr_result,
-        valid_lines: list,
-        app_type,
-        *,
-        window_title: str = "",
-    ) -> tuple[str, dict]:
-        """Build text and extra metadata; use structured parser for WeChat."""
-        from proactive_ocr.models import AppType  # noqa: PLC0415
-
-        if app_type == AppType.WECHAT:
-            try:
-                from proactive_ocr.priors.wechat import WeChatPrior  # noqa: PLC0415
-                from proactive_ocr.wechat_message_parser import (  # noqa: PLC0415
-                    parse_wechat_messages,
-                )
-
-                theme = WeChatPrior().detect_theme(image)
-                theme_name = theme.name if theme else "dark"
-                ctx = parse_wechat_messages(
-                    image,
-                    ocr_result,
-                    theme_name,
-                    title_hint=window_title,
-                )
-                if ctx is not None and ctx.messages:
-                    structured = ctx.to_structured_text()
-                    logger.info(
-                        "WeChat structured OCR (%d msgs):\n%s",
-                        len(ctx.messages),
-                        structured,
-                    )
-                    return structured, ctx.to_metadata_dict()
-                logger.debug("WeChat parser returned empty, using flat text")
-            except Exception:
-                logger.debug("WeChat message parser failed, falling back", exc_info=True)
-
-        flat_text = "\n".join(ln.text for ln in valid_lines)
-        return flat_text, {}
 
     # ------------------------------------------------------------------
     # Internal loops
@@ -726,122 +369,11 @@ class SensorDaemon:
     # Audio perception loop
     # ------------------------------------------------------------------
 
-    _AUDIO_SAMPLE_RATE = 16000
-    _AUDIO_CHANNELS = 1
-    _AUDIO_BLOCK_SIZE = 1024
-    _AUDIO_RECONNECT_DELAY = 5.0
-    _AUDIO_DISABLE_CHECK_INTERVAL = 3.0
-
     async def _audio_loop(self) -> None:
-        """持续感知 PC 音频流: sounddevice 采集 -> WebSocket 流式发送至 Center ASR."""
-        await asyncio.sleep(3)
-        while True:
-            if not self._audio_enabled:
-                self._audio_running = False
-                await asyncio.sleep(self._AUDIO_DISABLE_CHECK_INTERVAL)
-                continue
-            try:
-                await self._run_audio_stream()
-            except Exception as exc:
-                logger.error(f"Audio stream error: {exc}", exc_info=True)
-                self._audio_running = False
-            await asyncio.sleep(self._AUDIO_RECONNECT_DELAY)
+        await audio_loop(self)
 
     async def _run_audio_stream(self) -> None:
-        import sounddevice as sd  # noqa: PLC0415
-        import websockets  # noqa: PLC0415
-
-        ws_url = self.center_url.replace("http://", "ws://").replace("https://", "wss://")
-        ws_url = f"{ws_url}/api/audio/transcribe?source=mic_pc&node_id={self.node_id}"
-        connect_kwargs: dict[str, Any] = {"close_timeout": 5}
-        if _is_local_center(self.center_url):
-            # Local development should bypass env proxies to avoid socks dependency errors.
-            connect_kwargs["proxy"] = None
-
-        logger.info(f"[audio] Connecting to {ws_url}")
-        async with websockets.connect(ws_url, **connect_kwargs) as ws:
-            await ws.send(json.dumps({"is_24x7": True}))
-            logger.info("[audio] WebSocket connected, starting sounddevice capture")
-
-            audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=200)
-            loop = asyncio.get_running_loop()
-
-            def _audio_callback(indata, _frames, _time_info, status) -> None:
-                if status:
-                    logger.warning(f"[audio] sounddevice status: {status}")
-                loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(indata))
-
-            stream = sd.InputStream(
-                samplerate=self._AUDIO_SAMPLE_RATE,
-                channels=self._AUDIO_CHANNELS,
-                dtype="int16",
-                blocksize=self._AUDIO_BLOCK_SIZE,
-                callback=_audio_callback,
-            )
-            stream.start()
-            self._audio_running = True
-            logger.info("[audio] Capture started (sounddevice -> Center ASR)")
-
-            try:
-                send_task = asyncio.create_task(self._audio_send_loop(ws, audio_queue))
-                recv_task = asyncio.create_task(self._audio_recv_loop(ws))
-                stop_task = asyncio.create_task(self._audio_config_watch(ws))
-
-                done, pending = await asyncio.wait(
-                    [send_task, recv_task, stop_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                for t in pending:
-                    t.cancel()
-                for t in done:
-                    if t.exception() is not None:
-                        raise t.exception()  # type: ignore[misc]
-            finally:
-                stream.stop()
-                stream.close()
-                self._audio_running = False
-                logger.info("[audio] Capture stopped")
-
-    async def _audio_send_loop(self, ws, audio_queue: asyncio.Queue) -> None:
-        """从 sounddevice 队列取 PCM 数据并发送至 WebSocket。"""
-        while True:
-            chunk = await audio_queue.get()
-            if chunk is None:
-                break
-            try:
-                await ws.send(chunk)
-            except Exception:
-                break
-
-    async def _audio_recv_loop(self, ws) -> None:
-        """接收 Center 返回的转录结果(日志记录, 用于调试)."""
-        try:
-            async for raw in ws:
-                if isinstance(raw, str):
-                    try:
-                        msg = json.loads(raw)
-                        name = msg.get("header", {}).get("name", "")
-                        if name == "TranscriptionResultChanged":
-                            payload = msg.get("payload", {})
-                            text = payload.get("result", "")
-                            is_final = payload.get("is_final", False)
-                            if is_final and text.strip():
-                                logger.info(f"[audio] ✓ {text}")
-                        elif name == "TaskFailed":
-                            err = msg.get("payload", {}).get("error", "unknown")
-                            logger.error(f"[audio] ASR error: {err}")
-                    except json.JSONDecodeError:
-                        pass
-        except Exception:
-            logger.debug("[audio] Receive loop closed", exc_info=True)
-
-    async def _audio_config_watch(self, ws) -> None:
-        """监控 audio_enabled 配置, 关闭时主动断开 WebSocket."""
-        while self._audio_enabled:
-            await asyncio.sleep(2)
-        logger.info("[audio] Audio perception disabled by remote config, closing stream")
-        with suppress(Exception):
-            await ws.close()
+        await run_audio_stream(self)
 
     # ------------------------------------------------------------------
     # Main loop
