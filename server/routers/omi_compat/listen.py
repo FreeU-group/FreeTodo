@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import time
 import uuid
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
@@ -23,165 +23,27 @@ from starlette.websockets import WebSocketState
 from perception.manager import try_get_perception_manager
 from perception.models import Modality, PerceptionEvent, SourceType
 from routers.omi_compat.auth import verify_ws_token
+from routers.omi_compat.listen_audio import build_decoder
+from routers.omi_compat.listen_events import (
+    build_last_conversation_event,
+    build_segment_dict,
+    build_transcript_event,
+)
+from routers.omi_compat.listen_second_pass import (
+    SecondPassRunner,
+    get_second_pass_timing,
+    load_second_pass_processor,
+)
 from util.logging_config import get_logger
 from util.time_utils import get_utc_now
-
-if TYPE_CHECKING:
-    from services.speaker_service import SpeakerMatch
 
 logger = get_logger()
 
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Audio decoder helpers
-# ---------------------------------------------------------------------------
-
-opuslib = None
-_opus_available = False
-
-
-def _patch_find_library_for_homebrew():
-    """Monkey-patch ``ctypes.util.find_library`` to also search Homebrew lib paths.
-
-    On Apple Silicon macOS, ``find_library('opus')`` returns *None* even when
-    libopus is installed via Homebrew.  This patch makes it fall back to
-    well-known Homebrew directories so that ``opuslib`` can locate the shared
-    library.  The original function is restored after ``opuslib`` is imported.
-    """
-    import ctypes.util
-    import os
-    import sys
-
-    if sys.platform != "darwin":
-        return ctypes.util.find_library  # no-op on non-macOS
-
-    _orig = ctypes.util.find_library
-
-    def _find_library_homebrew(name: str) -> str | None:
-        result = _orig(name)
-        if result is None:
-            for prefix in ("/opt/homebrew/lib", "/usr/local/lib"):
-                candidate = os.path.join(prefix, f"lib{name}.dylib")
-                if os.path.isfile(candidate):
-                    return candidate
-        return result
-
-    ctypes.util.find_library = _find_library_homebrew
-    return _orig
-
-
-_orig_find_library = _patch_find_library_for_homebrew()
-try:
-    import opuslib  # type: ignore[import-untyped]
-
-    _opus_available = True
-except (ImportError, Exception):
-    import os
-    import sys
-
-    try:
-        import pyogg  # type: ignore[import-untyped]
-
-        pyogg_dir = os.path.dirname(pyogg.__file__)
-        if pyogg_dir not in os.environ.get("PATH", ""):
-            os.environ["PATH"] = pyogg_dir + os.pathsep + os.environ.get("PATH", "")
-            if sys.platform == "win32":
-                os.add_dll_directory(pyogg_dir)
-        import opuslib  # type: ignore[import-untyped]
-
-        _opus_available = True
-    except Exception:
-        logger.warning("opuslib unavailable — Opus audio decoding disabled")
-finally:
-    import ctypes.util
-
-    ctypes.util.find_library = _orig_find_library
-
-
-class _OpusDecoder:
-    """Thin wrapper around ``opuslib`` for 16 kHz mono Opus frames."""
-
-    def __init__(self, sample_rate: int = 16000, channels: int = 1):
-        if not _opus_available or opuslib is None:
-            raise RuntimeError("opuslib is not installed 鈥?run: pip install opuslib")
-        self._dec = opuslib.Decoder(sample_rate, channels)
-        self._frame_size = sample_rate // 50  # 20 ms frames 鈫?320 samples
-
-    def decode(self, data: bytes) -> bytes:
-        """Decode one Opus packet 鈫?PCM-16 LE bytes."""
-        return self._dec.decode(data, self._frame_size)
-
-
-def _pcm8_to_pcm16(data: bytes) -> bytes:
-    """Up-sample 8 kHz PCM-16 LE to 16 kHz by simple sample doubling."""
-    import array
-
-    samples = array.array("h")
-    samples.frombytes(data)
-    out = array.array("h")
-    for s in samples:
-        out.append(s)
-        out.append(s)
-    return out.tobytes()
-
-
-def _build_decoder(codec: str, sample_rate: int):
-    """Return ``(decode_fn, effective_sample_rate)``."""
-    if codec in ("opus", "opus_fs320"):
-        dec = _OpusDecoder(sample_rate=sample_rate)
-        return dec.decode, sample_rate
-
-    if codec == "pcm8":
-        return _pcm8_to_pcm16, 16000
-
-    # pcm16 / pcm pass-through
-    return None, sample_rate
-
-
-# ---------------------------------------------------------------------------
-# omi MessageEvent builders
-# ---------------------------------------------------------------------------
-
-
-def _transcript_event(
-    session_id: str,
-    segments: list[dict],
-) -> dict:
-    return {
-        "type": "transcript",
-        "session_id": session_id,
-        "segments": segments,
-    }
-
-
-def _segment_dict(
-    idx: int,
-    text: str,
-    start: float,
-    end: float,
-    *,
-    is_user: bool = True,
-    speaker_id: str = "SPEAKER_00",
-) -> dict:
-    return {
-        "id": idx,
-        "text": text,
-        "speaker_id": speaker_id,
-        "is_user": is_user,
-        "person_id": None,
-        "start": round(start, 2),
-        "end": round(end, 2),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Main WebSocket handler
-# ---------------------------------------------------------------------------
-
 
 @router.websocket("/v4/listen")
-async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
+async def omi_listen(  # noqa: C901, PLR0913, PLR0915
     websocket: WebSocket,
     uid: str = Depends(verify_ws_token),
     language: str = "zh",
@@ -211,7 +73,7 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
 
     # Build audio decoder
     try:
-        decode_fn, _effective_sr = _build_decoder(codec, sample_rate)
+        decode_fn, _effective_sr = build_decoder(codec, sample_rate)
     except Exception as e:
         logger.error(f"[omi-compat] Failed to build audio decoder (codec={codec}): {e}")
         await websocket.close(code=1011, reason=str(e)[:120])
@@ -251,38 +113,9 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
     audio_q: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=500)
     # Accumulated raw PCM for second-pass offline ASR
     audio_chunks: list[bytes] = []
-    second_pass_cursor = 0  # index into audio_chunks marking last processed position
-    # Chunk index at the moment of the most recent is_final — used as the end
-    # boundary for second-pass so that audio is always sliced at sentence edges.
-    latest_final_chunk_idx = 0
 
     asr_cancel_event = asyncio.Event()
-    # Fired by _on_result_async(is_final=True) to wake the second-pass debounce loop
     second_pass_trigger = asyncio.Event()
-
-    async def _identify_speaker_for_segment() -> SpeakerMatch | None:
-        """Identify current speaker using the diarizer."""
-        if speaker_diarizer is None:
-            return None
-        try:
-            return await speaker_diarizer.identify_current_speaker()
-        except Exception:
-            return None
-
-    def _resolve_speaker(speaker_info: SpeakerMatch | None) -> tuple[str | None, int | None]:
-        """Resolve speaker info to ``(display_tag, numeric_id)``.
-
-        Returns ``("me", id)`` when ``is_me``, ``(name, id)`` for known
-        speakers, and ``(None, None)`` when unidentified.
-        """
-        if speaker_info is None:
-            return None, None
-        sid = speaker_info.speaker_id
-        if speaker_info.is_me:
-            return "me", sid
-        if speaker_info.speaker_name:
-            return speaker_info.speaker_name, sid
-        return f"SPEAKER_{sid:02d}", sid
 
     async def _publish_final_perception(
         text: str,
@@ -327,6 +160,34 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
         except Exception:
             logger.exception("[omi-compat] Failed to publish perception event")
 
+    async def _publish_refined_perception(
+        text: str,
+        speaker_tag: str | None,
+        speaker_id: int | None,
+    ) -> None:
+        await _publish_final_perception(
+            text,
+            is_realtime=False,
+            speaker_tag=speaker_tag,
+            speaker_id=speaker_id,
+        )
+
+    second_pass_processor = load_second_pass_processor()
+    sp_debounce, sp_max_wait = get_second_pass_timing()
+    second_pass_runner = SecondPassRunner(
+        processor=second_pass_processor,
+        trigger=second_pass_trigger,
+        audio_chunks=audio_chunks,
+        config={
+            "session_id": session_id,
+            "websocket": websocket,
+            "is_connected": lambda: is_connected,
+            "sp_debounce": sp_debounce,
+            "sp_max_wait": sp_max_wait,
+            "publish_refined_perception": _publish_refined_perception,
+        },
+    )
+
     async def _audio_generator():
         """Yield PCM chunks from the queue for ASRClient.transcribe_stream."""
         while True:
@@ -341,13 +202,12 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
             yield chunk
 
     async def _on_result_async(text: str, is_final: bool):
-        nonlocal seg_idx, latest_final_chunk_idx
+        nonlocal seg_idx
         if not text or not is_connected:
             return
         now = time.monotonic() - session_start
 
-        # v1 (real-time): no speaker identification — will be refined by second pass
-        seg = _segment_dict(
+        seg = build_segment_dict(
             seg_idx,
             text,
             max(0, now - 2),
@@ -362,21 +222,14 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 websocket.application_state == WebSocketState.CONNECTED
                 and websocket.client_state == WebSocketState.CONNECTED
             ):
-                await websocket.send_json(_transcript_event(session_id, [seg]))
+                await websocket.send_json(build_transcript_event(session_id, [seg]))
         except Exception as exc:
             logger.debug(f"Failed to send transcript event: {exc}")
 
         if is_final and text.strip():
             if second_pass_processor is None:
                 await _publish_final_perception(text, is_realtime=True)
-            latest_final_chunk_idx = len(audio_chunks)
-            second_pass_trigger.set()
-            logger.info(
-                "[omi-compat] is_final received: chunks=%d cursor=%d text=%.40s",
-                latest_final_chunk_idx,
-                second_pass_cursor,
-                text.strip()[:40],
-            )
+            second_pass_runner.note_final(len(audio_chunks))
 
     result_queue: asyncio.Queue[tuple[str, bool]] = asyncio.Queue()
 
@@ -457,8 +310,6 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 # Handle text messages (stop signal etc.)
                 text_data = raw.get("text")
                 if text_data:
-                    import json
-
                     try:
                         msg = json.loads(text_data)
                         if msg.get("type") == "stop":
@@ -474,165 +325,6 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
             is_connected = False
             audio_q.put_nowait(None)  # signal ASR to stop
 
-    # ---- Second-pass offline ASR (v2 refinement) ----
-
-    second_pass_processor = None
-    try:
-        from services.second_pass_asr import SecondPassASRProcessor
-
-        _sp = SecondPassASRProcessor()
-        if _sp.enabled:
-            second_pass_processor = _sp
-            logger.info("[omi-compat] 二次处理 (second-pass) 已启用")
-        else:
-            logger.debug("[omi-compat] 二次处理未启用 (audio.second_pass.enabled=false)")
-    except Exception as e:
-        logger.debug(f"[omi-compat] 二次处理初始化失败: {e}")
-
-    from util.settings import settings as _settings
-
-    sp_debounce = int(_settings.get("audio.second_pass.debounce_seconds", 3) or 3)
-    sp_max_wait = int(_settings.get("audio.second_pass.interval_seconds", 30) or 30)
-
-    async def _send_refined_segments(result) -> None:
-        """Push v2 refined segments to the WebSocket client and perception."""
-        if result is None or not result.segments:
-            return
-
-        refined_segs = []
-        for i, seg in enumerate(result.segments):
-            refined_segs.append(
-                _segment_dict(
-                    i,
-                    seg.text,
-                    seg.begin_time_ms / 1000.0,
-                    seg.end_time_ms / 1000.0,
-                    is_user=True,
-                    speaker_id=seg.speaker_name or f"说话人 {seg.speaker_id}",
-                )
-            )
-
-        try:
-            if (
-                websocket.application_state == WebSocketState.CONNECTED
-                and websocket.client_state == WebSocketState.CONNECTED
-            ):
-                await websocket.send_json(
-                    {
-                        "type": "transcript_refined",
-                        "session_id": session_id,
-                        "segments": refined_segs,
-                    }
-                )
-                logger.info(f"[omi-compat] Sent {len(refined_segs)} refined segments to client")
-        except Exception as exc:
-            logger.debug(f"[omi-compat] Failed to send refined transcript: {exc}")
-
-        for seg in result.segments:
-            if seg.text.strip():
-                await _publish_final_perception(
-                    seg.text,
-                    is_realtime=False,
-                    speaker_tag=seg.speaker_name,
-                    speaker_id=seg.speaker_id,
-                )
-
-    async def _run_second_pass(chunks_slice: list[bytes]) -> None:
-        """Execute one second-pass processing run."""
-        if second_pass_processor is None or not chunks_slice:
-            return
-        try:
-            result = await second_pass_processor.process(chunks_slice, session_id)
-            if result is None or not result.segments:
-                logger.info(
-                    "[omi-compat] Second-pass returned no segments "
-                    "(audio may be too short or processing failed)"
-                )
-            await _send_refined_segments(result)
-        except Exception:
-            logger.exception("[omi-compat] Second-pass processing error")
-
-    async def _second_pass_timer():
-        """Trigger second-pass after is_final with a short debounce.
-
-        Audio is always sliced at sentence boundaries (``latest_final_chunk_idx``)
-        so DashScope receives complete utterances rather than arbitrary fragments.
-
-        Waits for the first ``is_final`` signal, then debounces for
-        ``sp_debounce`` seconds (resets on each new signal) before
-        submitting.  A hard cap of ``sp_max_wait`` since the last
-        submission prevents unbounded delays during continuous speech.
-        """
-        nonlocal second_pass_cursor
-        if second_pass_processor is None:
-            return
-
-        last_run = time.monotonic()
-
-        while is_connected:
-            # Wait for the first is_final signal (or max_wait as fallback)
-            with contextlib.suppress(TimeoutError):
-                await asyncio.wait_for(second_pass_trigger.wait(), timeout=sp_max_wait)
-
-            if not is_connected:
-                break
-            second_pass_trigger.clear()
-
-            # Debounce: keep waiting while new finals arrive within sp_debounce
-            deadline = time.monotonic() + sp_debounce
-            max_deadline = last_run + sp_max_wait
-            while is_connected and time.monotonic() < min(deadline, max_deadline):
-                remaining = min(deadline, max_deadline) - time.monotonic()
-                if remaining <= 0:
-                    break
-                try:
-                    await asyncio.wait_for(second_pass_trigger.wait(), timeout=remaining)
-                    second_pass_trigger.clear()
-                    deadline = time.monotonic() + sp_debounce  # reset debounce
-                except TimeoutError:
-                    break
-
-            if not is_connected:
-                break
-
-            # Slice audio at the last sentence boundary, not at the current
-            # stream position, to avoid sending partial utterances.
-            end = latest_final_chunk_idx
-            if end <= second_pass_cursor:
-                logger.debug(
-                    "[omi-compat] Second-pass skip: end=%d <= cursor=%d",
-                    end,
-                    second_pass_cursor,
-                )
-                continue
-            chunks_slice = audio_chunks[second_pass_cursor:end]
-            start = second_pass_cursor
-            second_pass_cursor = end
-            last_run = time.monotonic()
-            logger.info(
-                f"[omi-compat] Second-pass triggered (debounce): processing chunks [{start}:{end}]"
-            )
-            await _run_second_pass(chunks_slice)
-
-    async def _second_pass_final():
-        """Run second-pass on any remaining unprocessed audio at disconnect.
-
-        At disconnect we use ``latest_final_chunk_idx`` as the end boundary
-        (same sentence-alignment logic).  Any trailing audio after the last
-        ``is_final`` is intentionally excluded — it's incomplete speech.
-        """
-        nonlocal second_pass_cursor
-        if second_pass_processor is None:
-            return
-        end = latest_final_chunk_idx
-        if end <= second_pass_cursor:
-            return
-        chunks_slice = audio_chunks[second_pass_cursor:end]
-        start = second_pass_cursor
-        second_pass_cursor = end
-        logger.info(f"[omi-compat] Second-pass final: processing chunks [{start}:{end}]")
-        await _run_second_pass(chunks_slice)
-
     # ---- Run all tasks concurrently ----
 
     tasks = [
@@ -641,7 +333,7 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
         asyncio.create_task(_result_forwarder()),
     ]
     if second_pass_processor is not None:
-        tasks.append(asyncio.create_task(_second_pass_timer()))
+        tasks.append(asyncio.create_task(second_pass_runner.timer_loop()))
 
     try:
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -651,8 +343,7 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
             if not t.done():
                 t.cancel()
 
-        # Run final second-pass on remaining audio before closing
-        await _second_pass_final()
+        await second_pass_runner.final_flush()
 
         if speaker_diarizer is not None:
             speaker_diarizer.stop()
@@ -663,12 +354,7 @@ async def omi_listen(  # noqa: C901, PLR0912, PLR0913, PLR0915
                 websocket.application_state == WebSocketState.CONNECTED
                 and websocket.client_state == WebSocketState.CONNECTED
             ):
-                await websocket.send_json(
-                    {
-                        "type": "last_conversation",
-                        "conversation_id": session_id,
-                    }
-                )
+                await websocket.send_json(build_last_conversation_event(session_id))
         except Exception as exc:
             logger.debug(f"Failed to send final conversation event: {exc}")
 

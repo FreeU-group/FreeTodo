@@ -280,7 +280,10 @@ PerceptionStream (L0)
 | `routers/audio_ws.py` | 音频 WebSocket 路由、流生成、回调 |
 | `routers/audio_ws_handler.py` | 转录流程编排、感知流发布 |
 | `routers/audio_ws_segment.py` | 24x7 分段监控与保存 |
-| `routers/omi_compat/listen.py` | `/v4/listen` 实现、二次处理 |
+| `routers/omi_compat/listen.py` | `/v4/listen` WebSocket 编排与路由入口 |
+| `routers/omi_compat/listen_audio.py` | `/v4/listen` 的 Opus/PCM 解码辅助 |
+| `routers/omi_compat/listen_events.py` | omi 兼容消息体构建辅助 |
+| `routers/omi_compat/listen_second_pass.py` | `/v4/listen` 二次处理去抖与下行推送辅助 |
 | `routers/audio.py` | 音频路由注册、录音列表 |
 | `routers/hardware_audio.py` | 硬件音频流 |
 | `routers/perception_ws.py` | 感知流 WebSocket |
