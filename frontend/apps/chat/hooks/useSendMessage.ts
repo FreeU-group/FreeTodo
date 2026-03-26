@@ -454,21 +454,7 @@ export const useSendMessage = ({
 					setError,
 				);
 			} finally {
-				// 清理
-				if (requestSessionId) {
-					sessionCache.unmarkStreaming(requestSessionId);
-
-					// 保存最终消息状态
-					const sessionIdToSave = requestSessionId;
-					setMessages((currentMsgs) => {
-						if (currentMsgs.length > 0) {
-							sessionCache.saveMessages(sessionIdToSave, currentMsgs);
-						}
-						return currentMsgs;
-					});
-				}
-
-				// 检查是否应该更新 isStreaming
+				// 立即关闭流式状态，让用户看到回复已完成（后续保存操作在后台进行）
 				if (streamController.isActiveRequest(requestId)) {
 					const currentDisplayedSessionId =
 						useChatStore.getState().conversationId;
@@ -480,7 +466,19 @@ export const useSendMessage = ({
 					}
 				}
 
-				// 清理 abortController
+				// 清理缓存和保存（在 isStreaming 已关闭后进行）
+				if (requestSessionId) {
+					sessionCache.unmarkStreaming(requestSessionId);
+
+					const sessionIdToSave = requestSessionId;
+					setMessages((currentMsgs) => {
+						if (currentMsgs.length > 0) {
+							sessionCache.saveMessages(sessionIdToSave, currentMsgs);
+						}
+						return currentMsgs;
+					});
+				}
+
 				if (streamController.isActiveRequest(requestId)) {
 					streamController.cleanupAbortController();
 				}
