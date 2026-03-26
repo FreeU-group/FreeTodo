@@ -21,3 +21,8 @@
 - Run all security checks with `pre-commit run bandit --all-files`.
 - Run Bandit directly with `uv run --project server --no-sync bandit -c bandit.yaml -r server scripts`.
 - Fix or explicitly document acceptable findings before committing backend changes.
+
+## CI Alignment
+
+- `.github/workflows/pre-commit.yml` now follows the current repo layout: `server/`, `client/`, `cli/`, `frontend/`, and `frontend/src-tauri/`.
+- The GitHub Actions workflow runs the same active hook names as local pre-commit, including `bandit`, `check-python-code-lines`, `check-frontend-code-lines`, and `check-tauri-rust-code-lines`.
