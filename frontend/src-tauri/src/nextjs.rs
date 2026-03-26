@@ -127,6 +127,43 @@ fn get_server_path(app: &AppHandle) -> Result<PathBuf, String> {
     Err(format!("Server file not found under {:?}", resource_path))
 }
 
+#[cfg(unix)]
+fn cleanup_stale_nextjs_servers() {
+    let patterns = [
+        "FreeTodo.app/Contents/Resources/standalone/server.js",
+        "FreeTodo.app/Contents/Resources/_up_/.next/standalone/server.js",
+        "FreeTodo.app/Contents/Resources/.next/standalone/server.js",
+    ];
+
+    for pattern in patterns {
+        match Command::new("pkill").args(["-f", pattern]).output() {
+            Ok(output) if output.status.success() => {
+                info!(
+                    "Stopped stale FreeTodo frontend servers matching pattern: {}",
+                    pattern
+                );
+            }
+            Ok(output) if output.status.code() == Some(1) => {}
+            Ok(output) => {
+                warn!(
+                    "Failed to stop stale frontend servers for pattern {}: {}",
+                    pattern,
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+            Err(err) => {
+                warn!(
+                    "Failed to run pkill for stale frontend cleanup ({}): {}",
+                    pattern, err
+                );
+            }
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn cleanup_stale_nextjs_servers() {}
+
 /// Start the Next.js server
 pub async fn start_nextjs(app: &AppHandle) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // In development mode, expect external dev server
@@ -160,6 +197,8 @@ pub async fn start_nextjs(app: &AppHandle) -> Result<(), Box<dyn std::error::Err
 
     // Production mode: start standalone server
     info!("Starting Next.js production server...");
+
+    cleanup_stale_nextjs_servers();
 
     // Get server path
     let server_path = get_server_path(app)?;
