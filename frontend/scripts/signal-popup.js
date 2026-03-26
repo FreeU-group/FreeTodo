@@ -515,6 +515,7 @@ app.whenReady().then(() => {
 		y,
 		frame: false,
 		transparent: true,
+		backgroundColor: "#00000000",
 		alwaysOnTop: true,
 		skipTaskbar: false,
 		resizable: false,
