@@ -184,11 +184,11 @@ function getPanelHtml(data) {
 		display:flex;
 		flex-direction:column;
 		border-radius:16px;
-		background:rgba(28,28,28,.75);
-		backdrop-filter:blur(40px) saturate(1.8);
-		-webkit-backdrop-filter:blur(40px) saturate(1.8);
-		box-shadow:0 8px 32px rgba(0,0,0,.4);
-		border:1px solid rgba(255,255,255,.08);
+		background:rgba(24,24,27,.95);
+		backdrop-filter:blur(20px);
+		-webkit-backdrop-filter:blur(20px);
+		box-shadow:0 8px 32px rgba(0,0,0,.5);
+		border:1px solid rgba(255,255,255,.1);
 		overflow:hidden;
 		color:#e2e8f0;
 	}
