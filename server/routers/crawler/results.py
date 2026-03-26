@@ -11,15 +11,15 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from routers.crawler_common import (
+from .common import (
     extract_config_value,
     get_crawler_dir,
     logger,
     read_config_file,
     try_get_crawler_dir,
 )
-from routers.crawler_media import get_proxied_avatar_url, get_proxied_image_url
-from routers.crawler_runtime import runtime_state
+from .media import get_proxied_avatar_url, get_proxied_image_url
+from .runtime import runtime_state
 
 PLATFORM_FIELD_MAPPING = {
     "aweme_id": "note_id",

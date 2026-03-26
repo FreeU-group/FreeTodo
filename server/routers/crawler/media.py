@@ -9,7 +9,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from routers.crawler_common import logger
+from .common import logger
 
 PLATFORM_VIDEO_HEADERS = {
     "douyin": {

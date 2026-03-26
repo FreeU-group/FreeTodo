@@ -9,7 +9,7 @@ import re
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from routers.crawler_common import logger
+from .common import logger
 
 STOPWORDS = {
     "的",

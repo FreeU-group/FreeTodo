@@ -6,7 +6,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from routers.crawler_common import (
+from .common import (
     get_cookies_config_path,
     logger,
     try_get_cookies_config_path,

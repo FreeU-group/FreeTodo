@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from routers.crawler_common import (
+from .common import (
     PLUGIN_NOT_INSTALLED_MSG,
     CrawlerConfigResponse,
     CrawlerConfigUpdate,
