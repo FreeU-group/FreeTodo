@@ -1169,6 +1169,7 @@
 		"whoFounder": "Founder",
 		"whoExecutor": "Executor",
 		"when": "When",
+		"where": "Where",
 		"dedupeKey": "Dedupe key",
 		"intentType": "Intent type",
 		"inviter": "Inviter",

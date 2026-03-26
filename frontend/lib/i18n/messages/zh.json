@@ -1169,6 +1169,7 @@
 		"whoFounder": "发起人",
 		"whoExecutor": "执行人",
 		"when": "时间",
+		"where": "地点",
 		"dedupeKey": "去重Key",
 		"intentType": "意图类型",
 		"inviter": "邀请人",
