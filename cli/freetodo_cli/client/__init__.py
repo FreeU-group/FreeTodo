@@ -2,47 +2,28 @@
 
 from __future__ import annotations
 
-import json
-import mimetypes
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from freetodo_cli.errors import CliError, map_status_to_exit_code
+from freetodo_cli.client_chat import ChatRequest
+from freetodo_cli.client_helpers import (
+    NO_CONTENT_STATUS,
+    build_upload_list,
+    collect_json_lines,
+    collect_stream_chunks,
+    extract_error,
+    get_request_id,
+    map_http_error,
+    read_file_payload,
+    write_download,
+)
+from freetodo_cli.errors import CliError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from freetodo_cli.config import CliConfig
-
-
-NO_CONTENT_STATUS = 204
-
-
-def _extract_error(response: httpx.Response) -> CliError:
-    """Convert an error response into a structured CLI error."""
-    message = f"Request failed with status {response.status_code}"
-    details: dict[str, Any] | None = None
-    try:
-        payload = response.json()
-    except ValueError:
-        payload = None
-
-    if isinstance(payload, dict):
-        detail = payload.get("detail")
-        if isinstance(detail, str):
-            message = detail
-        elif isinstance(detail, dict):
-            message = str(detail.get("message") or detail.get("code") or message)
-            details = detail
-        else:
-            details = payload
-
-    return CliError(
-        code=f"HTTP_{response.status_code}",
-        message=message,
-        exit_code=map_status_to_exit_code(response.status_code),
-        details=details,
-    )
 
 
 class ApiClient:
@@ -53,35 +34,20 @@ class ApiClient:
         if config.api_token:
             headers["Authorization"] = f"Bearer {config.api_token}"
         self._client = httpx.Client(
-            base_url=config.base_url,
-            timeout=config.timeout_sec,
-            headers=headers,
+            base_url=config.base_url, timeout=config.timeout_sec, headers=headers
         )
 
     def close(self) -> None:
-        """Close the underlying HTTP client."""
         self._client.close()
 
     def _request(self, method: str, path: str, **kwargs: Any) -> tuple[Any, str | None]:
         try:
             response = self._client.request(method, path, **kwargs)
-        except httpx.ConnectError as exc:
-            raise CliError(
-                code="BACKEND_UNAVAILABLE",
-                message=f"Cannot connect to backend: {exc}",
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
         except httpx.HTTPError as exc:
-            raise CliError(
-                code="HTTP_ERROR",
-                message=str(exc),
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
-
+            raise map_http_error(exc) from exc
         if response.is_error:
-            raise _extract_error(response)
-
-        request_id = response.headers.get("X-Request-Id") or response.headers.get("X-Request-ID")
+            raise extract_error(response)
+        request_id = get_request_id(response)
         if response.status_code == NO_CONTENT_STATUS or not response.content:
             return None, request_id
         return response.json(), request_id
@@ -89,28 +55,11 @@ class ApiClient:
     def _download(self, path: str, output_path: str) -> tuple[Any, str | None]:
         try:
             response = self._client.get(path)
-        except httpx.ConnectError as exc:
-            raise CliError(
-                code="BACKEND_UNAVAILABLE",
-                message=f"Cannot connect to backend: {exc}",
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
         except httpx.HTTPError as exc:
-            raise CliError(
-                code="HTTP_ERROR",
-                message=str(exc),
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
+            raise map_http_error(exc) from exc
         if response.is_error:
-            raise _extract_error(response)
-        output = Path(output_path)
-        output.write_bytes(response.content)
-        request_id = response.headers.get("X-Request-Id") or response.headers.get("X-Request-ID")
-        return {"saved_to": str(output.resolve()), "bytes": len(response.content)}, request_id
-
-    def health_check(self) -> tuple[Any, str | None]:
-        """Check backend health."""
-        return self._request("GET", "/health")
+            raise extract_error(response)
+        return write_download(response, output_path), get_request_id(response)
 
 
 class TodoApiClient(ApiClient):
@@ -138,20 +87,15 @@ class TodoApiClient(ApiClient):
         return self._request("POST", "/api/todos/reorder", json=payload)
 
     def upload_attachments(self, todo_id: int, file_paths: list[str]) -> tuple[Any, str | None]:
-        files = []
         try:
-            for file_path in file_paths:
-                file_name = Path(file_path).name
-                files.append(
-                    ("files", (file_name, Path(file_path).read_bytes(), "application/octet-stream"))
-                )
-            return self._request("POST", f"/api/todos/{todo_id}/attachments", files=files)
+            files = build_upload_list("files", file_paths)
         except OSError as exc:
             raise CliError(
                 code="FILE_READ_ERROR",
                 message=f"Failed to read attachment file: {exc}",
                 exit_code=2,
             ) from exc
+        return self._request("POST", f"/api/todos/{todo_id}/attachments", files=files)
 
     def delete_attachment(self, todo_id: int, attachment_id: int) -> tuple[Any, str | None]:
         return self._request("DELETE", f"/api/todos/{todo_id}/attachments/{attachment_id}")
@@ -172,42 +116,28 @@ class TodoApiClient(ApiClient):
             params["status"] = status
         try:
             response = self._client.get("/api/todos/export/ics", params=params)
-        except httpx.ConnectError as exc:
-            raise CliError(
-                code="BACKEND_UNAVAILABLE",
-                message=f"Cannot connect to backend: {exc}",
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
         except httpx.HTTPError as exc:
-            raise CliError(
-                code="HTTP_ERROR",
-                message=str(exc),
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
+            raise map_http_error(exc) from exc
         if response.is_error:
-            raise _extract_error(response)
-        output = Path(output_path)
-        output.write_bytes(response.content)
-        request_id = response.headers.get("X-Request-Id") or response.headers.get("X-Request-ID")
-        return {"saved_to": str(output.resolve()), "bytes": len(response.content)}, request_id
+            raise extract_error(response)
+        return write_download(response, output_path), get_request_id(response)
 
     def import_ics(self, file_path: str) -> tuple[Any, str | None]:
         try:
-            path = Path(file_path)
-            files = {"file": (path.name, path.read_bytes(), "text/calendar")}
+            name, content, content_type = read_file_payload(file_path, content_type="text/calendar")
         except OSError as exc:
             raise CliError(
-                code="FILE_READ_ERROR",
-                message=f"Failed to read ICS file: {exc}",
-                exit_code=2,
+                code="FILE_READ_ERROR", message=f"Failed to read ICS file: {exc}", exit_code=2
             ) from exc
-        return self._request("POST", "/api/todos/import/ics", files=files)
+        return self._request(
+            "POST", "/api/todos/import/ics", files={"file": (name, content, content_type)}
+        )
 
 
 class ChatApiClient(ApiClient):
     """Chat streaming API client."""
 
-    def stream_chat(
+    def stream_chat(  # noqa: PLR0913
         self,
         *,
         message: str,
@@ -222,81 +152,36 @@ class ChatApiClient(ApiClient):
         use_rag: bool | None,
         on_chunk: Callable[[str], None] | None = None,
     ) -> tuple[Any, str | None]:
-        files = None
-        data: list[tuple[str, str]] = []
-
-        def _append_field(key: str, value: str | None) -> None:
-            if value is None:
-                return
-            data.append((key, value))
-
-        _append_field("message", message)
-        _append_field("user_input", user_input)
-        _append_field("mode", mode)
-        _append_field("context", context)
-        _append_field("system_prompt", system_prompt)
-        _append_field("conversation_id", conversation_id)
-        if use_rag is not None:
-            _append_field("use_rag", str(use_rag))
-        for tool in selected_tools or []:
-            _append_field("selected_tools", tool)
-        for tool in external_tools or []:
-            _append_field("external_tools", tool)
-
-        if attachments:
-            files = []
-            for file_path in attachments:
-                path = Path(file_path)
-                content_type = (
-                    mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-                )
-                files.append(
-                    ("attachments", (path.name, path.read_bytes(), content_type))
-                )
-
+        request = ChatRequest(
+            message=message,
+            user_input=user_input,
+            mode=mode,
+            attachments=attachments,
+            selected_tools=selected_tools,
+            external_tools=external_tools,
+            context=context,
+            system_prompt=system_prompt,
+            conversation_id=conversation_id,
+            use_rag=use_rag,
+            on_chunk=on_chunk,
+        )
         try:
             with self._client.stream(
-                "POST", "/api/chat/stream", data=data, files=files
+                "POST", "/api/chat/stream", data=request.form_data(), files=request.files()
             ) as response:
                 if response.is_error:
                     response.read()
-                    raise _extract_error(response)
-                session_id = response.headers.get("X-Session-Id")
-                request_id = response.headers.get("X-Request-Id") or response.headers.get(
-                    "X-Request-ID"
-                )
-                chunks: list[str] = []
-                for chunk in response.iter_text():
-                    if not chunk:
-                        continue
-                    chunks.append(chunk)
-                    if on_chunk:
-                        on_chunk(chunk)
-                return {"session_id": session_id, "response": "".join(chunks)}, request_id
-        except httpx.ConnectError as exc:
-            raise CliError(
-                code="BACKEND_UNAVAILABLE",
-                message=f"Cannot connect to backend: {exc}",
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
+                    raise extract_error(response)
+                return collect_stream_chunks(response, on_chunk=on_chunk), get_request_id(response)
         except httpx.HTTPError as exc:
-            raise CliError(
-                code="HTTP_ERROR",
-                message=str(exc),
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
+            raise map_http_error(exc) from exc
 
 
 class JournalApiClient(ApiClient):
     """Journal-focused API client."""
 
     def list_journals(
-        self,
-        *,
-        limit: int,
-        offset: int,
-        start_date: str | None,
-        end_date: str | None,
+        self, *, limit: int, offset: int, start_date: str | None, end_date: str | None
     ) -> tuple[Any, str | None]:
         params = {"limit": limit, "offset": offset}
         if start_date:
@@ -331,12 +216,7 @@ class ActivityApiClient(ApiClient):
     """Activity-focused API client."""
 
     def list_activities(
-        self,
-        *,
-        limit: int,
-        offset: int,
-        start_date: str | None,
-        end_date: str | None,
+        self, *, limit: int, offset: int, start_date: str | None, end_date: str | None
     ) -> tuple[Any, str | None]:
         params = {"limit": limit, "offset": offset}
         if start_date:
@@ -374,11 +254,7 @@ class EventApiClient(ApiClient):
         return self._request("GET", "/api/events", params=params)
 
     def count_events(
-        self,
-        *,
-        start_date: str | None,
-        end_date: str | None,
-        app_name: str | None,
+        self, *, start_date: str | None, end_date: str | None, app_name: str | None
     ) -> tuple[Any, str | None]:
         params: dict[str, Any] = {}
         if start_date:
@@ -440,8 +316,11 @@ class MemoryApiClient(ApiClient):
         return self._request("GET", f"/api/memory/raw/{date_str}")
 
     def search_memory(self, *, keyword: str, days: int, max_results: int) -> tuple[Any, str | None]:
-        params = {"keyword": keyword, "days": days, "max_results": max_results}
-        return self._request("GET", "/api/memory/search", params=params)
+        return self._request(
+            "GET",
+            "/api/memory/search",
+            params={"keyword": keyword, "days": days, "max_results": max_results},
+        )
 
     def list_memory_dates(self) -> tuple[Any, str | None]:
         return self._request("GET", "/api/memory/dates")
@@ -562,8 +441,9 @@ class SchedulerApiClient(ApiClient):
         return self._request("DELETE", f"/api/scheduler/jobs/{job_id}")
 
     def update_job_interval(self, job_id: str, payload: dict[str, Any]) -> tuple[Any, str | None]:
-        payload_with_id = {"job_id": job_id, **payload}
-        return self._request("PUT", f"/api/scheduler/jobs/{job_id}/interval", json=payload_with_id)
+        return self._request(
+            "PUT", f"/api/scheduler/jobs/{job_id}/interval", json={"job_id": job_id, **payload}
+        )
 
     def pause_all_jobs(self) -> tuple[Any, str | None]:
         return self._request("POST", "/api/scheduler/jobs/pause-all")
@@ -725,31 +605,10 @@ class PluginsApiClient(ApiClient):
             ) as response:
                 if response.is_error:
                     response.read()
-                    raise _extract_error(response)
-                steps: list[Any] = []
-                for line in response.iter_lines():
-                    if not line:
-                        continue
-                    try:
-                        steps.append(json.loads(line))
-                    except Exception:
-                        steps.append({"raw": line})
-                request_id = response.headers.get("X-Request-Id") or response.headers.get(
-                    "X-Request-ID"
-                )
-                return {"steps": steps}, request_id
-        except httpx.ConnectError as exc:
-            raise CliError(
-                code="BACKEND_UNAVAILABLE",
-                message=f"Cannot connect to backend: {exc}",
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
+                    raise extract_error(response)
+                return collect_json_lines(response), get_request_id(response)
         except httpx.HTTPError as exc:
-            raise CliError(
-                code="HTTP_ERROR",
-                message=str(exc),
-                exit_code=map_status_to_exit_code(503),
-            ) from exc
+            raise map_http_error(exc) from exc
 
 
 class ConfigApiClient(ApiClient):

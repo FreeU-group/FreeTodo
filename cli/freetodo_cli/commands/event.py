@@ -32,7 +32,7 @@ def create_event_client() -> EventApiClient:
 
 
 @event_app.command("list")
-def list_events(
+def list_events(  # noqa: PLR0913
     limit: Annotated[
         int,
         typer.Option("--limit", min=1, max=200, help="Maximum number of events to return."),

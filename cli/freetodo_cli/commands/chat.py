@@ -21,8 +21,8 @@ chat_app = typer.Typer(
         "Chat streaming commands.\n\n"
         "Use this for debugging chat payloads and attachment uploads.\n\n"
         "Examples:\n"
-        "  freetodo chat send --message \"Read this image\" --attachment ./shot.png\n"
-        "  freetodo chat send --message \"hello\" --mode agno --json\n"
+        '  freetodo chat send --message "Read this image" --attachment ./shot.png\n'
+        '  freetodo chat send --message "hello" --mode agno --json\n'
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -34,7 +34,7 @@ def create_chat_client() -> ChatApiClient:
 
 
 @chat_app.command("send")
-def chat_send(
+def chat_send(  # noqa: PLR0913
     message: Annotated[
         str,
         typer.Option(
@@ -44,25 +44,25 @@ def chat_send(
         ),
     ],
     attachment: Annotated[
-        list[str],
+        list[str] | None,
         typer.Option(
             "--attachment",
             "-a",
             help="Local file paths to upload as attachments.",
         ),
-    ] = [],
+    ] = None,
     mode: Annotated[
         str,
         typer.Option("--mode", help="Chat mode. Default: agno."),
     ] = "agno",
     selected_tool: Annotated[
-        list[str],
+        list[str] | None,
         typer.Option("--tool", help="Selected tool names (repeatable)."),
-    ] = [],
+    ] = None,
     external_tool: Annotated[
-        list[str],
+        list[str] | None,
         typer.Option("--external-tool", help="External tool names (repeatable)."),
-    ] = [],
+    ] = None,
     conversation_id: Annotated[
         str | None,
         typer.Option("--conversation-id", help="Attach to an existing conversation."),
@@ -77,6 +77,9 @@ def chat_send(
     ] = False,
 ) -> None:
     try:
+        attachment = attachment or []
+        selected_tool = selected_tool or []
+        external_tool = external_tool or []
         resolved_files = [str(read_existing_file(path)) for path in attachment]
         payload_preview = {
             "message": message,

@@ -32,7 +32,7 @@ def create_screenshot_client() -> ScreenshotApiClient:
 
 
 @screenshot_app.command("list")
-def list_screenshots(
+def list_screenshots(  # noqa: PLR0913
     limit: Annotated[
         int,
         typer.Option("--limit", min=1, max=200, help="Maximum number of screenshots to return."),

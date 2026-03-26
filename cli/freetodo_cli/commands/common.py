@@ -87,7 +87,7 @@ def model_payload(model_cls: type[Any], payload: dict[str, Any]) -> dict[str, An
     return model.model_dump(mode="json", exclude_unset=True)
 
 
-def emit_success(
+def emit_success(  # noqa: PLR0913
     *,
     resource: str,
     action: str,
