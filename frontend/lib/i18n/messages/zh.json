@@ -936,7 +936,7 @@
 		"captureSettings": "采集配置",
 		"screenshotOcr": "截屏 OCR",
 		"screenshotOcrDesc": "定时截取屏幕并进行文字识别，将结果发送到中心节点",
-		"proactiveOcrDesc": "自动检测微信/飞书等目标窗口并进行OCR识别（仅Windows）",
+		"proactiveOcrDesc": "自动检测微信等目标窗口并进行OCR识别",
 		"audioPerception": "音频流感知",
 		"audioPerceptionDesc": "通过 PC 节点持续采集麦克风音频流，发送到中心节点进行语音识别",
 		"screenRecorderSettings": "屏幕录制设置",
@@ -1001,7 +1001,7 @@
 			"clean_data_job": "清理过期的截图和数据",
 			"activity_aggregator_job": "聚合用户活动事件",
 			"deadline_reminder_job": "检查待办事项的截止日期，根据提醒设置发送通知",
-			"proactive_ocr_job": "自动检测并处理微信/飞书窗口进行OCR识别（仅Windows）",
+			"proactive_ocr_job": "自动检测微信等目标窗口并进行OCR识别",
 			"audio_recording_job": "7x24小时持续录音，实时转录和提取信息（间隔为状态检查间隔，非录音间隔）",
 			"diary_illustration_job": "按计划为日记生成插画，并将结果回写到日记内容中"
 		}

@@ -936,7 +936,7 @@
 		"captureSettings": "Capture Settings",
 		"screenshotOcr": "Screenshot OCR",
 		"screenshotOcrDesc": "Periodically capture screen and run OCR, send results to Center",
-		"proactiveOcrDesc": "Auto-detect WeChat/Feishu windows and run OCR (Windows only)",
+		"proactiveOcrDesc": "Auto-detect WeChat windows and run OCR",
 		"audioPerception": "Audio Stream Perception",
 		"audioPerceptionDesc": "Continuously capture PC microphone audio stream and send to Center for ASR",
 		"screenRecorderSettings": "Screen Recorder Settings",
@@ -1001,7 +1001,7 @@
 			"clean_data_job": "Clean up expired screenshots and data",
 			"activity_aggregator_job": "Aggregate user activity events",
 			"deadline_reminder_job": "Check todo deadlines and send notifications based on reminder settings",
-			"proactive_ocr_job": "Automatically detect and process WeChat/Feishu windows for OCR (Windows only)",
+			"proactive_ocr_job": "Auto-detect WeChat windows and run OCR",
 			"audio_recording_job": "7x24 continuous audio recording with real-time transcription and information extraction",
 			"diary_illustration_job": "Generate diary illustrations on schedule and write the results back into diary entries"
 		}
