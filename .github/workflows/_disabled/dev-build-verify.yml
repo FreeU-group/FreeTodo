@@ -49,10 +49,10 @@ jobs:
           sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
-        working-directory: free-todo-frontend
+        working-directory: frontend
       - name: Build Tauri bundle
         run: pnpm run build:tauri:${{ env.TAURI_VARIANT }}:${{ env.BACKEND_RUNTIME }}:full:${{ matrix.script_suffix }}
-        working-directory: free-todo-frontend
+        working-directory: frontend
 
   electron-build-verify:
     continue-on-error: true
@@ -71,10 +71,10 @@ jobs:
           version: "9"
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
-        working-directory: free-todo-frontend
+        working-directory: frontend
       - name: Build Electron app (dir)
         run: pnpm run build:electron:web:script:full:dir
-        working-directory: free-todo-frontend
+        working-directory: frontend
 
   web-build-verify:
     continue-on-error: true
@@ -89,10 +89,10 @@ jobs:
           version: "9"
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
-        working-directory: free-todo-frontend
+        working-directory: frontend
       - name: Build frontend (web)
         run: pnpm run build:frontend:web
-        working-directory: free-todo-frontend
+        working-directory: frontend
 
   backend-uv-verify:
     continue-on-error: true

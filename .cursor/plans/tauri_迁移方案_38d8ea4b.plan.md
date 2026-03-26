@@ -98,10 +98,10 @@ graph TB
 
 ## 第一步：创建 Tauri 项目结构
 
-在 `free-todo-frontend/` 目录下初始化 Tauri：
+在 `frontend/` 目录下初始化 Tauri：
 
 ```
-free-todo-frontend/
+frontend/
 ├── src-tauri/              # 新增：Tauri Rust 代码
 │   ├── Cargo.toml
 │   ├── tauri.conf.json
@@ -119,7 +119,7 @@ free-todo-frontend/
 **命令**：
 
 ```bash
-cd free-todo-frontend
+cd frontend
 pnpm add -D @tauri-apps/cli@latest
 pnpm tauri init
 ```
@@ -258,23 +258,23 @@ async fn wait_for_backend(port: u16, timeout_secs: u64) -> Result<(), &'static s
 
 |--------------|-----------|---------|
 
-| [`main.ts`](free-todo-frontend/electron/main.ts) | `src/main.rs` | 重写（Rust） |
+| [`main.ts`](frontend/electron/main.ts) | `src/main.rs` | 重写（Rust） |
 
-| [`backend-server.ts`](free-todo-frontend/electron/backend-server.ts) | `src/backend.rs` | 重写（Rust） |
+| [`backend-server.ts`](frontend/electron/backend-server.ts) | `src/backend.rs` | 重写（Rust） |
 
-| [`next-server.ts`](free-todo-frontend/electron/next-server.ts) | `src/nextjs.rs` | 重写（Rust） |
+| [`next-server.ts`](frontend/electron/next-server.ts) | `src/nextjs.rs` | 重写（Rust） |
 
-| [`window-manager.ts`](free-todo-frontend/electron/window-manager.ts) | `tauri.conf.json` | 配置化 |
+| [`window-manager.ts`](frontend/electron/window-manager.ts) | `tauri.conf.json` | 配置化 |
 
-| [`tray-manager.ts`](free-todo-frontend/electron/tray-manager.ts) | Tauri SystemTray API | 重写（Rust） |
+| [`tray-manager.ts`](frontend/electron/tray-manager.ts) | Tauri SystemTray API | 重写（Rust） |
 
-| [`global-shortcut-manager.ts`](free-todo-frontend/electron/global-shortcut-manager.ts) | Tauri GlobalShortcut Plugin | 重写（Rust） |
+| [`global-shortcut-manager.ts`](frontend/electron/global-shortcut-manager.ts) | Tauri GlobalShortcut Plugin | 重写（Rust） |
 
-| [`ipc-handlers.ts`](free-todo-frontend/electron/ipc-handlers.ts) | Tauri Commands | 按需迁移 |
+| [`ipc-handlers.ts`](frontend/electron/ipc-handlers.ts) | Tauri Commands | 按需迁移 |
 
-| [`preload.ts`](free-todo-frontend/electron/preload.ts) | `withGlobalTauri` | 不需要 |
+| [`preload.ts`](frontend/electron/preload.ts) | `withGlobalTauri` | 不需要 |
 
-| [`config.ts`](free-todo-frontend/electron/config.ts) | Rust 配置模块 | 重写（Rust） |
+| [`config.ts`](frontend/electron/config.ts) | Rust 配置模块 | 重写（Rust） |
 
 ---
 
@@ -299,7 +299,7 @@ tauri-build = "2"
 
 ### 5.2 打包脚本更新
 
-修改 [`package.json`](free-todo-frontend/package.json)：
+修改 [`package.json`](frontend/package.json)：
 
 ```json
 {
@@ -354,16 +354,16 @@ const response = await fetch('http://localhost:8001/api/todos');
 cd lifetrace && python -m lifetrace.server
 
 # 终端 2：启动 Next.js 开发服务器
-cd free-todo-frontend && pnpm dev
+cd frontend && pnpm dev
 
 # 终端 3：启动 Tauri 开发模式
-cd free-todo-frontend && pnpm tauri dev
+cd frontend && pnpm tauri dev
 ```
 
 ### 7.2 生产构建
 
 ```bash
-cd free-todo-frontend
+cd frontend
 
 # 1. 构建 Next.js standalone
 pnpm build

@@ -69,7 +69,7 @@ python -m lifetrace.server
 前端（新终端）：
 
 ```bash
-pnpm -C free-todo-frontend dev
+pnpm -C frontend dev
 ```
 
 如果你不用 `pnpm dev`（自动探测后端），请确保设置 `NEXT_PUBLIC_API_URL` 指向后端地址。

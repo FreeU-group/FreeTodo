@@ -124,6 +124,5 @@ deploy-*
 # sensor debug images
 sensor_debug/
 
-# free-todo-frontend runtime artifacts
-free-todo-frontend/.notification-popup.json
-free-todo-frontend/next-env.d.ts
+# frontend runtime artifacts
+frontend/.notification-popup.json

@@ -1,4 +1,4 @@
-# Frontend Development Quick Commands (free-todo-frontend version)
+# Frontend Development Quick Commands (frontend version)
 
 ## Tech Stack Information
 
@@ -29,7 +29,7 @@ Create a new React component based on project conventions, including:
 - Responsive design
 - Internationalization support (if needed)
 
-Please create components in the `free-todo-frontend/components/` directory and follow the project's code conventions.
+Please create components in the `frontend/components/` directory and follow the project's code conventions.
 
 ### Creating Shadcn UI Components
 
@@ -53,8 +53,8 @@ Create custom components based on existing Shadcn UI components:
 
 The project uses next-intl for internationalization, with language switching managed through Zustand store (no URL routing mode).
 
-- **Translation Files**: `free-todo-frontend/messages/zh.json` and `en.json`
-- **Request Configuration**: `free-todo-frontend/i18n/request.ts`
+- **Translation Files**: `frontend/lib/i18n/messages/zh.json` and `frontend/lib/i18n/messages/en.json`
+- **Request Configuration**: `frontend/lib/i18n/request.ts`
 - **Language Management**: `lib/store/locale.ts` (syncs to cookie on switch)
 - **Access Method**: `useTranslations(namespace)` imported from `next-intl`
 

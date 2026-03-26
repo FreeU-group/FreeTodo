@@ -129,7 +129,7 @@ import axios from "axios"
 ## 📦 项目结构
 
 ```
-free-todo-frontend/
+frontend/
 ├── app/                      # Next.js App Router
 │   ├── layout.tsx           # 根布局
 │   ├── page.tsx             # 首页

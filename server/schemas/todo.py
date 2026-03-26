@@ -1,7 +1,7 @@
 """待办事项（Todo）相关的 Pydantic 模型
 
 说明：
-- 该模块面向 free-todo-frontend 的 Todo 结构（支持 deadline/priority/tags/attachments 等）
+- 该模块面向 frontend 的 Todo 结构（支持 deadline/priority/tags/attachments 等）
 - 数据库存储使用 lifetrace.storage.models 中的 Todo/Tag/Attachment 相关表
 """
 
