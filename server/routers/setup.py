@@ -66,6 +66,15 @@ async def get_setup_status():
     return {"completed": completed}
 
 
+@router.get("/default-directory")
+async def get_default_directory():
+    """返回当前系统的桌面路径。"""
+    desktop = Path.home() / "Desktop"
+    if not desktop.exists():
+        desktop = Path.home()
+    return {"directory": str(desktop)}
+
+
 @router.post("/scan-directory")
 async def scan_directory(req: ScanRequest) -> ScanResult:
     """扫描指定目录下最近修改的文件名（不读取文件内容）。"""

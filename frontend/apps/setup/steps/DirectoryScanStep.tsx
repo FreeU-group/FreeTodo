@@ -3,7 +3,7 @@
 import { Check, FolderKanban, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAnalyzeFiles, useScanDirectory } from "@/lib/query/setup";
+import { useAnalyzeFiles, useDefaultDirectory, useScanDirectory } from "@/lib/query/setup";
 import { useSetupStore } from "@/lib/store/setup-store";
 
 interface DirectoryScanStepProps {
@@ -36,16 +36,12 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 	} = useSetupStore();
 	const scanMutation = useScanDirectory();
 	const analyzeMutation = useAnalyzeFiles();
+	const { data: defaultDirData } = useDefaultDirectory();
 	const [scanned, setScanned] = useState(false);
 	const [error, setError] = useState("");
 	const analyzeTriggered = useRef(false);
 
-	const defaultDir =
-		typeof navigator !== "undefined" && navigator.userAgent.includes("Windows")
-			? "C:\\Users\\" +
-				(typeof process !== "undefined" ? process.env.USERNAME || "" : "") +
-				"\\Desktop"
-			: "~/Desktop";
+	const defaultDir = defaultDirData?.directory || "~/Desktop";
 
 	const dir = scanDirectory || defaultDir;
 

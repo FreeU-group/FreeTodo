@@ -22,6 +22,14 @@ export function useSetupStatus() {
 	});
 }
 
+export function useDefaultDirectory() {
+	return useQuery({
+		queryKey: ["setup-default-directory"],
+		queryFn: () => fetchJson<{ directory: string }>("/api/setup/default-directory"),
+		staleTime: Infinity,
+	});
+}
+
 export function useScanDirectory() {
 	return useMutation({
 		mutationFn: (args: { directory: string; maxFiles?: number }) =>
