@@ -397,7 +397,9 @@ async def complete_setup(req: CompleteRequest):
             profile_dir = memory_dir / "profile_L4"
             profile_dir.mkdir(parents=True, exist_ok=True)
             profile_file = profile_dir / "user_profile.md"
-            existing = profile_file.read_text(encoding="utf-8").strip() if profile_file.exists() else ""
+            existing = (
+                profile_file.read_text(encoding="utf-8").strip() if profile_file.exists() else ""
+            )
             is_default = not existing or "画像将在积累足够的观察数据后自动生成" in existing
             if is_default:
                 profile_file.write_text(req.initial_profile, encoding="utf-8")

@@ -236,11 +236,7 @@ class TodoIntentExtractor:
         if not llm_client.is_available():
             return []
 
-        model = (
-            str(cfg.get("model", "")).strip()
-            or self._model
-            or llm_client.model
-        )
+        model = str(cfg.get("model", "")).strip() or self._model or llm_client.model
         temperature = float(cfg.get("temperature", self._temperature))
         max_tokens = int(cfg.get("max_tokens", self._max_tokens))
         prompt_category = str(cfg.get("prompt_category", self._prompt_category))

@@ -116,7 +116,15 @@ class SecondPassASRProcessor:
         if self._api_key:
             return self._api_key
         key = settings.get("audio.asr.api_key", "")
-        invalid = {"", "xxx", "YOUR_API_KEY_HERE", "YOUR_ASR_KEY_HERE", "YOUR_LLM_KEY_HERE", "your-api-key", "your-asr-api-key"}
+        invalid = {
+            "",
+            "xxx",
+            "YOUR_API_KEY_HERE",
+            "YOUR_ASR_KEY_HERE",
+            "YOUR_LLM_KEY_HERE",
+            "your-api-key",
+            "your-asr-api-key",
+        }
         if key in invalid:
             key = settings.get("llm.api_key", "")
         self._api_key = key

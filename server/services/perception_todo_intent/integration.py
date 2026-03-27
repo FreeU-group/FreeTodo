@@ -24,7 +24,9 @@ def _is_invitation(candidate: ExtractedTodoCandidate) -> bool:
     if "邀约" in (candidate.tags or []):
         return True
     from schemas.perception_todo_intent import IntentType  # noqa: PLC0415
+
     return candidate.intent_type == IntentType.INVITATION
+
 
 logger = get_logger()
 

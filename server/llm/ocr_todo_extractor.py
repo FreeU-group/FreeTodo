@@ -16,7 +16,6 @@ from llm.llm_client import LLMClient
 from storage import ocr_mgr, todo_mgr
 from util.logging_config import get_logger
 from util.prompt_loader import get_prompt
-from util.settings import settings
 from util.time_utils import get_utc_now
 
 logger = get_logger()
