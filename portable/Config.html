@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FreeTodo Portable - 首次配置</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 640px;
+            width: 100%;
+        }
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #f8fafc;
+        }
+        .subtitle {
+            color: #94a3b8;
+            margin-bottom: 32px;
+            line-height: 1.6;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card h2 .badge {
+            font-size: 11px;
+            background: #ef4444;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-weight: 500;
+        }
+        .card h2 .badge.optional {
+            background: #475569;
+        }
+        .field {
+            margin-bottom: 16px;
+        }
+        .field:last-child {
+            margin-bottom: 0;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 6px;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 14px;
+            font-family: "SF Mono", "Fira Code", monospace;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus {
+            border-color: #3b82f6;
+        }
+        input::placeholder {
+            color: #475569;
+        }
+        .hint {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+        .hint a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            flex: 1;
+        }
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        .output-area {
+            display: none;
+            margin-top: 20px;
+        }
+        .output-area.visible {
+            display: block;
+        }
+        .output-box {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 16px;
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: #a5f3fc;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .success-msg {
+            background: #065f46;
+            border: 1px solid #059669;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-top: 16px;
+            font-size: 14px;
+            color: #a7f3d0;
+        }
+        .steps {
+            margin-top: 24px;
+            padding: 0;
+            list-style: none;
+            counter-reset: step;
+        }
+        .steps li {
+            counter-increment: step;
+            padding: 8px 0 8px 36px;
+            position: relative;
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #334155;
+            color: #e2e8f0;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        code {
+            background: #1e293b;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "SF Mono", "Fira Code", monospace;
+            font-size: 13px;
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FreeTodo Portable</h1>
+        <p class="subtitle">
+            首次使用请填写配置信息，生成后将文件保存到
+            <code>data\config\server.env</code>
+        </p>
+
+        <div class="card">
+            <h2>LLM 模型 <span class="badge">必填</span></h2>
+            <div class="field">
+                <label>API Provider</label>
+                <select id="llm-provider" onchange="updateProviderHint()">
+                    <option value="dashscope">通义千问 DashScope（推荐）</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="custom">自定义 (OpenAI 兼容)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>API Key</label>
+                <input type="password" id="llm-key" placeholder="sk-..." />
+                <p class="hint" id="provider-hint">
+                    <a href="https://dashscope.console.aliyun.com/" target="_blank">前往 DashScope 获取 API Key</a>
+                </p>
+            </div>
+            <div class="field" id="base-url-field">
+                <label>Base URL（使用默认 Provider 可留空）</label>
+                <input type="text" id="llm-base-url" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+            </div>
+            <div class="field">
+                <label>Model Name（留空使用默认）</label>
+                <input type="text" id="llm-model" placeholder="qwen-plus" />
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>语音识别 ASR <span class="badge optional">可选</span></h2>
+            <div class="field">
+                <label>ASR API Key（用于语音转文字）</label>
+                <input type="password" id="asr-key" placeholder="留空则不启用语音功能" />
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>搜索 & 工具 <span class="badge optional">可选</span></h2>
+            <div class="field">
+                <label>Tavily API Key（AI 搜索）</label>
+                <input type="password" id="tavily-key" placeholder="tvly-..." />
+                <p class="hint"><a href="https://tavily.com/" target="_blank">前往 Tavily 获取免费 API Key</a></p>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button class="btn-primary" onclick="generateConfig()">生成配置文件</button>
+            <button class="btn-secondary" onclick="togglePassword()">显示/隐藏密钥</button>
+        </div>
+
+        <div class="output-area" id="output-area">
+            <div class="output-box" id="output-box"></div>
+            <div class="actions" style="margin-top: 12px;">
+                <button class="btn-primary" onclick="downloadConfig()">下载 server.env</button>
+                <button class="btn-secondary" onclick="copyConfig()">复制到剪贴板</button>
+            </div>
+            <div class="success-msg" id="success-msg" style="display:none;"></div>
+
+            <ol class="steps">
+                <li>将下载的 <code>server.env</code> 文件放到 <code>data\config\</code> 目录下</li>
+                <li>双击 <code>Windows-Start.bat</code> 启动所有服务</li>
+                <li>浏览器会自动打开 <code>http://127.0.0.1:3001</code></li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+    const providers = {
+        dashscope: {
+            url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            model: 'qwen-plus',
+            hint: '<a href="https://dashscope.console.aliyun.com/" target="_blank">前往 DashScope 获取 API Key</a>'
+        },
+        deepseek: {
+            url: 'https://api.deepseek.com/v1',
+            model: 'deepseek-chat',
+            hint: '<a href="https://platform.deepseek.com/" target="_blank">前往 DeepSeek 获取 API Key</a>'
+        },
+        openai: {
+            url: 'https://api.openai.com/v1',
+            model: 'gpt-4o',
+            hint: '<a href="https://platform.openai.com/" target="_blank">前往 OpenAI 获取 API Key</a>（需翻墙）'
+        },
+        custom: {
+            url: '',
+            model: '',
+            hint: '填写任意 OpenAI 兼容 API 的地址'
+        }
+    };
+
+    function updateProviderHint() {
+        const p = document.getElementById('llm-provider').value;
+        document.getElementById('provider-hint').innerHTML = providers[p].hint;
+        document.getElementById('llm-base-url').placeholder = providers[p].url || 'https://api.example.com/v1';
+        document.getElementById('llm-model').placeholder = providers[p].model || 'model-name';
+    }
+
+    function generateConfig() {
+        const provider = document.getElementById('llm-provider').value;
+        const key = document.getElementById('llm-key').value.trim();
+        const baseUrl = document.getElementById('llm-base-url').value.trim() || providers[provider].url;
+        const model = document.getElementById('llm-model').value.trim() || providers[provider].model;
+        const asrKey = document.getElementById('asr-key').value.trim();
+        const tavilyKey = document.getElementById('tavily-key').value.trim();
+
+        if (!key) {
+            alert('请填写 LLM API Key（必填项）');
+            return;
+        }
+
+        let lines = [
+            '# FreeTodo Portable - Server Configuration',
+            '# Generated by Config.html',
+            '',
+            '# === LLM Configuration ===',
+            `LIFETRACE_LLM__API_KEY=${key}`,
+            `LIFETRACE_LLM__BASE_URL=${baseUrl}`,
+            `LIFETRACE_LLM__MODEL=${model}`,
+            '',
+            '# === Server Settings ===',
+            'LIFETRACE_SERVER__HOST=0.0.0.0',
+            'LIFETRACE_SERVER__PORT=8001',
+            'LIFETRACE_SERVER__DEBUG=false',
+            '',
+            '# === AgentOS Settings ===',
+            'LIFETRACE_AGNO__AGENT_OS__HOST=0.0.0.0',
+            'LIFETRACE_AGNO__AGENT_OS__PORT=8002',
+        ];
+
+        if (asrKey) {
+            lines.push('', '# === ASR (Speech-to-Text) ===',
+                `LIFETRACE_AUDIO__ASR__API_KEY=${asrKey}`);
+        }
+        if (tavilyKey) {
+            lines.push('', '# === Tavily Search ===',
+                `LIFETRACE_TAVILY__API_KEY=${tavilyKey}`);
+        }
+
+        const content = lines.join('\n') + '\n';
+        document.getElementById('output-box').textContent = content;
+        document.getElementById('output-area').classList.add('visible');
+        window._configContent = content;
+    }
+
+    function downloadConfig() {
+        if (!window._configContent) return;
+        const blob = new Blob([window._configContent], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'server.env';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showSuccess('server.env 已下载，请将文件放到 data\\config\\ 目录下');
+    }
+
+    function copyConfig() {
+        if (!window._configContent) return;
+        navigator.clipboard.writeText(window._configContent).then(() => {
+            showSuccess('已复制到剪贴板');
+        });
+    }
+
+    function showSuccess(msg) {
+        const el = document.getElementById('success-msg');
+        el.textContent = msg;
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 5000);
+    }
+
+    function togglePassword() {
+        document.querySelectorAll('input[type="password"]').forEach(el => el.type = 'text');
+        document.querySelectorAll('input[type="text"]').forEach(el => {
+            if (el.id.includes('key')) el.type = 'password';
+        });
+    }
+    </script>
+</body>
+</html>

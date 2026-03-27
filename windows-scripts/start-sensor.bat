@@ -61,12 +61,12 @@ set "SENSOR_CMD=uv run python -m sensor --center-url %CENTER_URL% --node-id %NOD
 
 REM Start perception daemon
 echo [1/3] Starting perception daemon...
-start "LifeTrace Sensor" cmd /k "pushd %SENSOR_DIR% && %SENSOR_CMD%"
+start /MIN "LifeTrace Sensor" cmd /k "pushd %SENSOR_DIR% && %SENSOR_CMD%"
 
 REM Start signal-sensor (unified notification daemon + interactive popup)
 echo [2/3] Starting signal-sensor (notification polling + popup)...
 set "SIGNAL_SCRIPT=%REPO_ROOT%\scripts\signal-sensor.py"
-start "LifeTrace Signal" cmd /k "pushd %REPO_ROOT%\client && uv run python "%SIGNAL_SCRIPT%" --center-url %CENTER_URL% --node-id %NODE_ID%"
+start /MIN "LifeTrace Signal" cmd /k "pushd %REPO_ROOT%\client && uv run python "%SIGNAL_SCRIPT%" --center-url %CENTER_URL% --node-id %NODE_ID%"
 echo Signal sensor started (center: %CENTER_URL%, node: %NODE_ID%)
 
 REM Open browser

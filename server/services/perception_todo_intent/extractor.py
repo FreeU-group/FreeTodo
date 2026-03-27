@@ -13,6 +13,7 @@ from schemas.perception_todo_intent import (
     IntentType,
     MemoryMatch,
     MemoryMatchAction,
+    TodoRole,
 )
 from util.prompt_loader import get_prompt
 from util.settings import settings
@@ -162,14 +163,13 @@ class TodoIntentExtractor:
             name = str(item.get("name") or item.get("title") or "").strip()
             if not name:
                 continue
-            intent_type_raw = str(item.get("intent_type") or "todo").strip().lower()
-            try:
-                intent_type = IntentType(intent_type_raw)
-            except ValueError:
-                intent_type = IntentType.TODO
-
             inviter_raw = item.get("inviter")
             inviter = str(inviter_raw).strip() if inviter_raw else None
+
+            # Backward compat: if LLM still returns intent_type=invitation,
+            # convert it to a tag instead of using IntentType enum.
+            intent_type_raw = str(item.get("intent_type") or "todo").strip().lower()
+            is_invitation = intent_type_raw == "invitation"
 
             who_founder_raw = item.get("who_founder")
             who_founder = str(who_founder_raw).strip() if who_founder_raw else None
@@ -177,11 +177,21 @@ class TodoIntentExtractor:
             who_executor_raw = item.get("who_executor")
             who_executor = str(who_executor_raw).strip() if who_executor_raw else None
 
+            todo_role_raw = str(item.get("todo_role") or "executor").strip().lower()
+            try:
+                todo_role = TodoRole(todo_role_raw)
+            except ValueError:
+                todo_role = TodoRole.EXECUTOR
+
             when_raw = item.get("when")
             when = str(when_raw).strip() if when_raw else None
 
-            where_raw = item.get("where") or item.get("location")  # 兼容旧 prompt 的 location
+            where_raw = item.get("where") or item.get("location")
             where = str(where_raw).strip() if where_raw else None
+
+            tags = self._to_tags(item.get("tags"))
+            if (is_invitation or inviter) and "邀约" not in tags:
+                tags.append("邀约")
 
             out.append(
                 ExtractedTodoCandidate(
@@ -200,13 +210,14 @@ class TodoIntentExtractor:
                     if item.get("time_zone") is not None
                     else None,
                     priority=str(item.get("priority") or "none").strip().lower() or "none",
-                    tags=self._to_tags(item.get("tags")),
+                    tags=tags,
                     confidence=self._to_confidence(item.get("confidence")),
                     source_text=str(item.get("source_text")).strip()
                     if item.get("source_text") is not None
                     else None,
                     memory_match=self._parse_memory_match(item.get("memory_match")),
-                    intent_type=intent_type,
+                    intent_type=IntentType.INVITATION if is_invitation else IntentType.TODO,
+                    todo_role=todo_role,
                     inviter=inviter,
                 )
             )
@@ -228,7 +239,6 @@ class TodoIntentExtractor:
         model = (
             str(cfg.get("model", "")).strip()
             or self._model
-            or str(settings.get("llm.todo_extraction_model", "")).strip()
             or llm_client.model
         )
         temperature = float(cfg.get("temperature", self._temperature))

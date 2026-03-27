@@ -34,9 +34,11 @@ LLM_RELATED_BACKEND_KEYS = [
     "llm.api_key",
     "llm.base_url",
     "llm.model",
+    "llm.small_model",
     "llm_api_key",
     "llm_base_url",
     "llm_model",
+    "llm_small_model",
 ]
 
 ASR_RELATED_BACKEND_KEYS = [

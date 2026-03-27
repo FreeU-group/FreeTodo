@@ -101,6 +101,7 @@ class ConfigService:
             "api_key": settings.get("llm.api_key"),
             "base_url": settings.get("llm.base_url"),
             "model": settings.get("llm.model"),
+            "small_model": settings.get("llm.small_model"),
         }
 
     def get_asr_config(self) -> dict[str, Any]:
@@ -145,7 +146,7 @@ class ConfigService:
             "llm.api_key",
             "llm.base_url",
             "llm.model",
-            "llm.todo_extraction_model",
+            "llm.small_model",
             "llm.temperature",
             "llm.max_tokens",
             # 服务器配置

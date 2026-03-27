@@ -46,8 +46,8 @@ export function LlmConfigSection({
 	const [llmMaxTokens, setLlmMaxTokens] = useState(
 		(config?.llmMaxTokens as number) ?? 2048,
 	);
-	const [llmTodoExtractionModel, setLlmTodoExtractionModel] = useState(
-		(config?.llmTodoExtractionModel as string) || "",
+	const [llmSmallModel, setLlmSmallModel] = useState(
+		(config?.llmSmallModel as string) || "",
 	);
 	const [initialLlmConfig, setInitialLlmConfig] = useState({
 		llmApiKey: (config?.llmApiKey as string) || "",
@@ -55,7 +55,7 @@ export function LlmConfigSection({
 		llmModel: (config?.llmModel as string) || "qwen-plus",
 		llmTemperature: (config?.llmTemperature as number) ?? 0.7,
 		llmMaxTokens: (config?.llmMaxTokens as number) ?? 2048,
-		llmTodoExtractionModel: (config?.llmTodoExtractionModel as string) || "",
+		llmSmallModel: (config?.llmSmallModel as string) || "",
 	});
 	const [testMessage, setTestMessage] = useState<{
 		type: "success" | "error";
@@ -87,9 +87,9 @@ export function LlmConfigSection({
 			if (config.llmMaxTokens !== undefined) {
 				setLlmMaxTokens((config.llmMaxTokens as number) ?? 2048);
 			}
-			if (config.llmTodoExtractionModel !== undefined) {
-				setLlmTodoExtractionModel(
-					(config.llmTodoExtractionModel as string) || "",
+			if (config.llmSmallModel !== undefined) {
+				setLlmSmallModel(
+					(config.llmSmallModel as string) || "",
 				);
 			}
 			// 更新初始配置（用于检测变更）
@@ -99,8 +99,8 @@ export function LlmConfigSection({
 				llmModel: (config.llmModel as string) || "qwen-plus",
 				llmTemperature: (config.llmTemperature as number) ?? 0.7,
 				llmMaxTokens: (config.llmMaxTokens as number) ?? 2048,
-				llmTodoExtractionModel:
-					(config.llmTodoExtractionModel as string) || "",
+				llmSmallModel:
+					(config.llmSmallModel as string) || "",
 			});
 		}
 	}, [config]);
@@ -162,12 +162,10 @@ export function LlmConfigSection({
 			currentBaseUrl !== initialLlmConfig.llmBaseUrl ||
 			currentModel !== initialLlmConfig.llmModel;
 
-		// 检查其他配置是否改变（Temperature, Max Tokens, Todo Extraction Model）
 		const otherConfigChanged =
 			llmTemperature !== initialLlmConfig.llmTemperature ||
 			llmMaxTokens !== initialLlmConfig.llmMaxTokens ||
-			llmTodoExtractionModel !==
-				initialLlmConfig.llmTodoExtractionModel;
+			llmSmallModel !== initialLlmConfig.llmSmallModel;
 
 		// 如果没有任何改动，不需要保存
 		if (!llmCoreConfigChanged && !otherConfigChanged) {
@@ -183,7 +181,7 @@ export function LlmConfigSection({
 					llmModel: currentModel,
 					llmTemperature,
 					llmMaxTokens,
-					llmTodoExtractionModel,
+					llmSmallModel,
 				},
 			});
 
@@ -194,7 +192,7 @@ export function LlmConfigSection({
 				llmModel: currentModel,
 				llmTemperature,
 				llmMaxTokens,
-				llmTodoExtractionModel,
+				llmSmallModel,
 			});
 
 			// 2. 只有当核心配置改变且配置完整时，才测试并初始化 LLM
@@ -307,7 +305,7 @@ export function LlmConfigSection({
 					/>
 				</div>
 
-				{/* Model / Temperature / Max Tokens */}
+				{/* Main Model / Temperature / Max Tokens */}
 				<div className="grid grid-cols-3 gap-3">
 					<div>
 						<label
@@ -326,6 +324,9 @@ export function LlmConfigSection({
 							onBlur={handleSaveLlmConfig}
 							disabled={isLoading}
 						/>
+						<p className="mt-1 text-xs text-muted-foreground">
+							{t("modelHint")}
+						</p>
 					</div>
 					<div>
 						<label
@@ -366,26 +367,26 @@ export function LlmConfigSection({
 					</div>
 				</div>
 
-				{/* Todo Extraction Model */}
+				{/* Small Model */}
 				<div>
 					<label
-						htmlFor="llm-todo-extraction-model"
+						htmlFor="llm-small-model"
 						className="mb-1 block text-sm font-medium text-foreground"
 					>
-						{t("todoExtractionModel")}
+						{t("smallModel")}
 					</label>
 					<input
-						id="llm-todo-extraction-model"
+						id="llm-small-model"
 						type="text"
 						className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-						placeholder={llmModel || "qwen-turbo"}
-						value={llmTodoExtractionModel}
-						onChange={(e) => setLlmTodoExtractionModel(e.target.value)}
+						placeholder="qwen-turbo"
+						value={llmSmallModel}
+						onChange={(e) => setLlmSmallModel(e.target.value)}
 						onBlur={handleSaveLlmConfig}
 						disabled={isLoading}
 					/>
 					<p className="mt-1 text-xs text-muted-foreground">
-						{t("todoExtractionModelHint")}
+						{t("smallModelHint")}
 					</p>
 				</div>
 

@@ -66,10 +66,21 @@ class IntentGateDecision(BaseModel):
 
 
 class IntentType(str, Enum):
-    """High-level intent category detected by the Extractor."""
+    """Legacy intent category. Kept for backward compatibility.
+
+    New code should use tags (e.g. "邀约") instead of this enum
+    to drive tool selection and notification types.
+    """
 
     TODO = "todo"
     INVITATION = "invitation"
+
+
+class TodoRole(str, Enum):
+    """User's role in relation to a todo item."""
+
+    EXECUTOR = "executor"
+    DELEGATOR = "delegator"
 
 
 class ExtractedTodoCandidate(BaseModel):
@@ -90,6 +101,7 @@ class ExtractedTodoCandidate(BaseModel):
     source_event_ids: list[str] = Field(default_factory=list)
     memory_match: MemoryMatch = Field(default_factory=MemoryMatch)
     intent_type: IntentType = IntentType.TODO
+    todo_role: TodoRole = TodoRole.EXECUTOR
     inviter: str | None = None
 
 

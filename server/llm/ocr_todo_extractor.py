@@ -188,17 +188,11 @@ class OCRTodoExtractor:
                             "created_todos": [],
                         }
                 else:
-                    # 读取待办提取专用模型配置，留空则回退到主模型
-                    todo_model = settings.get("llm.todo_extraction_model", "") or None
-                    if todo_model:
-                        logger.info(f"开始基于 OCR 文本调用 LLM 进行待办提取 (model={todo_model})")
-                    else:
-                        logger.info("开始基于 OCR 文本调用 LLM 进行待办提取")
+                    logger.info("开始基于 OCR 文本调用 LLM 进行待办提取")
                     response_text = self.llm_client.chat(
                         messages=messages,
                         temperature=0.3,
                         max_tokens=1500,
-                        model=todo_model,
                         log_meta={
                             "endpoint": "ocr_todo_extraction",
                             "feature_type": "ocr_todo_extraction",

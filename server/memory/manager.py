@@ -62,10 +62,11 @@ class MemoryManager:
 
             # L1 Deduper
             dedup_cfg = self._config.get("dedup", {}) or {}
+            dedup_model = str(dedup_cfg.get("model", "")).strip() or llm.small_model
             self.deduper = MemoryDeduper(
                 self._memory_dir,
                 llm,
-                model=dedup_cfg.get("model", "qwen-flash"),
+                model=dedup_model,
                 window_seconds=dedup_cfg.get("window_seconds", 10.0),
                 window_max_items=dedup_cfg.get("window_max_items", 10),
             )

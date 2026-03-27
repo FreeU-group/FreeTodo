@@ -96,6 +96,8 @@ function parseProfileMarkdown(markdown: string): {
 		currentLines = [];
 	};
 
+	const ungroupedLines: string[] = [];
+
 	for (const line of lines) {
 		if (line.startsWith("# ")) {
 			header = line.replace("# ", "").trim();
@@ -120,9 +122,23 @@ function parseProfileMarkdown(markdown: string): {
 
 		if (currentTitle) {
 			currentLines.push(line);
+		} else {
+			ungroupedLines.push(line);
 		}
 	}
 	flushSection();
+
+	if (sections.length === 0) {
+		const fallback = ungroupedLines.join("\n").trim();
+		if (fallback) {
+			sections.push({
+				key: "overview-1",
+				title: "基本信息",
+				content: fallback,
+				icon: UserCircle,
+			});
+		}
+	}
 
 	return { header, lastUpdate, sections };
 }

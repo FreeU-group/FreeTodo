@@ -45,6 +45,7 @@ export interface AppConfig {
 	llmApiKey?: string;
 	llmBaseUrl?: string;
 	llmModel?: string;
+	llmSmallModel?: string;
 	llmTemperature?: number;
 	llmMaxTokens?: number;
 	banna2ApiKey?: string;

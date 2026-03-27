@@ -55,6 +55,7 @@ class LLMClient:
             self.api_key = settings.llm.api_key
             self.base_url = settings.llm.base_url
             self.model = settings.llm.model
+            self.small_model = settings.get("llm.small_model", "qwen-turbo")
 
             invalid_values = [
                 "xxx",
@@ -74,6 +75,7 @@ class LLMClient:
             self.api_key = "YOUR_LLM_KEY_HERE"
             self.base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
             self.model = "qwen3-max"
+            self.small_model = "qwen-turbo"
             logger.warning("使用硬编码默认值初始化LLM客户端")
             self._configured = False
 

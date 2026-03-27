@@ -268,8 +268,8 @@ Gate 的 JSON 解析与容错逻辑直接复用 `services/audio_extraction/gate.
 
 #### 模型建议
 
-- 默认：`llm.todo_extraction_model`（未配置则回退主模型）
-- 配置项：`perception.todo_intent.extractor.model`
+- 默认：`llm.model`（主模型）
+- 可覆盖：`perception.todo_intent.extractor.model`
 
 ## 六、整合策略（Integration）
 
@@ -340,7 +340,7 @@ perception:
       max_tokens: 160
       min_text_length: 8
     extractor:
-      model: "" # 空则回退 llm.todo_extraction_model 或 llm.model
+      model: "" # 留空则使用 llm.model（主模型）
       temperature: 0.2
       max_tokens: 800
     integration:

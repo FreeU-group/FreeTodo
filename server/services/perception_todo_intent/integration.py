@@ -10,13 +10,21 @@ from schemas.perception_todo_intent import (
     ExtractedTodoCandidate,
     IntegrationAction,
     IntentGateDecision,
-    IntentType,
     MemoryMatchAction,
     TodoIntegrationResult,
     TodoIntentContext,
+    TodoRole,
 )
 from util.logging_config import get_logger
 from util.time_utils import get_utc_now
+
+
+def _is_invitation(candidate: ExtractedTodoCandidate) -> bool:
+    """Check if a candidate is an invitation by tags (preferred) or legacy intent_type."""
+    if "邀约" in (candidate.tags or []):
+        return True
+    from schemas.perception_todo_intent import IntentType  # noqa: PLC0415
+    return candidate.intent_type == IntentType.INVITATION
 
 logger = get_logger()
 
@@ -352,6 +360,8 @@ def _candidate_fields(candidate: ExtractedTodoCandidate) -> list[str]:
 
     add_opt(candidate.who_founder, "发起人")
     add_opt(candidate.who_executor, "执行者")
+    if candidate.todo_role == TodoRole.DELEGATOR:
+        parts.append("用户角色：委派方（用户已将任务分配给执行者，需跟进确认完成情况）")
     add_opt(candidate.description, "描述")
     if candidate.start_time:
         parts.append(f"开始时间：{candidate.start_time.isoformat()}")
@@ -394,9 +404,16 @@ def _memory_match_instruction(candidate: ExtractedTodoCandidate) -> str:
             "请先用 search_todos 找到该待办，再用 complete_todo 将其标记为完成。\n"
             "不要创建新待办。"
         )
+    delegator_hint = ""
+    if candidate.todo_role == TodoRole.DELEGATOR:
+        delegator_hint = (
+            "\n注意：这是用户**委派给别人**的任务，用户的角色是管理者/跟进者。"
+            "\n请在 tags 中加入「委派跟进」标签，待办标题应体现「跟进/等待对方完成」的语义。"
+        )
     return (
         "\n**你必须调用 create_todo 工具来创建待办事项，这是强制要求。**"
         "\n若有发起人/执行者，请使用 create_todo 的 who_founder 和 who_executor 参数传入。"
+        + delegator_hint
     )
 
 
@@ -408,7 +425,7 @@ _USER_FACING_INSTRUCTION = (
 
 def _build_agno_message(candidate: ExtractedTodoCandidate) -> str:
     """Build a message describing the detected intent for Agno to act on."""
-    if candidate.intent_type == IntentType.INVITATION:
+    if _is_invitation(candidate):
         return _build_invitation_message(candidate)
     lines = ["[自动意图识别] 系统从用户的感知流中检测到以下待办意图："]
     lines.extend(_candidate_fields(candidate))
@@ -445,7 +462,7 @@ def _build_invitation_message(candidate: ExtractedTodoCandidate) -> str:
 
 
 def _select_tools(candidate: ExtractedTodoCandidate) -> list[str]:
-    if candidate.intent_type == IntentType.INVITATION:
+    if _is_invitation(candidate):
         return list(_AGNO_TOOLS_FOR_INVITATION)
     return list(_AGNO_TOOLS_FOR_TODO)
 
@@ -517,7 +534,7 @@ def _build_todo_header(candidate: ExtractedTodoCandidate) -> list[str]:
 
 def _build_user_facing_content(candidate: ExtractedTodoCandidate, agno_response: str) -> str:
     """Build user-facing notification: metadata header + Agno's full analysis."""
-    if candidate.intent_type == IntentType.INVITATION:
+    if _is_invitation(candidate):
         header_parts = _build_invitation_header(candidate)
     else:
         header_parts = _build_todo_header(candidate)
@@ -546,7 +563,7 @@ def _push_notification(
     from storage.notification_storage import add_notification  # noqa: PLC0415
 
     if notification_type is None:
-        if candidate.intent_type == IntentType.INVITATION:
+        if _is_invitation(candidate):
             notification_type = "invitation"
         elif candidate.memory_match.action == MemoryMatchAction.CONFLICT:
             notification_type = "conflict"

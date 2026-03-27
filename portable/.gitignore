@@ -1,0 +1,9 @@
+# Built artifacts (created by setup.bat / setup.sh)
+runtime/
+app/
+data/
+
+# OS junk
+Thumbs.db
+.DS_Store
+._*

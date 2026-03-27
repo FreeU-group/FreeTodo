@@ -106,13 +106,13 @@ perception:
       max_cache_size: 5000
     gate:
       enabled: true
-      model: "qwen-turbo" # 门控只需判断 true/false，用轻量模型加速
+      model: "" # 留空则使用 llm.small_model
       temperature: 0.0
       max_tokens: 160
       min_text_length: 8
       prompt_category: transcription_extraction_gate
     extractor:
-      model: "" # 空则回退 llm.todo_extraction_model 或 llm.model
+      model: "" # 留空则使用 llm.model（主模型）
       temperature: 0.2
       max_tokens: 800
       prompt_category: perception_todo_intent_extraction
@@ -240,9 +240,9 @@ agno:
 llm:
   api_key: YOUR_LLM_KEY_HERE # LLM 密钥，需要用户配置
   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1 # LLM API基础URL
-  model: qwen-plus # 使用的模型名称
+  model: qwen-plus # 主模型：深度分析、意图提取、Agent 执行
+  small_model: qwen-turbo # 小模型：快速过滤、去重判断、压缩摘要
   vision_model: qwen3-vl-plus # 视觉多模态模型名称（用于图片分析）
-  todo_extraction_model: "" # 待办提取专用模型（留空则使用主模型，推荐 qwen-turbo 等快速模型）
   temperature: 0.7 # 温度参数
   max_tokens: 2048 # 最大token数
   # 模型价格配置（单位：人民币/千token）

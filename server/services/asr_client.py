@@ -53,7 +53,9 @@ class ASRClient:
                 "xxx",
                 "YOUR_API_KEY_HERE",
                 "YOUR_ASR_KEY_HERE",
-                "YOUR_LLM_KEY_HERE",  # 与 default_config 中 audio.asr.api_key 占位符一致，未配置时回退到 LLM Key
+                "YOUR_LLM_KEY_HERE",
+                "your-api-key",
+                "your-asr-api-key",
             ]
             if not self.api_key or self.api_key in invalid_values:
                 # 尝试使用 LLM API Key 作为备选（DashScope 同账号下 ASR 与 LLM 可用同一 Key）

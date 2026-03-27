@@ -62,7 +62,7 @@ class TodoIntentGate:
         if not llm_client.is_available():
             return IntentGateDecision(should_extract=True, reason="llm_unavailable_fallback")
 
-        model = (str(cfg.get("model", "")).strip() or self._model or llm_client.model).strip()
+        model = (str(cfg.get("model", "")).strip() or self._model or llm_client.small_model).strip()
         temperature = float(cfg.get("temperature", self._temperature))
         max_tokens = int(cfg.get("max_tokens", self._max_tokens))
         prompt_category = str(cfg.get("prompt_category", self._prompt_category))

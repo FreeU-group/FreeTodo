@@ -142,7 +142,7 @@ class MemoryCompressor:
             self._llm.chat,
             messages,
             0.3,
-            None,
+            self._llm.small_model,
             None,
             log_usage=True,
             log_meta={

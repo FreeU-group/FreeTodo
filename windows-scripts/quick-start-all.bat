@@ -61,11 +61,11 @@ REM  Sensor services
 REM ================================================================
 
 echo [5/6] Starting Perception Daemon...
-start "LifeTrace Sensor" cmd /k "pushd %SENSOR_DIR% && uv run python -m sensor --center-url %CENTER_URL% --node-id %NODE_ID% --debug-images"
+start /MIN "LifeTrace Sensor" cmd /k "pushd %SENSOR_DIR% && uv run python -m sensor --center-url %CENTER_URL% --node-id %NODE_ID% --debug-images"
 
 echo [6/6] Starting Signal Sensor...
 set "SIGNAL_SCRIPT=%REPO_ROOT%\scripts\signal-sensor.py"
-start "LifeTrace Signal" cmd /k "pushd %SENSOR_DIR% && uv run python "%SIGNAL_SCRIPT%" --center-url %CENTER_URL% --node-id %NODE_ID%"
+start /MIN "LifeTrace Signal" cmd /k "pushd %SENSOR_DIR% && uv run python "%SIGNAL_SCRIPT%" --center-url %CENTER_URL% --node-id %NODE_ID%"
 
 REM Open browser (dev mode starts faster)
 echo Waiting for frontend (10s)...

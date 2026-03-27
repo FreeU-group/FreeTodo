@@ -142,7 +142,7 @@ class TodoIntentSubscriber:
     async def on_event(self, event: PerceptionEvent) -> None:
         if not self._enabled:
             return
-        if event.source in (SourceType.AI_OUTPUT, SourceType.APP_SWITCH):
+        if event.source in (SourceType.AI_OUTPUT, SourceType.APP_SWITCH, SourceType.GPS_MOBILE):
             return
         if event.source == SourceType.USER_INPUT:
             meta = event.metadata if isinstance(event.metadata, dict) else {}
