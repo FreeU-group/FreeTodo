@@ -36,6 +36,7 @@ export function useScanDirectory() {
 			fetchJson<{
 				valid: boolean;
 				directory: string;
+				total_files: number;
 				file_count: number;
 				files: Array<{ name: string; path: string; size: number; modified: number; ext: string }>;
 				scan_time_ms: number;

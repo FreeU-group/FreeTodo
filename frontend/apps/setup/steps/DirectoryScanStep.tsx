@@ -158,7 +158,7 @@ export function DirectoryScanStep({ onNext, onBack }: DirectoryScanStepProps) {
 				<div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
 					<div className="flex items-center justify-between text-sm">
 						<span className="text-white/70">
-							{t("directoryFileCount", { count: scanMutation.data.file_count })}
+							{t("directoryFileCount", { count: scanMutation.data.total_files || scanMutation.data.file_count })}
 						</span>
 						<span className="text-xs text-white/40">
 							{t("directoryScanDuration", { time: scanMutation.data.scan_time_ms })}

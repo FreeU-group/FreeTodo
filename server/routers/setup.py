@@ -32,9 +32,10 @@ class ScanRequest(BaseModel):
 class ScanResult(BaseModel):
     valid: bool = True
     directory: str
-    file_count: int
-    files: list[dict[str, Any]]
-    scan_time_ms: int
+    total_files: int = 0
+    file_count: int = 0
+    files: list[dict[str, Any]] = []
+    scan_time_ms: int = 0
 
 
 class AnalyzeFilesRequest(BaseModel):
@@ -113,14 +114,83 @@ async def scan_directory(req: ScanRequest) -> ScanResult:
     except PermissionError:
         pass
 
+    total_files = len(entries)
     entries.sort(key=lambda e: e["modified"], reverse=True)
-    entries = entries[: req.max_files]
+
+    useful_exts = {
+        ".doc",
+        ".docx",
+        ".pdf",
+        ".ppt",
+        ".pptx",
+        ".xls",
+        ".xlsx",
+        ".txt",
+        ".md",
+        ".csv",
+        ".rtf",
+        ".odt",
+        ".pages",
+        ".key",
+        ".numbers",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+        ".svg",
+        ".heic",
+        ".tiff",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".mkv",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".m4v",
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".aac",
+        ".ogg",
+        ".m4a",
+        ".wma",
+        ".zip",
+        ".rar",
+        ".7z",
+        ".tar",
+        ".gz",
+        ".py",
+        ".js",
+        ".ts",
+        ".tsx",
+        ".jsx",
+        ".java",
+        ".c",
+        ".cpp",
+        ".go",
+        ".rs",
+        ".html",
+        ".css",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".xml",
+        ".sql",
+        ".lnk",
+        ".url",
+    }
+    filtered = [e for e in entries if e["ext"] in useful_exts]
+    filtered = filtered[: req.max_files]
 
     elapsed = int((time.perf_counter() - t0) * 1000)
     return ScanResult(
         directory=str(target),
-        file_count=len(entries),
-        files=entries,
+        total_files=total_files,
+        file_count=len(filtered),
+        files=filtered,
         scan_time_ms=elapsed,
     )
 
