@@ -110,24 +110,37 @@ echo "  Python 3.12 installed OK."
 # ================================================================
 echo "[5/8] Copying source code..."
 
+_portable_copy() {
+    local src_dir="$1" dest_dir="$2"
+    shift 2
+    local prune_args=()
+    for pat in "$@"; do
+        prune_args+=(-name "$pat" -prune -o)
+    done
+
+    # Clean dest but preserve cross-platform venvs
+    find "$dest_dir" -mindepth 1 -maxdepth 1 ! -name '.venv-*' -exec rm -rf {} +
+
+    cd "$src_dir" && find . "${prune_args[@]}" -print | while read -r f; do
+        if [ -d "$f" ]; then
+            mkdir -p "$dest_dir/$f"
+        else
+            cp "$f" "$dest_dir/$f"
+        fi
+    done
+}
+
 echo "  Copying server..."
-rsync -a --delete \
-    --exclude='.venv*' --exclude='__pycache__' --exclude='data' \
-    --exclude='logs' --exclude='.ruff_cache' --exclude='.pytest_cache' \
-    --exclude='*.pyc' \
-    "$REPO_ROOT/server/" "$PORTABLE_ROOT/app/server/"
+_portable_copy "$REPO_ROOT/server" "$PORTABLE_ROOT/app/server" \
+    '.venv*' '__pycache__' 'data' 'logs' '.ruff_cache' '.pytest_cache' '*.pyc'
 
 echo "  Copying client..."
-rsync -a --delete \
-    --exclude='.venv*' --exclude='__pycache__' --exclude='data' \
-    --exclude='logs' --exclude='.ruff_cache' --exclude='.pytest_cache' \
-    --exclude='sensor_debug' --exclude='*.pyc' \
-    "$REPO_ROOT/client/" "$PORTABLE_ROOT/app/client/"
+_portable_copy "$REPO_ROOT/client" "$PORTABLE_ROOT/app/client" \
+    '.venv*' '__pycache__' 'data' 'logs' '.ruff_cache' '.pytest_cache' 'sensor_debug' '*.pyc'
 
 echo "  Copying scripts..."
-rsync -a --delete \
-    --exclude='__pycache__' --exclude='*.pyc' \
-    "$REPO_ROOT/scripts/" "$PORTABLE_ROOT/app/scripts/"
+_portable_copy "$REPO_ROOT/scripts" "$PORTABLE_ROOT/app/scripts" \
+    '__pycache__' '*.pyc'
 
 # ================================================================
 #  [6/8] Install Python dependencies
@@ -158,9 +171,11 @@ if [ ! -f "$PORTABLE_ROOT/app/frontend/server.js" ]; then
     "$NODE_BIN" "$REPO_ROOT/frontend/scripts/copy-missing-deps.js"
 
     echo "  Copying standalone output..."
-    rsync -a "$REPO_ROOT/frontend/.next/standalone/" "$PORTABLE_ROOT/app/frontend/"
-    rsync -a "$REPO_ROOT/frontend/.next/static/" "$PORTABLE_ROOT/app/frontend/.next/static/"
-    rsync -a "$REPO_ROOT/frontend/public/" "$PORTABLE_ROOT/app/frontend/public/"
+    cp -R "$REPO_ROOT/frontend/.next/standalone/." "$PORTABLE_ROOT/app/frontend/"
+    mkdir -p "$PORTABLE_ROOT/app/frontend/.next/static"
+    cp -R "$REPO_ROOT/frontend/.next/static/." "$PORTABLE_ROOT/app/frontend/.next/static/"
+    mkdir -p "$PORTABLE_ROOT/app/frontend/public"
+    cp -R "$REPO_ROOT/frontend/public/." "$PORTABLE_ROOT/app/frontend/public/"
     cd "$PORTABLE_ROOT"
 else
     echo "  Frontend already exists (built on another platform), skipping build."
@@ -180,6 +195,7 @@ if [ ! -d "$SHARP_DEST" ]; then
     SHARP_SRC=$(find "$REPO_ROOT/frontend/node_modules/.pnpm" -maxdepth 1 -name "${SHARP_PNPM}@*" -type d 2>/dev/null | head -1)
     if [ -n "$SHARP_SRC" ] && [ -d "$SHARP_SRC/node_modules/$SHARP_PKG" ]; then
         echo "  Copying $SHARP_PKG..."
+        mkdir -p "$(dirname "$SHARP_DEST")"
         cp -R "$SHARP_SRC/node_modules/$SHARP_PKG" "$SHARP_DEST"
     else
         echo "  [WARN] $SHARP_PKG not found in pnpm store. Image processing may not work."

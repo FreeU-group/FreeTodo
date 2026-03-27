@@ -117,51 +117,78 @@ echo "  Data:      $DATA_DIR"
 echo ""
 
 # ================================================================
-#  Start services
+#  Start services (each in its own Terminal tab)
 # ================================================================
 
+# Build env preamble that each new Terminal window will source
+ENV_SCRIPT="$PORTABLE_ROOT/.env_portable.sh"
+cat > "$ENV_SCRIPT" << ENVEOF
+export PYTHONUTF8=1
+export UV_PYTHON_INSTALL_DIR='$RT/python'
+export UV_CACHE_DIR='$RT/uv-cache'
+export UV_PROJECT_ENVIRONMENT='.venv-$PLATFORM'
+export LIFETRACE_DATA_DIR='$DATA_DIR'
+export FREETODO_CLIENT_DATA_DIR='$DATA_DIR'
+export HF_HOME='$DATA_DIR/models'
+export SENTENCE_TRANSFORMERS_HOME='$DATA_DIR/models/sentence-transformers'
+ENVEOF
+[ -f "$PORTABLE_ROOT/local-env.sh" ] && cat "$PORTABLE_ROOT/local-env.sh" >> "$ENV_SCRIPT"
+
+launch_in_tab() {
+    local tab_title="$1"
+    local work_dir="$2"
+    local cmd="$3"
+    local log_file="$4"
+
+    osascript <<APPLESCRIPT
+tell application "Terminal"
+    activate
+    do script "source '${ENV_SCRIPT}'; printf '\\\\e]0;${tab_title}\\\\a'; cd '${work_dir}' && echo '=== ${tab_title} ===' && ${cmd} 2>&1 | tee -a '${log_file}'"
+end tell
+APPLESCRIPT
+}
+
 echo "[1/6] Starting Phoenix..."
-cd "$SERVER_DIR" && "$UV" run phoenix serve >> "$LOG_DIR/phoenix.log" 2>&1 &
+launch_in_tab "FreeTodo Phoenix" "$SERVER_DIR" \
+    "'$UV' run phoenix serve" \
+    "$LOG_DIR/phoenix.log"
 sleep 2
 
 echo "[2/6] Starting Backend (port $BACKEND_PORT)..."
-cd "$SERVER_DIR" && \
-    LIFETRACE_DEPLOYMENT__ROLE=center \
-    LIFETRACE_SERVER__PORT=$BACKEND_PORT \
-    LIFETRACE_SERVER__HOST=0.0.0.0 \
-    "$UV" run python server.py >> "$LOG_DIR/server.log" 2>&1 &
+launch_in_tab "FreeTodo Backend" "$SERVER_DIR" \
+    "LIFETRACE_DEPLOYMENT__ROLE=center LIFETRACE_SERVER__PORT=$BACKEND_PORT LIFETRACE_SERVER__HOST=0.0.0.0 '$UV' run python server.py" \
+    "$LOG_DIR/server.log"
 echo "  Waiting for database init (10s)..."
 sleep 10
 
 echo "[3/6] Starting AgentOS..."
-cd "$SERVER_DIR" && "$UV" run python agent_os.py >> "$LOG_DIR/agent_os.log" 2>&1 &
+launch_in_tab "FreeTodo AgentOS" "$SERVER_DIR" \
+    "'$UV' run python agent_os.py" \
+    "$LOG_DIR/agent_os.log"
 sleep 3
 
 echo "[4/6] Starting Frontend (port $FRONTEND_PORT)..."
-cd "$FRONTEND_DIR" && \
-    PORT=$FRONTEND_PORT \
-    HOSTNAME=0.0.0.0 \
-    API_REWRITE_URL="http://127.0.0.1:$BACKEND_PORT" \
-    "$NODE_BIN" server.js >> "$LOG_DIR/frontend.log" 2>&1 &
+launch_in_tab "FreeTodo Frontend" "$FRONTEND_DIR" \
+    "PORT=$FRONTEND_PORT HOSTNAME=0.0.0.0 API_REWRITE_URL='http://127.0.0.1:$BACKEND_PORT' '$NODE_BIN' server.js" \
+    "$LOG_DIR/frontend.log"
 sleep 5
 
 echo "[5/6] Starting Perception Daemon..."
-cd "$CLIENT_DIR" && "$UV" run python -m sensor \
-    --center-url "$CENTER_URL" --node-id "$NODE_ID" \
-    >> "$LOG_DIR/sensor.log" 2>&1 &
+launch_in_tab "FreeTodo Sensor" "$CLIENT_DIR" \
+    "'$UV' run python -m sensor --center-url '$CENTER_URL' --node-id '$NODE_ID'" \
+    "$LOG_DIR/sensor.log"
 
 echo "[6/6] Starting Signal Sensor..."
-cd "$CLIENT_DIR" && "$UV" run python "$SCRIPTS_DIR/signal-sensor.py" \
-    --center-url "$CENTER_URL" --node-id "$NODE_ID" \
-    >> "$LOG_DIR/signal.log" 2>&1 &
+launch_in_tab "FreeTodo Signal" "$CLIENT_DIR" \
+    "'$UV' run python '$SCRIPTS_DIR/signal-sensor.py' --center-url '$CENTER_URL' --node-id '$NODE_ID'" \
+    "$LOG_DIR/signal.log"
 
-# Open browser
 sleep 3
 open "http://127.0.0.1:$FRONTEND_PORT" 2>/dev/null || true
 
 echo ""
 echo "================================================"
-echo "  FreeTodo Started! ($PLATFORM)"
+echo "  FreeTodo Started! ($PLATFORM) - 6 windows"
 echo "================================================"
 echo ""
 echo "  Phoenix:    http://127.0.0.1:6006"
@@ -172,24 +199,6 @@ echo "  Sensor:     $NODE_ID -> $CENTER_URL"
 echo ""
 echo "  Logs:       $LOG_DIR"
 echo ""
-echo "  To stop: run Mac-Stop.command"
-echo "  Press Ctrl+C or close this window to stop all."
+echo "  Each service runs in its own Terminal window."
+echo "  To stop all: run Mac-Stop.command"
 echo ""
-
-# Keep script alive; trap to clean up on exit
-cleanup() {
-    echo ""
-    echo "Stopping all services..."
-    # Sync .env back to data/config before stopping
-    [ -f "$SERVER_DIR/.env" ] && cp "$SERVER_DIR/.env" "$DATA_DIR/config/server.env" 2>/dev/null
-    [ -f "$CLIENT_DIR/.env" ] && cp "$CLIENT_DIR/.env" "$DATA_DIR/config/client.env" 2>/dev/null
-    pkill -f "python.*server\.py" 2>/dev/null
-    pkill -f "python.*agent_os\.py" 2>/dev/null
-    pkill -f "phoenix serve" 2>/dev/null
-    pkill -f "python.*-m sensor" 2>/dev/null
-    pkill -f "python.*signal-sensor\.py" 2>/dev/null
-    pkill -f "node.*server\.js" 2>/dev/null
-    echo "All stopped."
-}
-trap cleanup EXIT
-wait

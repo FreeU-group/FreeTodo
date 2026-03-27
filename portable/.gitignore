@@ -2,6 +2,7 @@
 runtime/
 app/
 data/
+.env_portable.sh
 
 # OS junk
 Thumbs.db

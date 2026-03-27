@@ -158,14 +158,34 @@ def reload_with_callbacks() -> bool:
 # ============================================================
 
 
+def _reinit_asr_clients():
+    """重新初始化所有 ASR 客户端单例"""
+    try:
+        from services.asr_client import ASRClient  # noqa: PLC0415
+
+        if ASRClient._initialized:
+            ASRClient().reinitialize()
+    except Exception as e:
+        logger.debug(f"ASRClient reinit skipped: {e}")
+
+    try:
+        from services.asr_client_dashscope import ASRDashScopeClient  # noqa: PLC0415
+
+        if ASRDashScopeClient._initialized:
+            ASRDashScopeClient().reinitialize()
+    except Exception as e:
+        logger.debug(f"ASRDashScopeClient reinit skipped: {e}")
+
+
 @on_config_change("llm.api_key")
 def _on_llm_api_key_change(_old_val: Any, _new_val: Any):
-    """LLM API Key 变更时重新初始化 RAG 服务"""
+    """LLM API Key 变更时重新初始化 RAG 服务和 ASR 客户端"""
     try:
         reinit_rag_service()
         logger.info("LLM API Key 变更，已重新初始化 RAG 服务")
     except Exception as e:
         logger.error(f"重新初始化 RAG 服务失败: {e}")
+    _reinit_asr_clients()
 
 
 @on_config_change("llm.base_url")
@@ -176,6 +196,12 @@ def _on_llm_base_url_change(_old_val: Any, _new_val: Any):
         logger.info("LLM Base URL 变更，已重新初始化 RAG 服务")
     except Exception as e:
         logger.error(f"重新初始化 RAG 服务失败: {e}")
+
+
+@on_config_change("audio.asr.api_key")
+def _on_asr_api_key_change(_old_val: Any, _new_val: Any):
+    """ASR API Key 变更时重新初始化 ASR 客户端"""
+    _reinit_asr_clients()
 
 
 @on_config_change("jobs.auto_todo_detection.enabled")

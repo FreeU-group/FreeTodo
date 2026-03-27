@@ -116,3 +116,4 @@
 5. **微信 OCR 解析升级** — 多信号融合的消息归属判断，提高"我说的"vs"对方说的"识别率
 6. **品牌视觉统一** — 全面更新图标为新版"酷狗"圆角矩形风格
 7. **体验打磨** — 设置页简化为开关式、国际化完善、一键启停脚本、启动健康检查
+8. **Portable Mac 修复** — setup.sh 用 cp 替代 rsync（macOS openrsync bug）、Mac-Start 每个服务独立 Terminal 窗口、sharp 复制 mkdir 修复、配置热重载时自动刷新 ASR 客户端
