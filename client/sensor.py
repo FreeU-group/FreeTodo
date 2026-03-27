@@ -753,10 +753,7 @@ class SensorDaemon:
 
         ws_url = self.center_url.replace("http://", "ws://").replace("https://", "wss://")
         ws_url = f"{ws_url}/api/audio/transcribe?source=mic_pc&node_id={self.node_id}"
-        connect_kwargs: dict[str, Any] = {"close_timeout": 5}
-        if _is_local_center(self.center_url):
-            # Local development should bypass env proxies to avoid socks dependency errors.
-            connect_kwargs["proxy"] = None
+        connect_kwargs: dict[str, Any] = {"close_timeout": 5, "proxy": None}
 
         logger.info(f"[audio] Connecting to {ws_url}")
         async with websockets.connect(ws_url, **connect_kwargs) as ws:
