@@ -15,6 +15,7 @@ interface SensorNode {
 	screenshot_running: boolean;
 	proactive_ocr_running: boolean;
 	audio_running: boolean;
+	audio_loopback_running: boolean;
 	screenshot_interval: number;
 	proactive_ocr_interval: number;
 	last_screenshot_at: string | null;
@@ -62,6 +63,9 @@ export function SensorNodesSection({
 	const [audioEnabled, setAudioEnabled] = useState(
 		(config?.sensorAudioEnabled as boolean | undefined) ?? true,
 	);
+	const [audioLoopbackEnabled, setAudioLoopbackEnabled] = useState(
+		(config?.sensorAudioLoopbackEnabled as boolean | undefined) ?? true,
+	);
 	const [screenshotInterval, setScreenshotInterval] = useState(
 		Number(config?.sensorScreenshotInterval ?? 10),
 	);
@@ -84,6 +88,9 @@ export function SensorNodesSection({
 			}
 			if (config.sensorAudioEnabled !== undefined) {
 				setAudioEnabled(config.sensorAudioEnabled as boolean);
+			}
+			if (config.sensorAudioLoopbackEnabled !== undefined) {
+				setAudioLoopbackEnabled(config.sensorAudioLoopbackEnabled as boolean);
 			}
 			if (config.sensorScreenshotInterval !== undefined) {
 				setScreenshotInterval(Number(config.sensorScreenshotInterval));
@@ -250,8 +257,15 @@ export function SensorNodesSection({
 										<span
 											className={`h-1.5 w-1.5 rounded-full ${node.audio_running ? "bg-green-500" : "bg-yellow-500"}`}
 										/>
-										{t("audioStream")}:{" "}
+										{t("audioPerception")}:{" "}
 										{node.audio_running ? t("running") : t("paused")}
+									</span>
+									<span className="flex items-center gap-1">
+										<span
+											className={`h-1.5 w-1.5 rounded-full ${node.audio_loopback_running ? "bg-green-500" : "bg-yellow-500"}`}
+										/>
+										{t("audioLoopback")}:{" "}
+										{node.audio_loopback_running ? t("running") : t("paused")}
 									</span>
 								</div>
 							</div>
@@ -431,6 +445,28 @@ export function SensorNodesSection({
 									v,
 									setAudioEnabled,
 									audioEnabled,
+								)
+							}
+						/>
+					</div>
+				</div>
+
+				{/* Audio loopback toggle */}
+				<div className="space-y-2">
+					<div className="flex items-center justify-between">
+						<div className="flex-1">
+							<p className="text-sm font-medium text-foreground">{t("audioLoopback")}</p>
+							<p className="mt-0.5 text-xs text-muted-foreground">{t("audioLoopbackDesc")}</p>
+						</div>
+						<ToggleSwitch
+							enabled={audioLoopbackEnabled}
+							disabled={isLoading}
+							onToggle={(v) =>
+								handleToggle(
+									"sensorAudioLoopbackEnabled",
+									v,
+									setAudioLoopbackEnabled,
+									audioLoopbackEnabled,
 								)
 							}
 						/>

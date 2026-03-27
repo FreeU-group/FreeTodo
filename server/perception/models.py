@@ -10,11 +10,13 @@ from pydantic import BaseModel, Field
 class SourceType(str, Enum):
     MIC_PC = "mic_pc"
     MIC_HARDWARE = "mic_hardware"
+    SPEAKER_PC = "speaker_pc"
     OCR_SCREEN = "ocr_screen"
     OCR_PROACTIVE = "ocr_proactive"
     USER_INPUT = "user_input"
     AI_OUTPUT = "ai_output"
     GPS_MOBILE = "gps_mobile"
+    APP_SWITCH = "app_switch"
 
 
 class Modality(str, Enum):

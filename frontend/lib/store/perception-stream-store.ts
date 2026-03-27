@@ -8,7 +8,8 @@ export type PerceptionSource =
 	| "ocr_proactive"
 	| "user_input"
 	| "ai_output"
-	| "gps_mobile";
+	| "gps_mobile"
+	| "app_switch";
 
 export type PerceptionModality = "audio" | "image" | "text" | "location";
 

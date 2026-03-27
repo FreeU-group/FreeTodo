@@ -37,3 +37,25 @@ async def ingest_batch(req: BatchIngestRequest):
             event.metadata.setdefault("node_id", req.node_id)
         await mgr.publish_event(event)
     return {"ok": True, "count": len(req.events)}
+
+
+class AppSwitchRequest(BaseModel):
+    """Lightweight payload for foreground app switch events."""
+
+    app_name: str
+    window_title: str | None = None
+
+
+@router.post("/app-switch")
+async def report_app_switch(req: AppSwitchRequest):
+    """Record a foreground application switch into the perception stream.
+
+    The event is stored as context (Memory L0 / L1) but does NOT trigger
+    proactive intent recognition.
+    """
+    mgr = get_perception_manager()
+    published = await mgr.try_publish_app_switch(
+        req.app_name,
+        req.window_title,
+    )
+    return {"ok": published}

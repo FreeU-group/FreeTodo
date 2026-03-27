@@ -191,6 +191,7 @@ class SensorDaemon:
         self._screenshot_enabled: bool = False
         self._proactive_ocr_enabled: bool = True
         self._audio_enabled: bool = True
+        self._audio_loopback_enabled: bool = True
         self._screenshot_interval: float = 10.0
         self._proactive_ocr_interval: float = 1.0
         self._blacklist_enabled: bool = False
@@ -199,6 +200,7 @@ class SensorDaemon:
         self._last_screenshot_at: str | None = None
         self._last_proactive_ocr_at: str | None = None
         self._audio_running: bool = False
+        self._audio_loopback_running: bool = False
         self._start_time: float = time.time()
 
         if self._debug_images:
@@ -286,6 +288,11 @@ class SensorDaemon:
             logger.info(f"Audio perception: {'enabled' if new_audio else 'disabled'} (remote)")
         self._audio_enabled = new_audio
 
+        new_loopback = bool(config.get("audio_loopback_enabled", True))
+        if new_loopback != self._audio_loopback_enabled:
+            logger.info(f"Audio loopback: {'enabled' if new_loopback else 'disabled'} (remote)")
+        self._audio_loopback_enabled = new_loopback
+
         self._blacklist_enabled = bool(config.get("recorder_blacklist_enabled", False))
         self._blacklist_apps = list(config.get("recorder_blacklist_apps", []))
 
@@ -300,6 +307,7 @@ class SensorDaemon:
             "screenshot_running": self._screenshot_enabled,
             "proactive_ocr_running": self._proactive_ocr_enabled,
             "audio_running": self._audio_running,
+            "audio_loopback_running": self._audio_loopback_running,
             "screenshot_interval": self._screenshot_interval,
             "proactive_ocr_interval": self._proactive_ocr_interval,
             "last_screenshot_at": self._last_screenshot_at,
@@ -847,10 +855,126 @@ class SensorDaemon:
             await ws.close()
 
     # ------------------------------------------------------------------
+    # Audio loopback (speaker) perception loop
+    # ------------------------------------------------------------------
+
+    async def _audio_loopback_loop(self) -> None:
+        """Continuously capture PC speaker output via WASAPI loopback."""
+        await asyncio.sleep(4)
+        while True:
+            if not self._audio_loopback_enabled:
+                self._audio_loopback_running = False
+                await asyncio.sleep(self._AUDIO_DISABLE_CHECK_INTERVAL)
+                continue
+            try:
+                await self._run_audio_loopback_stream()
+            except Exception as exc:
+                logger.error(f"Audio loopback error: {exc}", exc_info=True)
+                self._audio_loopback_running = False
+            await asyncio.sleep(self._AUDIO_RECONNECT_DELAY)
+
+    @staticmethod
+    def _find_loopback_device() -> int | None:
+        """Find WASAPI loopback device (Windows) or virtual audio device (macOS BlackHole)."""
+        import sounddevice as sd  # noqa: PLC0415
+
+        devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
+
+        wasapi_idx: int | None = None
+        for i, api in enumerate(hostapis):
+            if "wasapi" in api["name"].lower():
+                wasapi_idx = i
+                break
+
+        for i, dev in enumerate(devices):
+            name_lower = dev["name"].lower()
+            if dev["max_input_channels"] > 0:
+                if (
+                    wasapi_idx is not None
+                    and dev.get("hostapi") == wasapi_idx
+                    and "loopback" in name_lower
+                ):
+                    return i
+                if "blackhole" in name_lower:
+                    return i
+                if "stereo mix" in name_lower or "立体声混音" in name_lower:
+                    return i
+        return None
+
+    async def _run_audio_loopback_stream(self) -> None:
+        import sounddevice as sd  # noqa: PLC0415
+        import websockets  # noqa: PLC0415
+
+        device_id = await asyncio.to_thread(self._find_loopback_device)
+        if device_id is None:
+            logger.warning("[audio-loopback] No loopback device found, retrying later")
+            return
+
+        dev_info = sd.query_devices(device_id)
+        dev_name = dev_info["name"] if isinstance(dev_info, dict) else str(dev_info)
+        logger.info(f"[audio-loopback] Using device [{device_id}] {dev_name}")
+
+        ws_url = self.center_url.replace("http://", "ws://").replace("https://", "wss://")
+        ws_url = f"{ws_url}/api/audio/transcribe?source=speaker_pc&node_id={self.node_id}"
+
+        async with websockets.connect(ws_url, close_timeout=5) as ws:
+            await ws.send(json.dumps({"is_24x7": True}))
+            logger.info("[audio-loopback] WebSocket connected, starting loopback capture")
+
+            audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=200)
+            loop = asyncio.get_running_loop()
+
+            def _loopback_callback(indata, _frames, _time_info, status) -> None:
+                if status:
+                    logger.warning(f"[audio-loopback] sounddevice status: {status}")
+                loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(indata))
+
+            stream = sd.InputStream(
+                samplerate=self._AUDIO_SAMPLE_RATE,
+                channels=self._AUDIO_CHANNELS,
+                dtype="int16",
+                blocksize=self._AUDIO_BLOCK_SIZE,
+                device=device_id,
+                callback=_loopback_callback,
+            )
+            stream.start()
+            self._audio_loopback_running = True
+            logger.info(f"[audio-loopback] Capture started (device={dev_name} -> Center ASR)")
+
+            try:
+                send_task = asyncio.create_task(self._audio_send_loop(ws, audio_queue))
+                recv_task = asyncio.create_task(self._audio_recv_loop(ws))
+                stop_task = asyncio.create_task(self._audio_loopback_config_watch(ws))
+
+                done, pending = await asyncio.wait(
+                    [send_task, recv_task, stop_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for t in pending:
+                    t.cancel()
+                for t in done:
+                    if t.exception() is not None:
+                        raise t.exception()  # type: ignore[misc]
+            finally:
+                stream.stop()
+                stream.close()
+                self._audio_loopback_running = False
+                logger.info("[audio-loopback] Capture stopped")
+
+    async def _audio_loopback_config_watch(self, ws) -> None:
+        """Watch audio_loopback_enabled config flag."""
+        while self._audio_loopback_enabled:
+            await asyncio.sleep(2)
+        logger.info("[audio-loopback] Disabled by remote config, closing stream")
+        with suppress(Exception):
+            await ws.close()
+
+    # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
 
-    async def run(
+    async def run(  # noqa: PLR0913
         self,
         screenshot_interval: float,
         proactive_ocr_interval: float,
@@ -858,12 +982,14 @@ class SensorDaemon:
         no_screenshot: bool = False,
         no_proactive_ocr: bool = False,
         no_audio: bool = False,
+        no_audio_loopback: bool = False,
     ) -> None:
         self._screenshot_interval = screenshot_interval
         self._proactive_ocr_interval = proactive_ocr_interval
         self._screenshot_enabled = not no_screenshot
         self._proactive_ocr_enabled = not no_proactive_ocr
         self._audio_enabled = not no_audio
+        self._audio_loopback_enabled = not no_audio_loopback
 
         if not self._screenshot_enabled:
             logger.info("Screenshot OCR disabled (--no-screenshot)")
@@ -871,18 +997,21 @@ class SensorDaemon:
             logger.info("Proactive OCR disabled (--no-proactive-ocr)")
         if not self._audio_enabled:
             logger.info("Audio perception disabled (--no-audio)")
+        if not self._audio_loopback_enabled:
+            logger.info("Audio loopback disabled (--no-audio-loopback)")
 
         logger.info(
             f"Sensor event loop starting "
             f"(screenshot={self._screenshot_enabled}/{self._screenshot_interval}s, "
             f"proactive_ocr={self._proactive_ocr_enabled}/{self._proactive_ocr_interval}s, "
-            f"audio={self._audio_enabled})"
+            f"audio={self._audio_enabled}, audio_loopback={self._audio_loopback_enabled})"
         )
 
         tasks = [
             asyncio.create_task(self._screenshot_loop()),
             asyncio.create_task(self._proactive_ocr_loop()),
             asyncio.create_task(self._audio_loop()),
+            asyncio.create_task(self._audio_loopback_loop()),
             asyncio.create_task(self._heartbeat_loop()),
             asyncio.create_task(self._config_poll_loop()),
         ]
@@ -953,7 +1082,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--no-audio",
         action="store_true",
-        help="Disable PC audio stream perception",
+        help="Disable PC microphone audio perception",
+    )
+    parser.add_argument(
+        "--no-audio-loopback",
+        action="store_true",
+        help="Disable PC speaker loopback audio perception",
     )
     parser.add_argument(
         "--debug-images",
@@ -982,6 +1116,7 @@ async def _run(args: argparse.Namespace) -> None:
         no_screenshot=args.no_screenshot,
         no_proactive_ocr=args.no_proactive_ocr,
         no_audio=args.no_audio,
+        no_audio_loopback=args.no_audio_loopback,
     )
 
 

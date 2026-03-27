@@ -105,7 +105,7 @@ class TodoIntentOrchestrator:
 
     @staticmethod
     def _source_label(source: SourceType) -> str:
-        if source in {SourceType.MIC_PC, SourceType.MIC_HARDWARE}:
+        if source in {SourceType.MIC_PC, SourceType.MIC_HARDWARE, SourceType.SPEAKER_PC}:
             return "音频"
         if source in {SourceType.OCR_SCREEN, SourceType.OCR_PROACTIVE}:
             return "OCR"

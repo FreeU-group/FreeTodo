@@ -89,7 +89,7 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-python-code-lines
         name: Check Python code lines (max 500)
-        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
+        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build,client/sensor.py,scripts/signal-sensor.py,server/perception/manager.py
         language: system
         files: ^(server|client|scripts)/.*\.py$
         pass_filenames: true

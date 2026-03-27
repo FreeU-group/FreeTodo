@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from perception.adapters.ai_output_adapter import AIOutputAdapter
+from perception.adapters.app_switch_adapter import AppSwitchAdapter
 from perception.adapters.audio_adapter import AudioAdapter
 from perception.adapters.input_adapter import InputAdapter
 from perception.adapters.ocr_adapter import OCRAdapter
@@ -73,6 +74,9 @@ class PerceptionStreamManager:
 
         if self._config.get("ai_output_enabled", True):
             self._adapters["ai_output"] = AIOutputAdapter(self.publish_event)
+
+        if self._config.get("app_switch_enabled", True):
+            self._adapters["app_switch"] = AppSwitchAdapter(self.publish_event)
 
         await self._start_todo_intent_subscriber()
         await self._start_agent_name_watcher()
@@ -372,6 +376,7 @@ class PerceptionStreamManager:
         if self._config.get("audio_enabled", True):
             enabled_sources[SourceType.MIC_PC] = True
             enabled_sources[SourceType.MIC_HARDWARE] = True
+            enabled_sources[SourceType.SPEAKER_PC] = True
             source_str = str(self._config.get("audio_source", SourceType.MIC_PC.value))
             try:
                 enabled_sources[SourceType(source_str)] = True
@@ -387,6 +392,9 @@ class PerceptionStreamManager:
 
         if self._config.get("ai_output_enabled", True):
             enabled_sources[SourceType.AI_OUTPUT] = True
+
+        if self._config.get("app_switch_enabled", True):
+            enabled_sources[SourceType.APP_SWITCH] = True
 
         return enabled_sources
 
@@ -405,6 +413,57 @@ class PerceptionStreamManager:
     def get_ai_output_adapter(self) -> AIOutputAdapter | None:
         adapter = self._adapters.get("ai_output")
         return adapter if isinstance(adapter, AIOutputAdapter) else None
+
+    def get_app_switch_adapter(self) -> AppSwitchAdapter | None:
+        adapter = self._adapters.get("app_switch")
+        return adapter if isinstance(adapter, AppSwitchAdapter) else None
+
+    async def try_publish_app_switch(
+        self,
+        app_name: str,
+        window_title: str | None = None,
+        *,
+        metadata: dict | None = None,
+    ) -> bool:
+        """Best-effort publish for foreground app switch events."""
+        try:
+            adapter = self.get_app_switch_adapter()
+            if adapter is None:
+                return False
+            event = adapter.build_app_switch_event(
+                app_name,
+                window_title,
+                metadata=metadata,
+            )
+            if event is None:
+                return False
+            await self.publish_event(event)
+            return True
+        except Exception:
+            return False
+
+    def try_publish_app_switch_threadsafe(
+        self,
+        app_name: str,
+        window_title: str | None = None,
+        *,
+        metadata: dict | None = None,
+    ) -> bool:
+        """Best-effort publish for app switch events from non-async contexts."""
+        try:
+            adapter = self.get_app_switch_adapter()
+            if adapter is None:
+                return False
+            event = adapter.build_app_switch_event(
+                app_name,
+                window_title,
+                metadata=metadata,
+            )
+            if event is None:
+                return False
+            return self.publish_event_threadsafe(event)
+        except Exception:
+            return False
 
     def get_todo_intent_subscriber(self) -> TodoIntentSubscriber | None:
         return self._todo_intent_subscriber

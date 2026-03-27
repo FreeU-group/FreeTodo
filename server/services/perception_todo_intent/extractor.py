@@ -248,10 +248,17 @@ class TodoIntentExtractor:
                 prompt_category, "system_assistant"
             )
 
+        from util.time_utils import get_utc_now, to_local  # noqa: PLC0415
+
+        now = get_utc_now()
+        local_now = to_local(now) or now
+        current_time_str = local_now.strftime("%Y-%m-%d %H:%M:%S %Z")
+
         user_prompt = get_prompt(
             prompt_category,
             "user_prompt",
             text=merged_text,
+            current_time=current_time_str,
             source_set=", ".join([source.value for source in context.source_set]) or "unknown",
             app_name=str(context.metadata.get("app_name") or ""),
             window_title=str(context.metadata.get("window_title") or ""),

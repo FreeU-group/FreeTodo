@@ -170,44 +170,52 @@ def _sample_bubble_pixels(
     return samples
 
 
-def _classify_side_by_color(
+_POS_CLEAR_RIGHT = 0.60
+_POS_CLEAR_LEFT = 0.40
+_POS_MIDPOINT = 0.50
+
+
+def _classify_speaker(
     image: np.ndarray,
     bbox: BBox,
     theme_name: str,
-) -> str | None:
-    """Return 'self' / 'other' / None using HSV green detection with RGB fallback."""
+    roi_width: int,
+) -> str:
+    """Classify a message line as 'self' or 'other' using combined signals.
+
+    1. Green detected on either side → 'self' (only user bubbles are green)
+    2. Position clearly right (>60%) with no green → 'self'
+    3. Position clearly left (<40%) with no green → 'other'
+    4. Ambiguous zone (40%-60%) → gray RGB check, then default to position
+    """
     right_samples = _sample_bubble_pixels(image, bbox, is_right=True)
     left_samples = _sample_bubble_pixels(image, bbox, is_right=False)
 
-    right_green = any(_is_green_hsv(s) for s in right_samples)
-    left_green = any(_is_green_hsv(s) for s in left_samples)
-
-    if right_green and not left_green:
+    any_green = any(_is_green_hsv(s) for s in right_samples) or any(
+        _is_green_hsv(s) for s in left_samples
+    )
+    if any_green:
         return "self"
-    if left_green and not right_green:
+
+    center_x = bbox.x + bbox.width / 2
+    pos_ratio = center_x / roi_width if roi_width > 0 else 0.5
+
+    if pos_ratio > _POS_CLEAR_RIGHT:
+        return "self"
+    if pos_ratio < _POS_CLEAR_LEFT:
         return "other"
 
     colors = BUBBLE_COLORS.get(theme_name)
     if colors:
         tolerance = colors["tolerance"]
-        for sample in right_samples:
-            if _color_distance(sample, colors["green"]) < tolerance:
+        for s in right_samples:
+            if _color_distance(s, colors["green"]) < tolerance:
                 return "self"
-        for sample in left_samples:
-            if _color_distance(sample, colors["gray"]) < tolerance:
+        for s in left_samples:
+            if _color_distance(s, colors["gray"]) < tolerance:
                 return "other"
 
-    return None
-
-
-def _classify_side_by_position(
-    bbox: BBox,
-    roi_width: int,
-) -> str:
-    """Fallback: classify by x-coordinate relative to chat area center."""
-    center_x = bbox.x + bbox.width / 2
-    midpoint = roi_width * 0.5
-    return "self" if center_x > midpoint else "other"
+    return "self" if pos_ratio >= _POS_MIDPOINT else "other"
 
 
 def _detect_chat_type(title_text: str) -> ChatType:
@@ -338,22 +346,15 @@ def parse_wechat_messages(
     if title_hint:
         title_text = title_hint.strip()
         logger.info(
-            "WeChat parser: using window title as chat name: '%s', image=%dx%d",
-            title_text,
-            roi_width,
-            h,
+            f"WeChat parser: using window title as chat name: '{title_text}', image={roi_width}x{h}"
         )
     else:
         prior = WeChatPrior()
         raw_divider = prior.find_title_divider_y(image)
         divider_y = prior.get_title_divider_y(image)
         logger.info(
-            "WeChat parser: divider_y=%s (raw=%s), image=%dx%d, theme=%s",
-            divider_y,
-            raw_divider,
-            roi_width,
-            h,
-            theme_name,
+            f"WeChat parser: divider_y={divider_y} (raw={raw_divider}), "
+            f"image={roi_width}x{h}, theme={theme_name}"
         )
         title_text = _extract_title_text(ocr_result.lines, divider_y)
         if not title_text and raw_divider is None:
@@ -370,10 +371,7 @@ def parse_wechat_messages(
     chat_name = _strip_group_suffix(title_text) if chat_type == ChatType.GROUP else title_text
     contact_name = title_text if chat_type == ChatType.PRIVATE else None
     logger.info(
-        "WeChat parser: type=%s, name='%s', contact='%s'",
-        chat_type.value,
-        chat_name,
-        contact_name,
+        f"WeChat parser: type={chat_type.value}, name='{chat_name}', contact='{contact_name}'"
     )
 
     msg_lines = [
@@ -396,7 +394,7 @@ def parse_wechat_messages(
 
     for msg in messages:
         tag = ">>> " if msg.is_self else "<<< "
-        logger.info("  %s[%s] %s", tag, msg.speaker, msg.text)
+        logger.info(f"  {tag}[{msg.speaker}] {msg.text}")
 
     return ChatContext(
         chat_type=chat_type,
@@ -452,18 +450,16 @@ def _attribute_messages(
 
         if _is_timestamp_line(ln, ctx.roi_width, median_h):
             current_timestamp = _normalize_timestamp(ln.text)
-            logger.info("  [TS] %s → %s", ln.text.strip(), current_timestamp)
+            logger.info(f"  [TS] {ln.text.strip()} -> {current_timestamp}")
             i += 1
             continue
 
         if _is_in_input_box(ctx.image, ln.bbox_px, ctx.theme_name):
-            logger.info("  [INPUT_BOX] skipped: %s", ln.text.strip())
+            logger.info(f"  [INPUT_BOX] skipped: {ln.text.strip()}")
             i += 1
             continue
 
-        side = _classify_side_by_color(ctx.image, ln.bbox_px, ctx.theme_name)
-        if side is None:
-            side = _classify_side_by_position(ln.bbox_px, ctx.roi_width)
+        side = _classify_speaker(ctx.image, ln.bbox_px, ctx.theme_name, ctx.roi_width)
         is_self = side == "self"
 
         if ctx.chat_type == ChatType.GROUP and _is_nickname_line(

@@ -22,6 +22,7 @@ const SOURCES: PerceptionSource[] = [
 	"user_input",
 	"ai_output",
 	"gps_mobile",
+	"app_switch",
 ];
 
 async function fetchStatus(): Promise<PerceptionSourceStatusResponse | null> {

@@ -142,8 +142,12 @@ class TodoIntentSubscriber:
     async def on_event(self, event: PerceptionEvent) -> None:
         if not self._enabled:
             return
-        if event.source == SourceType.AI_OUTPUT:
+        if event.source in (SourceType.AI_OUTPUT, SourceType.APP_SWITCH):
             return
+        if event.source == SourceType.USER_INPUT:
+            meta = event.metadata if isinstance(event.metadata, dict) else {}
+            if meta.get("source") == "chat":
+                return
         text = (event.content_text or "").strip()
         if not text:
             return

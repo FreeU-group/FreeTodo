@@ -49,6 +49,7 @@ SENSOR_NOTIFY_POLL_INTERVAL = 1.0
 GENERAL_NOTIFY_POLL_INTERVAL = 1.0
 DRAFT_TODO_POLL_INTERVAL = 1.0
 LOCAL_FILE_POLL_INTERVAL = 2.0
+APP_SWITCH_POLL_INTERVAL = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +65,8 @@ class _State:
     node_id: str = platform.node()
     seen_notification_ids: set[str] = set()
     last_draft_todo_id: int | None = None
+    last_fg_app: str | None = None
+    last_fg_title: str | None = None
 
 
 _state = _State()
@@ -345,6 +348,117 @@ def _poll_upcoming_todos(client: httpx.Client) -> None:
 
 
 # ---------------------------------------------------------------------------
+# 通知源 6：前台应用切换检测 → POST /api/perception/app-switch
+# ---------------------------------------------------------------------------
+
+
+def _get_foreground_window() -> tuple[str | None, str | None]:
+    """Return (app_name, window_title) of the current foreground window."""
+    system = platform.system()
+    if system == "Windows":
+        return _get_foreground_window_windows()
+    if system == "Darwin":
+        return _get_foreground_window_macos()
+    return None, None
+
+
+def _get_foreground_window_windows() -> tuple[str | None, str | None]:
+    try:
+        import ctypes
+        import ctypes.wintypes
+
+        user32 = ctypes.windll.user32  # type: ignore[attr-defined]
+        hwnd = user32.GetForegroundWindow()
+        if not hwnd:
+            return None, None
+
+        length = user32.GetWindowTextLengthW(hwnd)
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        window_title = buf.value or ""
+
+        pid = ctypes.wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+
+        app_name: str | None = None
+        try:
+            import psutil
+
+            app_name = psutil.Process(pid.value).name()
+        except Exception:
+            pass
+
+        return app_name, window_title
+    except Exception:
+        return None, None
+
+
+def _get_foreground_window_macos() -> tuple[str | None, str | None]:
+    try:
+        result = subprocess.run(  # nosec B603 B607
+            [
+                "osascript",
+                "-e",
+                'tell application "System Events" to get {name, title of first window} of first application process whose frontmost is true',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        if result.returncode != 0:
+            return None, None
+        parts = result.stdout.strip().split(", ", 1)
+        app_name = parts[0] if parts else None
+        window_title = parts[1] if len(parts) > 1 else None
+        return app_name, window_title
+    except Exception:
+        return None, None
+
+
+def _poll_app_switch(client: httpx.Client) -> None:
+    """Background thread: detect foreground app changes and POST to center."""
+    url = f"{_state.center_url}/api/perception/app-switch"
+    print(
+        f"[signal-sensor] 应用切换检测已启动 "
+        f"(endpoint={url}, interval={APP_SWITCH_POLL_INTERVAL}s)"
+    )
+
+    while True:
+        try:
+            app_name, window_title = _get_foreground_window()
+            if app_name:
+                if (
+                    app_name != _state.last_fg_app
+                    or window_title != _state.last_fg_title
+                ):
+                    _state.last_fg_app = app_name
+                    _state.last_fg_title = window_title
+                    print(
+                        f"[signal-sensor] 应用切换: {app_name}"
+                        + (f" — {window_title}" if window_title else "")
+                    )
+                    try:
+                        resp = client.post(
+                            url,
+                            json={
+                                "app_name": app_name,
+                                "window_title": window_title or "",
+                            },
+                            timeout=5,
+                        )
+                        if resp.status_code != 200:
+                            print(
+                                f"[signal-sensor] 应用切换上报失败: HTTP {resp.status_code}"
+                            )
+                    except Exception as exc:
+                        print(f"[signal-sensor] 应用切换上报异常: {exc}")
+        except Exception as exc:
+            print(f"[signal-sensor] 应用切换检测异常: {exc}")
+        time.sleep(APP_SWITCH_POLL_INTERVAL)
+
+
+# ---------------------------------------------------------------------------
 # 通知源 5：本地文件触发（demo_trigger.txt → 非零值时弹窗）
 # ---------------------------------------------------------------------------
 
@@ -599,6 +713,9 @@ def main() -> None:
     print(
         f"    [5] 本地触发  {DEMO_TRIGGER_FILE.name}       (每 {LOCAL_FILE_POLL_INTERVAL}s)"
     )
+    print(
+        f"    [6] 应用切换  /api/perception/app-switch   (每 {APP_SWITCH_POLL_INTERVAL}s)"
+    )
     print()
 
     http_client = httpx.Client(timeout=10)
@@ -627,6 +744,7 @@ def main() -> None:
         target=_poll_upcoming_todos, args=(http_client,), daemon=True
     ).start()
     threading.Thread(target=_poll_local_trigger, daemon=True).start()
+    threading.Thread(target=_poll_app_switch, args=(http_client,), daemon=True).start()
 
     # Start HTTP API in a background thread (if fastapi available)
     if _HAS_FASTAPI:

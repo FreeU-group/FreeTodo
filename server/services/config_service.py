@@ -182,6 +182,7 @@ class ConfigService:
             "sensor.proactive_ocr_enabled",
             "sensor.proactive_ocr_interval",
             "sensor.audio_enabled",
+            "sensor.audio_loopback_enabled",
             # Diary illustration
             "banna2.api_key",
             "banna2.ref_image_path",

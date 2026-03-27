@@ -6,7 +6,8 @@ from typing import Any
 
 from fastapi.responses import StreamingResponse
 
-from llm.agno_agent import TOOL_EVENT_PREFIX, TOOL_EVENT_SUFFIX, AgnoAgentService
+from llm.agno_agent import AgnoAgentService
+from llm.agno_agent_io import TOOL_EVENT_PREFIX, TOOL_EVENT_SUFFIX
 from llm.agno_tools.memory_toolkit import MemoryToolkit
 from routers.chat.base import _schedule_preference_extraction, publish_ai_output_to_perception
 from schemas.chat import ChatMessage

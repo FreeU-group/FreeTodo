@@ -23,6 +23,7 @@ const SOURCE_STYLE_MAP: Record<PerceptionSource, SourceStyle> = {
 	user_input: { icon: Keyboard, accentClassName: "text-purple-600" },
 	ai_output: { icon: Bot, accentClassName: "text-teal-600" },
 	gps_mobile: { icon: MapPin, accentClassName: "text-rose-600" },
+	app_switch: { icon: Monitor, accentClassName: "text-cyan-600" },
 };
 
 const MIC_SOURCES: ReadonlySet<string> = new Set(["mic_pc", "mic_hardware"]);

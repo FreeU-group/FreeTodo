@@ -33,6 +33,7 @@ class HeartbeatRequest(BaseModel):
     screenshot_running: bool = False
     proactive_ocr_running: bool = False
     audio_running: bool = False
+    audio_loopback_running: bool = False
     screenshot_interval: float = 10.0
     proactive_ocr_interval: float = 1.0
     last_screenshot_at: str | None = None
@@ -57,6 +58,7 @@ def _read_sensor_config() -> dict[str, Any]:
         "proactive_ocr_enabled": settings.get("sensor.proactive_ocr_enabled", True),
         "proactive_ocr_interval": float(settings.get("sensor.proactive_ocr_interval", 1.0)),
         "audio_enabled": settings.get("sensor.audio_enabled", True),
+        "audio_loopback_enabled": settings.get("sensor.audio_loopback_enabled", True),
         "recorder_blacklist_enabled": settings.get("jobs.recorder.params.blacklist.enabled", False),
         "recorder_blacklist_apps": settings.get("jobs.recorder.params.blacklist.apps", []),
     }

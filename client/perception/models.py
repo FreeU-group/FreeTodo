@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class SourceType(StrEnum):
     MIC_PC = "mic_pc"
     MIC_HARDWARE = "mic_hardware"
+    SPEAKER_PC = "speaker_pc"
     OCR_SCREEN = "ocr_screen"
     OCR_PROACTIVE = "ocr_proactive"
     USER_INPUT = "user_input"
