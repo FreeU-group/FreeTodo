@@ -9,7 +9,16 @@
  * Check if running in Tauri environment
  */
 export const isTauri = (): boolean => {
-  return typeof window !== 'undefined' && '__TAURI__' in window;
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const tauriWindow = window as Window & {
+    __TAURI__?: unknown;
+    __TAURI_INTERNALS__?: unknown;
+  };
+
+  return '__TAURI__' in tauriWindow || '__TAURI_INTERNALS__' in tauriWindow;
 };
 
 /**
