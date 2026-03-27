@@ -31,6 +31,9 @@ DEFAULT_EXCLUDE = [
     "dist",
     "migrations/versions",
     "client/.venv",
+    "cli/.venv",
+    "cli/build",
+    "cli/dist",
     "node_modules",
     "lifetrace",
 ]

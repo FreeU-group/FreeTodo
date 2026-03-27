@@ -341,7 +341,7 @@ def delete_journal(
         client.close()
 
 
-def _run_journal_json_action(
+def _run_journal_json_action(  # noqa: PLR0913
     *,
     action: str,
     input_path: str | None,

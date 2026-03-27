@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import struct
 import time
 import uuid
@@ -380,11 +379,19 @@ class SecondPassASRProcessor:
     @staticmethod
     def _fetch_transcription_json(url: str) -> dict[str, Any] | None:
         """Download the transcription result JSON from DashScope's result URL."""
-        import urllib.request  # noqa: PLC0415
+        from urllib.parse import urlparse  # noqa: PLC0415
+
+        import httpx  # noqa: PLC0415
+
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"}:
+            logger.error(f"[second-pass] Unsupported transcription URL scheme: {parsed.scheme}")
+            return None
 
         try:
-            with urllib.request.urlopen(url, timeout=30) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+            response = httpx.get(url, timeout=30.0)
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.error(f"[second-pass] Failed to fetch transcription JSON: {e}")
             return None

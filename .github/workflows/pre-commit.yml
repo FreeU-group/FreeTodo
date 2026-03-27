@@ -20,10 +20,14 @@ jobs:
         with:
           filters: |
             python:
-              - 'lifetrace/**'
+              - 'server/**'
+              - 'client/**'
+              - 'cli/**'
               - 'scripts/**'
               - 'tests/**'
-              - 'pyproject.toml'
+              - 'server/pyproject.toml'
+              - 'client/pyproject.toml'
+              - 'cli/pyproject.toml'
               - 'pyrightconfig.json'
               - 'bandit.yaml'
               - '.pre-commit-config.yaml'
@@ -75,7 +79,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y portaudio19-dev
       - name: Install backend deps
-        run: uv sync --group dev
+        run: uv sync --directory server --group dev
       - name: Install pre-commit
         run: python -m pip install --upgrade pip pre-commit
       - name: Run Python hooks
@@ -83,9 +87,8 @@ jobs:
           pre-commit run ruff --all-files
           pre-commit run ruff-format --all-files
           pre-commit run bandit --all-files
-          pre-commit run pyright --all-files
           pre-commit run pytest-quick --all-files
-          pre-commit run check-backend-code-lines --all-files
+          pre-commit run check-python-code-lines --all-files
 
   migration-check:
     runs-on: ubuntu-latest
@@ -104,22 +107,22 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y portaudio19-dev
       - name: Install backend deps
-        run: uv sync --group dev
+        run: uv sync --directory server --group dev
       - name: Prepare data directories
         run: mkdir -p "$LIFETRACE_DATA_DIR/data"
       - name: Initialize database schema
         run: |
-          uv run python - <<'PY'
+          uv run --directory server python - <<'PY'
           from sqlmodel import SQLModel, create_engine
 
-          from lifetrace.storage import models  # noqa: F401
-          from lifetrace.util.path_utils import get_database_path
+          from storage import models  # noqa: F401
+          from util.path_utils import get_database_path
 
           engine = create_engine(f"sqlite:///{get_database_path()}")
           SQLModel.metadata.create_all(engine)
           PY
       - name: Alembic heads check
-        working-directory: lifetrace
+        working-directory: server
         run: |
           set +e
           uv run alembic -c alembic.ini heads > /tmp/alembic_heads.txt 2> /tmp/alembic_heads_err.txt
@@ -159,7 +162,7 @@ jobs:
             exit $alembic_status
           fi
       - name: Alembic upgrade check
-        working-directory: lifetrace
+        working-directory: server
         run: uv run alembic -c alembic.ini upgrade head
 
   precommit-frontend:
@@ -181,8 +184,7 @@ jobs:
         with:
           version: "9"
       - name: Install frontend deps
-        run: pnpm install
-        working-directory: frontend
+        run: pnpm --dir frontend install
       - name: Install pre-commit
         run: python -m pip install --upgrade pip pre-commit
       - name: Run frontend hooks

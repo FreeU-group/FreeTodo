@@ -8,7 +8,7 @@ import uuid
 from typing import Any
 
 
-def build_envelope(
+def build_envelope(  # noqa: PLR0913
     *,
     ok: bool,
     resource: str,

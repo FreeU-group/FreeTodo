@@ -307,7 +307,9 @@ lifetrace/
 │       ├── extractor.py                   # 大模型提取
 │       ├── normalizer.py                  # 时间/字段归一化
 │       ├── dedupe.py                      # 通用去重引擎（pre-gate + post-extract）
-│       └── integration.py                 # TodoService 落库与证据写入
+│       ├── integration.py                 # 去重窗口与集成主编排入口
+│       ├── direct_update.py               # update/complete/cancel 的旁路直接更新
+│       └── agno_dispatch.py               # Agno 消息构造、工具选择与通知落库
 ├── schemas/
 │   └── perception_todo_intent.py          # 内部/调试接口 schema
 └── routers/

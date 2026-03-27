@@ -4,18 +4,29 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
-import httpx
-from apscheduler.triggers.cron import CronTrigger
-from openai import BadRequestError, NotFoundError, OpenAI
-
-from jobs.job_manager import get_job_manager
 from llm.llm_client import LLMClient
 from memory.reader import MemoryReader
+from services.diary_illustration_generation import (
+    build_scene_prompts,
+    call_gemini,
+    call_image_provider,
+    call_volcengine,
+)
+from services.diary_illustration_provider import (
+    gemini_request,
+    get_banna2_config,
+    get_diary_provider_order,
+    get_diary_scheduler,
+    get_volcengine_config,
+    parse_diary_cron_expr,
+    register_diary_job,
+    remove_job_if_exists,
+    volcengine_request,
+)
 from util.base_paths import get_user_data_dir
 from util.logging_config import get_logger
 from util.settings import settings
@@ -344,305 +355,64 @@ class DiaryIllustrationService:
             path.unlink(missing_ok=True)
 
     async def _build_scene_prompts(self, events_content: str) -> list[dict[str, Any]]:
-        events_truncated = events_content[:4000]
-        logger.info(
-            "DiaryIllustration: calling LLM for scene prompts, events_len=%d",
-            len(events_truncated),
+        return await build_scene_prompts(
+            self._llm,
+            events_content=events_content,
+            system_prompt=PROMPT_SYSTEM,
+            user_template=PROMPT_USER_TEMPLATE,
         )
-        messages = [
-            {"role": "system", "content": PROMPT_SYSTEM},
-            {
-                "role": "user",
-                "content": PROMPT_USER_TEMPLATE.format(events=events_truncated),
-            },
-        ]
-        response = await asyncio.to_thread(
-            self._llm.chat,
-            messages,
-            0.7,
-            None,
-            1200,
-            log_usage=True,
-            log_meta={
-                "endpoint": "diary_illustration_prompt",
-                "feature_type": "diary_illustration",
-            },
-        )
-        text = response.strip()
-        if not text:
-            logger.error("DiaryIllustration: LLM returned empty response")
-            raise ValueError("LLM returned empty response")
-
-        start = text.find("[")
-        end = text.rfind("]")
-        if start == -1 or end == -1:
-            logger.error(
-                "DiaryIllustration: LLM response is not JSON array, preview=%s",
-                repr(text[:300]),
-            )
-            raise ValueError(f"LLM response is not a JSON array: {text[:200]}")
-
-        try:
-            scenes = json.loads(text[start : end + 1])
-        except json.JSONDecodeError as e:
-            logger.exception(
-                "DiaryIllustration: JSON parse failed at pos %d, preview=%s",
-                e.pos,
-                repr(text[max(0, e.pos - 50) : e.pos + 50]),
-            )
-            raise
-        if not isinstance(scenes, list):
-            logger.error("DiaryIllustration: LLM returned non-list JSON type=%s", type(scenes))
-            raise ValueError("LLM returned non-list JSON")
-        logger.info("DiaryIllustration: parsed %d scenes from LLM", len(scenes))
-        return scenes[:3]
 
     async def _call_image_provider(self, prompt: str) -> bytes:
-        provider_errors: list[str] = []
-        for provider in _get_diary_provider_order():
-            try:
-                if provider == "gemini":
-                    return await self._call_gemini(prompt)
-                if provider == "volcengine":
-                    return await self._call_volcengine(prompt)
-            except Exception as exc:
-                logger.warning(
-                    "DiaryIllustration: provider=%s failed, trying fallback if available: %s",
-                    provider,
-                    exc,
-                )
-                provider_errors.append(f"{provider}: {exc}")
-
-        if provider_errors:
-            raise ValueError("; ".join(provider_errors))
-
-        raise ValueError("No diary illustration provider is configured")
-
-    async def _call_gemini(self, prompt: str) -> bytes:
-        cfg = _get_banna2_config()
-        api_key = str(cfg.get("api_key", "")).strip()
-        ref_image_path = str(cfg.get("ref_image_path", "")).strip()
-
-        if not api_key:
-            logger.error("DiaryIllustration: banna2.api_key is not configured")
-            raise ValueError("banna2.api_key is not configured")
-
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{GEMINI_MODEL}:generateContent?key={api_key}"
+        return await call_image_provider(
+            prompt,
+            provider_order=_get_diary_provider_order(),
+            gemini_factory=self._call_gemini,
+            volcengine_factory=self._call_volcengine,
         )
 
-        parts: list[dict[str, Any]] = []
-        ref_path = Path(ref_image_path) if ref_image_path else None
-        if ref_path and ref_path.exists():
-            logger.info(
-                "DiaryIllustration: using ref_image ref=%s prompt_len=%d",
-                ref_path,
-                len(prompt),
-            )
-            suffix = ref_path.suffix.lower()
-            mime_type = (
-                "image/jpeg" if suffix in {".jpg", ".jpeg"} else f"image/{suffix.lstrip('.')}"
-            )
-            img_b64 = base64.b64encode(ref_path.read_bytes()).decode()
-            parts.append({"inline_data": {"mime_type": mime_type, "data": img_b64}})
-            parts.append(
-                {"text": (f"Use the person in the reference image as the main character. {prompt}")}
-            )
-        else:
-            logger.debug(
-                "DiaryIllustration: text-only prompt model=%s prompt_preview=%s",
-                GEMINI_MODEL,
-                prompt[:PROMPT_LOG_PREVIEW_LEN] + "..."
-                if len(prompt) > PROMPT_LOG_PREVIEW_LEN
-                else prompt,
-            )
-            parts.append({"text": prompt})
-
-        payload = {
-            "contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]},
-        }
-        return await asyncio.to_thread(self._gemini_request, url, payload)
+    async def _call_gemini(self, prompt: str) -> bytes:
+        return await call_gemini(
+            prompt,
+            config=get_banna2_config(),
+            model_name=GEMINI_MODEL,
+            prompt_log_preview_len=PROMPT_LOG_PREVIEW_LEN,
+            request_fn=self._gemini_request,
+        )
 
     async def _call_volcengine(self, prompt: str) -> bytes:
-        cfg = _get_volcengine_config()
-        api_key = str(cfg.get("api_key", "")).strip()
-        base_url = str(cfg.get("base_url", DEFAULT_VOLCENGINE_BASE_URL)).strip()
-        model = str(cfg.get("image_model", DEFAULT_VOLCENGINE_IMAGE_MODEL)).strip()
-        size = str(cfg.get("image_size", DEFAULT_VOLCENGINE_IMAGE_SIZE)).strip()
-
-        if not api_key:
-            raise ValueError("volcengine.api_key is not configured")
-        return await asyncio.to_thread(
-            self._volcengine_request, base_url, api_key, model, prompt, size
+        return await call_volcengine(
+            prompt,
+            config=get_volcengine_config(),
+            default_base_url=DEFAULT_VOLCENGINE_BASE_URL,
+            default_model=DEFAULT_VOLCENGINE_IMAGE_MODEL,
+            default_size=DEFAULT_VOLCENGINE_IMAGE_SIZE,
+            request_fn=self._volcengine_request,
         )
 
     @staticmethod
     def _gemini_request(url: str, payload: dict[str, Any]) -> bytes:
-        # Mask API key in logs: only log model and base URL
-        log_url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key=***"
-        logger.info("DiaryIllustration: Gemini API request model=%s", GEMINI_MODEL)
-        with httpx.Client(timeout=180) as client:
-            response = client.post(url, json=payload, headers={"Content-Type": "application/json"})
-            if not response.is_success:
-                body_preview = response.text[:500] if response.text else ""
-                logger.error(
-                    "DiaryIllustration: Gemini API HTTP error status=%d url=%s body=%s",
-                    response.status_code,
-                    log_url,
-                    body_preview,
-                )
-                response.raise_for_status()
-            data = response.json()
-
-        candidates = data.get("candidates", [])
-        if not candidates:
-            err_msg = data.get("error", {}) or data
-            logger.error(
-                "DiaryIllustration: Gemini returned no candidates response=%s",
-                json.dumps(err_msg)[:400],
-            )
-            raise ValueError(f"Gemini returned no candidates: {json.dumps(data)[:300]}")
-
-        parts = candidates[0].get("content", {}).get("parts", [])
-        for part in parts:
-            inline = part.get("inlineData") or part.get("inline_data")
-            if inline and inline.get("data"):
-                img_len = len(inline.get("data", ""))
-                logger.info(
-                    "DiaryIllustration: Gemini returned image data_len=%d",
-                    img_len,
-                )
-                return base64.b64decode(inline["data"])
-
-        logger.error(
-            "DiaryIllustration: Gemini response has no image data parts_count=%d response_preview=%s",
-            len(parts),
-            json.dumps(data)[:400],
-        )
-        raise ValueError(f"Gemini response contained no image data: {json.dumps(data)[:300]}")
+        return gemini_request(url, payload, model_name=GEMINI_MODEL)
 
     @staticmethod
     def _volcengine_request(
-        base_url: str,
-        api_key: str,
-        model: str,
-        prompt: str,
-        size: str,
+        base_url: str, api_key: str, model: str, prompt: str, size: str
     ) -> bytes:
-        client = OpenAI(api_key=api_key, base_url=base_url.rstrip("/"))
-        normalized_size = _normalize_volcengine_image_size(model, size)
-        try:
-            response = client.images.generate(
-                model=model,
-                prompt=prompt,
-                size=cast("Any", normalized_size),
-                response_format="b64_json",
-            )
-        except NotFoundError as exc:
-            raise ValueError(
-                f"Volcengine model or endpoint '{model}' was not found or is not accessible. "
-                "Please check the image model / endpoint setting and your Ark access permissions."
-            ) from exc
-        except BadRequestError as exc:
-            message = str(exc)
-            if "image size must be at least" in message:
-                raise ValueError(
-                    f"Volcengine model '{model}' requires a larger image size. "
-                    f"Please use at least {DEFAULT_MIN_PIXEL_IMAGE_SIZE}."
-                ) from exc
-            raise
-
-        if not response.data:
-            raise ValueError("Volcengine returned no image data")
-
-        image = response.data[0]
-        b64_json = getattr(image, "b64_json", None)
-        if b64_json:
-            return base64.b64decode(b64_json)
-
-        image_url = getattr(image, "url", None)
-        if image_url:
-            with httpx.Client(timeout=180) as http_client:
-                download_response = http_client.get(image_url)
-                download_response.raise_for_status()
-                return download_response.content
-
-        raise ValueError("Volcengine response contained no image payload")
-
-
-def _get_banna2_config() -> dict[str, Any]:
-    raw = settings.get("banna2", {}) or {}
-    return dict(raw) if isinstance(raw, dict) else {}
-
-
-def _get_volcengine_config() -> dict[str, Any]:
-    raw = settings.get("volcengine", {}) or {}
-    return dict(raw) if isinstance(raw, dict) else {}
-
-
-def _get_diary_provider() -> str:
-    job_cfg = settings.get("jobs.diary_illustration", {}) or {}
-    provider = str(job_cfg.get("provider", DEFAULT_DIARY_PROVIDER)).strip().lower()
-    if provider in SUPPORTED_DIARY_PROVIDERS:
-        return provider
-    return DEFAULT_DIARY_PROVIDER
-
-
-def _has_gemini_config(config: dict[str, Any] | None = None) -> bool:
-    cfg = config if config is not None else _get_banna2_config()
-    api_key = str(cfg.get("api_key", "")).strip()
-    return bool(api_key and not api_key.startswith("YOUR_"))
-
-
-def _has_volcengine_config(config: dict[str, Any] | None = None) -> bool:
-    cfg = config if config is not None else _get_volcengine_config()
-    api_key = str(cfg.get("api_key", "")).strip()
-    return bool(api_key and not api_key.startswith("YOUR_"))
+        return volcengine_request(
+            base_url,
+            api_key,
+            model,
+            prompt,
+            size,
+            supported_sizes=SUPPORTED_VOLCENGINE_IMAGE_SIZES,
+            default_size=DEFAULT_VOLCENGINE_IMAGE_SIZE,
+            min_pixel_model=DEFAULT_VOLCENGINE_IMAGE_MODEL,
+            min_pixels=DOUBAO_SEEDREAM_MIN_PIXELS,
+            min_pixel_size=DEFAULT_MIN_PIXEL_IMAGE_SIZE,
+        )
 
 
 def _get_diary_provider_order() -> list[str]:
-    preferred = _get_diary_provider()
-    fallback = "volcengine" if preferred == "gemini" else "gemini"
-
-    provider_order: list[str] = []
-    if preferred == "gemini":
-        if _has_gemini_config():
-            provider_order.append("gemini")
-        if _has_volcengine_config():
-            provider_order.append("volcengine")
-    else:
-        if _has_volcengine_config():
-            provider_order.append("volcengine")
-        if _has_gemini_config():
-            provider_order.append("gemini")
-
-    if provider_order:
-        return provider_order
-
-    return [preferred, fallback]
-
-
-def _normalize_volcengine_image_size(model: str, size: str) -> str:
-    normalized = size if size in SUPPORTED_VOLCENGINE_IMAGE_SIZES else DEFAULT_VOLCENGINE_IMAGE_SIZE
-    if normalized == "auto":
-        return DEFAULT_VOLCENGINE_IMAGE_SIZE
-
-    if model == DEFAULT_VOLCENGINE_IMAGE_MODEL:
-        width, height = _parse_image_size(normalized)
-        if width * height < DOUBAO_SEEDREAM_MIN_PIXELS:
-            return DEFAULT_MIN_PIXEL_IMAGE_SIZE
-
-    return normalized
-
-
-def _parse_image_size(size: str) -> tuple[int, int]:
-    try:
-        width_text, height_text = size.lower().split("x", maxsplit=1)
-        return int(width_text), int(height_text)
-    except (AttributeError, ValueError):
-        return 0, 0
+    return get_diary_provider_order(DEFAULT_DIARY_PROVIDER, SUPPORTED_DIARY_PROVIDERS)
 
 
 def test_diary_provider_config(
@@ -652,7 +422,7 @@ def test_diary_provider_config(
     provider_name = provider.strip().lower()
 
     if provider_name == "gemini":
-        cfg = config if config is not None else _get_banna2_config()
+        cfg = config if config is not None else get_banna2_config()
         api_key = str(cfg.get("api_key", "")).strip()
         ref_image_path = str(cfg.get("ref_image_path", "")).strip()
         if not api_key:
@@ -681,7 +451,7 @@ def test_diary_provider_config(
         return {"provider": "gemini", "message": "Gemini image generation is available"}
 
     if provider_name == "volcengine":
-        cfg = config if config is not None else _get_volcengine_config()
+        cfg = config if config is not None else get_volcengine_config()
         api_key = str(cfg.get("api_key", "")).strip()
         base_url = str(cfg.get("base_url", DEFAULT_VOLCENGINE_BASE_URL)).strip()
         model = str(cfg.get("image_model", DEFAULT_VOLCENGINE_IMAGE_MODEL)).strip()
@@ -732,29 +502,6 @@ def ensure_diary_illustration_service() -> DiaryIllustrationService | None:
     return service
 
 
-def _parse_diary_cron_expr(cron_expr: str | None) -> tuple[str, str, str, str, str]:
-    parts = str(cron_expr or DEFAULT_DIARY_ILLUSTRATION_CRON).strip().split()
-    if len(parts) != CRON_FIELD_COUNT:
-        parts = DEFAULT_DIARY_ILLUSTRATION_CRON.split()
-    minute, hour, day, month, day_of_week = parts
-    return minute, hour, day, month, day_of_week
-
-
-def _get_diary_scheduler(wait_for_scheduler: bool = False):
-    manager = get_job_manager()
-    retry_times = 20 if wait_for_scheduler else 1
-
-    for _ in range(retry_times):
-        scheduler_manager = getattr(manager, "scheduler_manager", None)
-        scheduler = getattr(scheduler_manager, "scheduler", None)
-        if scheduler is not None:
-            return scheduler_manager, scheduler
-        if wait_for_scheduler:
-            time.sleep(0.25)
-
-    return None, None
-
-
 async def _run_daily_diary_job() -> None:
     """Cron callback: generate diary text + illustration for today."""
     service = get_diary_illustration_service()
@@ -781,13 +528,8 @@ async def _run_daily_diary_job() -> None:
         logger.exception("DiaryIllustration: daily job error")
 
 
-def _remove_job_if_exists(scheduler_manager: Any, job_id: str) -> None:
-    if scheduler_manager.get_job(job_id):
-        scheduler_manager.remove_job(job_id)
-
-
 def sync_diary_illustration_job(wait_for_scheduler: bool = False) -> bool:
-    scheduler_manager, scheduler = _get_diary_scheduler(wait_for_scheduler=wait_for_scheduler)
+    scheduler_manager, scheduler = get_diary_scheduler(wait_for_scheduler=wait_for_scheduler)
     if scheduler_manager is None or scheduler is None:
         logger.warning("DiaryIllustration: scheduler not ready, skipped cron registration")
         return False
@@ -796,30 +538,28 @@ def sync_diary_illustration_job(wait_for_scheduler: bool = False) -> bool:
     enabled = bool(job_cfg.get("enabled", False))
 
     if not enabled:
-        _remove_job_if_exists(scheduler_manager, DIARY_ILLUSTRATION_JOB_ID)
+        remove_job_if_exists(scheduler_manager, DIARY_ILLUSTRATION_JOB_ID)
         logger.info("DiaryIllustration: scheduled job removed because feature is disabled")
         return True
 
     service = ensure_diary_illustration_service()
     if service is None:
-        _remove_job_if_exists(scheduler_manager, DIARY_ILLUSTRATION_JOB_ID)
+        remove_job_if_exists(scheduler_manager, DIARY_ILLUSTRATION_JOB_ID)
         return False
 
-    minute, hour, day, month, day_of_week = _parse_diary_cron_expr(job_cfg.get("cron"))
+    minute, hour, day, month, day_of_week = parse_diary_cron_expr(
+        job_cfg.get("cron"),
+        DEFAULT_DIARY_ILLUSTRATION_CRON,
+        CRON_FIELD_COUNT,
+    )
     cron_expr = f"{minute} {hour} {day} {month} {day_of_week}"
 
-    scheduler.add_job(
-        _run_daily_diary_job,
-        trigger=CronTrigger(
-            minute=minute,
-            hour=hour,
-            day=day,
-            month=month,
-            day_of_week=day_of_week,
-        ),
-        id=DIARY_ILLUSTRATION_JOB_ID,
-        name=DIARY_ILLUSTRATION_JOB_NAME,
-        replace_existing=True,
+    register_diary_job(
+        scheduler,
+        job_id=DIARY_ILLUSTRATION_JOB_ID,
+        job_name=DIARY_ILLUSTRATION_JOB_NAME,
+        cron_expr=(minute, hour, day, month, day_of_week),
+        callback=_run_daily_diary_job,
     )
     logger.info("DiaryIllustration: scheduled job registered (cron=%s)", cron_expr)
     return True

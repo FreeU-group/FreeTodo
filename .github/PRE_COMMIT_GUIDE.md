@@ -12,6 +12,7 @@ Pre-commit will automatically check and fix the following issues on each `git co
 - Trailing whitespace removal
 - Python code linting (ruff)
 - Python code formatting (ruff-format)
+- Client and CLI Python checks
 - Frontend code checking (Biome)
 - Frontend TypeScript type checking
 - **Frontend code line count check** (max 500 lines of effective code per file)
@@ -236,9 +237,9 @@ repos:
       # Backend code line count check (max 500 lines of effective code)
       - id: check-python-code-lines
         name: Check Python code lines (max 500)
-        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
+        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,cli,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build,cli/.venv,cli/__pycache__,cli/dist,cli/build
         language: system
-        files: ^(server|client|scripts)/.*\.py$
+        files: ^(server|client|cli|scripts)/.*\.py$
         pass_filenames: true
 
       # Tauri Rust code line count check (max 500 lines of effective code)
@@ -251,7 +252,7 @@ repos:
 ```
 
 **Key Configuration**:
-- `files: ^(server|client|scripts)/` - Only check Python files in `server/`, `client/`, and `scripts/`
+- `files: ^(server|client|cli|scripts)/` - Only check Python files in `server/`, `client/`, `cli/`, and `scripts/`
 - `files: ^(frontend|scripts)/` - Only check frontend files in `frontend/` and `scripts/`
 - `files: ^frontend/src-tauri/` - Only check Tauri Rust files in `frontend/src-tauri/`
 - `language_version: python3.12` - Specify Python version

@@ -29,7 +29,7 @@ def create_search_client() -> SearchApiClient:
     return SearchApiClient(load_config())
 
 
-def _search_payload(
+def _search_payload(  # noqa: PLR0913
     *,
     query: str | None,
     start_date: str | None,
@@ -54,7 +54,7 @@ def _search_payload(
 
 
 @search_app.command("screenshots")
-def search_screenshots(
+def search_screenshots(  # noqa: PLR0913
     query: Annotated[
         str | None,
         typer.Option("--query", help="Search text to match against screenshot OCR."),
@@ -117,7 +117,7 @@ def search_screenshots(
 
 
 @search_app.command("events")
-def search_events(
+def search_events(  # noqa: PLR0913
     query: Annotated[
         str | None,
         typer.Option("--query", help="Search text to match against event OCR groupings."),
