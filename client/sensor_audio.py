@@ -5,8 +5,6 @@ import json
 from contextlib import suppress
 from typing import Any
 
-from sensor_helpers import is_local_center
-
 AUDIO_SAMPLE_RATE = 16000
 AUDIO_CHANNELS = 1
 AUDIO_BLOCK_SIZE = 1024
@@ -36,9 +34,7 @@ async def run_audio_stream(daemon) -> None:
 
     ws_url = daemon.center_url.replace("http://", "ws://").replace("https://", "wss://")
     ws_url = f"{ws_url}/api/audio/transcribe?source=mic_pc&node_id={daemon.node_id}"
-    connect_kwargs: dict[str, Any] = {"close_timeout": 5}
-    if is_local_center(daemon.center_url):
-        connect_kwargs["proxy"] = None
+    connect_kwargs: dict[str, Any] = {"close_timeout": 5, "proxy": None}
 
     daemon.logger.info(f"[audio] Connecting to {ws_url}")
     async with websockets.connect(ws_url, **connect_kwargs) as ws:
