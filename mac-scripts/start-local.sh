@@ -92,11 +92,11 @@ echo ""
 # ================================================================
 ENV_FILE="$LOG_DIR/local.env"
 cat > "$ENV_FILE" <<EOF
-CENTER_URL=$CENTER_URL
-FRONTEND_PORT=$FRONTEND_PORT
-NODE_ID=$NODE_ID
-SESSION=$SESSION
-STARTED_AT=$(date '+%Y-%m-%d %H:%M:%S')
+CENTER_URL="$CENTER_URL"
+FRONTEND_PORT="$FRONTEND_PORT"
+NODE_ID="$NODE_ID"
+SESSION="$SESSION"
+STARTED_AT="$(date '+%Y-%m-%d %H:%M:%S')"
 EOF
 
 # ================================================================
