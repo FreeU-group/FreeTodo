@@ -121,6 +121,17 @@ deploy/volume/
 .env
 deploy-*
 
+# iOS / CocoaPods build artifacts
+phone/ios/Pods/
+phone/ios/.symlinks/
+phone/ios/Flutter/Flutter.podspec
+phone/ios/Runner.xcworkspace/
+**/xcuserdata/
+
+# Local env scripts (DO NOT commit secrets)
+mac-scripts/local-env.sh
+windows-scripts/local-env.bat
+
 # sensor debug images
 sensor_debug/
 
