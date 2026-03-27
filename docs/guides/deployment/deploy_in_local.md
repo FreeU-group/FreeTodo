@@ -293,3 +293,25 @@ ipconfig | findstr "IPv4"
 ### 9.5 端口被占用
 
 如果 8001 端口被占用，可修改 `server/config/config.yaml` 中的 `server.port`，同时更新 `frontend/.env` 和 Client 启动参数中的端口号。
+
+### 9.6 Frontend TypeScript 报错：Cannot find module `../../app/ready/route.js`
+
+该错误通常由 Next.js 路由类型缓存过期导致（`.next/types/validator.ts` 引用了已删除的路由）。
+
+可在 `frontend/` 目录重新生成类型：
+
+```bash
+pnpm exec next typegen
+```
+
+或在仓库根目录执行：
+
+```bash
+pnpm --dir frontend exec next typegen
+```
+
+生成完成后再次运行：
+
+```bash
+pnpm --dir frontend type-check
+```
