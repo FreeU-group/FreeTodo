@@ -91,10 +91,9 @@ if [ -f "$NODE_BIN" ]; then
 else
     echo "[3/8] Downloading Node.js $NODE_VERSION (darwin-$NODE_ARCH)..."
     curl -fSL "$NODE_URL" -o "$RT/node.tar.gz"
-    mkdir -p "$RT/_node_tmp"
+    mkdir -p "$RT/_node_tmp" "$RT/node"
     tar xzf "$RT/node.tar.gz" -C "$RT/_node_tmp"
-    mv "$RT"/_node_tmp/node-*/* "$RT/node/" 2>/dev/null || \
-        (mkdir -p "$RT/node" && mv "$RT"/_node_tmp/node-*/* "$RT/node/")
+    mv "$RT"/_node_tmp/node-*/* "$RT/node/"
     rm -rf "$RT/_node_tmp" "$RT/node.tar.gz"
     echo "  Node.js downloaded OK."
 fi

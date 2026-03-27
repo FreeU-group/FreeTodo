@@ -25,6 +25,9 @@ FRONTEND_DIR="$PORTABLE_ROOT/app/frontend"
 SCRIPTS_DIR="$PORTABLE_ROOT/app/scripts"
 DATA_DIR="$PORTABLE_ROOT/data"
 
+# ---- Python UTF-8 ----
+export PYTHONUTF8=1
+
 # ---- uv portable config ----
 export UV_PYTHON_INSTALL_DIR="$RT/python"
 export UV_CACHE_DIR="$RT/uv-cache"
@@ -87,8 +90,8 @@ check_venv() {
     if [ ! -f "$venv_dir/pyvenv.cfg" ]; then
         echo "[REPAIR] $name venv not found, running uv sync..."
         "$UV" sync --directory "$dir" --python-preference only-managed
-    elif ! grep -q "$PORTABLE_ROOT" "$venv_dir/pyvenv.cfg" 2>/dev/null; then
-        echo "[REPAIR] $name venv paths outdated, rebuilding..."
+    elif ! grep -q "runtime/$PLATFORM/python" "$venv_dir/pyvenv.cfg" 2>/dev/null; then
+        echo "[REPAIR] $name venv points to wrong runtime, rebuilding..."
         rm -rf "$venv_dir"
         "$UV" sync --directory "$dir" --python-preference only-managed
     fi
@@ -177,11 +180,14 @@ echo ""
 cleanup() {
     echo ""
     echo "Stopping all services..."
-    pkill -f "server\.py" 2>/dev/null
-    pkill -f "agent_os\.py" 2>/dev/null
+    # Sync .env back to data/config before stopping
+    [ -f "$SERVER_DIR/.env" ] && cp "$SERVER_DIR/.env" "$DATA_DIR/config/server.env" 2>/dev/null
+    [ -f "$CLIENT_DIR/.env" ] && cp "$CLIENT_DIR/.env" "$DATA_DIR/config/client.env" 2>/dev/null
+    pkill -f "python.*server\.py" 2>/dev/null
+    pkill -f "python.*agent_os\.py" 2>/dev/null
     pkill -f "phoenix serve" 2>/dev/null
-    pkill -f "sensor" 2>/dev/null
-    pkill -f "signal-sensor" 2>/dev/null
+    pkill -f "python.*-m sensor" 2>/dev/null
+    pkill -f "python.*signal-sensor\.py" 2>/dev/null
     pkill -f "node.*server\.js" 2>/dev/null
     echo "All stopped."
 }

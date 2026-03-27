@@ -27,11 +27,11 @@ kill_by_pattern() {
     fi
 }
 
-kill_by_pattern "server\.py" "Backend"
-kill_by_pattern "agent_os\.py" "AgentOS"
+kill_by_pattern "python.*server\.py" "Backend"
+kill_by_pattern "python.*agent_os\.py" "AgentOS"
 kill_by_pattern "phoenix serve" "Phoenix"
-kill_by_pattern "sensor" "Sensor"
-kill_by_pattern "signal-sensor" "Signal"
+kill_by_pattern "python.*-m sensor" "Sensor"
+kill_by_pattern "python.*signal-sensor\.py" "Signal"
 
 # Kill Node.js frontend (standalone server.js)
 FRONTEND_PIDS=$(pgrep -f "node.*server\.js" 2>/dev/null)
