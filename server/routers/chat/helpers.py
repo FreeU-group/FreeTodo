@@ -130,7 +130,7 @@ def validate_workspace_path(workspace_path: str) -> tuple[bool, str]:
         (is_valid, error_message) 元组
     """
     try:
-        workspace = Path(workspace_path).resolve()
+        workspace = Path(workspace_path).expanduser().resolve()
     except Exception as e:
         return False, f"无效的路径: {e}"
 
