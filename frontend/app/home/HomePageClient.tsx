@@ -141,6 +141,11 @@ export default function HomePageClient() {
 			setGlobalResizeCursor,
 		});
 
+	// 等待 setup status API 返回，避免主页面先闪一下再跳到向导
+	if (setupLoading) {
+		return <div className="fixed inset-0 bg-neutral-950" />;
+	}
+
 	if (needsSetup) {
 		return <SetupWizard onSetupComplete={() => setSetupDone(true)} />;
 	}

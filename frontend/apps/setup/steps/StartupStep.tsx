@@ -1,6 +1,6 @@
 "use client";
 
-import { Cpu } from "lucide-react";
+import { ArrowRight, Cpu } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
@@ -22,11 +22,12 @@ export function StartupStep({ onComplete }: StartupStepProps) {
 	const t = useTranslations("onboarding");
 	const [stageIdx, setStageIdx] = useState(0);
 	const [progress, setProgress] = useState(0);
+	const [done, setDone] = useState(false);
 
 	useEffect(() => {
 		if (stageIdx >= STAGE_KEYS.length) {
-			const t = setTimeout(onComplete, 400);
-			return () => clearTimeout(t);
+			setDone(true);
+			return;
 		}
 
 		const duration = STAGE_DURATIONS[stageIdx];
@@ -45,7 +46,7 @@ export function StartupStep({ onComplete }: StartupStepProps) {
 		}, 30);
 
 		return () => clearInterval(interval);
-	}, [stageIdx, onComplete]);
+	}, [stageIdx]);
 
 	const currentLabel =
 		stageIdx < STAGE_KEYS.length ? t(STAGE_KEYS[stageIdx]) : t("startupStageDone");
@@ -54,24 +55,46 @@ export function StartupStep({ onComplete }: StartupStepProps) {
 		<div className="flex flex-col items-center gap-8">
 			{/* Animated logo */}
 			<div className="relative flex h-24 w-24 items-center justify-center">
-				<div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-primary" style={{ animationDuration: "2s" }} />
-				<div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent border-b-primary/50" style={{ animationDuration: "3s", animationDirection: "reverse" }} />
-				<Cpu className="h-10 w-10 text-primary" />
+				{!done ? (
+					<>
+						<div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-primary" style={{ animationDuration: "2s" }} />
+						<div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent border-b-primary/50" style={{ animationDuration: "3s", animationDirection: "reverse" }} />
+					</>
+				) : (
+					<div className="absolute inset-0 rounded-full bg-primary/10" />
+				)}
+				<Cpu className={`h-10 w-10 ${done ? "text-primary" : "text-primary"}`} />
 			</div>
 
 			<div className="w-full max-w-xs space-y-3">
-				{/* Progress bar */}
-				<div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-					<div
-						className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-100 ease-linear"
-						style={{ width: `${progress}%` }}
-					/>
-				</div>
-
-				{/* Stage label */}
-				<p className="text-center text-sm font-medium text-white/80">
-					{currentLabel}
-				</p>
+				{!done ? (
+					<>
+						{/* Progress bar */}
+						<div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+							<div
+								className="h-full rounded-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-100 ease-linear"
+								style={{ width: `${progress}%` }}
+							/>
+						</div>
+						<p className="text-center text-sm font-medium text-white/80">
+							{currentLabel}
+						</p>
+					</>
+				) : (
+					<div className="flex flex-col items-center gap-4">
+						<p className="text-center text-sm font-medium text-white/80">
+							{currentLabel}
+						</p>
+						<button
+							type="button"
+							onClick={onComplete}
+							className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:brightness-110"
+						>
+							立即开始
+							<ArrowRight className="h-4 w-4" />
+						</button>
+					</div>
+				)}
 			</div>
 		</div>
 	);
