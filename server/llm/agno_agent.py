@@ -123,6 +123,7 @@ def _build_instructions(
     has_tools: bool,
     use_all_lifetrace_tools: bool,
     has_external_tools: bool,
+    available_tool_names: list[str] | None = None,
 ) -> list[str] | None:
     """构建 Agent 的 instructions
 
@@ -131,6 +132,7 @@ def _build_instructions(
         has_tools: 是否有任何工具启用
         use_all_lifetrace_tools: 是否使用全部 Lifetrace 工具
         has_external_tools: 是否有外部工具
+        available_tool_names: 当前实际可用的工具函数名列表
 
     Returns:
         instructions 列表或 None
@@ -139,19 +141,27 @@ def _build_instructions(
     _ = (use_all_lifetrace_tools, has_external_tools)
     user_name, agent_name = _resolve_identity()
 
+    tool_guard = _build_tool_guard(lang, available_tool_names)
+
     # Load instructions from agno_tools/{lang}/instructions.yaml (if available)
     instructions = get_message(lang, "instructions")
     if instructions and instructions != "[instructions]":
-        return [date_instruction, _inject_identity(instructions)]
+        result = [date_instruction, _inject_identity(instructions)]
+        if tool_guard:
+            result.append(tool_guard)
+        return result
 
     # 简化的 instructions（also inject identity）
     if lang == "zh":
         if has_tools:
-            return [
+            result = [
                 date_instruction,
                 f"你是 {agent_name}，{user_name} 的智能助手，可以帮助用户管理待办事项和执行各种任务。"
                 "请根据用户的问题选择合适的工具来完成任务。",
             ]
+            if tool_guard:
+                result.append(tool_guard)
+            return result
         return [
             date_instruction,
             f"你是 {agent_name}，{user_name} 的智能助手。当前没有启用任何工具，请直接回答用户的问题。",
@@ -159,16 +169,46 @@ def _build_instructions(
 
     # English
     if has_tools:
-        return [
+        result = [
             date_instruction,
             f"You are {agent_name}, {user_name}'s assistant that helps manage todos "
             "and perform various tasks. Use the appropriate tools to complete tasks.",
         ]
+        if tool_guard:
+            result.append(tool_guard)
+        return result
     return [
         date_instruction,
         f"You are {agent_name}, {user_name}'s assistant. No tools are currently enabled. "
         "Please answer the user's questions directly.",
     ]
+
+
+def _collect_tool_names(tools_to_use: list[Toolkit]) -> list[str]:
+    """从 toolkit 列表中收集所有已注册的函数名。"""
+    names: list[str] = []
+    for toolkit in tools_to_use:
+        if hasattr(toolkit, "functions"):
+            names.extend(toolkit.functions.keys())
+    return names
+
+
+def _build_tool_guard(lang: str, available_tool_names: list[str] | None) -> str | None:
+    """构建工具约束指令，防止模型调用不存在的工具。"""
+    if not available_tool_names:
+        return None
+    names_str = ", ".join(available_tool_names)
+    if lang == "zh":
+        return (
+            f"【重要约束】当前可用的工具仅有：{names_str}。"
+            "你只能调用上述列表中的工具，禁止调用任何不在此列表中的工具。"
+            "如果用户的需求需要不可用的工具，请直接用文字回答而不要尝试调用工具。"
+        )
+    return (
+        f"[IMPORTANT] Currently available tools: {names_str}. "
+        "You MUST only call tools from this list. Do NOT call any tool not listed above. "
+        "If the user's request requires an unavailable tool, answer in text instead."
+    )
 
 
 class AgnoAgentService:
@@ -224,8 +264,13 @@ class AgnoAgentService:
                 extra_tools
             )
 
+            available_tool_names = _collect_tool_names(tools_to_use)
             instructions_list = _build_instructions(
-                self.lang, bool(tools_to_use), use_all_lifetrace_tools, has_external_tools
+                self.lang,
+                bool(tools_to_use),
+                use_all_lifetrace_tools,
+                has_external_tools,
+                available_tool_names=available_tool_names,
             )
 
             db, learning, add_history_to_context, db_path = _build_learning_config()

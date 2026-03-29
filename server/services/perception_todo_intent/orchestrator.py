@@ -252,11 +252,10 @@ class TodoIntentOrchestrator:
         return await self.process_context(context, on_progress=on_progress)
 
     @staticmethod
-    def _load_memory_context() -> tuple[str, str]:
-        """Load L3 active todos snapshot and L4 user profile from Memory.
+    def _load_basic_memory_context() -> tuple[str, str]:
+        """Load L3 (active todos) and L4 (user profile) only.
 
-        Returns (active_todos, user_profile). Both default to empty string
-        if MemoryManager is unavailable.
+        Used by Agent mode — the Agent searches memory autonomously via tools.
         """
         try:
             from memory.manager import try_get_memory_manager  # noqa: PLC0415
@@ -265,14 +264,12 @@ class TodoIntentOrchestrator:
             if mgr is None:
                 return "", ""
             reader = mgr.reader
-            active_todos = reader.get_active_todos_snapshot()
-            user_profile = reader.get_user_profile()
-            return active_todos, user_profile
+            return reader.get_active_todos_snapshot(), reader.get_user_profile()
         except Exception:
-            logger.debug("Failed to load memory context for intent extraction", exc_info=True)
+            logger.debug("Failed to load basic memory context", exc_info=True)
             return "", ""
 
-    async def process_context(  # noqa: C901, PLR0915
+    async def process_context(  # noqa: C901
         self,
         context: TodoIntentContext,
         on_progress: Callable[[TodoIntentProcessingRecord], Any] | None = None,
@@ -384,7 +381,39 @@ class TodoIntentOrchestrator:
             )
         )
 
-        await _emit(
+        # ── Dispatch: Agent mode vs Legacy mode ──
+        intent_mode = str(settings.get("perception.todo_intent.intent_mode", "legacy")).strip()
+
+        if intent_mode == "agent":
+            return await self._process_agent_mode(
+                rid=rid,
+                context=context,
+                dedupe_key=dedupe_key,
+                gate_decision=gate_decision,
+                on_progress=_emit,
+            )
+
+        return await self._process_legacy_mode(
+            rid=rid,
+            context=context,
+            dedupe_key=dedupe_key,
+            gate_decision=gate_decision,
+            on_progress=_emit,
+        )
+
+    async def _process_agent_mode(
+        self,
+        *,
+        rid: str,
+        context: TodoIntentContext,
+        dedupe_key: str | None,
+        gate_decision: object,
+        on_progress: Any,
+    ) -> TodoIntentProcessingRecord:
+        """Agent mode: Gate → single ReAct Agent (extract + search + execute)."""
+        logger.info("[Orchestrator] Using AGENT mode for %s", context.context_id[:16])
+
+        await on_progress(
             self._build_record(
                 record_id=rid,
                 context=context,
@@ -394,95 +423,70 @@ class TodoIntentOrchestrator:
             )
         )
 
-        active_todos, user_profile = self._load_memory_context()
-        logger.info(
-            "[Orchestrator] Memory context loaded: active_todos=%d chars, user_profile=%d chars",
-            len(active_todos),
-            len(user_profile),
-        )
+        active_todos, user_profile = self._load_basic_memory_context()
 
         try:
-            candidates = await self._extractor.extract(
+            from services.perception_todo_intent.intent_agent import (  # noqa: PLC0415
+                run_intent_agent,
+            )
+
+            result = await run_intent_agent(
                 context,
                 active_todos=active_todos,
                 user_profile=user_profile,
             )
-        except Exception:
-            logger.warning("[Orchestrator] Extractor failed, retrying with strict_json...")
-            try:
-                candidates = await self._extractor.extract(
-                    context,
-                    strict_json=True,
-                    active_todos=active_todos,
-                    user_profile=user_profile,
-                )
-            except Exception as exc:
-                logger.exception("[Orchestrator] Extractor failed twice")
-                rec = self._build_record(
-                    record_id=rid,
-                    context=context,
-                    status=TodoIntentProcessingStatus.EXTRACT_FAILED,
-                    dedupe_key=dedupe_key,
-                    gate_decision=gate_decision,
-                    error=self._resolve_extract_error(exc),
-                )
-                await _emit(rec)
-                return rec
-
-        normalized = self._post_processor.normalize(candidates, context)
-        self._counters["extracted_candidates"] += len(normalized)
-        logger.info(
-            "[Orchestrator] Extractor returned %d candidate(s), %d after normalization",
-            len(candidates),
-            len(normalized),
-        )
-        for c in normalized:
             logger.info(
-                "[Orchestrator]   → %r  intent_type=%s  inviter=%s  confidence=%.2f",
-                c.name,
-                c.intent_type.value,
-                c.inviter,
-                c.confidence,
+                "[Orchestrator] Agent result: action=%s reason=%s",
+                result.action.value,
+                result.reason,
             )
-
-        await _emit(
-            self._build_record(
+            self._counters["integrated_total"] += 1
+        except Exception as exc:
+            logger.exception("[Orchestrator] Agent execution failed")
+            rec = self._build_record(
                 record_id=rid,
                 context=context,
-                status=TodoIntentProcessingStatus.INTEGRATING,
+                status=TodoIntentProcessingStatus.EXTRACT_FAILED,
                 dedupe_key=dedupe_key,
                 gate_decision=gate_decision,
-                candidates=normalized,
+                error=str(exc)[:200],
             )
-        )
+            await on_progress(rec)
+            return rec
 
-        results = await self._integration.integrate(
-            context=context,
-            gate_decision=gate_decision,
-            candidates=normalized,
-        )
-        self._counters["integrated_total"] += len(results)
-        for r in results:
-            logger.info(
-                "[Orchestrator]   Integration result: action=%s reason=%s",
-                r.action.value,
-                r.reason,
-            )
         rec = self._build_record(
             record_id=rid,
             context=context,
-            status=(
-                TodoIntentProcessingStatus.EXTRACTED
-                if normalized
-                else TodoIntentProcessingStatus.PROCESSED
-            ),
+            status=TodoIntentProcessingStatus.PROCESSED,
             dedupe_key=dedupe_key,
             gate_decision=gate_decision,
-            candidates=normalized,
-            integration_results=results,
+            integration_results=[result],
         )
-        await _emit(rec)
+        await on_progress(rec)
         return rec
+
+    async def _process_legacy_mode(
+        self,
+        *,
+        rid: str,
+        context: TodoIntentContext,
+        dedupe_key: str | None,
+        gate_decision: object,
+        on_progress: Any,
+    ) -> TodoIntentProcessingRecord:
+        """Legacy mode: delegate to orchestrator_legacy module."""
+        from services.perception_todo_intent.orchestrator_legacy import (  # noqa: PLC0415
+            process_legacy_mode,
+        )
+
+        return await process_legacy_mode(
+            self,
+            rid=rid,
+            context=context,
+            dedupe_key=dedupe_key,
+            gate_decision=gate_decision,
+            on_progress=on_progress,
+        )
 
     def get_stats(self) -> TodoIntentOrchestratorStats:
         return TodoIntentOrchestratorStats(

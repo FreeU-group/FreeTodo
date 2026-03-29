@@ -141,6 +141,156 @@ class MemoryReader:
             logger.debug("Failed to load todos snapshot, returning empty", exc_info=True)
             return ""
 
+    def get_recent_context(
+        self,
+        deduper: object | None,
+        *,
+        window_minutes: float = 10.0,
+        max_chars: int = 2000,
+        exclude_event_ids: set[str] | None = None,
+    ) -> str:
+        """Build a text summary of recent L1 events from deduper's in-memory buffer.
+
+        Falls back to reading the tail of today's L1 file if the deduper is
+        unavailable.
+        """
+        if deduper is None or not hasattr(deduper, "get_recent"):
+            return self._recent_context_from_file(
+                window_minutes=window_minutes,
+                max_chars=max_chars,
+            )
+
+        events = self._collect_recent_events(
+            deduper,
+            window_minutes=window_minutes,
+            exclude_event_ids=exclude_event_ids or set(),
+        )
+        return self._format_events(events, max_chars=max_chars) if events else ""
+
+    def _collect_recent_events(
+        self,
+        deduper: object,
+        *,
+        window_minutes: float,
+        exclude_event_ids: set[str],
+    ) -> list:
+        """Collect recent L1 events from deduper's in-memory buffer."""
+        from perception.models import PerceptionEvent  # noqa: PLC0415
+        from util.time_utils import to_local  # noqa: PLC0415
+
+        recent = list(getattr(deduper, "_recent_kept", []))
+        cutoff = get_local_now() - timedelta(minutes=window_minutes)
+
+        events = []
+        for ev in recent:
+            if not isinstance(ev, PerceptionEvent) or ev.event_id in exclude_event_ids:
+                continue
+            local_ts = to_local(ev.timestamp) or ev.timestamp
+            if local_ts >= cutoff:
+                events.append(ev)
+        return events
+
+    @staticmethod
+    def _format_events(events: list, *, max_chars: int) -> str:
+        """Format a list of PerceptionEvents into a text summary."""
+        from util.time_utils import to_local  # noqa: PLC0415
+
+        lines: list[str] = []
+        total = 0
+        for ev in events:
+            local_ts = to_local(ev.timestamp) or ev.timestamp
+            parts = [local_ts.strftime("%H:%M"), ev.source.value]
+            meta = ev.metadata
+            if meta.get("app"):
+                parts.append(str(meta["app"]))
+            if meta.get("speaker"):
+                parts.append(str(meta["speaker"]))
+            entry = f"## {' | '.join(parts)}\n{ev.content_text.strip()}\n"
+            if total + len(entry) > max_chars:
+                break
+            lines.append(entry)
+            total += len(entry)
+        return "\n".join(lines)
+
+    def _recent_context_from_file(
+        self,
+        *,
+        window_minutes: float = 10.0,
+        max_chars: int = 2000,
+    ) -> str:
+        """Fallback: read recent entries from today's L1 file on disk."""
+        today_str = get_local_now().strftime("%Y-%m-%d")
+        f = self._deduped_dir / f"{today_str}.md"
+        if not f.exists():
+            return ""
+        content = f.read_text(encoding="utf-8")
+        sections = content.split("\n## ")
+        if not sections:
+            return ""
+
+        now = get_local_now()
+        cutoff = now - timedelta(minutes=window_minutes)
+        cutoff_hm = cutoff.strftime("%H:%M")
+
+        kept: list[str] = []
+        total = 0
+        for section in reversed(sections):
+            if not section.strip():
+                continue
+            first_line = section.split("\n", 1)[0]
+            time_part = first_line.split("|")[0].strip() if "|" in first_line else ""
+            if time_part and time_part < cutoff_hm:
+                break
+            entry = f"## {section}" if not section.startswith("## ") else section
+            if total + len(entry) > max_chars:
+                break
+            kept.append(entry)
+            total += len(entry)
+
+        kept.reverse()
+        return "\n".join(kept)
+
+    def search_relevant_context(
+        self,
+        keywords: list[str],
+        *,
+        days: int = 3,
+        max_chars: int = 1500,
+        max_results_per_keyword: int = 3,
+    ) -> str:
+        """Search L1/L2 for snippets matching any of the given keywords.
+
+        Deduplicates overlapping snippets across keywords and truncates to
+        *max_chars*.
+        """
+        if not keywords:
+            return ""
+
+        seen_snippets: set[str] = set()
+        results: list[tuple[str, str, str]] = []  # (date, level, snippet)
+        total_chars = 0
+
+        for kw in keywords:
+            hits = self.search_keyword(kw, days=days, max_results=max_results_per_keyword)
+            for hit in hits:
+                sig = hit.snippet[:100]
+                if sig in seen_snippets:
+                    continue
+                seen_snippets.add(sig)
+                entry_text = f"### {hit.date}（{hit.level.value}）— 关键词「{kw}」\n{hit.snippet}\n"
+                if total_chars + len(entry_text) > max_chars:
+                    return self._format_relevant(results)
+                results.append((hit.date, hit.level.value, entry_text))
+                total_chars += len(entry_text)
+
+        return self._format_relevant(results)
+
+    @staticmethod
+    def _format_relevant(results: list[tuple[str, str, str]]) -> str:
+        if not results:
+            return ""
+        return "\n".join(entry for _, _, entry in results)
+
     def get_raw_content(self, date_str: str) -> str | None:
         """Read raw L0 file for a given date."""
         raw_file = self._raw_dir / f"{date_str}.md"

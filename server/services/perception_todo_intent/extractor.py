@@ -230,6 +230,8 @@ class TodoIntentExtractor:
         strict_json: bool = False,
         active_todos: str = "",
         user_profile: str = "",
+        recent_context: str = "",
+        keyword_context: str = "",
     ) -> list[ExtractedTodoCandidate]:
         cfg = self._load_from_settings()
         llm_client = self._llm_client
@@ -272,6 +274,8 @@ class TodoIntentExtractor:
             strict_json="true" if strict_json else "false",
             active_todos=active_todos or "(无已有待办)",
             user_profile=user_profile or "(无用户画像)",
+            recent_context=recent_context or "(无最近上下文)",
+            keyword_context=keyword_context or "(无相关历史记忆)",
         )
         if strict_json:
             user_prompt = (

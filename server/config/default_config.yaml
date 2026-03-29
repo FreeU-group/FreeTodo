@@ -89,6 +89,7 @@ perception:
   input_enabled: true
   todo_intent:
     enabled: true
+    intent_mode: agent # agent | legacy — agent=ReAct Agent 模式, legacy=Extractor+Integration 流水线
     mode: memory_preview # memory_preview | draft | active | review_queue
     disable_legacy_auto_extraction: true # 启用后跳过旧自动提取链路（audio/proactive_ocr/todo_recorder）
     window_seconds: 0
@@ -98,6 +99,8 @@ perception:
     processing_workers: 2
     processing_queue_maxsize: 200
     max_recent_records: 200
+    agent:
+      model: "" # 留空则使用 llm.model（主模型）
     pre_gate_dedupe:
       enabled: true
       exact_window_seconds: 90
@@ -116,6 +119,16 @@ perception:
       temperature: 0.2
       max_tokens: 800
       prompt_category: perception_todo_intent_extraction
+    memory_enrichment:
+      enabled: true
+      total_max_chars: 3500 # 最近上下文 + 关键词上下文的总字符上限
+      recent:
+        window_minutes: 10 # 回溯最近多少分钟
+        max_chars: 2000 # 最近上下文单独上限
+      keyword:
+        search_days: 3 # 关键词搜索最近多少天
+        max_chars: 1500 # 关键词上下文单独上限
+        max_keywords: 5 # 最多提取几个关键词
     integration:
       post_extract_dedupe_window_seconds: 600
       create_confidence_threshold: 0.7
