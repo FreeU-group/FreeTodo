@@ -3,7 +3,7 @@ import { getRequestConfig } from "next-intl/server";
 
 // Supported locales - add new languages here
 // Must match the files in ./messages/ directory
-const SUPPORTED_LOCALES = ["zh", "en"] as const;
+const SUPPORTED_LOCALES = ["zh", "en", "ja"] as const;
 type Locale = (typeof SUPPORTED_LOCALES)[number];
 
 // Default locale when no match is found

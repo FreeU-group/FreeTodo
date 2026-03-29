@@ -3,10 +3,10 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 // Supported locales - add new languages here
 // Future languages: "ja" | "ko" | "ru" | "fr"
-export type Locale = "zh" | "en";
+export type Locale = "zh" | "en" | "ja";
 
 // Supported locales list for validation and detection
-const SUPPORTED_LOCALES: Locale[] = ["zh", "en"];
+const SUPPORTED_LOCALES: Locale[] = ["zh", "en", "ja"];
 
 // Default locale when no match is found
 const DEFAULT_LOCALE: Locale = "en";
