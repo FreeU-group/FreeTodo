@@ -24,6 +24,7 @@ export function LanguageToggle() {
 	const languages: { value: Locale; label: string }[] = [
 		{ value: "zh", label: tLang("zh") },
 		{ value: "en", label: tLang("en") },
+		{ value: "ja", label: tLang("ja") },
 	];
 
 	const handleToggle = () => {
