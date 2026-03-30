@@ -170,7 +170,7 @@ function getPanelHtml(data) {
 	}
 	.panel{
 		position:fixed;
-		bottom:6px;right:6px;left:6px;top:6px;
+		bottom:0;right:0;left:0;top:0;
 		opacity:0;
 		transform:translateX(80px) scale(0.95);
 		animation:slideIn .4s cubic-bezier(.16,1,.3,1) .05s forwards;
