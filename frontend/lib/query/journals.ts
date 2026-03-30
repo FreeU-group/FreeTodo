@@ -85,6 +85,7 @@ export function useJournals(params?: UseJournalsParams) {
 		query: {
 			queryKey: queryKeys.journals.list(params),
 			staleTime: 30 * 1000,
+			refetchInterval: 30 * 1000,
 			select: (data: unknown) => {
 				const response =
 					unwrapApiData<JournalListResponse>(data) ?? {

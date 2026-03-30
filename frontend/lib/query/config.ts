@@ -62,6 +62,12 @@ export interface AppConfig {
 	jobsDiaryIllustrationProvider?: string;
 	jobsRecorderParamsBlacklistEnabled?: boolean;
 	jobsRecorderParamsBlacklistApps?: string[];
+	// Intent source toggles
+	intentSourceMicPc?: boolean;
+	intentSourceMicHardware?: boolean;
+	intentSourceSpeakerPc?: boolean;
+	intentSourceOcrScreen?: boolean;
+	intentSourceOcrProactive?: boolean;
 	[key: string]: unknown;
 }
 
@@ -77,7 +83,8 @@ export function useConfig() {
 	return useGetConfigDetailedApiGetConfigGet({
 		query: {
 			queryKey: queryKeys.config,
-			staleTime: 60 * 1000, // 1 分钟
+			staleTime: 60 * 1000,
+			refetchInterval: 60 * 1000,
 			select: (data: unknown) => {
 				// 处理响应格式：{ success: boolean, config?: Record<string, unknown> }
 				const response = data as {

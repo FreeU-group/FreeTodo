@@ -267,6 +267,8 @@ export function UserProfilePanel() {
 
 	useEffect(() => {
 		fetchProfile();
+		const interval = setInterval(fetchProfile, 30000);
+		return () => clearInterval(interval);
 	}, [fetchProfile]);
 
 	const parsed = profileContent

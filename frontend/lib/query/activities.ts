@@ -90,6 +90,7 @@ export function useActivities(params?: UseActivitiesParams) {
 			query: {
 				queryKey: queryKeys.activities.list(params),
 				staleTime: 30 * 1000,
+				refetchInterval: 30 * 1000,
 				select: (data: unknown) => {
 					// Data is now auto-converted to camelCase by the fetcher
 					const response = data as ActivityListResponse;

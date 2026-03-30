@@ -165,10 +165,14 @@ export function EventStreamPanel() {
 
 	useEffect(() => {
 		fetchDates();
+		const interval = setInterval(fetchDates, 60000);
+		return () => clearInterval(interval);
 	}, [fetchDates]);
 
 	useEffect(() => {
 		fetchEvents(date);
+		const interval = setInterval(() => fetchEvents(date), 30000);
+		return () => clearInterval(interval);
 	}, [date, fetchEvents]);
 
 	const blocks = content ? parseEventsMarkdown(content) : [];
