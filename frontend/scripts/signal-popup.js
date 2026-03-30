@@ -537,7 +537,12 @@ app.whenReady().then(() => {
 	}
 
 	const html = getPanelHtml(data);
-	win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+	const tmpHtml = path.join(require("os").tmpdir(), `signal_popup_${Date.now()}.html`);
+	fs.writeFileSync(tmpHtml, html, "utf-8");
+	win.loadFile(tmpHtml);
+	win.webContents.once("did-finish-load", () => {
+		try { fs.unlinkSync(tmpHtml); } catch {}
+	});
 
 	win.once("ready-to-show", () => {
 		win.show();
