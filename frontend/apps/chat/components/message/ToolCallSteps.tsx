@@ -22,16 +22,21 @@ export function ToolCallSteps({ steps, className }: ToolCallStepsProps) {
 		return null;
 	}
 
-	// Deduplicate: for each toolName, keep only the last completed occurrence
-	const lastIndexByTool = new Map<string, number>();
+	// Deduplicate: for each tool display name, keep only the last completed occurrence
+	const getDisplayKey = (step: ToolCallStep) => {
+		const toolKey = `tools.${step.toolName}` as Parameters<typeof t>[0];
+		return t.has(toolKey) ? t(toolKey) : step.toolName;
+	};
+	const lastIndexByDisplay = new Map<string, number>();
 	for (let i = 0; i < steps.length; i++) {
 		if (steps[i].status !== "running") {
-			lastIndexByTool.set(steps[i].toolName, i);
+			lastIndexByDisplay.set(getDisplayKey(steps[i]), i);
 		}
 	}
 	const deduped = steps.filter(
 		(step, idx) =>
-			step.status === "running" || lastIndexByTool.get(step.toolName) === idx,
+			step.status === "running" ||
+			lastIndexByDisplay.get(getDisplayKey(step)) === idx,
 	);
 
 	return (
