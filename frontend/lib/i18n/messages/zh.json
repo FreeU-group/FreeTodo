@@ -78,7 +78,7 @@
 		"userProfilePlaceholder": "展示基于行为分析生成的用户画像",
 		"eventStreamLabel": "事件流",
 		"eventStreamPlaceholder": "展示 L2 记忆事件摘要",
-		"agentMonitorLabel": "AI 监控",
+		"agentMonitorLabel": "智能中枢",
 		"agentMonitorPlaceholder": "实时查看后台 AI 任务运行状态",
 		"backendUnavailableBadge": "后端不可用",
 		"backendUnavailableTooltip": "后端模块未启用或缺少依赖。",
@@ -534,7 +534,7 @@
 		"preview": "预览",
 		"userProfile": "用户画像",
 		"eventStream": "事件流",
-		"agentMonitor": "AI 监控",
+		"agentMonitor": "智能中枢",
 		"unassigned": "未分配"
 	},
 	"panelMenu": {
