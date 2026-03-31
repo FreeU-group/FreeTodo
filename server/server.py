@@ -70,10 +70,22 @@ async def lifespan(app: FastAPI):
     # 延迟初始化日记插画服务
     background_tasks.append(asyncio.create_task(_init_diary_illustration_async()))
 
+    # 延迟连接 MCP 服务器
+    background_tasks.append(asyncio.create_task(_connect_mcp_servers_async()))
+
+    # 预热 Agno Agent（避免首次对话慢）
+    background_tasks.append(asyncio.create_task(_warmup_agno_agent_async()))
+
     yield
 
     # 关闭逻辑
     logger.error("Web服务器关闭，正在停止后台服务")
+
+    # 断开 MCP 服务器
+    with suppress(Exception):
+        from llm.agno_mcp_manager import disconnect_mcp_servers  # noqa: PLC0415
+
+        await disconnect_mcp_servers()
 
     # 停止后台任务
     for task in getattr(app.state, "background_tasks", []):
@@ -185,6 +197,33 @@ async def _init_diary_illustration_async() -> None:
         await asyncio.to_thread(sync_diary_illustration_job, True)
     except Exception:
         logger.exception("DiaryIllustration: initialization failed")
+
+
+async def _warmup_agno_agent_async() -> None:
+    """Pre-initialize Agno Agent so the first chat request is fast."""
+    try:
+        from llm.agno_agent import AgnoAgentService  # noqa: PLC0415
+
+        def _warmup():
+            service = AgnoAgentService(lang="zh", selected_tools=["list_todos"])
+            # Trigger a lightweight call to warm up the OpenAI client connection
+            for _ in service.stream_response("ping", include_tool_events=False):
+                break  # Just need the first chunk to warm up
+
+        await asyncio.to_thread(_warmup)
+        logger.info("Agno Agent 预热完成")
+    except Exception:
+        logger.debug("Agno Agent 预热跳过", exc_info=True)
+
+
+async def _connect_mcp_servers_async() -> None:
+    """Connect to configured MCP servers at startup."""
+    try:
+        from llm.agno_mcp_manager import connect_mcp_servers  # noqa: PLC0415
+
+        await connect_mcp_servers()
+    except Exception:
+        logger.exception("MCP servers: connection failed")
 
 
 # 注册按配置启用的路由
