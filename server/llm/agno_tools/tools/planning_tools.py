@@ -83,7 +83,7 @@ class PlanningTools:
         then optionally writes the suggested times back to each todo.
 
         Args:
-            scope: Planning scope - "today" for today only, "week" for this week
+            scope: Planning scope - "today" for today, "3days" for next 3 days, "week" for this week
             auto_apply: If True, automatically update each todo's start_time/end_time
 
         Returns:
@@ -110,6 +110,10 @@ class PlanningTools:
                 )
                 end = start + timedelta(days=7)
                 label = f"本周（{start.strftime('%m/%d')} - {end.strftime('%m/%d')}）"
+            elif scope == "3days":
+                start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                end = start + timedelta(days=3)
+                label = f"未来3天（{start.strftime('%m/%d')} - {end.strftime('%m/%d')}）"
             else:
                 label = f"今天（{now.strftime('%Y-%m-%d %A')}）"
 
