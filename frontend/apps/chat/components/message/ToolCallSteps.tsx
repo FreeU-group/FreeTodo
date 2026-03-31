@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Wrench } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, Loader2, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useState } from "react";
 import type { ToolCallStep } from "@/apps/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -40,45 +41,37 @@ type ToolCallStepItemProps = {
  */
 function ToolCallStepItem({ step, t }: ToolCallStepItemProps) {
 	const { toolName, toolArgs, status, resultPreview } = step;
+	const [expanded, setExpanded] = useState(status === "running");
 
-	// 获取工具的本地化名称，如果没有翻译则使用原始工具名
 	const toolKey = `tools.${toolName}` as Parameters<typeof t>[0];
 	const displayName = t.has(toolKey) ? t(toolKey) : toolName;
 
-	// 状态图标
 	const StatusIcon = {
 		running: Loader2,
 		completed: CheckCircle2,
 		error: AlertCircle,
 	}[status];
 
-	// 状态颜色
 	const statusColorClass = {
 		running: "text-primary",
 		completed: "text-green-500",
 		error: "text-red-500",
 	}[status];
 
-	// 边框颜色
 	const borderColorClass = {
 		running: "border-primary/30 dark:border-primary/50",
 		completed: "border-green-200 dark:border-green-800",
 		error: "border-red-200 dark:border-red-800",
 	}[status];
 
-	// 背景颜色
 	const bgColorClass = {
 		running: "bg-primary/5 dark:bg-primary/20",
 		completed: "bg-green-50/50 dark:bg-green-950/30",
 		error: "bg-red-50/50 dark:bg-red-950/30",
 	}[status];
 
-	// 格式化工具参数显示
 	const formatArgs = (args: Record<string, unknown> | undefined): string => {
-		if (!args || Object.keys(args).length === 0) {
-			return "";
-		}
-		// 只显示前几个关键参数
+		if (!args || Object.keys(args).length === 0) return "";
 		const entries = Object.entries(args).slice(0, 3);
 		return entries
 			.map(([key, value]) => {
@@ -93,71 +86,90 @@ function ToolCallStepItem({ step, t }: ToolCallStepItemProps) {
 			.join(", ");
 	};
 
+	const hasDetails =
+		(toolArgs && Object.keys(toolArgs).length > 0) ||
+		((status === "completed" || status === "error") && resultPreview);
+
 	return (
 		<div
 			className={cn(
-				"flex items-start gap-3 p-3 rounded-lg border transition-all duration-200",
+				"rounded-lg border transition-all duration-200",
 				borderColorClass,
 				bgColorClass,
 			)}
 		>
-			{/* 工具图标 */}
-			<div
+			{/* Header — always visible, clickable to toggle */}
+			<button
+				type="button"
+				onClick={() => hasDetails && setExpanded(!expanded)}
 				className={cn(
-					"shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
-					status === "running" ? "bg-primary/10 dark:bg-primary/25" : "",
-					status === "completed" ? "bg-green-100 dark:bg-green-900" : "",
-					status === "error" ? "bg-red-100 dark:bg-red-900" : "",
+					"flex w-full items-center gap-3 p-3 text-left",
+					hasDetails && "cursor-pointer",
 				)}
 			>
-				<Wrench className={cn("w-4 h-4", statusColorClass)} />
-			</div>
-
-			{/* 内容区域 */}
-			<div className="flex-1 min-w-0">
-				{/* 标题行 */}
-				<div className="flex items-center gap-2">
-					<span className="font-medium text-sm text-foreground">
-						{status === "running"
-							? t("calling", { tool: displayName })
-							: status === "completed"
-								? t("completed", { tool: displayName })
-								: t("failed", { tool: displayName })}
-					</span>
-					<StatusIcon
-						className={cn(
-							"w-4 h-4 shrink-0",
-							statusColorClass,
-							status === "running" && "animate-spin",
-						)}
-					/>
+				<div
+					className={cn(
+						"shrink-0 w-7 h-7 rounded-full flex items-center justify-center",
+						status === "running" ? "bg-primary/10 dark:bg-primary/25" : "",
+						status === "completed" ? "bg-green-100 dark:bg-green-900" : "",
+						status === "error" ? "bg-red-100 dark:bg-red-900" : "",
+					)}
+				>
+					<Wrench className={cn("w-3.5 h-3.5", statusColorClass)} />
 				</div>
 
-				{/* 参数显示 */}
-				{toolArgs && Object.keys(toolArgs).length > 0 && (
-					<div className="mt-1 text-xs text-muted-foreground font-mono truncate">
-						{formatArgs(toolArgs)}
-					</div>
-				)}
+				<span className="flex-1 font-medium text-sm text-foreground truncate">
+					{status === "running"
+						? t("calling", { tool: displayName })
+						: status === "completed"
+							? t("completed", { tool: displayName })
+							: t("failed", { tool: displayName })}
+				</span>
 
-				{/* 结果预览（完成或错误状态） */}
-				{(status === "completed" || status === "error") && resultPreview && (
-					<div className="mt-2 text-xs text-muted-foreground bg-background/50 rounded p-2 max-h-20 overflow-auto">
-						<span
-							className={cn(
-								status === "completed"
-									? "text-green-600 dark:text-green-400"
-									: "text-red-600 dark:text-red-400",
-							)}
-						>
-							{t("result")}:
-						</span>{" "}
-						{resultPreview.length > 200
-							? `${resultPreview.substring(0, 200)}...`
-							: resultPreview}
-					</div>
+				<StatusIcon
+					className={cn(
+						"w-4 h-4 shrink-0",
+						statusColorClass,
+						status === "running" && "animate-spin",
+					)}
+				/>
+
+				{hasDetails && (
+					<ChevronRight
+						className={cn(
+							"w-3.5 h-3.5 shrink-0 text-muted-foreground transition-transform duration-200",
+							expanded && "rotate-90",
+						)}
+					/>
 				)}
-			</div>
+			</button>
+
+			{/* Details — collapsible */}
+			{expanded && hasDetails && (
+				<div className="px-3 pb-3 pt-0 space-y-2">
+					{toolArgs && Object.keys(toolArgs).length > 0 && (
+						<div className="text-xs text-muted-foreground font-mono bg-background/50 rounded p-2 truncate">
+							params: {formatArgs(toolArgs)}
+						</div>
+					)}
+					{(status === "completed" || status === "error") && resultPreview && (
+						<div className="text-xs text-muted-foreground bg-background/50 rounded p-2 max-h-32 overflow-auto">
+							<span
+								className={cn(
+									status === "completed"
+										? "text-green-600 dark:text-green-400"
+										: "text-red-600 dark:text-red-400",
+								)}
+							>
+								{t("result")}:
+							</span>{" "}
+							{resultPreview.length > 300
+								? `${resultPreview.substring(0, 300)}...`
+								: resultPreview}
+						</div>
+					)}
+				</div>
+			)}
 		</div>
 	);
 }
