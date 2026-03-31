@@ -22,15 +22,17 @@ export function ToolCallSteps({ steps, className }: ToolCallStepsProps) {
 		return null;
 	}
 
-	// Deduplicate consecutive steps with the same toolName — keep only the last of each run
-	const deduped: ToolCallStep[] = [];
+	// Deduplicate: for each toolName, keep only the last completed occurrence
+	const lastIndexByTool = new Map<string, number>();
 	for (let i = 0; i < steps.length; i++) {
-		const next = steps[i + 1];
-		if (next && next.toolName === steps[i].toolName && steps[i].status !== "running") {
-			continue;
+		if (steps[i].status !== "running") {
+			lastIndexByTool.set(steps[i].toolName, i);
 		}
-		deduped.push(steps[i]);
 	}
+	const deduped = steps.filter(
+		(step, idx) =>
+			step.status === "running" || lastIndexByTool.get(step.toolName) === idx,
+	);
 
 	return (
 		<div className={cn("flex flex-col gap-2 mb-3", className)}>
