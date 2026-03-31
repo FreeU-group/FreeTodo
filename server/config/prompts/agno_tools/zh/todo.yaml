@@ -16,13 +16,13 @@ update_failed: "更新待办失败: {error}"
 
 # 列表
 list_header: "待办列表 ({status}, 共 {count} 项):\n"
-list_item: "- [{priority}] {name}"
+list_item: "- [ID:{id}] [{priority}] {name}"
 list_item_with_time: " (时间: {time})"
 list_empty: "没有找到{status}的待办事项"
 
 # 搜索
 search_header: "搜索 \"{keyword}\" 的结果 (共 {count} 项):\n"
-search_item: "- [{status}] {name}"
+search_item: "- [ID:{id}] [{status}] {name}"
 search_empty: "未找到包含 \"{keyword}\" 的待办"
 
 # 删除

@@ -16,13 +16,13 @@ update_failed: "Failed to update todo: {error}"
 
 # List
 list_header: "Todo list ({status}, {count} items):\n"
-list_item: "- [{priority}] {name}"
+list_item: "- [ID:{id}] [{priority}] {name}"
 list_item_with_time: " (time: {time})"
 list_empty: "No {status} todos found"
 
 # Search
 search_header: "Search results for \"{keyword}\" ({count} items):\n"
-search_item: "- [{status}] {name}"
+search_item: "- [ID:{id}] [{status}] {name}"
 search_empty: "No todos found containing \"{keyword}\""
 
 # Delete
