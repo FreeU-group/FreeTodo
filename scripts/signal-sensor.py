@@ -100,8 +100,14 @@ def _find_electron() -> str | None:
     return npx
 
 
-def _launch_popup(data: dict) -> bool:
-    """在后台线程中启动 Electron 交互式弹窗，同一时间只允许一个。"""
+def _launch_popup(data: dict, on_confirm=None, on_dismiss=None) -> bool:
+    """在后台线程中启动 Electron 交互式弹窗，同一时间只允许一个。
+
+    Args:
+        data: popup JSON data
+        on_confirm: callback when user clicks confirm (exit code 0)
+        on_dismiss: callback when user clicks dismiss (exit code 2)
+    """
     with _state.popup_lock:
         if _state.popup_proc and _state.popup_proc.poll() is None:
             return False
@@ -136,7 +142,13 @@ def _launch_popup(data: dict) -> bool:
                     },
                 )
             _state.popup_proc.wait()
-            print(f"[signal-sensor] 弹窗已关闭 (exit={_state.popup_proc.returncode})")
+            exit_code = _state.popup_proc.returncode
+            print(f"[signal-sensor] 弹窗已关闭 (exit={exit_code})")
+
+            if exit_code == 2 and on_dismiss:
+                on_dismiss()
+            elif exit_code == 0 and on_confirm:
+                on_confirm()
         except Exception as exc:
             print(f"[signal-sensor] 弹窗启动失败: {exc}")
         finally:
@@ -223,8 +235,42 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                     continue
 
                 content = item.get("content", "")
-                print(f"[signal-sensor] 收到重要通知: {title} (id={nid})")
-                _launch_popup({"title": title, "subtitle": content})
+                todo_id = item.get("todo_id")
+                ntype = item.get("type", "")
+                print(f"[signal-sensor] 收到重要通知: {title} (id={nid}, type={ntype})")
+
+                if ntype in ("auto_todo", "invitation") and todo_id:
+                    _tid = todo_id
+
+                    def _on_confirm(tid=_tid):
+                        print(f"[signal-sensor] 用户确认待办 {tid}，触发重规划")
+                        try:
+                            httpx.post(
+                                f"{_state.center_url}/api/notifications/confirm-todo",
+                                json={"todo_id": tid},
+                                timeout=15,
+                            )
+                        except Exception as e:
+                            print(f"[signal-sensor] 确认待办失败: {e}")
+
+                    def _on_dismiss(tid=_tid):
+                        print(f"[signal-sensor] 用户忽略待办 {tid}，删除")
+                        try:
+                            httpx.post(
+                                f"{_state.center_url}/api/notifications/dismiss-todo",
+                                json={"todo_id": tid},
+                                timeout=10,
+                            )
+                        except Exception as e:
+                            print(f"[signal-sensor] 忽略待办失败: {e}")
+
+                    _launch_popup(
+                        {"title": title, "subtitle": content},
+                        on_confirm=_on_confirm,
+                        on_dismiss=_on_dismiss,
+                    )
+                else:
+                    _launch_popup({"title": title, "subtitle": content})
                 time.sleep(1)
         except Exception as exc:
             print(f"[signal-sensor] 通用通知轮询失败: {exc}")

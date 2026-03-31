@@ -124,7 +124,7 @@ function buildLinksHtml(links) {
 function buildButtonsHtml(data) {
 	const buttons = data.buttons;
 	if (!buttons || buttons.length === 0) {
-		return '<button class="btn btn-secondary" data-action="close">忽略</button><button class="btn btn-primary" data-action="close">确认</button>';
+		return '<button class="btn btn-secondary" data-action="dismiss">忽略</button><button class="btn btn-primary" data-action="close">确认</button>';
 	}
 	return buttons
 		.map((b, _i) => {
@@ -462,7 +462,7 @@ function getPanelHtml(data) {
 <div class="copy-toast" id="copyToast">✅ 已复制到剪贴板</div>
 <script>
 	document.getElementById('closeBtn').addEventListener('click', function(){
-		window.__electronConfirm && window.__electronConfirm();
+		window.__electronDismiss && window.__electronDismiss();
 	});
 	document.querySelectorAll('.btn').forEach(function(el){
 		el.addEventListener('click', function(e){
@@ -481,6 +481,8 @@ function getPanelHtml(data) {
 						setTimeout(function(){ window.__electronConfirm && window.__electronConfirm(); }, 600);
 					}, 800);
 				}
+			} else if(action === 'dismiss'){
+				window.__electronDismiss && window.__electronDismiss();
 			} else {
 				window.__electronConfirm && window.__electronConfirm();
 			}
@@ -558,6 +560,12 @@ app.whenReady().then(() => {
 	});
 
 	ipcMain.once("confirm-clicked", () => {
+		process.exitCode = 0;
+		win.close();
+	});
+
+	ipcMain.once("dismiss-clicked", () => {
+		process.exitCode = 2;
 		win.close();
 	});
 
