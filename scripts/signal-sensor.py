@@ -218,8 +218,16 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                 _state.seen_notification_ids.add(nid)
 
                 title = item.get("title", "")
+                ntype = item.get("type", "")
                 title_lower = title.lower()
-                is_important = any(
+                is_important = ntype in (
+                    "auto_todo",
+                    "invitation",
+                    "pending_todo",
+                    "pending_execute",
+                    "conflict",
+                    "reminder",
+                ) or any(
                     kw in title_lower
                     for kw in (
                         "邀约",
@@ -236,7 +244,6 @@ def _poll_general_notifications(client: httpx.Client) -> None:
 
                 content = item.get("content", "")
                 todo_id = item.get("todo_id")
-                ntype = item.get("type", "")
                 print(f"[signal-sensor] 收到重要通知: {title} (id={nid}, type={ntype})")
 
                 if ntype == "pending_todo":
