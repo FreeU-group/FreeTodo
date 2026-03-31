@@ -626,8 +626,6 @@ async def _dispatch_to_agno(
 
         _push_notification(candidate, response)
 
-        _maybe_replan_schedule(candidate)
-
         return TodoIntegrationResult(
             action=IntegrationAction.CREATED,
             dedupe_key=dedupe_key,
@@ -642,47 +640,4 @@ async def _dispatch_to_agno(
         )
 
 
-def _maybe_replan_schedule(candidate: ExtractedTodoCandidate) -> None:
-    """If the new todo falls within the next 3 days, trigger a schedule replan."""
-    import threading  # noqa: PLC0415
-    from datetime import timedelta  # noqa: PLC0415
-
-    from util.time_utils import get_local_now  # noqa: PLC0415
-
-    todo_time = candidate.start_time or candidate.due or candidate.deadline
-    if not todo_time:
-        return
-
-    now = get_local_now()
-    horizon = now + timedelta(days=3)
-
-    if todo_time.tzinfo is None:
-        from util.time_utils import USER_TIMEZONE  # noqa: PLC0415
-
-        todo_time = todo_time.replace(tzinfo=USER_TIMEZONE)
-
-    if not (now <= todo_time <= horizon):
-        return
-
-    logger.info(
-        "[Replan] New todo %r falls within 3-day window, triggering schedule replan",
-        candidate.name,
-    )
-
-    def _run_replan():
-        try:
-            from llm.agno_tools.tools.planning_tools import PlanningTools  # noqa: PLC0415
-            from repositories.sql_todo_repository import SqlTodoRepository  # noqa: PLC0415
-            from storage.database import db_base  # noqa: PLC0415
-
-            class _Planner(PlanningTools):
-                lang = "zh"
-                todo_repo = SqlTodoRepository(db_base)
-
-            planner = _Planner()
-            result = planner.plan_schedule(scope="3days", auto_apply=True)
-            logger.info("[Replan] Schedule replan completed: %s", result[:200])
-        except Exception:
-            logger.exception("[Replan] Schedule replan failed")
-
-    threading.Thread(target=_run_replan, daemon=True).start()
+# _maybe_replan_schedule removed: replan is now triggered by user confirm via /api/notifications/confirm-todo
