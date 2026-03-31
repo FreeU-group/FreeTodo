@@ -15,6 +15,7 @@ from llm.agno_tools.tools import (
     ConflictTools,
     LocationTools,
     MessageTools,
+    PlanningTools,
     SchedulingTools,
     StatsTools,
     TagTools,
@@ -32,6 +33,7 @@ class LifetraceToolkit(
     TimeTools,
     ConflictTools,
     SchedulingTools,
+    PlanningTools,
     LocationTools,
     MessageTools,
     StatsTools,
@@ -94,6 +96,8 @@ class LifetraceToolkit(
             "check_schedule_conflict": self.check_schedule_conflict,
             # Scheduling (from SchedulingTools)
             "find_free_slots": self.find_free_slots,
+            # Planning (from PlanningTools)
+            "plan_schedule": self.plan_schedule,
             # Location (from LocationTools)
             "search_nearby_places": self.search_nearby_places,
             # Message (from MessageTools)

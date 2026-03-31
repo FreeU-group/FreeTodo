@@ -73,6 +73,7 @@ export const DEFAULT_PANEL_STATE = {
 		"list_todos",
 		"search_todos",
 		"delete_todo",
+		"plan_schedule",
 	] as string[],
 	// Agno 模式下选中的外部工具列表（默认全部选中）
 	selectedExternalTools: [
