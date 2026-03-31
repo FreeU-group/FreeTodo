@@ -239,7 +239,45 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                 ntype = item.get("type", "")
                 print(f"[signal-sensor] 收到重要通知: {title} (id={nid}, type={ntype})")
 
-                if ntype in ("auto_todo", "invitation") and todo_id:
+                if ntype == "pending_todo":
+                    action_id = nid.replace("pa_", "") if nid.startswith("pa_") else nid
+
+                    def _on_confirm_pending(aid=action_id):
+                        print(f"[signal-sensor] 用户确认 pending action {aid}")
+                        try:
+                            httpx.post(
+                                f"{_state.center_url}/api/intent-actions/{aid}/confirm",
+                                timeout=30,
+                            )
+                        except Exception as e:
+                            print(f"[signal-sensor] 确认 pending action 失败: {e}")
+
+                    def _on_dismiss_pending(aid=action_id):
+                        print(f"[signal-sensor] 用户忽略 pending action {aid}")
+                        try:
+                            httpx.post(
+                                f"{_state.center_url}/api/intent-actions/{aid}/reject",
+                                timeout=10,
+                            )
+                        except Exception as e:
+                            print(f"[signal-sensor] 忽略 pending action 失败: {e}")
+
+                    # Parse pending action content for a cleaner subtitle
+                    subtitle = content
+                    try:
+                        pa_data = json.loads(content)
+                        subtitle = pa_data.get("description", "") or pa_data.get(
+                            "title", content
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+
+                    _launch_popup(
+                        {"title": title, "subtitle": subtitle},
+                        on_confirm=_on_confirm_pending,
+                        on_dismiss=_on_dismiss_pending,
+                    )
+                elif ntype in ("auto_todo", "invitation") and todo_id:
                     _tid = todo_id
 
                     def _on_confirm(tid=_tid):
