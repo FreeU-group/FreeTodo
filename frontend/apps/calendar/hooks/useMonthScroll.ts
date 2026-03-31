@@ -134,6 +134,7 @@ export function useMonthScroll({
 		});
 	}, [monthItems.length]);
 
+	// Scroll to pending month when items change
 	useEffect(() => {
 		if (view !== "month") return;
 		if (monthItems.length === 0) return;
@@ -145,6 +146,17 @@ export function useMonthScroll({
 			}
 		};
 	}, [monthItems.length, scheduleScrollToPending, view]);
+
+	// Auto-scroll to today's month on initial mount
+	const initialScrollDone = useRef(false);
+	useEffect(() => {
+		if (view !== "month" || initialScrollDone.current) return;
+		if (monthItems.length === 0) return;
+		initialScrollDone.current = true;
+		const today = startOfMonth(new Date());
+		pendingScrollToMonth.current = today;
+		scheduleScrollToPending();
+	}, [view, monthItems.length, scheduleScrollToPending]);
 
 	const handleLoadMoreMonths = useCallback(
 		(direction: ScrollDirection) => {
