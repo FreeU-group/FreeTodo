@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import {
 	Briefcase,
 	Clock,
+	Edit3,
 	Heart,
 	Loader2,
 	Minimize2,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { cn } from "@/lib/utils";
@@ -215,6 +216,46 @@ export function UserProfilePanel() {
 	const [consolidating, setConsolidating] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	const [userNotes, setUserNotes] = useState("");
+	const [notesSaving, setNotesSaving] = useState(false);
+	const notesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const fetchUserNotes = useCallback(async () => {
+		try {
+			const resp = await fetch("/api/memory/profile/user-notes");
+			if (resp.ok) {
+				const data = await resp.json();
+				setUserNotes(data.notes || "");
+			}
+		} catch {
+			// ignore
+		}
+	}, []);
+
+	const saveUserNotes = useCallback(async (text: string) => {
+		setNotesSaving(true);
+		try {
+			await fetch("/api/memory/profile/user-notes", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ notes: text }),
+			});
+		} catch {
+			// ignore
+		} finally {
+			setNotesSaving(false);
+		}
+	}, []);
+
+	const handleNotesChange = useCallback(
+		(text: string) => {
+			setUserNotes(text);
+			if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+			notesTimerRef.current = setTimeout(() => saveUserNotes(text), 1500);
+		},
+		[saveUserNotes],
+	);
+
 	const fetchProfile = useCallback(async () => {
 		try {
 			setLoading(true);
@@ -267,9 +308,10 @@ export function UserProfilePanel() {
 
 	useEffect(() => {
 		fetchProfile();
+		fetchUserNotes();
 		const interval = setInterval(fetchProfile, 30000);
 		return () => clearInterval(interval);
-	}, [fetchProfile]);
+	}, [fetchProfile, fetchUserNotes]);
 
 	const parsed = profileContent
 		? parseProfileMarkdown(profileContent)
@@ -425,6 +467,30 @@ export function UserProfilePanel() {
 							</button>
 						)}
 
+						{/* 用户自述编辑区 */}
+						<div className="rounded-xl border border-border bg-card p-4 space-y-2">
+							<div className="flex items-center justify-between">
+								<div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+									<Edit3 className="h-4 w-4 text-primary" />
+									用户自述
+								</div>
+								{notesSaving && (
+									<span className="text-xs text-muted-foreground">保存中…</span>
+								)}
+							</div>
+							<p className="text-xs text-muted-foreground">
+								写下你希望 Agent 了解的任何信息，Agent 会参考这些内容来更好地理解你
+							</p>
+							<textarea
+								value={userNotes}
+								onChange={(e) => handleNotesChange(e.target.value)}
+								placeholder="例如：我是一名创业者，目前在做 AI Agent 方向。我习惯早起，喜欢在上午处理重要的事情…"
+								className="w-full min-h-[80px] rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none transition focus:border-primary/50 focus:ring-1 focus:ring-primary/30 resize-y"
+								rows={4}
+							/>
+						</div>
+
+						{/* AI 生成的画像板块 */}
 						<div className="grid grid-cols-1 gap-3">
 							{parsed.sections.map((section) => (
 								<ProfileSectionCard

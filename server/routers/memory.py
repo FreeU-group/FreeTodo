@@ -172,6 +172,56 @@ async def trigger_profile_consolidate():
     }
 
 
+class UserNotesRequest(BaseModel):
+    notes: str
+
+
+@router.get("/profile/user-notes")
+async def get_user_notes():
+    """Read user's self-written notes from the profile."""
+    mgr = _require_manager()
+    profile = mgr.reader.get_user_profile() or ""
+    marker = "## 用户自述"
+    idx = profile.find(marker)
+    if idx < 0:
+        return {"notes": ""}
+    after = profile[idx + len(marker) :]
+    next_section = after.find("\n## ")
+    content = after[:next_section].strip() if next_section >= 0 else after.strip()
+    return {"notes": content}
+
+
+@router.post("/profile/user-notes")
+async def save_user_notes(body: UserNotesRequest):
+    """Save user's self-written notes into the profile markdown."""
+    from util.base_paths import get_user_data_dir  # noqa: PLC0415
+
+    profile_dir = get_user_data_dir() / "memory" / "profile_L4"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    profile_file = profile_dir / "user_profile.md"
+
+    existing = ""
+    if profile_file.exists():
+        existing = profile_file.read_text(encoding="utf-8")
+
+    marker = "## 用户自述"
+    new_section = f"{marker}\n{body.notes.strip()}\n"
+
+    idx = existing.find(marker)
+    if idx >= 0:
+        after = existing[idx + len(marker) :]
+        next_section = after.find("\n## ")
+        if next_section >= 0:
+            updated = existing[:idx] + new_section + after[next_section + 1 :]
+        else:
+            updated = existing[:idx] + new_section
+    else:
+        updated = existing.rstrip() + "\n\n" + new_section if existing.strip() else new_section
+
+    profile_file.write_text(updated, encoding="utf-8")
+    return {"success": True}
+
+
 class PreferencesUpdateRequest(BaseModel):
     items: list[str]
 
