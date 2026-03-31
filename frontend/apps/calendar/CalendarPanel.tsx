@@ -7,7 +7,7 @@
 
 import { Calendar, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
 import { useCreateTodo, useTodos } from "@/lib/query";
@@ -48,6 +48,11 @@ export function CalendarPanel() {
 	const [view, setView] = useState<CalendarView>("month");
 	const [currentDate, setCurrentDate] = useState<Date>(startOfDay(new Date()));
 	const [quickTargetDate, setQuickTargetDate] = useState<Date | null>(null);
+
+	// 切换视图时自动回到今天
+	useEffect(() => {
+		setCurrentDate(startOfDay(new Date()));
+	}, [view]);
 	const [quickTitle, setQuickTitle] = useState("");
 	const [quickTime, setQuickTime] = useState(DEFAULT_NEW_TIME);
 	const [quickReminderOffsets, setQuickReminderOffsets] = useState<number[]>(

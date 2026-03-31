@@ -334,7 +334,7 @@ export function WeekView({
 						data-timeline-container
 					>
 						<div
-							className="absolute left-0 right-0 z-10 h-1 cursor-row-resize bg-primary/40"
+							className="absolute left-0 right-0 z-10 h-0 cursor-row-resize border-t border-dashed border-primary/30"
 							style={{
 								top: (workingStart - displayStart) * pxPerMinute,
 							}}
@@ -343,7 +343,7 @@ export function WeekView({
 							}
 						/>
 						<div
-							className="absolute left-0 right-0 z-10 h-1 cursor-row-resize bg-primary/40"
+							className="absolute left-0 right-0 z-10 h-0 cursor-row-resize border-t border-dashed border-primary/30"
 							style={{
 								top: (workingEnd - displayStart) * pxPerMinute,
 							}}
