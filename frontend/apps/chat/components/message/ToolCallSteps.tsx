@@ -22,9 +22,19 @@ export function ToolCallSteps({ steps, className }: ToolCallStepsProps) {
 		return null;
 	}
 
+	// Deduplicate consecutive steps with the same toolName — keep only the last of each run
+	const deduped: ToolCallStep[] = [];
+	for (let i = 0; i < steps.length; i++) {
+		const next = steps[i + 1];
+		if (next && next.toolName === steps[i].toolName && steps[i].status !== "running") {
+			continue;
+		}
+		deduped.push(steps[i]);
+	}
+
 	return (
 		<div className={cn("flex flex-col gap-2 mb-3", className)}>
-			{steps.map((step) => (
+			{deduped.map((step) => (
 				<ToolCallStepItem key={step.id} step={step} t={t} />
 			))}
 		</div>
@@ -60,19 +70,19 @@ function ToolCallStepItem({ step, t }: ToolCallStepItemProps) {
 
 	const statusColorClass = {
 		running: "text-primary",
-		completed: "text-green-500",
+		completed: "text-primary",
 		error: "text-red-500",
 	}[status];
 
 	const borderColorClass = {
 		running: "border-primary/30 dark:border-primary/50",
-		completed: "border-green-200 dark:border-green-800",
+		completed: "border-primary/20 dark:border-primary/30",
 		error: "border-red-200 dark:border-red-800",
 	}[status];
 
 	const bgColorClass = {
 		running: "bg-primary/5 dark:bg-primary/20",
-		completed: "bg-green-50/50 dark:bg-green-950/30",
+		completed: "bg-primary/5 dark:bg-primary/10",
 		error: "bg-red-50/50 dark:bg-red-950/30",
 	}[status];
 
@@ -117,7 +127,7 @@ function ToolCallStepItem({ step, t }: ToolCallStepItemProps) {
 					className={cn(
 						"shrink-0 w-7 h-7 rounded-full flex items-center justify-center",
 						status === "running" ? "bg-primary/10 dark:bg-primary/25" : "",
-						status === "completed" ? "bg-green-100 dark:bg-green-900" : "",
+						status === "completed" ? "bg-primary/10 dark:bg-primary/20" : "",
 						status === "error" ? "bg-red-100 dark:bg-red-900" : "",
 					)}
 				>
@@ -163,7 +173,7 @@ function ToolCallStepItem({ step, t }: ToolCallStepItemProps) {
 							<span
 								className={cn(
 									status === "completed"
-										? "text-green-600 dark:text-green-400"
+										? "text-primary"
 										: "text-red-600 dark:text-red-400",
 								)}
 							>
