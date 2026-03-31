@@ -106,9 +106,9 @@ export function TimelineTodoCard({
 						/>
 					</div>
 				)}
-				<div className="flex flex-col gap-0.5">
+				<div className="flex items-baseline gap-1.5">
 					<p className="truncate text-[12px] font-semibold">{todo.name}</p>
-					<span className="text-[11px] text-muted-foreground">
+					<span className="shrink-0 text-[11px] text-muted-foreground">
 						{timeLabel}
 					</span>
 				</div>
