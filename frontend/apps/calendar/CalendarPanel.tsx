@@ -10,7 +10,7 @@ import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { PanelHeader } from "@/components/common/layout/PanelHeader";
-import { useCreateTodo, useTodos } from "@/lib/query";
+import { useCreateTodo, useTodos, useUpdateTodo } from "@/lib/query";
 import { normalizeReminderOffsets } from "@/lib/reminders";
 import { useTodoStore } from "@/lib/store/todo-store";
 import { cn } from "@/lib/utils";
@@ -39,8 +39,9 @@ export function CalendarPanel() {
 	// 从 TanStack Query 获取 todos 数据
 	const { data: todos = [] } = useTodos();
 
-	// 从 TanStack Query 获取创建 todo 的 mutation
+	// 从 TanStack Query 获取创建/更新 todo 的 mutation
 	const createTodoMutation = useCreateTodo();
+	const updateTodoMutation = useUpdateTodo();
 
 	// 从 Zustand 获取 UI 状态
 	const { setSelectedTodoId } = useTodoStore();
@@ -80,6 +81,23 @@ export function CalendarPanel() {
 			if (res.ok) {
 				const data = await res.json();
 				setAiPlanResult(data);
+
+				// Auto-apply: write suggested times to each todo
+				if (data.suggestions?.length > 0) {
+					for (const s of data.suggestions) {
+						try {
+							await updateTodoMutation.mutateAsync({
+								id: s.todo_id,
+								input: {
+									startTime: s.suggested_start,
+									endTime: s.suggested_end,
+								},
+							});
+						} catch {
+							// skip failed updates
+						}
+					}
+				}
 			}
 		} catch {
 			// ignore
