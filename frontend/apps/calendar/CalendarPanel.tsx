@@ -5,7 +5,7 @@
  * 使用全局 DndContext，支持从其他面板拖拽 Todo 到日期
  */
 
-import { Calendar, ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, RotateCcw, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -53,6 +53,40 @@ export function CalendarPanel() {
 	useEffect(() => {
 		setCurrentDate(startOfDay(new Date()));
 	}, [view]);
+
+	// AI 规划状态
+	const [aiPlanning, setAiPlanning] = useState(false);
+	const [aiPlanResult, setAiPlanResult] = useState<{
+		suggestions: Array<{
+			todo_id: number;
+			todo_name: string;
+			suggested_start: string;
+			suggested_end: string;
+			reason: string;
+		}>;
+		summary: string;
+	} | null>(null);
+
+	const handleAiPlan = async () => {
+		setAiPlanning(true);
+		setAiPlanResult(null);
+		try {
+			const scope = view === "week" ? "week" : "today";
+			const res = await fetch("/api/todos/ai-plan", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ scope }),
+			});
+			if (res.ok) {
+				const data = await res.json();
+				setAiPlanResult(data);
+			}
+		} catch {
+			// ignore
+		} finally {
+			setAiPlanning(false);
+		}
+	};
 	const [quickTitle, setQuickTitle] = useState("");
 	const [quickTime, setQuickTime] = useState(DEFAULT_NEW_TIME);
 	const [quickReminderOffsets, setQuickReminderOffsets] = useState<number[]>(
@@ -351,19 +385,61 @@ export function CalendarPanel() {
 							{option.label}
 						</button>
 					))}
-					{/* <button
+					<button
 						type="button"
-						onClick={() => {
-							setQuickTargetDate(startOfDay(currentDate));
-							setQuickAnchorRect(null);
-						}}
-						className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
+						onClick={handleAiPlan}
+						disabled={aiPlanning}
+						className="inline-flex items-center gap-2 rounded-md bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
 					>
-						<Plus className="h-4 w-4" />
-						{t("create")}
-					</button> */}
+						{aiPlanning ? (
+							<div className="h-4 w-4 animate-spin rounded-full border-2 border-primary/20 border-t-primary" />
+						) : (
+							<Sparkles className="h-4 w-4" />
+						)}
+						AI 规划
+					</button>
 				</div>
 			</div>
+
+			{/* AI 规划结果 */}
+			{aiPlanResult && aiPlanResult.suggestions.length > 0 && (
+				<div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-2 text-sm font-semibold text-primary">
+							<Sparkles className="h-4 w-4" />
+							AI 时间规划
+						</div>
+						<button
+							type="button"
+							onClick={() => setAiPlanResult(null)}
+							className="text-xs text-muted-foreground hover:text-foreground"
+						>
+							关闭
+						</button>
+					</div>
+					{aiPlanResult.summary && (
+						<p className="text-xs text-muted-foreground">{aiPlanResult.summary}</p>
+					)}
+					<div className="space-y-2">
+						{aiPlanResult.suggestions.map((s) => (
+							<div
+								key={`${s.todo_id}-${s.suggested_start}`}
+								className="flex items-center justify-between rounded-lg border border-border/60 bg-card px-3 py-2 text-sm"
+							>
+								<div className="flex-1 min-w-0">
+									<span className="font-medium text-foreground">{s.todo_name}</span>
+									{s.reason && (
+										<span className="ml-2 text-xs text-muted-foreground">({s.reason})</span>
+									)}
+								</div>
+								<span className="shrink-0 ml-3 text-xs font-mono text-primary">
+									{s.suggested_start.slice(11, 16)} - {s.suggested_end.slice(11, 16)}
+								</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 
 			{/* 视图主体 */}
 			<div
