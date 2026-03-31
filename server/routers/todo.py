@@ -230,3 +230,151 @@ async def import_ics(
                 continue
         created.append(service.create_todo(todo))
     return created
+
+
+# ---------------------------------------------------------------------------
+# AI 时间规划
+# ---------------------------------------------------------------------------
+
+import asyncio  # noqa: E402
+import json as _json  # noqa: E402
+from datetime import timedelta  # noqa: E402
+
+from pydantic import BaseModel as _BaseModel  # noqa: E402
+
+
+class AiPlanRequest(_BaseModel):
+    scope: str = "today"
+
+
+class AiPlanSuggestion(_BaseModel):
+    todo_id: int
+    todo_name: str
+    suggested_start: str
+    suggested_end: str
+    reason: str = ""
+
+
+class AiPlanResponse(_BaseModel):
+    suggestions: list[AiPlanSuggestion] = []
+    summary: str = ""
+
+
+_AI_PLAN_SYSTEM = (
+    "你是一个智能时间规划助手。根据用户的待办事项列表，为用户规划合理的时间安排。\n\n"
+    "规划原则：\n"
+    "1. 已有明确时间的待办，保持不变\n"
+    "2. 没有时间的待办，根据优先级和预估耗时安排到空闲时段\n"
+    "3. 高优先级的待办尽量安排在上午精力最好的时候\n"
+    "4. 会议/社交类安排在下午\n"
+    "5. 每个待办之间留 15-30 分钟缓冲\n"
+    "6. 午餐时间 12:00-13:00 不安排工作\n"
+    "7. 工作时间默认 9:00-22:00\n\n"
+    "输出必须是 JSON，格式：\n"
+    '{"suggestions": [{"todo_id": 1, "todo_name": "xxx", "suggested_start": "2026-03-31T09:00:00+08:00", '
+    '"suggested_end": "2026-03-31T10:00:00+08:00", "reason": "高优先级任务，安排在上午"}], '
+    '"summary": "一句话总结今天的安排"}\n\n'
+    "只输出 JSON，不要解释。"
+)
+
+
+@router.post("/ai-plan", response_model=AiPlanResponse)
+async def ai_plan(
+    req: AiPlanRequest,
+    service: TodoService = Depends(get_todo_service),
+):
+    """AI 智能规划时间安排"""
+    from llm.llm_client import LLMClient  # noqa: PLC0415
+    from util.base_paths import get_user_data_dir  # noqa: PLC0415
+    from util.time_utils import get_local_now  # noqa: PLC0415
+
+    llm = LLMClient()
+    if not llm.is_available():
+        raise HTTPException(status_code=503, detail="LLM 不可用")
+
+    result = service.list_todos(limit=200, offset=0, status="active")
+    todos = result.get("todos", []) if isinstance(result, dict) else getattr(result, "todos", [])
+
+    now = get_local_now()
+    if req.scope == "today":
+        scope_label = f"今天（{now.strftime('%Y-%m-%d %A')}）"
+        scope_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        scope_end = scope_start + timedelta(days=1)
+    else:
+        from util.time_utils import get_local_now  # noqa: PLC0415
+
+        weekday = now.weekday()
+        scope_start = (now - timedelta(days=weekday)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        scope_end = scope_start + timedelta(days=7)
+        scope_label = f"本周（{scope_start.strftime('%m/%d')} - {scope_end.strftime('%m/%d')}）"
+
+    todo_lines = []
+    for t in todos:
+        tid = t.get("id") if isinstance(t, dict) else getattr(t, "id", None)
+        name = t.get("name", "") if isinstance(t, dict) else getattr(t, "name", "")
+        priority = (
+            t.get("priority", "none") if isinstance(t, dict) else getattr(t, "priority", "none")
+        )
+        start_time = t.get("start_time") if isinstance(t, dict) else getattr(t, "start_time", None)
+        end_time = t.get("end_time") if isinstance(t, dict) else getattr(t, "end_time", None)
+        due = t.get("due") if isinstance(t, dict) else getattr(t, "due", None)
+        desc = t.get("description", "") if isinstance(t, dict) else getattr(t, "description", "")
+        tags = t.get("tags") if isinstance(t, dict) else getattr(t, "tags", None)
+
+        line = f"- ID:{tid} | {name} | 优先级:{priority}"
+        if start_time:
+            line += f" | 开始:{start_time}"
+        if end_time:
+            line += f" | 结束:{end_time}"
+        if due:
+            line += f" | 截止:{due}"
+        if tags:
+            line += f" | 标签:{','.join(tags) if isinstance(tags, list) else tags}"
+        if desc:
+            line += f" | 描述:{desc[:100]}"
+        todo_lines.append(line)
+
+    if not todo_lines:
+        return AiPlanResponse(summary="当前没有待办事项需要安排")
+
+    profile_text = ""
+    profile_file = get_user_data_dir() / "memory" / "profile_L4" / "user_profile.md"
+    if profile_file.exists():
+        profile_text = profile_file.read_text(encoding="utf-8")[:500]
+
+    user_prompt = (
+        f"当前时间：{now.strftime('%Y-%m-%d %H:%M')}（{now.strftime('%A')}）\n"
+        f"规划范围：{scope_label}\n\n"
+        f"用户画像：\n{profile_text[:300] if profile_text else '无'}\n\n"
+        f"待办列表：\n" + "\n".join(todo_lines) + "\n\n"
+        f"请为用户规划{scope_label}的时间安排。"
+    )
+
+    messages = [
+        {"role": "system", "content": _AI_PLAN_SYSTEM},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    try:
+        resp = await asyncio.to_thread(llm.chat, messages, 0.3, None, 2048)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"LLM 调用失败: {exc}") from exc
+
+    if not resp:
+        return AiPlanResponse(summary="AI 未返回有效规划")
+
+    try:
+        clean = resp.strip()
+        if clean.startswith("```"):
+            clean = clean.split("\n", 1)[1] if "\n" in clean else clean[3:]
+        if clean.endswith("```"):
+            clean = clean[:-3]
+        parsed = _json.loads(clean.strip())
+        return AiPlanResponse(
+            suggestions=[AiPlanSuggestion(**s) for s in parsed.get("suggestions", [])],
+            summary=parsed.get("summary", ""),
+        )
+    except Exception:
+        return AiPlanResponse(summary=resp[:200])
