@@ -2,7 +2,7 @@
 
 import { AlertCircle, CheckCircle2, ChevronRight, Loader2, Wrench } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ToolCallStep } from "@/apps/chat/types";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +42,12 @@ type ToolCallStepItemProps = {
 function ToolCallStepItem({ step, t }: ToolCallStepItemProps) {
 	const { toolName, toolArgs, status, resultPreview } = step;
 	const [expanded, setExpanded] = useState(status === "running");
+
+	useEffect(() => {
+		if (status !== "running") {
+			setExpanded(false);
+		}
+	}, [status]);
 
 	const toolKey = `tools.${toolName}` as Parameters<typeof t>[0];
 	const displayName = t.has(toolKey) ? t(toolKey) : toolName;
