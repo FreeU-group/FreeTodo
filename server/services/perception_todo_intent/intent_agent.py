@@ -1,16 +1,17 @@
 """TodoIntentAgent — ReAct Agent for proactive intent recognition.
 
-Replaces the Extractor + PostProcessor + Integration pipeline with a single
-Agent that autonomously: understands intent → searches memory → decides action
-→ executes (create/update/complete/skip) → generates user notification.
+v2: The Agent now *analyzes* and *classifies* intents but does NOT execute.
+It outputs structured JSON (action_type: todo | executable | skip).
+Execution happens only after user confirmation via the interactive popup.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from typing import TYPE_CHECKING
-from uuid import uuid4
+import re
+from typing import TYPE_CHECKING, Any
 
 from llm.agno_agent import AgnoAgentService
 from llm.agno_tools.memory_toolkit import MemoryToolkit
@@ -18,6 +19,11 @@ from schemas.perception_todo_intent import (
     IntegrationAction,
     TodoIntegrationResult,
 )
+from services.perception_todo_intent.pending_actions import (
+    ActionType,
+    create_pending_action,
+)
+from services.agent_activity_tracker import start_activity, stop_activity
 from storage.notification_storage import add_notification
 from util.prompt_loader import get_prompt
 from util.settings import settings
@@ -28,25 +34,26 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_INTENT_TOOLS = [
-    "create_todo",
-    "update_todo",
-    "complete_todo",
-    "list_todos",
+_ANALYSIS_TOOLS = [
     "search_todos",
     "check_schedule_conflict",
     "parse_time",
-    "find_free_slots",
-    "search_nearby_places",
-    "draft_reply_message",
 ]
 
 _agent_instance: AgnoAgentService | None = None
 _agent_lock = __import__("threading").Lock()
+_agent_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_agent_semaphore() -> asyncio.Semaphore:
+    """Serialize concurrent access to the singleton Agent to avoid race conditions."""
+    global _agent_semaphore  # noqa: PLW0603
+    if _agent_semaphore is None:
+        _agent_semaphore = asyncio.Semaphore(1)
+    return _agent_semaphore
 
 
 def _get_or_create_agent() -> AgnoAgentService:
-    """Lazy-init a singleton AgnoAgentService with intent-recognition tools."""
     global _agent_instance  # noqa: PLW0603
     if _agent_instance is not None:
         return _agent_instance
@@ -73,14 +80,11 @@ def _get_or_create_agent() -> AgnoAgentService:
 
         memory_toolkit = MemoryToolkit(lang="zh")
 
-        model = (
-            str(settings.get("perception.todo_intent.agent.model", "")).strip()
-            or settings.llm.model
-        )
+        model = str(settings.get("perception.todo_intent.agent.model", "")).strip() or None
 
         service = AgnoAgentService(
             lang="zh",
-            selected_tools=_INTENT_TOOLS,
+            selected_tools=_ANALYSIS_TOOLS,
             extra_tools=[memory_toolkit],
             agent_id="todo_intent_agent",
             agent_name="TodoIntentAgent",
@@ -92,16 +96,15 @@ def _get_or_create_agent() -> AgnoAgentService:
 
         _agent_instance = service
         logger.info(
-            "[TodoIntentAgent] Initialized: model=%s, tools=%d+%d (lifetrace+memory)",
+            "[TodoIntentAgent] Initialized (analysis mode): model=%s, tools=%d+%d",
             model,
-            len(_INTENT_TOOLS),
+            len(_ANALYSIS_TOOLS),
             4,
         )
         return _agent_instance
 
 
 def reset_agent() -> None:
-    """Force re-creation on next call (e.g. after config change)."""
     global _agent_instance  # noqa: PLW0603
     with _agent_lock:
         _agent_instance = None
@@ -113,7 +116,6 @@ def _build_agent_message(
     active_todos: str,
     user_profile: str,
 ) -> str:
-    """Build the user message sent to the Agent."""
     prompt_category = "perception_todo_intent_agent"
     merged_text = (context.merged_text or "").strip()
 
@@ -137,13 +139,43 @@ def _build_agent_message(
     return user_prompt or merged_text
 
 
+_TOOL_EVENT_MARKER = "\n[TOOL_EVENT:"
+
+
 def _run_agent_sync(message: str) -> str:
-    """Run the Agent synchronously, collecting full text response."""
     service = _get_or_create_agent()
     parts: list[str] = []
-    for chunk in service.stream_response(message, include_tool_events=False):
-        parts.append(chunk)
-    return "".join(parts)
+    for chunk in service.stream_response(message, include_tool_events=True):
+        if _TOOL_EVENT_MARKER not in chunk:
+            parts.append(chunk)
+    raw = "".join(parts)
+    clean = re.sub(r"\n\[TOOL_EVENT:.*?\]\n", "", raw)
+    return clean
+
+
+def _parse_agent_json(response: str) -> dict[str, Any] | None:
+    """Extract the JSON block from the Agent's response."""
+    json_match = re.search(r"```json\s*\n(.*?)\n```", response, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group(1))
+        except json.JSONDecodeError:
+            logger.warning("[TodoIntentAgent] JSON parse failed from code block")
+
+    json_match = re.search(r"\{[^{}]*\"action_type\"[^{}]*\}", response, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    try:
+        return json.loads(response.strip())
+    except json.JSONDecodeError:
+        return None
+
+
+_NOTIFICATION_TITLE_MAX_LEN = 40
 
 
 async def run_intent_agent(
@@ -152,10 +184,7 @@ async def run_intent_agent(
     active_todos: str = "",
     user_profile: str = "",
 ) -> TodoIntegrationResult:
-    """Run the TodoIntentAgent for a given context.
-
-    Returns a TodoIntegrationResult indicating what happened.
-    """
+    """Run the TodoIntentAgent — returns structured analysis, creates pending action."""
     message = _build_agent_message(
         context,
         active_todos=active_todos,
@@ -168,68 +197,118 @@ async def run_intent_agent(
         len(message),
     )
 
+    aid = start_activity(
+        agent_type="intent",
+        task=(context.merged_text or "")[:100],
+    )
     try:
-        response = await asyncio.to_thread(_run_agent_sync, message)
+        async with _get_agent_semaphore():
+            response = await asyncio.to_thread(_run_agent_sync, message)
         logger.info(
-            "[TodoIntentAgent] Agent completed: response=%d chars, preview=%.300s",
+            "[TodoIntentAgent] Agent completed: %d chars, preview=%.300s",
             len(response),
             response,
         )
 
-        if _response_indicates_no_action(response):
-            logger.info("[TodoIntentAgent] Agent determined no action needed")
+        parsed = _parse_agent_json(response)
+        if parsed is None:
+            logger.warning("[TodoIntentAgent] Could not parse structured output")
             return TodoIntegrationResult(
                 action=IntegrationAction.SKIPPED,
-                reason="agent_no_action",
+                reason=f"agent_unparseable: {response.strip()[:200]}",
             )
 
-        notification_id = f"intent_{uuid4().hex[:12]}"
-        title = _extract_notification_title(response)
-        add_notification(
-            notification_id=notification_id,
-            title=title,
-            content=response.strip(),
-            timestamp=get_utc_now(),
-            notification_type="auto_todo",
-        )
-        logger.info("[TodoIntentAgent] Notification pushed: %s — %s", notification_id, title)
+        action_type_str = str(parsed.get("action_type", "skip")).lower()
 
+        if action_type_str == "skip":
+            reason = parsed.get("reason", "无意图")
+            logger.info("[TodoIntentAgent] Skip: %s", reason)
+            return TodoIntegrationResult(
+                action=IntegrationAction.SKIPPED,
+                reason=f"agent_skip: {reason}",
+            )
+
+        if action_type_str == "todo":
+            title = str(parsed.get("title", "新待办"))
+            description = str(parsed.get("description", ""))
+            todo_data = parsed.get("todo_data", {})
+            if not isinstance(todo_data, dict):
+                todo_data = {}
+
+            pending = create_pending_action(
+                action_type=ActionType.TODO,
+                title=title,
+                description=description,
+                context_id=context.context_id,
+                todo_data=todo_data,
+                agent_raw_output=response,
+            )
+
+            add_notification(
+                notification_id=f"pa_{pending.action_id}",
+                title=title,
+                content=json.dumps(pending.to_dict(), ensure_ascii=False),
+                timestamp=get_utc_now(),
+                notification_type="pending_todo",
+            )
+
+            logger.info(
+                "[TodoIntentAgent] Created pending TODO: %s — %s",
+                pending.action_id,
+                title,
+            )
+            return TodoIntegrationResult(
+                action=IntegrationAction.QUEUED_REVIEW,
+                reason=f"pending_todo: {pending.action_id}",
+            )
+
+        if action_type_str == "executable":
+            title = str(parsed.get("title", "可执行任务"))
+            description = str(parsed.get("description", ""))
+            execution_plan = parsed.get("execution_plan", [])
+            if not isinstance(execution_plan, list):
+                execution_plan = []
+
+            pending = create_pending_action(
+                action_type=ActionType.EXECUTABLE,
+                title=title,
+                description=description,
+                context_id=context.context_id,
+                execution_plan=execution_plan,
+                agent_raw_output=response,
+            )
+
+            add_notification(
+                notification_id=f"pa_{pending.action_id}",
+                title=title,
+                content=json.dumps(pending.to_dict(), ensure_ascii=False),
+                timestamp=get_utc_now(),
+                notification_type="pending_execute",
+            )
+
+            logger.info(
+                "[TodoIntentAgent] Created pending EXECUTABLE: %s — %s (steps=%d)",
+                pending.action_id,
+                title,
+                len(execution_plan),
+            )
+            return TodoIntegrationResult(
+                action=IntegrationAction.QUEUED_REVIEW,
+                reason=f"pending_execute: {pending.action_id}",
+            )
+
+        logger.warning("[TodoIntentAgent] Unknown action_type: %s", action_type_str)
         return TodoIntegrationResult(
-            action=IntegrationAction.CREATED,
-            reason="agent_completed",
+            action=IntegrationAction.SKIPPED,
+            reason=f"agent_unknown_type: {action_type_str}",
         )
+
     except Exception:
         logger.exception("[TodoIntentAgent] Agent execution failed")
+        stop_activity(aid, status="error")
         return TodoIntegrationResult(
             action=IntegrationAction.QUEUED_REVIEW,
             reason="agent_error",
         )
-
-
-def _response_indicates_no_action(response: str) -> bool:
-    """Heuristic: did the Agent decide there's nothing to do?"""
-    text = response.strip().lower()
-    if not text:
-        return True
-    no_action_signals = [
-        "没有发现待办",
-        "没有待办",
-        "未检测到",
-        "无需创建",
-        "不需要创建",
-        "没有需要处理的",
-        "无待办",
-    ]
-    return any(signal in text for signal in no_action_signals)
-
-
-_NOTIFICATION_TITLE_MAX_LEN = 40
-
-
-def _extract_notification_title(response: str) -> str:
-    """Extract a short title from the Agent's response for the notification."""
-    first_line = response.strip().split("\n")[0]
-    clean = first_line.strip("# *·•-—")
-    if len(clean) > _NOTIFICATION_TITLE_MAX_LEN:
-        clean = clean[: _NOTIFICATION_TITLE_MAX_LEN - 3] + "..."
-    return clean or "自动待办"
+    finally:
+        stop_activity(aid)
