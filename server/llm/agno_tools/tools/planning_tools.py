@@ -19,18 +19,20 @@ logger = get_logger()
 _PLAN_SYSTEM = (
     "你是一个智能时间规划助手。根据用户的待办事项列表，为用户规划合理的时间安排。\n\n"
     "规划原则：\n"
-    "1. 已有明确时间的待办，保持不变\n"
-    "2. 没有时间的待办，根据优先级和预估耗时安排到空闲时段\n"
-    "3. 高优先级的待办尽量安排在上午精力最好的时候\n"
-    "4. 会议/社交类安排在下午\n"
-    "5. 每个待办之间留 15-30 分钟缓冲\n"
-    "6. 午餐时间 12:00-13:00 不安排工作\n"
-    "7. 工作时间默认 9:00-22:00\n\n"
+    "1. 已有明确时间的待办，保持不变，不要修改\n"
+    "2. 没有时间的待办，安排到空闲时段（必须避开已占用时段！）\n"
+    "3. **绝对不能**与已占用时段重叠。如果没有足够空闲，宁可不安排也不能重叠\n"
+    "4. 高优先级的待办尽量安排在上午精力最好的时候\n"
+    "5. 会议/社交类安排在下午\n"
+    "6. 每个待办之间留 15-30 分钟缓冲\n"
+    "7. 午餐时间 12:00-13:00 不安排工作\n"
+    "8. 工作时间默认 8:00-22:30\n\n"
     "输出必须是 JSON：\n"
     '{"suggestions": [{"todo_id": 1, "todo_name": "xxx", '
     '"suggested_start": "2026-03-31T09:00:00+08:00", '
     '"suggested_end": "2026-03-31T10:00:00+08:00", '
     '"reason": "一句话原因"}], "summary": "一句话总结"}\n\n'
+    "suggestions 只包含需要安排/修改时间的待办。已有时间且不需要变动的不要放进去。\n"
     "只输出 JSON，不要解释。"
 )
 
@@ -63,6 +65,20 @@ def _build_todo_lines(todos: list[dict]) -> list[str]:
     return lines
 
 
+def _build_occupied_blocks(todos: list[dict]) -> list[str]:
+    """Extract occupied time blocks from todos that already have start+end times."""
+    blocks = []
+    for t in todos:
+        start = t.get("start_time") or t.get("dtstart")
+        end = t.get("end_time") or t.get("dtend")
+        if start and end:
+            name = t.get("name", "")
+            start_str = str(start)[11:16] if len(str(start)) > 16 else str(start)
+            end_str = str(end)[11:16] if len(str(end)) > 16 else str(end)
+            blocks.append(f"  {start_str}-{end_str}  {name}")
+    return blocks
+
+
 class PlanningTools:
     """Time planning tools mixin for Agno Agent."""
 
@@ -90,12 +106,17 @@ class PlanningTools:
             Formatted schedule plan with time assignments and summary
         """
         try:
-            from llm.llm_client import LLMClient  # noqa: PLC0415
             from util.base_paths import get_user_data_dir  # noqa: PLC0415
 
-            llm = LLMClient()
-            if not llm.is_available():
-                return "LLM 不可用，无法进行时间规划。"
+            from openai import OpenAI  # noqa: PLC0415
+            from util.settings import settings as _settings  # noqa: PLC0415
+
+            agent_cfg = _settings.get("llm.agent", {}) or {}
+            api_key = str(agent_cfg.get("api_key", "") or "").strip() or _settings.llm.api_key
+            base_url = str(agent_cfg.get("base_url", "") or "").strip() or _settings.llm.base_url
+            model_id = str(agent_cfg.get("model", "") or "").strip() or _settings.llm.model
+
+            client = OpenAI(api_key=api_key, base_url=base_url)
 
             todos = self.todo_repo.list_todos(limit=200, offset=0, status="active")
             todo_lines = _build_todo_lines(todos)
@@ -122,12 +143,22 @@ class PlanningTools:
             if profile_file.exists():
                 profile_text = profile_file.read_text(encoding="utf-8")[:300]
 
+            occupied_blocks = _build_occupied_blocks(todos)
+            occupied_section = ""
+            if occupied_blocks:
+                occupied_section = (
+                    "⚠️ 以下时间段已被占用，绝对不能安排新任务：\n"
+                    + "\n".join(occupied_blocks)
+                    + "\n\n"
+                )
+
             user_prompt = (
                 f"当前时间：{now.strftime('%Y-%m-%d %H:%M')}（{now.strftime('%A')}）\n"
                 f"规划范围：{label}\n\n"
+                f"{occupied_section}"
                 f"用户画像：\n{profile_text or '无'}\n\n"
                 f"待办列表：\n" + "\n".join(todo_lines) + "\n\n"
-                f"请为用户规划{label}的时间安排。"
+                f"请为用户规划{label}的时间安排。只安排没有时间的待办，不要动已有时间的。"
             )
 
             messages = [
@@ -135,7 +166,15 @@ class PlanningTools:
                 {"role": "user", "content": user_prompt},
             ]
 
-            resp = llm.chat(messages, 0.3, None, 2048)
+            completion = client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=2048,
+            )
+            resp = (
+                (completion.choices[0].message.content or "").strip() if completion.choices else ""
+            )
             if not resp:
                 return "AI 未返回有效的时间规划。"
 
