@@ -57,7 +57,8 @@
 - 顶部状态徽标：`执行中`
 - `执行计划` 区块：展示预设 `execution_plan`
 - `实时动作` 区块：展示由工具调用事件生成的 `execution_steps`
-- `结果/日志` 区块：展示 `streaming_output`
+- `执行对话` 区块：优先展示 `execution_messages`，回退展示 `streaming_output`
+- 点击 `执行` 后会立刻触发一次 progress 拉取，不等待下一轮轮询
 
 ## 数据约定
 
@@ -68,6 +69,7 @@
 - `status`
 - `execution_plan`
 - `execution_steps`
+- `execution_messages`
 - `streaming_output`
 - `result`
 
@@ -75,6 +77,7 @@
 
 - `execution_plan` 是意图识别阶段给出的预设步骤
 - `execution_steps` 是执行阶段维护的结构化步骤列表
+- `execution_messages` 是弹窗执行面板展示的对话流，包含 `system / assistant / tool`
 - `streaming_output` 是面向用户的实时文本输出
 - `result` 是执行完成后的最终总结
 
@@ -84,9 +87,13 @@
 
 执行过程中：
 
+- 后端先写入一条系统消息，明确“执行面板已打开”
+- 子 Agent 启动后写入一条 assistant 开场消息，说明已经开始处理任务
 - 子 Agent 开始执行后，后端把第一个 `plan_*` 步骤标记为 `running`
 - 收到工具调用开始事件时，写入或更新 `tool_<tool_name>` 步骤为 `running`
 - 收到工具调用结束事件时，把对应 `tool_<tool_name>` 步骤标记为 `done` 或 `failed`
+- 工具调用开始 / 结束同时写入 `execution_messages`，避免用户看到“静默执行”
+- 模型产生自然语言 chunk 时，持续追加到 assistant 消息中
 - 执行成功后，把全部 `plan_*` 步骤标记为 `done`
 - 执行失败或取消时，把当前计划步骤标记为 `failed`
 

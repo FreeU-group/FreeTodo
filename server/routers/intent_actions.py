@@ -201,6 +201,10 @@ async def get_progress(action_id: str) -> dict[str, Any]:
             {"key": step.key, "label": step.label, "status": step.status, "detail": step.detail}
             for step in action.execution_steps
         ],
+        "execution_messages": [
+            {"role": message.role, "content": message.content}
+            for message in action.execution_messages
+        ],
         "streaming_output": action.streaming_output,
         "result": action.execution_result,
         "activity_id": action.activity_id,

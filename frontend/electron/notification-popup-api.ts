@@ -13,6 +13,11 @@ export interface PopupExecutionStep {
 	detail?: string;
 }
 
+export interface PopupExecutionMessage {
+	role: string;
+	content: string;
+}
+
 export interface PopupProgressResponse {
 	action_id: string;
 	title?: string;
@@ -21,6 +26,7 @@ export interface PopupProgressResponse {
 	status: string;
 	execution_plan?: string[];
 	execution_steps?: PopupExecutionStep[];
+	execution_messages?: PopupExecutionMessage[];
 	streaming_output?: string;
 	result?: string;
 	activity_id?: string;

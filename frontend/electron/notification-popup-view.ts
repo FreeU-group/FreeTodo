@@ -84,6 +84,9 @@ html,body{background:transparent!important;overflow:hidden;
   .section-title,.meta-row,.step-detail{color:#94a3b8!important}
   .status-badge.pending{background:#334155!important;color:#cbd5e1!important}
   .result-area{background:#0f172a!important;color:#cbd5e1!important}
+  .chat-message{background:#1e293b!important;color:#cbd5e1!important}
+  .chat-message.tool{background:#0f3a2d!important}
+  .chat-message.system{background:#3f3f46!important}
 }
 .content{display:flex;align-items:flex-start;gap:14px}
 .avatar-ring{width:44px;height:44px;border-radius:50%;padding:2px;
@@ -130,6 +133,13 @@ html,body{background:transparent!important;overflow:hidden;
   font-size:12px;color:#334155;line-height:1.5;display:none;min-height:80px;max-height:180px;overflow-y:auto;
   white-space:pre-wrap;word-break:break-word}
 .result-area.visible{display:block}
+.chat-list{display:flex;flex-direction:column;gap:8px}
+.chat-message{border-radius:12px;padding:8px 10px;background:#eef2ff}
+.chat-message.assistant{background:#e0f2fe}
+.chat-message.tool{background:#dcfce7}
+.chat-message.system{background:#f1f5f9}
+.chat-role{display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;color:#475569}
+.chat-content{display:block;white-space:pre-wrap;word-break:break-word;line-height:1.5}
 .progress-bar{position:absolute;bottom:0;left:0;height:2.5px;background:linear-gradient(90deg,#fbbf24,#f97316);
   border-radius:0 0 0 18px;width:0}
 .progress-bar.animate{width:100%;animation:shrink ${toastDurationMs / 1000}s linear forwards}
@@ -221,9 +231,25 @@ function renderProgress(data) {
     renderStepList('执行计划', planSteps, '暂无预设步骤') +
     renderStepList('实时动作', activitySteps, '任务已启动，正在等待实时进展…');
   const ra = document.getElementById('result-area');
-  const content = data.result || data.streaming_output || '启动中...';
   ra.className = 'result-area visible';
-  ra.textContent = content;
+  if (Array.isArray(data.execution_messages) && data.execution_messages.length > 0) {
+    const roleLabel = (role) => {
+      if (role === 'assistant') return 'AI';
+      if (role === 'tool') return '工具';
+      return '系统';
+    };
+    ra.innerHTML =
+      '<div class="section-title">执行对话</div>' +
+      '<div class="chat-list">' +
+      data.execution_messages.map((message) => {
+        const role = String(message.role || 'system');
+        return '<div class="chat-message ' + role + '"><span class="chat-role">' + escapeHtml(roleLabel(role)) + '</span><span class="chat-content">' + escapeHtml(message.content || '') + '</span></div>';
+      }).join('') +
+      '</div>';
+  } else {
+    const content = data.result || data.streaming_output || '启动中...';
+    ra.textContent = content;
+  }
   ra.scrollTop = ra.scrollHeight;
 }
 ipcRenderer.on('update-progress', (_e, data) => {

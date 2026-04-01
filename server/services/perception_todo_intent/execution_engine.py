@@ -27,6 +27,7 @@ from services.agent_activity_tracker import (
 from services.perception_todo_intent.pending_actions import (
     ActionStatus,
     PendingAction,
+    append_execution_message,
     append_streaming_output,
     get_action,
     set_activity_id,
@@ -166,11 +167,27 @@ def _record_tool_step(
     )
 
 
+def _append_visible_log(
+    action_id: str, role: str, content: str, *, merge_with_last: bool = False
+) -> None:
+    append_execution_message(
+        action_id,
+        role=role,
+        content=content,
+        merge_with_last=merge_with_last,
+    )
+    if merge_with_last:
+        append_streaming_output(action_id, content)
+    else:
+        append_streaming_output(action_id, f"\n[{role}] {content}\n")
+
+
 def _handle_stream_event(action_id: str, activity_id: str, event: dict[str, Any]) -> None:
     event_type = str(event.get("type", ""))
     tool_name = str(event.get("tool_name", "") or event.get("name", "")).strip()
     if event_type == "tool_call_start" and tool_name:
         _record_tool_step(action_id, tool_name=tool_name, status="running")
+        _append_visible_log(action_id, "tool", f"开始调用工具：{tool_name}")
     elif event_type == "tool_call_end" and tool_name:
         detail = str(event.get("result_preview", "") or "")
         tool_status = "failed" if event.get("error") else "done"
@@ -180,6 +197,9 @@ def _handle_stream_event(action_id: str, activity_id: str, event: dict[str, Any]
             status=tool_status,
             detail=detail,
         )
+        suffix = f"工具 {tool_name} 执行失败" if event.get("error") else f"工具 {tool_name} 已完成"
+        detail_text = f"\n{detail}" if detail else ""
+        _append_visible_log(action_id, "tool", f"{suffix}{detail_text}")
 
     add_activity_step(
         activity_id,
@@ -207,6 +227,11 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
 
     service = _create_executor_agent(task_msg)
     logger.info("[FLOW][ExecSync] Agent已创建, 开始stream: action_id=%s", action.action_id)
+    _append_visible_log(
+        action.action_id,
+        "assistant",
+        f"收到，我现在开始执行“{action.title}”。我会在这里持续同步步骤和结果。\n\n",
+    )
 
     parts: list[str] = []
     deadline = time.monotonic() + _EXECUTION_TIMEOUT_SECONDS
@@ -214,7 +239,7 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
     for chunk in service.stream_response(task_msg, include_tool_events=True):
         if is_cancelled(activity_id):
             logger.info("[FLOW][ExecSync] 收到取消信号: action_id=%s", action.action_id)
-            append_streaming_output(action.action_id, "\n\n[已中断]")
+            _append_visible_log(action.action_id, "system", "任务已被中断。")
             return "".join(parts).strip()
 
         if time.monotonic() > deadline:
@@ -223,7 +248,7 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
                 _EXECUTION_TIMEOUT_SECONDS,
                 action.action_id,
             )
-            append_streaming_output(action.action_id, "\n\n[执行超时，已自动停止]")
+            _append_visible_log(action.action_id, "system", "执行超时，已自动停止。")
             break
 
         if not chunk:
@@ -236,7 +261,12 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
         clean = _strip_tool_events(chunk)
         if clean:
             parts.append(clean)
-            append_streaming_output(action.action_id, clean)
+            _append_visible_log(
+                action.action_id,
+                "assistant",
+                clean,
+                merge_with_last=True,
+            )
 
     raw = "".join(parts)
     return raw.strip()
@@ -265,6 +295,7 @@ async def execute_action(action_id: str) -> bool:
         activity_id,
         action.title,
     )
+    _append_visible_log(action_id, "system", "执行面板已打开，正在准备任务上下文。")
 
     async def _run() -> None:
         try:
@@ -285,6 +316,7 @@ async def execute_action(action_id: str) -> bool:
                         "任务已被中断",
                     )
                 stop_activity(activity_id, status="cancelled")
+                _append_visible_log(action_id, "system", "执行已取消。")
                 add_notification(
                     notification_id=f"exec_cancel_{action_id}",
                     title=f"任务已中断：{action.title}",
@@ -298,6 +330,7 @@ async def execute_action(action_id: str) -> bool:
                 _mark_plan_step(action_id, index, "done", str(step))
             set_execution_result(action_id, result_text)
             stop_activity(activity_id, status="completed")
+            _append_visible_log(action_id, "system", "任务执行完成。")
             logger.info(
                 "[FLOW][ExecEngine] ✓ 执行完成: action_id=%s, result_len=%d",
                 action_id,
@@ -327,6 +360,7 @@ async def execute_action(action_id: str) -> bool:
                     "执行过程中遇到错误",
                 )
             stop_activity(activity_id, status="error")
+            _append_visible_log(action_id, "system", "执行过程中遇到错误，请稍后重试。")
             add_notification(
                 notification_id=f"exec_fail_{action_id}",
                 title=f"任务失败：{action.title}",

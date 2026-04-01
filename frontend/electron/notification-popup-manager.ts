@@ -332,8 +332,7 @@ export class NotificationPopupManager {
 		if (this.progressPollTimer) clearInterval(this.progressPollTimer);
 
 		const baseUrl = getBackendUrl();
-
-		this.progressPollTimer = setInterval(async () => {
+		const pollOnce = async () => {
 			try {
 				const data = await fetchIntentProgress(baseUrl, actionId);
 				if (!data) return;
@@ -352,6 +351,11 @@ export class NotificationPopupManager {
 			} catch {
 				// Network error — will retry on next interval
 			}
+		};
+
+		void pollOnce();
+		this.progressPollTimer = setInterval(() => {
+			void pollOnce();
 		}, 1000);
 	}
 

@@ -49,6 +49,12 @@ class ExecutionStep:
 
 
 @dataclass
+class ExecutionMessage:
+    role: str
+    content: str
+
+
+@dataclass
 class PendingAction:
     action_id: str
     action_type: ActionType
@@ -60,6 +66,7 @@ class PendingAction:
     todo_data: dict[str, Any] = field(default_factory=dict)
     execution_plan: list[str] = field(default_factory=list)
     execution_steps: list[ExecutionStep] = field(default_factory=list)
+    execution_messages: list[ExecutionMessage] = field(default_factory=list)
     execution_result: str = ""
     agent_raw_output: str = ""
     streaming_output: str = ""
@@ -80,6 +87,9 @@ class PendingAction:
                 {"key": s.key, "label": s.label, "status": s.status, "detail": s.detail}
                 for s in self.execution_steps
             ],
+            "execution_messages": [
+                {"role": m.role, "content": m.content} for m in self.execution_messages
+            ],
             "execution_result": self.execution_result,
             "streaming_output": self.streaming_output,
             "activity_id": self.activity_id,
@@ -87,6 +97,7 @@ class PendingAction:
 
 
 _MAX_ACTIONS = 200
+_MAX_MESSAGES = 200
 _lock = threading.Lock()
 _actions: OrderedDict[str, PendingAction] = OrderedDict()
 
@@ -161,6 +172,34 @@ def append_streaming_output(action_id: str, chunk: str) -> PendingAction | None:
         action = _actions.get(action_id)
         if action is not None:
             action.streaming_output += chunk
+        return action
+
+
+def append_execution_message(
+    action_id: str,
+    *,
+    role: str,
+    content: str,
+    merge_with_last: bool = False,
+) -> PendingAction | None:
+    normalized = content.strip()
+    if not normalized:
+        return None
+
+    with _lock:
+        action = _actions.get(action_id)
+        if action is None:
+            return None
+
+        if merge_with_last and action.execution_messages:
+            last = action.execution_messages[-1]
+            if last.role == role:
+                last.content += normalized
+                return action
+
+        action.execution_messages.append(ExecutionMessage(role=role, content=normalized))
+        if len(action.execution_messages) > _MAX_MESSAGES:
+            del action.execution_messages[: len(action.execution_messages) - _MAX_MESSAGES]
         return action
 
 
