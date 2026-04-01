@@ -280,7 +280,10 @@ function connectWithFallback(
  * interactive popup so the user can confirm / dismiss the pending todo.
  */
 function triggerPopupForQueuedReview(record: TodoIntentProcessingRecord): void {
-	if (typeof window === "undefined" || !window.electronAPI?.triggerInteractivePopup) return;
+	if (typeof window === "undefined" || !window.electronAPI?.triggerInteractivePopup) {
+		console.log(`[FLOW][WS] electronAPI不可用, 无法触发弹窗 (record=${record.record_id?.slice(0, 16)})`);
+		return;
+	}
 
 	for (const result of record.integration_results) {
 		if (result.action !== "queued_review" || !result.reason) continue;
@@ -295,7 +298,7 @@ function triggerPopupForQueuedReview(record: TodoIntentProcessingRecord): void {
 		const title = candidate?.name || "新待办事项";
 		const description = candidate?.description || record.merged_text?.slice(0, 120) || "";
 
-		console.log(`[todo-intent-ws] Triggering ${actionType} popup for ${actionId}`);
+		console.log(`[FLOW][WS] WebSocket收到queued_review → 触发Electron弹窗: actionId=${actionId}, type=${actionType}, title="${title}"`);
 		window.electronAPI.triggerInteractivePopup({
 			actionId,
 			actionType,

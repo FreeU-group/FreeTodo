@@ -52,6 +52,7 @@ backend_modules:
     - diary_illustration
     - vision
     - notification
+    - intent_actions
     - floating_capture
     - crawler
     - audio
