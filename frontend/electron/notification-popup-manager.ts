@@ -7,6 +7,7 @@ import {
 	type PopupExecutionSessionPayload,
 	postIntentAction,
 } from "./notification-popup-api";
+import { NotificationPopupDeduper } from "./notification-popup-dedupe";
 import {
 	escapePopupText,
 	getNotificationPopupHtml,
@@ -45,9 +46,11 @@ export class NotificationPopupManager {
 	private hideTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private fadeTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private avatarBase64 = "";
+	private currentPopup: InteractivePopupData | null = null;
 	private queueState: QueueState = "idle";
 	private queue: InteractivePopupData[] = [];
 	private seenActionIds: Set<string> = new Set();
+	private deduper = new NotificationPopupDeduper();
 	private readonly MAX_SEEN = 200;
 
 	private readConfig(): PopupConfig {
@@ -133,7 +136,46 @@ export class NotificationPopupManager {
 		if (this.hideTimeoutId) { clearTimeout(this.hideTimeoutId); this.hideTimeoutId = null; }
 	}
 
+	private suppressFutureDuplicates(actionId: string): void {
+		this.deduper.suppressFutureDuplicates(actionId);
+	}
 
+	private showExecutePreparing(): void {
+		this.resizeAndReposition(POPUP_HEIGHT_PROGRESS);
+		this.setInteractive(true);
+		if (!this.popupWindow || this.popupWindow.isDestroyed()) return;
+		this.popupWindow.showInactive();
+		this.popupWindow.webContents.executeJavaScript(
+			`(function(){
+				var badge=document.getElementById('status-badge');
+				badge.textContent='执行中';
+				badge.className='status-badge executing';
+				document.getElementById('meta-row').textContent='正在建立执行会话，这个弹窗会直接进入聊天执行。';
+				document.getElementById('actions').innerHTML='';
+				document.getElementById('progress-area').className='progress-area visible';
+				var ra=document.getElementById('result-area');
+				ra.className='result-area visible';
+				ra.textContent='正在连接执行会话...';
+			})();`,
+		).catch(() => {});
+	}
+
+	private showInlineError(message: string): void {
+		if (this.currentPopup) {
+			this.renderInteractive(this.currentPopup);
+		}
+		this.popupWindow?.webContents.executeJavaScript(
+			`(function(){
+				var badge=document.getElementById('status-badge');
+				badge.textContent='待确认';
+				badge.className='status-badge pending';
+				document.getElementById('meta-row').textContent='${escapePopupText(message)}';
+				var ra=document.getElementById('result-area');
+				ra.className='result-area visible';
+				ra.textContent='${escapePopupText(message)}';
+			})();`,
+		).catch(() => {});
+	}
 	private slideIn(): void {
 		if (!this.popupWindow || this.popupWindow.isDestroyed()) return;
 		this.popupWindow.webContents.executeJavaScript(
@@ -173,12 +215,18 @@ export class NotificationPopupManager {
 			logger.info(`[FLOW][Popup] 弹窗已禁用, 跳过`);
 			return;
 		}
-
 		if (this.seenActionIds.has(data.actionId)) {
 			logger.info(`[FLOW][Popup] 去重命中, 跳过: ${data.actionId}`);
 			return;
 		}
+		if (this.deduper.shouldSuppress(data)) {
+			logger.info(
+				`[FLOW][Popup] 内容去重命中, 跳过重复弹窗: actionId=${data.actionId}`,
+			);
+			return;
+		}
 		this.seenActionIds.add(data.actionId);
+		this.deduper.remember(data);
 		if (this.seenActionIds.size > this.MAX_SEEN) {
 			const first = this.seenActionIds.values().next().value;
 			if (first) this.seenActionIds.delete(first);
@@ -196,12 +244,14 @@ export class NotificationPopupManager {
 		const next = this.queue.shift();
 		if (!next) {
 			this.queueState = "idle";
+			this.currentPopup = null;
 			this.hideNow();
 			logger.info("[Queue] Empty, state → idle");
 			return;
 		}
 
 		this.queueState = "showing";
+		this.currentPopup = next;
 		logger.info(`[Queue] Showing "${next.title}", remaining=${this.queue.length}`);
 		this.renderInteractive(next);
 	}
@@ -289,9 +339,29 @@ export class NotificationPopupManager {
 		this.queueState = "showing";
 		this.resizeAndReposition(POPUP_HEIGHT_PROGRESS);
 		this.setInteractive(true);
-		this.popupWindow?.webContents.send("start-execution-chat", {
+		this.popupWindow?.showInactive();
+		const executionPayload = {
 			...payload,
 			action_id: actionId,
+		};
+		const serialized = JSON.stringify(executionPayload);
+		this.popupWindow?.webContents.executeJavaScript(
+			`(function(){
+				if (typeof window.startExecutionChat === 'function') {
+					window.startExecutionChat(${serialized});
+					return true;
+				}
+				return false;
+			})();`,
+		).then((started) => {
+			if (!started) {
+				this.popupWindow?.webContents.send("start-execution-chat", executionPayload);
+			}
+		}).catch((error) => {
+			logger.error(
+				`[FLOW][Popup] 进入执行聊天窗口失败: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			this.showInlineError("执行聊天窗口初始化失败，请重试。");
 		});
 	}
 
@@ -313,6 +383,7 @@ export class NotificationPopupManager {
 					const result = await postIntentAction(baseUrl, actionId, "confirm");
 					logger.info(`[FLOW][Popup] ← confirm响应: HTTP ${result.status}`);
 					if (result.status >= 200 && result.status < 300 && result.success !== false) {
+						this.suppressFutureDuplicates(actionId);
 						logger.info(`[FLOW][Popup] ✓ confirm成功 → 关闭弹窗, 流程结束`);
 						this.finishCurrentAndNext("", 0);
 					} else {
@@ -332,31 +403,35 @@ export class NotificationPopupManager {
 				if (action === "reject") {
 					logger.info(`[FLOW][Popup] → 调用 POST /api/intent-actions/${actionId}/reject`);
 					await postIntentAction(baseUrl, actionId, "reject").catch(() => null);
+					this.suppressFutureDuplicates(actionId);
 					logger.info(`[FLOW][Popup] ✓ reject完成 → 关闭弹窗`);
 					this.finishCurrentAndNext("已忽略", 500);
 					return;
 				}
 
 				if (action === "execute") {
+					this.showExecutePreparing();
 					logger.info(`[FLOW][Popup] → 调用 POST /api/intent-actions/${actionId}/execute`);
 					const result = await postIntentAction(baseUrl, actionId, "execute");
 					logger.info(`[FLOW][Popup] ← execute响应: HTTP ${result.status}`);
 					if (result.status >= 200 && result.status < 300 && result.success !== false) {
 						const payload = result.data as PopupExecutionSessionPayload | null;
 						if (payload?.session_id && payload?.initial_message) {
+							this.suppressFutureDuplicates(actionId);
 							logger.info(`[FLOW][Popup] ✓ execute成功 → 进入执行聊天窗口`);
 							this.switchToExecutionChat(actionId, payload);
 						} else {
 							logger.error("[FLOW][Popup] execute成功但缺少会话数据");
-							this.finishCurrentAndNext("执行会话初始化失败", 2000);
+							this.showInlineError("执行会话初始化失败，请重试。");
 						}
 					} else if (result.status === 409) {
 						const payload = result.data as PopupExecutionSessionPayload | null;
 						if (payload?.session_id) {
+							this.suppressFutureDuplicates(actionId);
 							logger.info("[FLOW][Popup] execute返回409但已有会话 → 恢复执行聊天窗口");
 							this.switchToExecutionChat(actionId, payload);
 						} else {
-							this.finishCurrentAndNext("该任务当前不可执行", 2000);
+							this.showInlineError("该任务当前不可执行。");
 						}
 					} else {
 						const execErr = (): string => {
@@ -367,13 +442,13 @@ export class NotificationPopupManager {
 						logger.error(
 							`[FLOW][Popup] ✗ execute失败: HTTP ${result.status}, body=${result.body.slice(0, 200)}`,
 						);
-						this.finishCurrentAndNext(execErr(), 2000);
+						this.showInlineError(execErr());
 					}
 					return;
 				}
 		} catch (error) {
 			logger.error(`[FLOW][Popup] ✗ 网络异常: ${error instanceof Error ? error.message : String(error)}`);
-			this.finishCurrentAndNext("网络错误", 1500);
+			this.showInlineError("网络错误，请稍后重试。");
 		}
 		});
 	}
