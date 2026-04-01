@@ -273,6 +273,8 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                     "pending_execute",
                     "conflict",
                     "reminder",
+                    "execution_complete",
+                    "execution_failed",
                 ) or any(
                     kw in title_lower
                     for kw in (
@@ -298,128 +300,14 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                     todo_id,
                 )
 
-                if ntype == "pending_todo":
-                    action_id = nid[3:] if nid.startswith("pa_") else nid
+                if ntype in ("pending_todo", "pending_execute"):
                     log.info(
-                        "处理 pending_todo 通知, nid=%s -> action_id=%s", nid, action_id
-                    )
-
-                    def _on_confirm_pending(aid=action_id):
-                        log.info(
-                            "用户确认 pending_todo, 调用 POST /api/intent-actions/%s/confirm",
-                            aid,
-                        )
-                        try:
-                            r = httpx.post(
-                                f"{_state.center_url}/api/intent-actions/{aid}/confirm",
-                                timeout=30,
-                            )
-                            log.info(
-                                "confirm 响应: status=%d, body=%s",
-                                r.status_code,
-                                r.text[:200],
-                            )
-                        except Exception as e:
-                            log.error("确认 pending_todo 失败: %s", e, exc_info=True)
-
-                    def _on_dismiss_pending(aid=action_id):
-                        log.info(
-                            "用户忽略 pending_todo, 调用 POST /api/intent-actions/%s/reject",
-                            aid,
-                        )
-                        try:
-                            r = httpx.post(
-                                f"{_state.center_url}/api/intent-actions/{aid}/reject",
-                                timeout=10,
-                            )
-                            log.info("reject 响应: status=%d", r.status_code)
-                        except Exception as e:
-                            log.error("忽略 pending_todo 失败: %s", e, exc_info=True)
-
-                    subtitle = content
-                    try:
-                        pa_data = json.loads(content)
-                        subtitle = pa_data.get("description", "") or pa_data.get(
-                            "title", content
-                        )
-                    except (json.JSONDecodeError, TypeError):
-                        pass
-
-                    _launch_popup(
-                        {"title": title, "subtitle": subtitle},
-                        on_confirm=_on_confirm_pending,
-                        on_dismiss=_on_dismiss_pending,
-                    )
-                elif ntype == "pending_execute":
-                    action_id = nid[3:] if nid.startswith("pa_") else nid
-                    log.info(
-                        "处理 pending_execute 通知, nid=%s -> action_id=%s",
+                        "[FLOW][Sensor] 跳过 %s 通知(由Electron主应用处理): nid=%s, title=%s",
+                        ntype,
                         nid,
-                        action_id,
+                        title,
                     )
-
-                    subtitle = content
-                    try:
-                        pa_data = json.loads(content)
-                        desc = pa_data.get("description", "")
-                        plan = pa_data.get("execution_plan", [])
-                        plan_text = (
-                            "\n".join(f"  {i + 1}. {s}" for i, s in enumerate(plan))
-                            if plan
-                            else ""
-                        )
-                        subtitle = desc + (
-                            "\n\n执行计划：\n" + plan_text if plan_text else ""
-                        )
-                        log.debug(
-                            "pending_execute 解析: desc=%s, plan_steps=%d",
-                            desc[:80],
-                            len(plan),
-                        )
-                    except (json.JSONDecodeError, TypeError):
-                        log.warning(
-                            "pending_execute content 不是有效 JSON: %s", content[:100]
-                        )
-
-                    def _on_confirm_execute(aid=action_id):
-                        log.info(
-                            "用户确认执行, 调用 POST /api/intent-actions/%s/execute",
-                            aid,
-                        )
-                        try:
-                            r = httpx.post(
-                                f"{_state.center_url}/api/intent-actions/{aid}/execute",
-                                timeout=30,
-                            )
-                            if r.status_code == 200:
-                                log.info("执行已启动: %s, 响应=%s", aid, r.text[:200])
-                            else:
-                                log.error(
-                                    "执行启动失败: status=%d, body=%s",
-                                    r.status_code,
-                                    r.text[:200],
-                                )
-                        except Exception as e:
-                            log.error("确认执行失败: %s", e, exc_info=True)
-
-                    def _on_dismiss_execute(aid=action_id):
-                        log.info(
-                            "用户忽略执行, 调用 POST /api/intent-actions/%s/reject", aid
-                        )
-                        try:
-                            r = httpx.post(
-                                f"{_state.center_url}/api/intent-actions/{aid}/reject",
-                                timeout=10,
-                            )
-                            log.info("reject 响应: status=%d", r.status_code)
-                        except Exception as e:
-                            log.error("忽略执行失败: %s", e, exc_info=True)
-
-                    _launch_popup(
-                        {"title": title, "subtitle": subtitle},
-                        on_confirm=_on_confirm_execute,
-                        on_dismiss=_on_dismiss_execute,
-                    )
+                    continue
                 elif ntype in ("auto_todo", "invitation") and todo_id:
                     _tid = todo_id
                     log.info("处理 %s 通知, todo_id=%s", ntype, _tid)
