@@ -9,7 +9,8 @@
 - `server/routers/intent_actions.py`
 - `server/services/perception_todo_intent/pending_actions.py`
 - `server/services/perception_todo_intent/execution_engine.py`
-- `frontend/electron/notification-popup-manager.ts`
+- `scripts/signal-sensor.py`
+- `frontend/scripts/pending-action-popup.js`
 
 ## 当前交互目标
 
@@ -29,8 +30,7 @@
 
 入口：
 
-- `notification-poller` 从通知表中发现 `pending_todo` / `pending_execute`
-- 或 `todo-intent-stream-store` 在 `queued_review` 记录中直接触发 Electron 弹窗
+- `signal-sensor` 轮询到 `pending_todo` / `pending_execute` 通知后，拉起专用的 pending action popup
 
 展示内容：
 
@@ -41,20 +41,20 @@
 
 按钮规则：
 
-- `todo`：`确认` / `忽略`
-- `executable`：`执行` / `仅添加待办` / `忽略`
+- 统一为：`确认` / `确认并执行` / `忽略`
+- `确认`：创建 Todo 后关闭弹窗
+- `确认并执行`：先创建 Todo，再在当前弹窗内进入执行聊天
 
 ### 2. 执行聊天态
 
-点击 `执行` 后：
+点击 `确认并执行` 后：
 
-1. 前端调用 `POST /api/intent-actions/{action_id}/execute`
-2. 后端创建或恢复一个执行专用 chat session，并返回 `session_id`
-3. 弹窗先原地进入“建立执行会话中”的过渡态，不关闭
+1. 弹窗调用 `POST /api/intent-actions/{action_id}/confirm-and-execute`
+2. 后端先创建 Todo，再创建或恢复执行专用 chat session，并返回 `session_id`
+3. 弹窗原地进入“建立执行会话中”的过渡态，不关闭
 4. 建立成功后，弹窗原地切换为 mini chat 视图
-5. 如果建立失败，错误信息直接留在当前弹窗里，用户可以重试
-6. 弹窗使用同一个 `session_id` 直接调用 `/api/chat/stream`
-7. 后续用户输入继续发送到同一个 chat session，不再新开窗口
+5. 弹窗使用同一个 `session_id` 直接调用 `/api/chat/stream`
+6. 后续用户输入继续发送到同一个 chat session，不再新开窗口
 
 展示内容：
 
@@ -66,13 +66,14 @@
 
 ## 数据约定
 
-`POST /api/intent-actions/{action_id}/execute` 需要返回：
+`POST /api/intent-actions/{action_id}/confirm-and-execute` 需要返回：
 
 - `session_id`
 - `initial_message`
 - `initial_user_input`
 - `selected_tools`
 - `external_tools`
+- `todo_id`
 
 其中：
 
