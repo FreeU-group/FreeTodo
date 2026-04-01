@@ -40,76 +40,42 @@ _ANALYSIS_TOOLS = [
     "parse_time",
 ]
 
-_agent_instance: AgnoAgentService | None = None
-_agent_lock = __import__("threading").Lock()
-_agent_semaphore: asyncio.Semaphore | None = None
 
+def _create_agent() -> AgnoAgentService:
+    """Create a fresh Agent instance (no shared state, safe for parallel use)."""
+    prompt_category = "perception_todo_intent_agent"
+    instructions_text = get_prompt(prompt_category, "system_assistant") or ""
 
-def _get_agent_semaphore() -> asyncio.Semaphore:
-    """Serialize concurrent access to the singleton Agent to avoid race conditions."""
-    global _agent_semaphore  # noqa: PLW0603
-    if _agent_semaphore is None:
-        _agent_semaphore = asyncio.Semaphore(1)
-    return _agent_semaphore
+    from util.time_utils import get_local_now  # noqa: PLC0415
 
+    now = get_local_now()
+    date_str = now.strftime("%Y-%m-%d")
+    weekday_zh = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
+    time_str = now.strftime("%H:%M:%S")
+    date_instruction = f"当前时间：{date_str}（{weekday_zh}）{time_str}。"
 
-def _get_or_create_agent() -> AgnoAgentService:
-    global _agent_instance  # noqa: PLW0603
-    if _agent_instance is not None:
-        return _agent_instance
+    user_name = settings.get("setup.user_name", "") or "用户"
+    agent_name = settings.get("setup.agent_name", "") or "Free U"
+    instructions_text = instructions_text.replace("{user_name}", str(user_name))
+    instructions_text = instructions_text.replace("{agent_name}", str(agent_name))
 
-    with _agent_lock:
-        if _agent_instance is not None:
-            return _agent_instance
+    memory_toolkit = MemoryToolkit(lang="zh")
+    model = str(settings.get("perception.todo_intent.agent.model", "")).strip() or None
 
-        prompt_category = "perception_todo_intent_agent"
-        instructions_text = get_prompt(prompt_category, "system_assistant") or ""
+    service = AgnoAgentService(
+        lang="zh",
+        selected_tools=_ANALYSIS_TOOLS,
+        extra_tools=[memory_toolkit],
+        agent_id="todo_intent_agent",
+        agent_name="TodoIntentAgent",
+        model=model,
+        enable_learning=False,
+    )
 
-        from util.time_utils import get_local_now  # noqa: PLC0415
-
-        now = get_local_now()
-        date_str = now.strftime("%Y-%m-%d")
-        weekday_zh = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
-        time_str = now.strftime("%H:%M:%S")
-        date_instruction = f"当前时间：{date_str}（{weekday_zh}）{time_str}。"
-
-        user_name = settings.get("setup.user_name", "") or "用户"
-        agent_name = settings.get("setup.agent_name", "") or "Free U"
-        instructions_text = instructions_text.replace("{user_name}", str(user_name))
-        instructions_text = instructions_text.replace("{agent_name}", str(agent_name))
-
-        memory_toolkit = MemoryToolkit(lang="zh")
-
-        model = str(settings.get("perception.todo_intent.agent.model", "")).strip() or None
-
-        service = AgnoAgentService(
-            lang="zh",
-            selected_tools=_ANALYSIS_TOOLS,
-            extra_tools=[memory_toolkit],
-            agent_id="todo_intent_agent",
-            agent_name="TodoIntentAgent",
-            model=model,
-            enable_learning=False,
-        )
-
-        if instructions_text:
-            service.agent.instructions = [date_instruction, instructions_text]
-        service.agent.tool_call_limit = 6
-
-        _agent_instance = service
-        logger.info(
-            "[TodoIntentAgent] Initialized (analysis mode): model=%s, tools=%d+%d",
-            model,
-            len(_ANALYSIS_TOOLS),
-            4,
-        )
-        return _agent_instance
-
-
-def reset_agent() -> None:
-    global _agent_instance  # noqa: PLW0603
-    with _agent_lock:
-        _agent_instance = None
+    if instructions_text:
+        service.agent.instructions = [date_instruction, instructions_text]
+    service.agent.tool_call_limit = 6
+    return service
 
 
 def _build_agent_message(
@@ -142,14 +108,21 @@ def _build_agent_message(
 
 
 _TOOL_EVENT_MARKER = "\n[TOOL_EVENT:"
+_AGENT_TIMEOUT_SECONDS = 60
 
 
 def _run_agent_sync(message: str) -> str:
-    service = _get_or_create_agent()
+    service = _create_agent()
     parts: list[str] = []
+    deadline = __import__("time").monotonic() + _AGENT_TIMEOUT_SECONDS
+
     for chunk in service.stream_response(message, include_tool_events=True):
         if _TOOL_EVENT_MARKER not in chunk:
             parts.append(chunk)
+        if __import__("time").monotonic() > deadline:
+            logger.warning("[TodoIntentAgent] Timeout after %ds, stopping", _AGENT_TIMEOUT_SECONDS)
+            break
+
     raw = "".join(parts)
     clean = re.sub(r"\n\[TOOL_EVENT:.*?\]\n", "", raw)
     return clean
@@ -190,7 +163,11 @@ def _process_single_intent(
 
     if action_type_str == "skip":
         reason = item.get("reason", "无意图")
-        logger.info("[TodoIntentAgent] Skip: %s", reason)
+        logger.info(
+            "[FLOW][IntentAgent] 1/3 LLM判断结果=skip, reason=%s, context=%s",
+            reason,
+            context.context_id[:16],
+        )
         return TodoIntegrationResult(
             action=IntegrationAction.SKIPPED,
             reason=f"agent_skip: {reason}",
@@ -203,6 +180,12 @@ def _process_single_intent(
         if not isinstance(todo_data, dict):
             todo_data = {}
 
+        logger.info(
+            "[FLOW][IntentAgent] 1/3 LLM判断结果=todo, title=%s, context=%s",
+            title,
+            context.context_id[:16],
+        )
+
         pending = create_pending_action(
             action_type=ActionType.TODO,
             title=title,
@@ -210,6 +193,9 @@ def _process_single_intent(
             context_id=context.context_id,
             todo_data=todo_data,
             agent_raw_output=raw_response,
+        )
+        logger.info(
+            "[FLOW][IntentAgent] 2/3 创建PendingAction: action_id=%s, type=TODO", pending.action_id
         )
 
         add_notification(
@@ -219,8 +205,11 @@ def _process_single_intent(
             timestamp=get_utc_now(),
             notification_type="pending_todo",
         )
+        logger.info(
+            "[FLOW][IntentAgent] 3/3 写入通知: noti_id=pa_%s, type=pending_todo → 等待弹窗系统拾取",
+            pending.action_id,
+        )
 
-        logger.info("[TodoIntentAgent] Created pending TODO: %s — %s", pending.action_id, title)
         return TodoIntegrationResult(
             action=IntegrationAction.QUEUED_REVIEW,
             reason=f"pending_todo: {pending.action_id}",
@@ -233,6 +222,13 @@ def _process_single_intent(
         if not isinstance(execution_plan, list):
             execution_plan = []
 
+        logger.info(
+            "[FLOW][IntentAgent] 1/3 LLM判断结果=executable, title=%s, steps=%d, context=%s",
+            title,
+            len(execution_plan),
+            context.context_id[:16],
+        )
+
         pending = create_pending_action(
             action_type=ActionType.EXECUTABLE,
             title=title,
@@ -240,6 +236,10 @@ def _process_single_intent(
             context_id=context.context_id,
             execution_plan=execution_plan,
             agent_raw_output=raw_response,
+        )
+        logger.info(
+            "[FLOW][IntentAgent] 2/3 创建PendingAction: action_id=%s, type=EXECUTABLE",
+            pending.action_id,
         )
 
         add_notification(
@@ -249,19 +249,17 @@ def _process_single_intent(
             timestamp=get_utc_now(),
             notification_type="pending_execute",
         )
-
         logger.info(
-            "[TodoIntentAgent] Created pending EXECUTABLE: %s — %s (steps=%d)",
+            "[FLOW][IntentAgent] 3/3 写入通知: noti_id=pa_%s, type=pending_execute → 等待弹窗系统拾取",
             pending.action_id,
-            title,
-            len(execution_plan),
         )
+
         return TodoIntegrationResult(
             action=IntegrationAction.QUEUED_REVIEW,
             reason=f"pending_execute: {pending.action_id}",
         )
 
-    logger.warning("[TodoIntentAgent] Unknown action_type: %s", action_type_str)
+    logger.warning("[FLOW][IntentAgent] Unknown action_type: %s", action_type_str)
     return TodoIntegrationResult(
         action=IntegrationAction.SKIPPED,
         reason=f"agent_unknown_type: {action_type_str}",
@@ -282,8 +280,10 @@ async def run_intent_agent(
     )
 
     logger.info(
-        "[TodoIntentAgent] Processing context %s (%d chars message)",
+        "[FLOW][IntentAgent] 0/3 开始意图分析: context=%s, sources=%s, text_len=%d, msg_len=%d",
         context.context_id[:16],
+        ",".join(s.value for s in context.source_set),
+        len(context.merged_text or ""),
         len(message),
     )
 
@@ -292,8 +292,10 @@ async def run_intent_agent(
         task=(context.merged_text or "")[:100],
     )
     try:
-        async with _get_agent_semaphore():
-            response = await asyncio.to_thread(_run_agent_sync, message)
+        response = await asyncio.wait_for(
+            asyncio.to_thread(_run_agent_sync, message),
+            timeout=_AGENT_TIMEOUT_SECONDS + 10,
+        )
         logger.info(
             "[TodoIntentAgent] Agent completed: %d chars, preview=%.300s",
             len(response),
