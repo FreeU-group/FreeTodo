@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+import time
 from typing import Any
 
 from llm.agno_agent import AgnoAgentService
@@ -91,6 +92,7 @@ def _create_executor_agent(task_description: str) -> AgnoAgentService:
         "3. 完成后用简洁的中文总结成果。\n"
     )
     service.agent.instructions = [instructions]
+    service.agent.tool_call_limit = 90
     return service
 
 
@@ -126,6 +128,17 @@ def _parse_tool_event_json(text: str) -> dict[str, Any] | None:
         return None
 
 
+_EXECUTION_TIMEOUT_SECONDS = 300
+_NOTIFICATION_MAX_CHARS = 2000
+
+
+def _build_notification_content(result_text: str) -> str:
+    """Build notification content: prefer the tail (summary) over the head."""
+    if len(result_text) <= _NOTIFICATION_MAX_CHARS:
+        return result_text
+    return "..." + result_text[-_NOTIFICATION_MAX_CHARS:]
+
+
 def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
     """Run the executor agent synchronously with streaming output + activity tracking."""
     logger.info("[FLOW][ExecSync] 构建Agent: action_id=%s", action.action_id)
@@ -140,12 +153,22 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
     logger.info("[FLOW][ExecSync] Agent已创建, 开始stream: action_id=%s", action.action_id)
 
     parts: list[str] = []
+    deadline = time.monotonic() + _EXECUTION_TIMEOUT_SECONDS
 
     for chunk in service.stream_response(task_msg, include_tool_events=True):
         if is_cancelled(activity_id):
             logger.info("[FLOW][ExecSync] 收到取消信号: action_id=%s", action.action_id)
             append_streaming_output(action.action_id, "\n\n[已中断]")
             return "".join(parts).strip()
+
+        if time.monotonic() > deadline:
+            logger.warning(
+                "[FLOW][ExecSync] 执行超时(%ds): action_id=%s",
+                _EXECUTION_TIMEOUT_SECONDS,
+                action.action_id,
+            )
+            append_streaming_output(action.action_id, "\n\n[执行超时，已自动停止]")
+            break
 
         if not chunk:
             continue
@@ -225,10 +248,11 @@ async def execute_action(action_id: str) -> bool:
             title = f"任务完成：{action.title}"
             if len(title) > title_max:
                 title = title[: title_max - 3] + "..."
+            notify_content = _build_notification_content(result_text)
             add_notification(
                 notification_id=f"exec_done_{action_id}",
                 title=title,
-                content=result_text[:500],
+                content=notify_content,
                 timestamp=get_utc_now(),
                 notification_type="execution_complete",
             )
