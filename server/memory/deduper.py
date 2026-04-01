@@ -66,6 +66,15 @@ class MemoryDeduper:
     FAST_SIMILARITY_THRESHOLD = 0.96
     FAST_DISSIMILARITY_THRESHOLD = 0.3
 
+    ALWAYS_NEW_SOURCES: frozenset[str] = frozenset(
+        {
+            "app_switch",
+            "user_input",
+            "ai_output",
+            "gps_mobile",
+        }
+    )
+
     def __init__(
         self,
         memory_dir: Path,
@@ -138,6 +147,12 @@ class MemoryDeduper:
             return
 
         source_val = event.source.value
+
+        # Sources like app_switch are inherently unique — always keep, skip dedup
+        if source_val in self.ALWAYS_NEW_SOURCES:
+            async with self._lock:
+                await self._keep(event, content)
+            return
 
         async with self._lock:
             if self._last_kept_content is None:

@@ -87,18 +87,58 @@ class MemoryManager:
             )
             logger.info("TaskLinker initialized")
 
-            # L4 ProfileBuilder
+            # L4 ProfileBuilder — prefer llm.agent.* (OpenRouter → Claude) if configured
             profile_cfg = self._config.get("profile", {}) or {}
-            profile_model = profile_cfg.get("model") or None
+            profile_model, profile_api_key, profile_base_url = self._resolve_profile_llm(
+                profile_cfg, llm
+            )
             self.profile_builder = ProfileBuilder(
                 self._memory_dir,
                 llm,
                 model=profile_model,
+                api_key=profile_api_key,
+                base_url=profile_base_url,
             )
-            logger.info("ProfileBuilder initialized")
+            logger.info(
+                "ProfileBuilder initialized (model=%s, dedicated=%s)",
+                profile_model,
+                bool(profile_api_key),
+            )
 
         except Exception:
             logger.exception("Failed to initialize LLM-dependent memory components")
+
+    @staticmethod
+    def _resolve_profile_llm(
+        profile_cfg: dict,
+        llm_client: object,  # noqa: ARG004
+    ) -> tuple[str | None, str | None, str | None]:
+        """Resolve LLM credentials for ProfileBuilder.
+
+        Priority: memory.profile.model/api_key/base_url > llm.agent.* > llm.*
+        Uses the llm.agent.* config (typically OpenRouter → Claude) if available,
+        giving the profile builder access to a higher-quality model.
+        """
+        from util.settings import settings  # noqa: PLC0415
+
+        _placeholders = {"", "YOUR_LLM_KEY_HERE", "YOUR_BASE_URL_HERE"}
+
+        explicit_model = str(profile_cfg.get("model", "") or "").strip() or None
+        explicit_key = str(profile_cfg.get("api_key", "") or "").strip() or None
+        explicit_url = str(profile_cfg.get("base_url", "") or "").strip() or None
+
+        if explicit_key and explicit_key not in _placeholders and explicit_url:
+            return explicit_model, explicit_key, explicit_url
+
+        agent_cfg = settings.get("llm.agent", {}) or {}
+        agent_key = str(agent_cfg.get("api_key", "") or "").strip()
+        agent_url = str(agent_cfg.get("base_url", "") or "").strip()
+        agent_model = str(agent_cfg.get("model", "") or "").strip()
+
+        if agent_key and agent_key not in _placeholders and agent_url and agent_model:
+            return explicit_model or agent_model, agent_key, agent_url
+
+        return explicit_model, None, None
 
     # ------------------------------------------------------------------
     # Lifecycle

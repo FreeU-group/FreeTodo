@@ -18,7 +18,6 @@ Design principles:
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import TYPE_CHECKING
 
@@ -127,6 +126,9 @@ class ProfileBuilder:
     3. Asks LLM whether the profile should change.
     4. If yes, writes the updated profile back.
     5. If the result exceeds *PROFILE_MAX_CHARS*, runs a consolidation pass.
+
+    Supports using a separate LLM endpoint (e.g. OpenRouter → Claude) via
+    ``api_key`` / ``base_url`` parameters for higher-quality profile updates.
     """
 
     def __init__(
@@ -135,6 +137,8 @@ class ProfileBuilder:
         llm_client: LLMClient,
         *,
         model: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
     ):
         self._memory_dir = memory_dir
         self._profile_dir = memory_dir / "profile_L4"
@@ -142,7 +146,19 @@ class ProfileBuilder:
         self._profile_file = self._profile_dir / "user_profile.md"
         self._events_dir = memory_dir / "events_L2"
         self._llm = llm_client
-        self._model = model
+        self._model = model or llm_client.model
+
+        # Dedicated AsyncOpenAI client for profile updates (e.g. OpenRouter → Claude)
+        self._dedicated_client = None
+        if api_key and base_url:
+            from openai import AsyncOpenAI  # noqa: PLC0415
+
+            self._dedicated_client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            logger.info(
+                "ProfileBuilder: using dedicated LLM endpoint (model=%s, base_url=%s)",
+                self._model,
+                base_url,
+            )
 
         self._last_update: datetime | None = None
         self._stats = {
@@ -156,7 +172,38 @@ class ProfileBuilder:
     def get_stats(self) -> dict:
         stats: dict[str, int | str | None] = dict(self._stats)
         stats["last_update"] = self._last_update.isoformat() if self._last_update else None
+        stats["model"] = self._model
+        stats["dedicated_endpoint"] = self._dedicated_client is not None
         return stats
+
+    async def _llm_call(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.3,
+        max_tokens: int = 2048,
+        log_meta: dict[str, str] | None = None,
+    ) -> str:
+        """Unified LLM call: uses dedicated client (OpenRouter) if available,
+        otherwise falls back to default LLMClient."""
+        if self._dedicated_client:
+            from typing import Any, cast  # noqa: PLC0415
+
+            resp = await self._dedicated_client.chat.completions.create(
+                model=self._model,
+                messages=cast("Any", messages),
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return resp.choices[0].message.content or ""
+
+        return await self._llm.async_chat(
+            messages,
+            temperature=temperature,
+            model=self._model,
+            max_tokens=max_tokens,
+            log_usage=True,
+            log_meta=log_meta or {},
+        )
 
     def read_profile(self) -> str:
         """Return current profile content."""
@@ -207,13 +254,9 @@ class ProfileBuilder:
         ]
 
         try:
-            resp = await asyncio.to_thread(
-                self._llm.chat,
+            resp = await self._llm_call(
                 messages,
-                0.3,
-                self._model,
-                2048,
-                log_usage=True,
+                temperature=0.3,
                 log_meta={"endpoint": "memory_profile", "feature_type": "memory_profile"},
             )
         except Exception:
@@ -281,13 +324,9 @@ class ProfileBuilder:
             {"role": "user", "content": prompt},
         ]
         try:
-            resp = await asyncio.to_thread(
-                self._llm.chat,
+            resp = await self._llm_call(
                 messages,
-                0.2,
-                self._model,
-                2048,
-                log_usage=True,
+                temperature=0.2,
                 log_meta={
                     "endpoint": "memory_profile_consolidate",
                     "feature_type": "memory_profile",
@@ -354,23 +393,24 @@ class ProfileBuilder:
     # ------------------------------------------------------------------
 
     def _collect_recent_events(self) -> str:
-        """Gather L2 event summaries from today's events file.
+        """Gather L2 event summaries from today and yesterday.
 
-        If a last_update timestamp exists, tries to extract only events that
-        appear after that time.  Falls back to returning the full day's events
-        if parsing is uncertain.
+        Always includes both days to give the LLM sufficient context for
+        profile updates, even if the profile was recently updated.
         """
-        today = local_today_str()
-        events_file = self._events_dir / f"{today}.md"
+        from datetime import timedelta  # noqa: PLC0415
 
         parts: list[str] = []
-        if events_file.exists():
-            parts.append(events_file.read_text(encoding="utf-8"))
-
+        today = local_today_str()
         yesterday = local_yesterday_str()
-        yesterday_file = self._events_dir / f"{yesterday}.md"
-        if yesterday_file.exists() and self._last_update is None:
-            parts.append(yesterday_file.read_text(encoding="utf-8"))
+        day_before = (get_local_now() - timedelta(days=2)).strftime("%Y-%m-%d")
+
+        for date_str in (today, yesterday, day_before):
+            f = self._events_dir / f"{date_str}.md"
+            if f.exists():
+                content = f.read_text(encoding="utf-8").strip()
+                if content:
+                    parts.append(content)
 
         return "\n\n---\n\n".join(parts)
 
