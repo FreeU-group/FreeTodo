@@ -192,7 +192,15 @@ async def get_progress(action_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Action not found")
     return {
         "action_id": action_id,
+        "title": action.title,
+        "description": action.description,
+        "action_type": action.action_type.value,
         "status": action.status.value,
+        "execution_plan": action.execution_plan,
+        "execution_steps": [
+            {"key": step.key, "label": step.label, "status": step.status, "detail": step.detail}
+            for step in action.execution_steps
+        ],
         "streaming_output": action.streaming_output,
         "result": action.execution_result,
         "activity_id": action.activity_id,

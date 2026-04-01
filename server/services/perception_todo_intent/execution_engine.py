@@ -32,6 +32,7 @@ from services.perception_todo_intent.pending_actions import (
     set_activity_id,
     set_execution_result,
     update_action_status,
+    upsert_execution_step,
 )
 from storage.notification_storage import add_notification
 from util.logging_config import get_logger
@@ -139,6 +140,55 @@ def _build_notification_content(result_text: str) -> str:
     return "..." + result_text[-_NOTIFICATION_MAX_CHARS:]
 
 
+def _mark_plan_step(action_id: str, step_index: int, status: str, detail: str = "") -> None:
+    upsert_execution_step(
+        action_id,
+        key=f"plan_{step_index + 1}",
+        label=f"步骤 {step_index + 1}",
+        status=status,
+        detail=detail,
+    )
+
+
+def _record_tool_step(
+    action_id: str,
+    *,
+    tool_name: str,
+    status: str,
+    detail: str = "",
+) -> None:
+    upsert_execution_step(
+        action_id,
+        key=f"tool_{tool_name}",
+        label=f"工具：{tool_name}",
+        status=status,
+        detail=detail,
+    )
+
+
+def _handle_stream_event(action_id: str, activity_id: str, event: dict[str, Any]) -> None:
+    event_type = str(event.get("type", ""))
+    tool_name = str(event.get("tool_name", "") or event.get("name", "")).strip()
+    if event_type == "tool_call_start" and tool_name:
+        _record_tool_step(action_id, tool_name=tool_name, status="running")
+    elif event_type == "tool_call_end" and tool_name:
+        detail = str(event.get("result_preview", "") or "")
+        tool_status = "failed" if event.get("error") else "done"
+        _record_tool_step(
+            action_id,
+            tool_name=tool_name,
+            status=tool_status,
+            detail=detail,
+        )
+
+    add_activity_step(
+        activity_id,
+        step_type=event.get("type", "tool_call"),
+        name=event.get("name", event.get("tool", "")),
+        content=json.dumps(event, ensure_ascii=False)[:500],
+    )
+
+
 def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
     """Run the executor agent synchronously with streaming output + activity tracking."""
     logger.info("[FLOW][ExecSync] 构建Agent: action_id=%s", action.action_id)
@@ -148,6 +198,12 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
     if plan_text:
         task_msg += f"建议步骤：\n{plan_text}\n\n"
     task_msg += "请开始执行。"
+
+    for index, step in enumerate(action.execution_plan):
+        _mark_plan_step(action.action_id, index, "pending", str(step))
+
+    if action.execution_plan:
+        _mark_plan_step(action.action_id, 0, "running")
 
     service = _create_executor_agent(task_msg)
     logger.info("[FLOW][ExecSync] Agent已创建, 开始stream: action_id=%s", action.action_id)
@@ -175,12 +231,7 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
 
         event = _parse_tool_event_json(chunk)
         if event:
-            add_activity_step(
-                activity_id,
-                step_type=event.get("type", "tool_call"),
-                name=event.get("name", event.get("tool", "")),
-                content=json.dumps(event, ensure_ascii=False)[:500],
-            )
+            _handle_stream_event(action.action_id, activity_id, event)
 
         clean = _strip_tool_events(chunk)
         if clean:
@@ -226,6 +277,13 @@ async def execute_action(action_id: str) -> bool:
 
             if is_cancelled(activity_id):
                 update_action_status(action_id, ActionStatus.FAILED)
+                for index, _step in enumerate(action.execution_plan):
+                    _mark_plan_step(
+                        action_id,
+                        index,
+                        "failed" if index == 0 else "pending",
+                        "任务已被中断",
+                    )
                 stop_activity(activity_id, status="cancelled")
                 add_notification(
                     notification_id=f"exec_cancel_{action_id}",
@@ -236,6 +294,8 @@ async def execute_action(action_id: str) -> bool:
                 )
                 return
 
+            for index, step in enumerate(action.execution_plan):
+                _mark_plan_step(action_id, index, "done", str(step))
             set_execution_result(action_id, result_text)
             stop_activity(activity_id, status="completed")
             logger.info(
@@ -259,6 +319,13 @@ async def execute_action(action_id: str) -> bool:
         except Exception:
             logger.exception("[FLOW][ExecEngine] ✗ 执行失败: action_id=%s", action_id)
             update_action_status(action_id, ActionStatus.FAILED)
+            for index, _step in enumerate(action.execution_plan):
+                _mark_plan_step(
+                    action_id,
+                    index,
+                    "failed" if index == 0 else "pending",
+                    "执行过程中遇到错误",
+                )
             stop_activity(activity_id, status="error")
             add_notification(
                 notification_id=f"exec_fail_{action_id}",
