@@ -45,7 +45,8 @@ export type PanelFeature =
 	| "todoIntent"
 	| "preview"
 	| "userProfile"
-	| "eventStream";
+	| "eventStream"
+	| "agentMonitor";
 
 /**
  * 开发中的面板功能列表

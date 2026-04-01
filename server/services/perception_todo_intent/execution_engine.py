@@ -86,6 +86,7 @@ def _run_executor_sync(
     action: PendingAction,
 ) -> str:
     """Run the executor agent synchronously, updating steps in real-time."""
+    logger.info("[FLOW][ExecSync] 开始构建Agent: action_id=%s", action.action_id)
     plan_text = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(action.execution_plan))
     task_msg = f"请执行以下任务：{action.title}\n\n详细描述：{action.description}\n\n"
     if plan_text:
@@ -93,6 +94,7 @@ def _run_executor_sync(
     task_msg += "请开始执行，每完成一步用 [STEP] 标记进展。"
 
     service = _create_executor_agent(task_msg)
+    logger.info("[FLOW][ExecSync] Agent已创建, 开始stream_response: action_id=%s", action.action_id)
 
     steps: list[ExecutionStep] = [
         ExecutionStep(label=s, status="pending") for s in action.execution_plan
@@ -134,24 +136,35 @@ def _run_executor_sync(
 
 async def execute_action(action_id: str) -> bool:
     """Start background execution for a pending action. Returns False if not found."""
+    logger.info("[FLOW][ExecEngine] 准备启动: action_id=%s", action_id)
     action = get_action(action_id)
     if action is None:
+        logger.warning("[FLOW][ExecEngine] action不存在: action_id=%s → return False", action_id)
         return False
 
     update_action_status(action_id, ActionStatus.EXECUTING)
+    logger.info(
+        "[FLOW][ExecEngine] 状态→EXECUTING: action_id=%s, title=%s", action_id, action.title
+    )
 
     async def _run() -> None:
         try:
+            logger.info(
+                "[FLOW][ExecEngine] sub-agent线程开始: action_id=%s, plan_steps=%d",
+                action_id,
+                len(action.execution_plan),
+            )
             result_text = await asyncio.to_thread(_run_executor_sync, action)
             set_execution_result(action_id, result_text)
             logger.info(
-                "[ExecutionEngine] Task completed: %s — %d chars result",
+                "[FLOW][ExecEngine] ✓ 执行完成: action_id=%s, result_len=%d",
                 action_id,
                 len(result_text),
             )
+            title_max = 40
             title = f"任务完成：{action.title}"
-            if len(title) > 40:
-                title = title[:37] + "..."
+            if len(title) > title_max:
+                title = title[: title_max - 3] + "..."
             add_notification(
                 notification_id=f"exec_done_{action_id}",
                 title=title,
@@ -160,7 +173,7 @@ async def execute_action(action_id: str) -> bool:
                 notification_type="execution_complete",
             )
         except Exception:
-            logger.exception("[ExecutionEngine] Task failed: %s", action_id)
+            logger.exception("[FLOW][ExecEngine] ✗ 执行失败: action_id=%s", action_id)
             update_action_status(action_id, ActionStatus.FAILED)
             add_notification(
                 notification_id=f"exec_fail_{action_id}",
@@ -176,6 +189,7 @@ async def execute_action(action_id: str) -> bool:
     task = asyncio.create_task(_run())
     with _tasks_lock:
         _running_tasks[action_id] = task
+    logger.info("[FLOW][ExecEngine] asyncio.Task已创建: action_id=%s → 后台执行中", action_id)
     return True
 
 

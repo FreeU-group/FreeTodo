@@ -236,6 +236,7 @@ class NotificationPoller {
 		try {
 			const parsed = JSON.parse(notification.content);
 			if (parsed?.action_id && (parsed.action_type === "todo" || parsed.action_type === "executable")) {
+				console.log(`[FLOW][Poller] 轮询发现pending通知 → 触发Electron弹窗: actionId=${parsed.action_id}, type=${parsed.action_type}, title="${parsed.title || notification.title}"`);
 				window.electronAPI.triggerInteractivePopup({
 					actionId: parsed.action_id,
 					actionType: parsed.action_type,

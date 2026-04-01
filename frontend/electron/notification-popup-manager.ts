@@ -24,8 +24,6 @@ const POPUP_HEIGHT_TOAST = 120;
 const POPUP_HEIGHT_INTERACTIVE = 220;
 const POPUP_HEIGHT_PROGRESS = 320;
 const MARGIN = 16;
-const TRANSITION_MS = 400;
-
 interface PopupConfig {
 	enabled: boolean;
 }
@@ -53,8 +51,6 @@ export class NotificationPopupManager {
 	private hideTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private fadeTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private avatarBase64 = "";
-	private currentMode: "toast" | "interactive" | "progress" = "toast";
-	private currentActionId: string | null = null;
 	private progressPollTimer: ReturnType<typeof setInterval> | null = null;
 
 	// ── Queue state machine ──
@@ -270,8 +266,6 @@ ipcRenderer.on('update-progress', (_e, data) => {
 			this.popupWindow.hide();
 		}
 		this.setInteractive(false);
-		this.currentActionId = null;
-		this.currentMode = "toast";
 	}
 
 	private slideOutAndHide(delayMs: number = 0): void {
@@ -287,8 +281,6 @@ ipcRenderer.on('update-progress', (_e, data) => {
 				this.popupWindow.hide();
 			}
 			this.setInteractive(false);
-			this.currentActionId = null;
-			this.currentMode = "toast";
 		}, delayMs + 350);
 	}
 
@@ -299,11 +291,15 @@ ipcRenderer.on('update-progress', (_e, data) => {
 	 * If idle, immediately shows the first item.
 	 */
 	triggerInteractive(data: InteractivePopupData): void {
+		logger.info(`[FLOW][Popup] 收到弹窗请求: actionId=${data.actionId}, type=${data.actionType}, title="${data.title}"`);
 		const cfg = this.readConfig();
-		if (!cfg.enabled) return;
+		if (!cfg.enabled) {
+			logger.info(`[FLOW][Popup] 弹窗已禁用, 跳过`);
+			return;
+		}
 
 		if (this.seenActionIds.has(data.actionId)) {
-			logger.info(`[Queue] Skip duplicate: ${data.actionId}`);
+			logger.info(`[FLOW][Popup] 去重命中, 跳过: ${data.actionId}`);
 			return;
 		}
 		this.seenActionIds.add(data.actionId);
@@ -313,7 +309,7 @@ ipcRenderer.on('update-progress', (_e, data) => {
 		}
 
 		this.queue.push(data);
-		logger.info(`[Queue] Enqueued "${data.title}" (${data.actionType}), queue=${this.queue.length}, state=${this.queueState}`);
+		logger.info(`[FLOW][Popup] 入队成功: queue=${this.queue.length}, state=${this.queueState}`);
 
 		if (this.queueState === "idle") {
 			this.processQueue();
@@ -358,8 +354,6 @@ ipcRenderer.on('update-progress', (_e, data) => {
 	/** Render one interactive popup immediately. */
 	private renderInteractive(data: InteractivePopupData): void {
 		this.clearTimers();
-		this.currentMode = "interactive";
-		this.currentActionId = data.actionId;
 
 		if (!this.popupWindow || this.popupWindow.isDestroyed()) this.createWindow(POPUP_HEIGHT_INTERACTIVE);
 		this.resizeAndReposition(POPUP_HEIGHT_INTERACTIVE);
@@ -383,6 +377,8 @@ ipcRenderer.on('update-progress', (_e, data) => {
 				<button class="btn-ghost" onclick="doAction('reject','${aid}')">忽略</button>`;
 		}
 
+		logger.info(`[FLOW][Popup] 渲染弹窗: actionId=${data.actionId}, type=${data.actionType}, buttons=${data.actionType === "executable" ? "执行/仅添加/忽略" : "确认/忽略"}`);
+
 		this.popupWindow!.webContents.executeJavaScript(
 			`(function(){
 				document.getElementById('notif-title').textContent='${title}';
@@ -400,8 +396,8 @@ ipcRenderer.on('update-progress', (_e, data) => {
 	// ── Progress mode ──
 
 	private switchToProgressMode(actionId: string): void {
+		logger.info(`[FLOW][Popup] 切换到进度模式: actionId=${actionId}, 开始每秒轮询进度`);
 		this.queueState = "progress";
-		this.currentMode = "progress";
 		this.resizeAndReposition(POPUP_HEIGHT_PROGRESS);
 
 		this.popupWindow?.webContents.executeJavaScript(
@@ -452,7 +448,7 @@ ipcRenderer.on('update-progress', (_e, data) => {
 			const { action, actionId } = payload;
 
 			const baseUrl = getBackendUrl();
-			logger.info(`[Action] ${action} for ${actionId} → ${baseUrl}`);
+			logger.info(`[FLOW][Popup] 用户点击按钮: action=${action}, actionId=${actionId}, backendUrl=${baseUrl}`);
 
 			try {
 				if (action === "close") {
@@ -461,8 +457,9 @@ ipcRenderer.on('update-progress', (_e, data) => {
 				}
 
 				if (action === "confirm") {
+					logger.info(`[FLOW][Popup] → 调用 POST /api/intent-actions/${actionId}/confirm`);
 					const res = await fetch(`${baseUrl}/api/intent-actions/${actionId}/confirm`, { method: "POST" });
-					logger.info(`[Action] confirm response: ${res.status}`);
+					logger.info(`[FLOW][Popup] ← confirm响应: HTTP ${res.status}`);
 					const body = await res.text().catch(() => "");
 					let parsed: { success?: boolean; message?: string; detail?: unknown } | null = null;
 					try {
@@ -474,30 +471,33 @@ ipcRenderer.on('update-progress', (_e, data) => {
 					} catch {
 						/* 非 JSON */
 					}
-					const errToast = (): string => {
-						if (parsed?.message) return String(parsed.message);
-						if (typeof parsed?.detail === "string") return parsed.detail;
-						return res.status === 404 ? "操作已过期" : `失败 (${res.status})`;
-					};
-					// 历史上存在 HTTP 200 但 success=false，需看 body；409 表示已处理过等
 					if (res.ok && parsed?.success !== false) {
-						this.finishCurrentAndNext("✓ 已添加待办");
+						logger.info(`[FLOW][Popup] ✓ confirm成功 → 关闭弹窗, 流程结束`);
+						this.finishCurrentAndNext("", 0);
 					} else {
-						logger.error(`[Action] confirm failed: ${res.status} ${body.slice(0, 200)}`);
+						const errToast = (): string => {
+							if (parsed?.message) return String(parsed.message);
+							if (typeof parsed?.detail === "string") return parsed.detail;
+							return res.status === 404 ? "操作已过期" : `失败 (${res.status})`;
+						};
+						logger.error(`[FLOW][Popup] ✗ confirm失败: HTTP ${res.status}, body=${body.slice(0, 200)}`);
 						this.finishCurrentAndNext(errToast(), 2000);
 					}
 					return;
 				}
 
 				if (action === "reject") {
+					logger.info(`[FLOW][Popup] → 调用 POST /api/intent-actions/${actionId}/reject`);
 					await fetch(`${baseUrl}/api/intent-actions/${actionId}/reject`, { method: "POST" }).catch(() => {});
+					logger.info(`[FLOW][Popup] ✓ reject完成 → 关闭弹窗`);
 					this.finishCurrentAndNext("已忽略", 500);
 					return;
 				}
 
 				if (action === "execute") {
+					logger.info(`[FLOW][Popup] → 调用 POST /api/intent-actions/${actionId}/execute`);
 					const res = await fetch(`${baseUrl}/api/intent-actions/${actionId}/execute`, { method: "POST" });
-					logger.info(`[Action] execute response: ${res.status}`);
+					logger.info(`[FLOW][Popup] ← execute响应: HTTP ${res.status}`);
 					const body = await res.text().catch(() => "");
 					let parsed: { success?: boolean; message?: string; detail?: unknown } | null = null;
 					try {
@@ -509,23 +509,27 @@ ipcRenderer.on('update-progress', (_e, data) => {
 					} catch {
 						/* 非 JSON */
 					}
+				if (res.ok && parsed?.success !== false) {
+					logger.info(`[FLOW][Popup] ✓ execute成功 → 进入进度模式`);
+					this.switchToProgressMode(actionId);
+				} else if (res.status === 409) {
+					logger.info(`[FLOW][Popup] execute返回409(已在执行中, 可能被signal-sensor先处理) → 直接进入进度模式`);
+					this.switchToProgressMode(actionId);
+				} else {
 					const execErr = (): string => {
 						if (parsed?.message) return String(parsed.message);
 						if (typeof parsed?.detail === "string") return parsed.detail;
 						return res.status === 404 ? "操作已过期" : `执行失败 (${res.status})`;
 					};
-					if (res.ok && parsed?.success !== false) {
-						this.switchToProgressMode(actionId);
-					} else {
-						logger.error(`[Action] execute failed: ${res.status} ${body.slice(0, 200)}`);
-						this.finishCurrentAndNext(execErr(), 2000);
-					}
+					logger.error(`[FLOW][Popup] ✗ execute失败: HTTP ${res.status}, body=${body.slice(0, 200)}`);
+					this.finishCurrentAndNext(execErr(), 2000);
+				}
 					return;
 				}
-			} catch (error) {
-				logger.error(`[Action] error: ${error instanceof Error ? error.message : String(error)}`);
-				this.finishCurrentAndNext("网络错误", 1500);
-			}
+		} catch (error) {
+			logger.error(`[FLOW][Popup] ✗ 网络异常: ${error instanceof Error ? error.message : String(error)}`);
+			this.finishCurrentAndNext("网络错误", 1500);
+		}
 		});
 	}
 
@@ -544,8 +548,6 @@ ipcRenderer.on('update-progress', (_e, data) => {
 		if (!cfg.enabled) return;
 
 		this.clearTimers();
-		this.currentMode = "toast";
-		this.currentActionId = null;
 
 		if (!this.popupWindow || this.popupWindow.isDestroyed()) this.createWindow(POPUP_HEIGHT_TOAST);
 		this.resizeAndReposition(POPUP_HEIGHT_TOAST);

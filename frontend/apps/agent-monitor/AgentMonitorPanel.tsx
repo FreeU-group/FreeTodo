@@ -314,7 +314,7 @@ export function AgentMonitorPanel() {
 	const [history, setHistory] = useState<AgentActivity[]>([]);
 	const [connected, setConnected] = useState(false);
 	const wsRef = useRef<WebSocket | null>(null);
-	const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+	const reconnectTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 	const connect = useCallback(() => {
 		if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -423,7 +423,6 @@ export function AgentMonitorPanel() {
 			<PanelHeader
 				title={t("agentMonitorLabel")}
 				icon={Activity}
-				feature="agentMonitor"
 				actions={
 					<button
 						type="button"

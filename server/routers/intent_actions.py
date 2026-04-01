@@ -15,9 +15,8 @@ from services.perception_todo_intent.pending_actions import (
     get_pending_actions,
     update_action_status,
 )
-from storage.notification_storage import add_notification, clear_notification
+from storage.notification_storage import clear_notification
 from util.logging_config import get_logger
-from util.time_utils import get_utc_now
 
 logger = get_logger()
 
@@ -50,12 +49,26 @@ async def get_action_detail(action_id: str) -> dict[str, Any]:
 @router.post("/{action_id}/confirm")
 async def confirm_todo(action_id: str) -> ActionResponse:
     """User confirms creating a todo from a pending_todo action."""
+    logger.info("[FLOW][Confirm] 收到确认请求: action_id=%s", action_id)
     action = get_action(action_id)
     if action is None:
+        logger.warning("[FLOW][Confirm] action不存在(内存可能已清): action_id=%s → 404", action_id)
         raise HTTPException(status_code=404, detail="Action not found")
+    logger.info(
+        "[FLOW][Confirm] 找到action: type=%s, status=%s, title=%s",
+        action.action_type.value,
+        action.status.value,
+        action.title,
+    )
     if action.action_type != ActionType.TODO:
+        logger.warning(
+            "[FLOW][Confirm] 类型不匹配: expected=TODO, got=%s → 400", action.action_type.value
+        )
         raise HTTPException(status_code=400, detail="Action is not a todo type")
     if action.status != ActionStatus.PENDING:
+        logger.warning(
+            "[FLOW][Confirm] 状态不对: expected=PENDING, got=%s → 409", action.status.value
+        )
         payload = ActionResponse(
             success=False,
             action_id=action_id,
@@ -83,51 +96,72 @@ async def confirm_todo(action_id: str) -> ActionResponse:
             location=todo_data.get("where") or None,
         )
         result = svc.create_todo(create_payload)
+        todo_id = getattr(result, "id", None)
         update_action_status(action_id, ActionStatus.CONFIRMED)
-
         clear_notification(f"pa_{action_id}")
-        add_notification(
-            notification_id=f"confirmed_{action_id}",
-            title=f"已添加待办：{name}",
-            content=action.description,
-            timestamp=get_utc_now(),
-            notification_type="auto_todo",
-        )
 
-        logger.info("[IntentActions] Todo confirmed: %s — %s", action_id, name)
+        logger.info(
+            "[FLOW][Confirm] ✓ 待办创建成功: action_id=%s, todo_id=%s, name=%s → 流程结束",
+            action_id,
+            todo_id,
+            name,
+        )
         return ActionResponse(
             success=True,
             action_id=action_id,
             message=f"已创建待办：{name}",
-            data={"todo_id": getattr(result, "id", None)},
+            data={"todo_id": todo_id},
         )
     except Exception as exc:
-        logger.exception("[IntentActions] Failed to create todo for %s", action_id)
+        logger.exception("[FLOW][Confirm] ✗ 创建失败: action_id=%s, error=%s", action_id, exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/{action_id}/reject")
 async def reject_action(action_id: str) -> ActionResponse:
     """User rejects / ignores a pending action."""
+    logger.info("[FLOW][Reject] 收到忽略请求: action_id=%s", action_id)
     action = get_action(action_id)
     if action is None:
+        logger.warning("[FLOW][Reject] action不存在: action_id=%s → 404", action_id)
         raise HTTPException(status_code=404, detail="Action not found")
 
     update_action_status(action_id, ActionStatus.REJECTED)
     clear_notification(f"pa_{action_id}")
-    logger.info("[IntentActions] Action rejected: %s", action_id)
+    logger.info(
+        "[FLOW][Reject] ✓ 已忽略: action_id=%s, was_type=%s, was_title=%s",
+        action_id,
+        action.action_type.value,
+        action.title,
+    )
     return ActionResponse(success=True, action_id=action_id, message="已忽略")
 
 
 @router.post("/{action_id}/execute")
 async def execute_task(action_id: str) -> ActionResponse:
     """User confirms executing an 'executable' action via sub-agent."""
+    logger.info("[FLOW][Execute] 收到执行请求: action_id=%s", action_id)
     action = get_action(action_id)
     if action is None:
+        logger.warning("[FLOW][Execute] action不存在(内存可能已清): action_id=%s → 404", action_id)
         raise HTTPException(status_code=404, detail="Action not found")
+    logger.info(
+        "[FLOW][Execute] 找到action: type=%s, status=%s, title=%s",
+        action.action_type.value,
+        action.status.value,
+        action.title,
+    )
     if action.action_type != ActionType.EXECUTABLE:
+        logger.warning(
+            "[FLOW][Execute] 类型不匹配: expected=EXECUTABLE, got=%s → 400",
+            action.action_type.value,
+        )
         raise HTTPException(status_code=400, detail="Action is not executable")
     if action.status not in (ActionStatus.PENDING, ActionStatus.FAILED):
+        logger.warning(
+            "[FLOW][Execute] 状态不对: expected=PENDING/FAILED, got=%s → 409 (可能被另一个弹窗系统先处理了)",
+            action.status.value,
+        )
         payload = ActionResponse(
             success=False,
             action_id=action_id,
@@ -139,11 +173,14 @@ async def execute_task(action_id: str) -> ActionResponse:
         execute_action,
     )
 
+    logger.info("[FLOW][Execute] 启动sub-agent...")
     started = await execute_action(action_id)
     if not started:
+        logger.error("[FLOW][Execute] ✗ sub-agent启动失败: action_id=%s → 500", action_id)
         raise HTTPException(status_code=500, detail="Failed to start execution")
 
-    logger.info("[IntentActions] Execution started: %s", action_id)
+    clear_notification(f"pa_{action_id}")
+    logger.info("[FLOW][Execute] ✓ sub-agent已启动: action_id=%s → 进入后台执行", action_id)
     return ActionResponse(success=True, action_id=action_id, message="开始执行")
 
 
