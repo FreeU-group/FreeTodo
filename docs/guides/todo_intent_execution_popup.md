@@ -16,8 +16,8 @@
 `executable` 类型的意图不再把“执行”理解成一个后台黑盒动作，而是要求：
 
 - 用户在同一个弹窗里完成“确认是否执行”的决策
-- 用户点击“执行”后，弹窗原地切换到执行态，不关闭
-- 执行计划、实时动作和文字日志都在同一个弹窗里持续更新
+- 用户点击“执行”后，弹窗原地扩展成 mini chat，不关闭
+- 执行计划、实时动作和聊天消息都在同一个弹窗里持续更新
 - 完成或失败后，结果保留在当前弹窗中，等待用户手动关闭
 
 `todo` 类型则继续使用轻量确认流，只负责“确认添加 / 忽略”。
@@ -43,79 +43,63 @@
 - `todo`：`确认` / `忽略`
 - `executable`：`执行` / `仅添加待办` / `忽略`
 
-### 2. 执行中态
+### 2. 执行聊天态
 
 点击 `执行` 后：
 
 1. 前端调用 `POST /api/intent-actions/{action_id}/execute`
-2. 后端将 `PendingAction.status` 切换到 `executing`
-3. `execution_engine` 启动子 Agent
-4. 弹窗切换为进度模式，并轮询 `GET /api/intent-actions/{action_id}/progress`
+2. 后端创建或恢复一个执行专用 chat session，并返回 `session_id`
+3. 弹窗原地切换为 mini chat 视图
+4. 弹窗使用同一个 `session_id` 直接调用 `/api/chat/stream`
+5. 后续用户输入继续发送到同一个 chat session，不再新开窗口
 
 展示内容：
 
 - 顶部状态徽标：`执行中`
 - `执行计划` 区块：展示预设 `execution_plan`
-- `实时动作` 区块：展示由工具调用事件生成的 `execution_steps`
-- `执行对话` 区块：优先展示 `execution_messages`，回退展示 `streaming_output`
-- 点击 `执行` 后会立刻触发一次 progress 拉取，不等待下一轮轮询
+- `执行对话` 区块：展示 `user / assistant / tool / system` 聊天气泡
+- 底部输入框：允许用户在执行过程中直接继续发消息
+- 工具调用会作为 `tool` 气泡即时出现
 
 ## 数据约定
 
-`GET /api/intent-actions/{action_id}/progress` 需要返回：
+`POST /api/intent-actions/{action_id}/execute` 需要返回：
 
-- `title`
-- `description`
-- `status`
-- `execution_plan`
-- `execution_steps`
-- `execution_messages`
-- `streaming_output`
-- `result`
+- `session_id`
+- `initial_message`
+- `initial_user_input`
+- `selected_tools`
+- `external_tools`
 
 其中：
 
-- `execution_plan` 是意图识别阶段给出的预设步骤
-- `execution_steps` 是执行阶段维护的结构化步骤列表
-- `execution_messages` 是弹窗执行面板展示的对话流，包含 `system / assistant / tool`
-- `streaming_output` 是面向用户的实时文本输出
-- `result` 是执行完成后的最终总结
+- `session_id` 是这次弹窗执行使用的唯一聊天会话
+- `initial_message` 是第一次发给 Agno 的完整 kickoff prompt
+- `initial_user_input` 是弹窗里显示给用户的第一条用户消息
+- `selected_tools / external_tools` 用于保证弹窗后续消息继续走同一组 agent 能力
 
 ## 步骤维护规则
 
-`PendingAction` 在创建时会先用 `execution_plan` 预填一组 `plan_*` 步骤。
+`PendingAction` 在创建时会先用 `execution_plan` 预填一组 `plan_*` 步骤，并在第一次执行时记录 `execution_session_id`。
 
-执行过程中：
+执行聊天过程中：
 
-- 后端先写入一条系统消息，明确“执行面板已打开”
-- 子 Agent 启动后写入一条 assistant 开场消息，说明已经开始处理任务
-- 子 Agent 开始执行后，后端把第一个 `plan_*` 步骤标记为 `running`
-- 收到工具调用开始事件时，写入或更新 `tool_<tool_name>` 步骤为 `running`
-- 收到工具调用结束事件时，把对应 `tool_<tool_name>` 步骤标记为 `done` 或 `failed`
-- 工具调用开始 / 结束同时写入 `execution_messages`，避免用户看到“静默执行”
-- 模型产生自然语言 chunk 时，持续追加到 assistant 消息中
-- 执行成功后，把全部 `plan_*` 步骤标记为 `done`
-- 执行失败或取消时，把当前计划步骤标记为 `failed`
+- 弹窗第一条消息会触发 kickoff prompt 的流式执行
+- 后续每次用户输入都继续写入同一个 `session_id`
+- tool event 会直接在弹窗里渲染成聊天消息
+- assistant 文本 chunk 会持续追加到当前 assistant 气泡
 
-这套结构不是完整的 agent plan 系统，而是给弹窗提供足够稳定的“当前在做什么”视图。
+这套结构本质上是“popup first”的执行聊天体验，弹窗本身就是主执行界面，而不是后台任务的附属观察窗。
 
 ## 完成态
 
-执行完成或失败后：
-
-- 停止轮询
-- 弹窗继续停留在当前任务上
-- 顶部状态切换为 `已完成` 或 `执行失败`
-- 保留计划、动作、结果文本
-- 只显示 `关闭` 按钮
-
-关闭后：
+用户主动关闭后：
 
 - 当前弹窗出队
 - 如果队列中还有下一条交互项，则继续展示下一条
 
 ## 设计约束
 
-- 该弹窗承担“即时处理”职责，不替代 Todo 详情页
+- 该弹窗承担“即时处理 + 持续对话”职责
+- 不再依赖“展开到中枢”来承接执行过程
 - Todo 详情页仍适合查看长期产物、附件和更完整的计划视图
-- 若后续要统一到单一执行体验，优先复用这里的状态语义：`待确认 -> 执行中 -> 完成/失败`

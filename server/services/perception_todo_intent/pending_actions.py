@@ -71,6 +71,7 @@ class PendingAction:
     agent_raw_output: str = ""
     streaming_output: str = ""
     activity_id: str = ""
+    execution_session_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -93,6 +94,7 @@ class PendingAction:
             "execution_result": self.execution_result,
             "streaming_output": self.streaming_output,
             "activity_id": self.activity_id,
+            "execution_session_id": self.execution_session_id,
         }
 
 
@@ -235,6 +237,14 @@ def set_activity_id(action_id: str, activity_id: str) -> PendingAction | None:
         action = _actions.get(action_id)
         if action is not None:
             action.activity_id = activity_id
+        return action
+
+
+def set_execution_session_id(action_id: str, session_id: str) -> PendingAction | None:
+    with _lock:
+        action = _actions.get(action_id)
+        if action is not None:
+            action.execution_session_id = session_id
         return action
 
 

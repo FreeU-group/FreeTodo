@@ -4,8 +4,7 @@ import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { logger } from "./logger";
 import { getBackendUrl } from "./next-server";
 import {
-	fetchIntentProgress,
-	type PopupProgressResponse,
+	type PopupExecutionSessionPayload,
 	postIntentAction,
 } from "./notification-popup-api";
 import {
@@ -39,15 +38,13 @@ export interface InteractivePopupData {
 	todoData?: Record<string, unknown>;
 }
 
-type QueueState = "idle" | "showing" | "transitioning" | "progress";
+type QueueState = "idle" | "showing" | "transitioning";
 
 export class NotificationPopupManager {
 	private popupWindow: BrowserWindow | null = null;
 	private hideTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private fadeTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private avatarBase64 = "";
-	private progressPollTimer: ReturnType<typeof setInterval> | null = null;
-	private currentPopup: InteractivePopupData | null = null;
 	private queueState: QueueState = "idle";
 	private queue: InteractivePopupData[] = [];
 	private seenActionIds: Set<string> = new Set();
@@ -106,7 +103,11 @@ export class NotificationPopupManager {
 		if (process.platform === "darwin") {
 			this.popupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 		}
-		const html = getNotificationPopupHtml(this.avatarBase64, TOAST_DURATION_MS);
+		const html = getNotificationPopupHtml(
+			this.avatarBase64,
+			TOAST_DURATION_MS,
+			getBackendUrl(),
+		);
 		this.popupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 		this.popupWindow.on("closed", () => { this.popupWindow = null; });
 	}
@@ -130,7 +131,6 @@ export class NotificationPopupManager {
 	private clearTimers(): void {
 		if (this.fadeTimeoutId) { clearTimeout(this.fadeTimeoutId); this.fadeTimeoutId = null; }
 		if (this.hideTimeoutId) { clearTimeout(this.hideTimeoutId); this.hideTimeoutId = null; }
-		if (this.progressPollTimer) { clearInterval(this.progressPollTimer); this.progressPollTimer = null; }
 	}
 
 
@@ -196,14 +196,12 @@ export class NotificationPopupManager {
 		const next = this.queue.shift();
 		if (!next) {
 			this.queueState = "idle";
-			this.currentPopup = null;
 			this.hideNow();
 			logger.info("[Queue] Empty, state → idle");
 			return;
 		}
 
 		this.queueState = "showing";
-		this.currentPopup = next;
 		logger.info(`[Queue] Showing "${next.title}", remaining=${this.queue.length}`);
 		this.renderInteractive(next);
 	}
@@ -284,79 +282,17 @@ export class NotificationPopupManager {
 		this.slideIn();
 	}
 
-	private switchToProgressMode(actionId: string): void {
-		logger.info(`[FLOW][Popup] 切换到进度模式: actionId=${actionId}, 开始每秒轮询进度`);
-		this.queueState = "progress";
-		this.resizeAndReposition(POPUP_HEIGHT_PROGRESS);
-
-		this.popupWindow?.webContents.executeJavaScript(
-			`(function(){
-				document.getElementById('notif-title').textContent='${escapePopupText(this.currentPopup?.title || "正在执行...")}';
-				var badge=document.getElementById('status-badge');
-				badge.textContent='执行中';
-				badge.className='status-badge executing';
-				document.getElementById('notif-desc').textContent='${escapePopupText(this.currentPopup?.description || "")}';
-				document.getElementById('meta-row').textContent='工作会直接在这个弹窗里持续显示，完成后可手动关闭。';
-				document.getElementById('actions').innerHTML='';
-				document.getElementById('progress-area').className='progress-area visible';
-				document.getElementById('progress-area').innerHTML='';
-				var ra = document.getElementById('result-area');
-				ra.className = 'result-area visible';
-				ra.textContent = '启动中...';
-			})();`
-		).catch(() => {});
-
-		this.startProgressPolling(actionId);
-	}
-
-	private showExecutionFinished(data: PopupProgressResponse): void {
-		const success = data.status === "completed";
+	private switchToExecutionChat(
+		actionId: string,
+		payload: PopupExecutionSessionPayload,
+	): void {
 		this.queueState = "showing";
-		this.popupWindow?.webContents.executeJavaScript(
-			`(function(){
-				document.getElementById('notif-title').textContent='${escapePopupText(data.title || this.currentPopup?.title || "任务完成")}';
-				var badge=document.getElementById('status-badge');
-				badge.textContent='${success ? "已完成" : "执行失败"}';
-				badge.className='status-badge ${success ? "completed" : "failed"}';
-				document.getElementById('meta-row').textContent='${escapePopupText(
-					success ? "执行结果已保留在下方，关闭后会继续处理下一条弹窗。" : "你可以查看失败信息后关闭，或等待后续重试。",
-				)}';
-				document.getElementById('actions').innerHTML=\`
-					<button class="btn-secondary" onclick="doAction('close','${escapePopupText(data.action_id)}')">关闭</button>
-				\`;
-			})();`,
-		).catch(() => {});
-	}
-
-	private startProgressPolling(actionId: string): void {
-		if (this.progressPollTimer) clearInterval(this.progressPollTimer);
-
-		const baseUrl = getBackendUrl();
-		const pollOnce = async () => {
-			try {
-				const data = await fetchIntentProgress(baseUrl, actionId);
-				if (!data) return;
-
-				if (this.popupWindow && !this.popupWindow.isDestroyed()) {
-					this.popupWindow.webContents.send("update-progress", data);
-				}
-
-				if (data.status === "completed" || data.status === "failed") {
-					if (this.progressPollTimer) {
-						clearInterval(this.progressPollTimer);
-						this.progressPollTimer = null;
-					}
-					this.showExecutionFinished(data);
-				}
-			} catch {
-				// Network error — will retry on next interval
-			}
-		};
-
-		void pollOnce();
-		this.progressPollTimer = setInterval(() => {
-			void pollOnce();
-		}, 1000);
+		this.resizeAndReposition(POPUP_HEIGHT_PROGRESS);
+		this.setInteractive(true);
+		this.popupWindow?.webContents.send("start-execution-chat", {
+			...payload,
+			action_id: actionId,
+		});
 	}
 
 	private registerIpcHandlers(): void {
@@ -406,11 +342,22 @@ export class NotificationPopupManager {
 					const result = await postIntentAction(baseUrl, actionId, "execute");
 					logger.info(`[FLOW][Popup] ← execute响应: HTTP ${result.status}`);
 					if (result.status >= 200 && result.status < 300 && result.success !== false) {
-						logger.info(`[FLOW][Popup] ✓ execute成功 → 进入进度模式`);
-						this.switchToProgressMode(actionId);
+						const payload = result.data as PopupExecutionSessionPayload | null;
+						if (payload?.session_id && payload?.initial_message) {
+							logger.info(`[FLOW][Popup] ✓ execute成功 → 进入执行聊天窗口`);
+							this.switchToExecutionChat(actionId, payload);
+						} else {
+							logger.error("[FLOW][Popup] execute成功但缺少会话数据");
+							this.finishCurrentAndNext("执行会话初始化失败", 2000);
+						}
 					} else if (result.status === 409) {
-						logger.info(`[FLOW][Popup] execute返回409(已在执行中, 可能被signal-sensor先处理) → 直接进入进度模式`);
-						this.switchToProgressMode(actionId);
+						const payload = result.data as PopupExecutionSessionPayload | null;
+						if (payload?.session_id) {
+							logger.info("[FLOW][Popup] execute返回409但已有会话 → 恢复执行聊天窗口");
+							this.switchToExecutionChat(actionId, payload);
+						} else {
+							this.finishCurrentAndNext("该任务当前不可执行", 2000);
+						}
 					} else {
 						const execErr = (): string => {
 							if (result.message) return String(result.message);

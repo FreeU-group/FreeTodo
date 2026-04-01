@@ -2,6 +2,7 @@ export interface PopupActionResponse {
 	success?: boolean;
 	message?: string;
 	detail?: unknown;
+	data?: Record<string, unknown> | null;
 	status: number;
 	body: string;
 }
@@ -32,6 +33,15 @@ export interface PopupProgressResponse {
 	activity_id?: string;
 }
 
+export interface PopupExecutionSessionPayload {
+	session_id: string;
+	initial_message: string;
+	initial_user_input: string;
+	selected_tools: string[];
+	external_tools: string[];
+	is_new_session: boolean;
+}
+
 export async function postIntentAction(
 	baseUrl: string,
 	actionId: string,
@@ -54,6 +64,7 @@ export async function postIntentAction(
 		success: parsed?.success,
 		message: parsed?.message,
 		detail: parsed?.detail,
+		data: parsed?.data ?? null,
 	};
 }
 

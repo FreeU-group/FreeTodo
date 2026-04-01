@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from core.dependencies import get_chat_service
 from services.perception_todo_intent.pending_actions import (
     ActionStatus,
     ActionType,
     get_action,
     get_pending_actions,
+    set_execution_session_id,
     update_action_status,
 )
 from storage.notification_storage import clear_notification
 from util.logging_config import get_logger
+
+if TYPE_CHECKING:
+    from services.chat_service import ChatService
 
 logger = get_logger()
 
@@ -138,8 +143,11 @@ async def reject_action(action_id: str) -> ActionResponse:
 
 
 @router.post("/{action_id}/execute")
-async def execute_task(action_id: str) -> ActionResponse:
-    """User confirms executing an 'executable' action via sub-agent."""
+async def execute_task(
+    action_id: str,
+    chat_service: ChatService = Depends(get_chat_service),
+) -> ActionResponse:
+    """Create or resume an execution chat session for an executable action."""
     logger.info("[FLOW][Execute] 收到执行请求: action_id=%s", action_id)
     action = get_action(action_id)
     if action is None:
@@ -157,9 +165,9 @@ async def execute_task(action_id: str) -> ActionResponse:
             action.action_type.value,
         )
         raise HTTPException(status_code=400, detail="Action is not executable")
-    if action.status not in (ActionStatus.PENDING, ActionStatus.FAILED):
+    if action.status in (ActionStatus.REJECTED, ActionStatus.CONFIRMED, ActionStatus.COMPLETED):
         logger.warning(
-            "[FLOW][Execute] 状态不对: expected=PENDING/FAILED, got=%s → 409 (可能被另一个弹窗系统先处理了)",
+            "[FLOW][Execute] 状态不支持进入执行会话: status=%s → 409",
             action.status.value,
         )
         payload = ActionResponse(
@@ -170,18 +178,43 @@ async def execute_task(action_id: str) -> ActionResponse:
         return JSONResponse(status_code=409, content=payload.model_dump())
 
     from services.perception_todo_intent.execution_engine import (  # noqa: PLC0415
-        execute_action,
+        build_execution_kickoff_prompt,
+        get_executor_tools,
     )
 
-    logger.info("[FLOW][Execute] 启动sub-agent...")
-    started = await execute_action(action_id)
-    if not started:
-        logger.error("[FLOW][Execute] ✗ sub-agent启动失败: action_id=%s → 500", action_id)
-        raise HTTPException(status_code=500, detail="Failed to start execution")
+    session_id = action.execution_session_id.strip() if action.execution_session_id else ""
+    is_new_session = False
+    if not session_id:
+        session_id = chat_service.generate_session_id()
+        chat_service.ensure_chat_exists(
+            session_id=session_id,
+            chat_type="event",
+            title=f"执行：{action.title}"[:100],
+        )
+        set_execution_session_id(action_id, session_id)
+        is_new_session = True
 
+    update_action_status(action_id, ActionStatus.EXECUTING)
     clear_notification(f"pa_{action_id}")
-    logger.info("[FLOW][Execute] ✓ sub-agent已启动: action_id=%s → 进入后台执行", action_id)
-    return ActionResponse(success=True, action_id=action_id, message="开始执行")
+    logger.info(
+        "[FLOW][Execute] ✓ 执行会话已就绪: action_id=%s, session_id=%s, is_new=%s",
+        action_id,
+        session_id,
+        is_new_session,
+    )
+    return ActionResponse(
+        success=True,
+        action_id=action_id,
+        message="开始执行",
+        data={
+            "session_id": session_id,
+            "initial_message": build_execution_kickoff_prompt(action),
+            "initial_user_input": f"开始执行任务：{action.title}",
+            "selected_tools": get_executor_tools(),
+            "external_tools": [],
+            "is_new_session": is_new_session,
+        },
+    )
 
 
 @router.get("/{action_id}/progress")
@@ -208,4 +241,5 @@ async def get_progress(action_id: str) -> dict[str, Any]:
         "streaming_output": action.streaming_output,
         "result": action.execution_result,
         "activity_id": action.activity_id,
+        "execution_session_id": action.execution_session_id,
     }

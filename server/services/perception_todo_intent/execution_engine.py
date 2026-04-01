@@ -59,6 +59,19 @@ _EXECUTOR_TOOLS = [
 ]
 
 
+def get_executor_tools() -> list[str]:
+    return list(_EXECUTOR_TOOLS)
+
+
+def build_execution_kickoff_prompt(action: PendingAction) -> str:
+    plan_text = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(action.execution_plan))
+    task_msg = f"请执行以下任务：{action.title}\n\n详细描述：{action.description}\n\n"
+    if plan_text:
+        task_msg += f"建议步骤：\n{plan_text}\n\n"
+    task_msg += "请开始执行，并在关键节点持续同步你的思考、动作和结果。"
+    return task_msg
+
+
 def _create_executor_agent(task_description: str) -> AgnoAgentService:
     """Create a full-capability agent mirroring the chat agent architecture."""
     agent_cfg = settings.get("llm.agent", {}) or {}
@@ -213,11 +226,7 @@ def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
     """Run the executor agent synchronously with streaming output + activity tracking."""
     logger.info("[FLOW][ExecSync] 构建Agent: action_id=%s", action.action_id)
 
-    plan_text = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(action.execution_plan))
-    task_msg = f"请执行以下任务：{action.title}\n\n详细描述：{action.description}\n\n"
-    if plan_text:
-        task_msg += f"建议步骤：\n{plan_text}\n\n"
-    task_msg += "请开始执行。"
+    task_msg = build_execution_kickoff_prompt(action)
 
     for index, step in enumerate(action.execution_plan):
         _mark_plan_step(action.action_id, index, "pending", str(step))

@@ -56,6 +56,7 @@ export function renderPopupSection(
 export function getNotificationPopupHtml(
 	avatarBase64: string,
 	toastDurationMs: number,
+	backendUrl: string,
 ): string {
 	return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -136,10 +137,17 @@ html,body{background:transparent!important;overflow:hidden;
 .chat-list{display:flex;flex-direction:column;gap:8px}
 .chat-message{border-radius:12px;padding:8px 10px;background:#eef2ff}
 .chat-message.assistant{background:#e0f2fe}
+.chat-message.user{background:#dbeafe}
 .chat-message.tool{background:#dcfce7}
 .chat-message.system{background:#f1f5f9}
 .chat-role{display:block;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;color:#475569}
 .chat-content{display:block;white-space:pre-wrap;word-break:break-word;line-height:1.5}
+.composer{display:none;gap:8px;align-items:flex-end}
+.composer.visible{display:flex}
+.composer textarea{flex:1;min-height:44px;max-height:96px;resize:none;border:1px solid rgba(15,23,42,.12);border-radius:12px;padding:10px 12px;font:inherit;line-height:1.5;outline:none;background:#fff;color:#0f172a}
+.composer textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.composer button{border:none;border-radius:12px;padding:10px 14px;font-size:12px;font-weight:700;cursor:pointer;background:#2563eb;color:#fff}
+.composer button:disabled{opacity:.55;cursor:not-allowed}
 .progress-bar{position:absolute;bottom:0;left:0;height:2.5px;background:linear-gradient(90deg,#fbbf24,#f97316);
   border-radius:0 0 0 18px;width:0}
 .progress-bar.animate{width:100%;animation:shrink ${toastDurationMs / 1000}s linear forwards}
@@ -161,11 +169,27 @@ html,body{background:transparent!important;overflow:hidden;
     <div class="actions" id="actions"></div>
     <div class="progress-area" id="progress-area"></div>
     <div class="result-area" id="result-area"></div>
+    <div class="composer" id="chat-composer">
+      <textarea id="chat-input" placeholder="继续告诉我该怎么做，或补充信息…"></textarea>
+      <button id="chat-send">发送</button>
+    </div>
     <div class="progress-bar" id="progress-bar"></div>
   </div>
 </div>
 <script>
 const { ipcRenderer } = require('electron');
+const BACKEND_URL = '${escapePopupText(backendUrl)}';
+const TOOL_EVENT_PREFIX = "\\n[TOOL_EVENT:";
+const TOOL_EVENT_SUFFIX = "]\\n";
+const executionState = {
+  actionId: '',
+  sessionId: '',
+  selectedTools: [],
+  externalTools: [],
+  isStreaming: false,
+  messages: [],
+  assistantStreamingIndex: -1,
+};
 function doAction(action, actionId) {
   ipcRenderer.send('popup-action', { action, actionId });
 }
@@ -177,83 +201,183 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-function statusMeta(status) {
-  if (status === 'executing') return { label: '执行中', cls: 'executing' };
-  if (status === 'completed') return { label: '已完成', cls: 'completed' };
-  if (status === 'failed') return { label: '执行失败', cls: 'failed' };
-  return { label: '待确认', cls: 'pending' };
+function appendChatMessage(role, content) {
+  executionState.messages.push({ role, content });
+  executionState.assistantStreamingIndex = role === 'assistant' ? executionState.messages.length - 1 : executionState.assistantStreamingIndex;
+  renderChatMessages();
 }
-function stepStatusClass(status) {
-  if (status === 'running') return 'step-running';
-  if (status === 'done' || status === 'completed' || status === 'success') return 'step-done';
-  if (status === 'failed' || status === 'error') return 'step-failed';
-  return 'step-pending';
+function updateStreamingAssistant(chunk) {
+  if (!chunk) return;
+  if (executionState.assistantStreamingIndex === -1) {
+    appendChatMessage('assistant', chunk);
+    return;
+  }
+  executionState.messages[executionState.assistantStreamingIndex].content += chunk;
+  renderChatMessages();
 }
-function stepStatusIcon(status) {
-  if (status === 'running') return '…';
-  if (status === 'done' || status === 'completed' || status === 'success') return '✓';
-  if (status === 'failed' || status === 'error') return '!';
-  return '·';
+function appendToolEvent(event) {
+  if (event.type === 'tool_call_start' && event.tool_name) {
+    appendChatMessage('tool', '开始调用工具：' + event.tool_name);
+    return;
+  }
+  if (event.type === 'tool_call_end' && event.tool_name) {
+    const summary = event.error ? '工具执行失败：' : '工具执行完成：';
+    const detail = event.result_preview ? '\\n' + event.result_preview : '';
+    appendChatMessage('tool', summary + event.tool_name + detail);
+  }
 }
-function renderStepList(title, steps, emptyText) {
-  const items = Array.isArray(steps) ? steps : [];
-  const body = items.length
-    ? items.map((step) => {
-        const cls = stepStatusClass(step.status);
-        const icon = stepStatusIcon(step.status);
-        const detail = step.detail ? '<span class="step-detail">' + escapeHtml(step.detail) + '</span>' : '';
-        return '<div class="step ' + cls + '"><div class="step-icon">' + icon + '</div><div class="step-body"><span class="step-label">' + escapeHtml(step.label) + '</span>' + detail + '</div></div>';
-      }).join('')
-    : '<div class="step step-pending"><div class="step-icon">·</div><div class="step-body"><span class="step-detail">' + escapeHtml(emptyText) + '</span></div></div>';
-  return '<div class="section"><div class="section-title">' + escapeHtml(title) + '</div><div class="steps">' + body + '</div></div>';
+function parseToolEvents(chunk) {
+  const events = [];
+  let content = chunk;
+  let startIdx = content.indexOf(TOOL_EVENT_PREFIX);
+  while (startIdx !== -1) {
+    const endIdx = content.indexOf(TOOL_EVENT_SUFFIX, startIdx);
+    if (endIdx === -1) break;
+    const jsonStart = startIdx + TOOL_EVENT_PREFIX.length;
+    const jsonStr = content.substring(jsonStart, endIdx);
+    try {
+      events.push(JSON.parse(jsonStr));
+    } catch {}
+    content = content.substring(0, startIdx) + content.substring(endIdx + TOOL_EVENT_SUFFIX.length);
+    startIdx = content.indexOf(TOOL_EVENT_PREFIX);
+  }
+  return [events, content];
 }
-function renderProgress(data) {
-  const meta = statusMeta(data.status);
-  const badge = document.getElementById('status-badge');
-  badge.textContent = meta.label;
-  badge.className = 'status-badge ' + meta.cls;
-  const planSteps = (data.execution_plan || []).map((label, idx) => {
-    const found = Array.isArray(data.execution_steps)
-      ? data.execution_steps.find((step) => step.key === 'plan_' + (idx + 1))
-      : null;
-    return {
-      label: label,
-      status: found ? found.status : 'pending',
-      detail: found && found.detail ? found.detail : ''
-    };
-  });
-  const activitySteps = Array.isArray(data.execution_steps)
-    ? data.execution_steps.filter((step) => !String(step.key || '').startsWith('plan_'))
-    : [];
-  const progressArea = document.getElementById('progress-area');
-  progressArea.className = 'progress-area visible';
-  progressArea.innerHTML =
-    renderStepList('执行计划', planSteps, '暂无预设步骤') +
-    renderStepList('实时动作', activitySteps, '任务已启动，正在等待实时进展…');
+function renderChatMessages() {
   const ra = document.getElementById('result-area');
   ra.className = 'result-area visible';
-  if (Array.isArray(data.execution_messages) && data.execution_messages.length > 0) {
-    const roleLabel = (role) => {
-      if (role === 'assistant') return 'AI';
-      if (role === 'tool') return '工具';
-      return '系统';
-    };
-    ra.innerHTML =
-      '<div class="section-title">执行对话</div>' +
-      '<div class="chat-list">' +
-      data.execution_messages.map((message) => {
-        const role = String(message.role || 'system');
-        return '<div class="chat-message ' + role + '"><span class="chat-role">' + escapeHtml(roleLabel(role)) + '</span><span class="chat-content">' + escapeHtml(message.content || '') + '</span></div>';
-      }).join('') +
-      '</div>';
-  } else {
-    const content = data.result || data.streaming_output || '启动中...';
-    ra.textContent = content;
+  if (executionState.messages.length === 0) {
+    ra.textContent = '执行会话已建立，正在等待第一条消息…';
+    return;
   }
+  const roleLabel = (role) => {
+    if (role === 'assistant') return 'AI';
+    if (role === 'user') return '你';
+    if (role === 'tool') return '工具';
+    return '系统';
+  };
+  ra.innerHTML =
+    '<div class="section-title">执行对话</div>' +
+    '<div class="chat-list">' +
+    executionState.messages.map((message) => {
+      const role = String(message.role || 'system');
+      return '<div class="chat-message ' + role + '"><span class="chat-role">' + escapeHtml(roleLabel(role)) + '</span><span class="chat-content">' + escapeHtml(message.content || '') + '</span></div>';
+    }).join('') +
+    '</div>';
   ra.scrollTop = ra.scrollHeight;
 }
-ipcRenderer.on('update-progress', (_e, data) => {
-  renderProgress(data);
+async function streamChatMessage(payload) {
+  executionState.isStreaming = true;
+  const sendBtn = document.getElementById('chat-send');
+  const input = document.getElementById('chat-input');
+  sendBtn.disabled = true;
+  input.disabled = true;
+  executionState.assistantStreamingIndex = -1;
+  try {
+    const response = await fetch(BACKEND_URL + '/api/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': 'zh',
+      },
+      body: JSON.stringify(payload),
+    });
+    const headerSessionId = response.headers.get('X-Session-Id');
+    if (headerSessionId) {
+      executionState.sessionId = headerSessionId;
+    }
+    if (!response.ok || !response.body) {
+      throw new Error('stream failed');
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let pendingChunk = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      const rawChunk = decoder.decode(value, { stream: true });
+      const fullChunk = pendingChunk + rawChunk;
+      const tuple = parseToolEvents(fullChunk);
+      const events = tuple[0];
+      const content = tuple[1];
+      events.forEach(appendToolEvent);
+      const incompleteEventIdx = content.indexOf(TOOL_EVENT_PREFIX);
+      if (incompleteEventIdx !== -1) {
+        pendingChunk = content.substring(incompleteEventIdx);
+        const completeContent = content.substring(0, incompleteEventIdx);
+        if (completeContent) {
+          updateStreamingAssistant(completeContent);
+        }
+      } else {
+        pendingChunk = '';
+        if (content) {
+          updateStreamingAssistant(content);
+        }
+      }
+    }
+  } catch (error) {
+    appendChatMessage('system', '发送执行消息失败，请稍后重试。');
+  } finally {
+    executionState.isStreaming = false;
+    sendBtn.disabled = false;
+    input.disabled = false;
+    input.focus();
+    executionState.assistantStreamingIndex = -1;
+  }
+}
+async function sendExecutionChat(text, backendMessage) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed || executionState.isStreaming) return;
+  appendChatMessage('user', trimmed);
+  await streamChatMessage({
+    message: backendMessage || trimmed,
+    user_input: trimmed,
+    conversation_id: executionState.sessionId || undefined,
+    mode: 'agno',
+    use_rag: false,
+    selected_tools: executionState.selectedTools,
+    external_tools: executionState.externalTools,
+  });
+}
+function enterExecutionChat(payload) {
+  executionState.actionId = payload.action_id || executionState.actionId;
+  executionState.sessionId = payload.session_id || executionState.sessionId;
+  executionState.selectedTools = Array.isArray(payload.selected_tools) ? payload.selected_tools : [];
+  executionState.externalTools = Array.isArray(payload.external_tools) ? payload.external_tools : [];
+  executionState.messages = [];
+  executionState.assistantStreamingIndex = -1;
+  document.getElementById('status-badge').textContent = '执行中';
+  document.getElementById('status-badge').className = 'status-badge executing';
+  document.getElementById('meta-row').textContent = '执行过程会持续显示在这里，你也可以随时插话。';
+  document.getElementById('actions').innerHTML =
+    '<button class="btn-secondary" onclick="doAction(\\'close\\',\\'' + escapeHtml(executionState.actionId) + '\\')">关闭</button>';
+  const composer = document.getElementById('chat-composer');
+  composer.className = 'composer visible';
+  const input = document.getElementById('chat-input');
+  input.disabled = false;
+  input.value = '';
+  renderChatMessages();
+  appendChatMessage('system', '执行会话已建立，我会在这里持续同步动作和结果。');
+  if (payload.is_new_session && payload.initial_user_input) {
+    sendExecutionChat(payload.initial_user_input, payload.initial_message || payload.initial_user_input);
+  }
+}
+window.startExecutionChat = enterExecutionChat;
+document.getElementById('chat-send').addEventListener('click', () => {
+  const input = document.getElementById('chat-input');
+  const value = input.value;
+  input.value = '';
+  sendExecutionChat(value);
+});
+document.getElementById('chat-input').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    document.getElementById('chat-send').click();
+  }
+});
+ipcRenderer.on('start-execution-chat', (_e, data) => {
+  enterExecutionChat(data);
 });
 </script>
 </body></html>`;
