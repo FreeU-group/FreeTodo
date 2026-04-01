@@ -4,6 +4,7 @@ import { getRuntimeBackendUrl } from "@/lib/runtime-backend-url";
 export type PerceptionSource =
 	| "mic_pc"
 	| "mic_hardware"
+	| "speaker_pc"
 	| "ocr_screen"
 	| "ocr_proactive"
 	| "user_input"

@@ -100,10 +100,10 @@ function EventCard({ block }: { block: EventBlock }) {
 			</div>
 			{block.lines.length > 0 && (
 				<div className="space-y-1 text-sm leading-relaxed text-muted-foreground">
-					{block.lines.map((line) => {
+					{block.lines.map((line, lineIdx) => {
 						const trimmed = line.replace(/^[-*]\s*/, "").trim();
 						if (!trimmed) return null;
-						const key = `${block.title}-${line}`;
+						const key = `${block.title}-${lineIdx}`;
 
 						if (line.match(/^[-*]\s/)) {
 							return (
@@ -135,27 +135,28 @@ export function EventStreamPanel() {
 
 	const isToday = date === todayStr();
 
-	const fetchDates = useCallback(async () => {
+	const fetchDates = useCallback(async (signal?: AbortSignal) => {
 		try {
-			const resp = await fetch("/api/memory/dates");
+			const resp = await fetch("/api/memory/dates", { signal });
 			if (resp.ok) {
 				const data = await resp.json();
 				setAvailableDates(data.dates ?? []);
 			}
 		} catch {
-			// ignore
+			// ignore (includes AbortError)
 		}
 	}, []);
 
-	const fetchEvents = useCallback(async (dateStr: string) => {
+	const fetchEvents = useCallback(async (dateStr: string, signal?: AbortSignal) => {
 		try {
 			setLoading(true);
 			setError(null);
-			const resp = await fetch(`/api/memory/date/${dateStr}`);
+			const resp = await fetch(`/api/memory/date/${dateStr}`, { signal });
 			if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 			const data = await resp.json();
 			setContent(data.content || "");
 		} catch (e) {
+			if (e instanceof DOMException && e.name === "AbortError") return;
 			setError(e instanceof Error ? e.message : String(e));
 			setContent("");
 		} finally {
@@ -164,15 +165,17 @@ export function EventStreamPanel() {
 	}, []);
 
 	useEffect(() => {
-		fetchDates();
-		const interval = setInterval(fetchDates, 60000);
-		return () => clearInterval(interval);
+		const ac = new AbortController();
+		fetchDates(ac.signal);
+		const interval = setInterval(() => fetchDates(), 60000);
+		return () => { ac.abort(); clearInterval(interval); };
 	}, [fetchDates]);
 
 	useEffect(() => {
-		fetchEvents(date);
+		const ac = new AbortController();
+		fetchEvents(date, ac.signal);
 		const interval = setInterval(() => fetchEvents(date), 30000);
-		return () => clearInterval(interval);
+		return () => { ac.abort(); clearInterval(interval); };
 	}, [date, fetchEvents]);
 
 	const blocks = content ? parseEventsMarkdown(content) : [];

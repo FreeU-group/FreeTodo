@@ -9,6 +9,7 @@ from core.dependencies import get_rag_service
 from llm.chat_title_service import generate_chat_title
 from llm.llm_client import LLMClient
 from schemas.chat import ChatMessage
+from services.agent_activity_tracker import start_activity, stop_activity
 from services.chat_service import ChatService
 from util.language import get_language_instruction
 from util.logging_config import get_logger
@@ -51,6 +52,7 @@ def schedule_chat_title_update(
         return
 
     async def _run():
+        aid = start_activity(agent_type="chat_title", task=user_input[:100])
         try:
             llm_client = LLMClient()
             title = await asyncio.to_thread(
@@ -64,6 +66,9 @@ def schedule_chat_title_update(
                 chat_service.update_chat_title(session_id, title)
         except Exception as exc:  # pragma: no cover - best-effort background task
             logger.warning(f"聊天标题生成任务失败: {exc}")
+            stop_activity(aid, status="error")
+        finally:
+            stop_activity(aid)
 
     task = asyncio.create_task(_run())
     _background_tasks.add(task)

@@ -64,6 +64,10 @@ dependencies = [
     "pandas>=3.0.1",
     "arize-phoenix>=13.15.0",
     "python-socks>=2.8.1",
+    "yt-dlp>=2026.3.17",
+    "playwright>=1.58.0",
+    "mcp>=1.26.0",
+    "dateparser>=1.4.0",
 ]
 
 [dependency-groups]

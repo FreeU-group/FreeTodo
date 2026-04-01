@@ -481,11 +481,11 @@ function RecordCard({ record }: { record: TodoIntentProcessingRecord }) {
 					>
 						{labelFor(`status.${record.status}`, record.status)}
 					</span>
-					{record.gate_decision && (
-						<span className="inline-flex h-6 items-center rounded-md border px-2 text-xs font-medium">
-							{record.gate_decision.should_extract ? t("gate.pass") : t("gate.skip")}
-						</span>
-					)}
+				{record.gate_decision && record.status !== "gate_skipped" && (
+					<span className="inline-flex h-6 items-center rounded-md border px-2 text-xs font-medium">
+						{record.gate_decision.should_extract ? t("gate.pass") : t("gate.skip")}
+					</span>
+				)}
 				</div>
 				<div className="text-xs tabular-nums text-muted-foreground">
 					{formatDateTime(record.created_at, "HH:mm:ss")}

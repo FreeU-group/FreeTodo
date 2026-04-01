@@ -244,6 +244,19 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.send("trigger-notification-popup", data);
 	},
 
+	/**
+	 * 触发交互式弹窗（待办确认 / 任务执行确认）
+	 */
+	triggerInteractivePopup: (data: {
+		actionId: string;
+		actionType: "todo" | "executable";
+		title: string;
+		description: string;
+		executionPlan?: string[];
+	}) => {
+		ipcRenderer.send("trigger-interactive-popup", data);
+	},
+
 	// ========== Island 动态岛相关 API ==========
 
 	/**

@@ -243,6 +243,11 @@ if (!gotTheLock) {
 		ipcMain.on("trigger-notification-popup", (_event, data?: { title?: string; message?: string }) => {
 			notificationPopupManager?.trigger(data);
 		});
+
+		// 注册 IPC 事件：渲染进程触发交互式弹窗（待办确认 / 任务执行）
+		ipcMain.on("trigger-interactive-popup", (_event, data) => {
+			notificationPopupManager?.triggerInteractive(data);
+		});
 	});
 }
 

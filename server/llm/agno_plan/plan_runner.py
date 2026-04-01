@@ -455,7 +455,7 @@ class PlanRunner:
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
-        response = self.llm_client.chat(messages=messages, temperature=0.2)
+        response = await self.llm_client.async_chat(messages=messages, temperature=0.2)
         return {"content": response}
 
     def _execute_condition(self, step: PlanStep) -> dict[str, Any]:

@@ -121,7 +121,8 @@ let shouldReconnect = false;
 let activeWsPath: (typeof WS_PATH_CANDIDATES)[number] | null = null;
 
 function getWsApiBaseUrl(): string {
-	return getRuntimeBackendUrl("http://127.0.0.1:8001");
+	// 与 HTTP 一致：优先 window.__BACKEND_URL__（Electron 注入），勿硬编码错误端口
+	return getRuntimeBackendUrl();
 }
 
 function buildWsUrl(path: string): string {
@@ -267,10 +268,41 @@ function connectWithFallback(
 			set((state) => ({
 				records: upsertRecords(state.records, [record]),
 			}));
+			triggerPopupForQueuedReview(record);
 		} catch (e) {
 			console.error("[todo-intent-ws] parse error:", e);
 		}
 	};
+}
+
+/**
+ * When a queued_review result arrives via WebSocket, trigger the Electron
+ * interactive popup so the user can confirm / dismiss the pending todo.
+ */
+function triggerPopupForQueuedReview(record: TodoIntentProcessingRecord): void {
+	if (typeof window === "undefined" || !window.electronAPI?.triggerInteractivePopup) return;
+
+	for (const result of record.integration_results) {
+		if (result.action !== "queued_review" || !result.reason) continue;
+
+		const todoMatch = result.reason.match(/^pending_todo:\s*(\S+)/);
+		const execMatch = result.reason.match(/^pending_execute:\s*(\S+)/);
+		if (!todoMatch && !execMatch) continue;
+
+		const actionId = (todoMatch || execMatch)![1];
+		const actionType: "todo" | "executable" = execMatch ? "executable" : "todo";
+		const candidate = record.candidates[0];
+		const title = candidate?.name || "新待办事项";
+		const description = candidate?.description || record.merged_text?.slice(0, 120) || "";
+
+		console.log(`[todo-intent-ws] Triggering ${actionType} popup for ${actionId}`);
+		window.electronAPI.triggerInteractivePopup({
+			actionId,
+			actionType,
+			title,
+			description,
+		});
+	}
 }
 
 export const useTodoIntentStreamStore = create<TodoIntentStreamState>((set) => ({

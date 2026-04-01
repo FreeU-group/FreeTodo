@@ -91,6 +91,7 @@ export const ALL_PANEL_FEATURES: PanelFeature[] = [
 	"preview",
 	"userProfile",
 	"eventStream",
+	"agentMonitor",
 ];
 
 /**
@@ -115,4 +116,5 @@ export const FEATURE_ICON_MAP: Record<PanelFeature, LucideIcon> = {
 	preview: Eye,
 	userProfile: UserCircle,
 	eventStream: ScrollText,
+	agentMonitor: Activity,
 };

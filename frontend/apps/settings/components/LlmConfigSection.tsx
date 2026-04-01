@@ -49,6 +49,17 @@ export function LlmConfigSection({
 	const [llmSmallModel, setLlmSmallModel] = useState(
 		(config?.llmSmallModel as string) || "",
 	);
+	// Agent 专属模型配置（OpenRouter 等）
+	const [agentApiKey, setAgentApiKey] = useState(
+		(config?.llmAgentApiKey as string) || "",
+	);
+	const [agentBaseUrl, setAgentBaseUrl] = useState(
+		(config?.llmAgentBaseUrl as string) || "",
+	);
+	const [agentModel, setAgentModel] = useState(
+		(config?.llmAgentModel as string) || "",
+	);
+
 	const [initialLlmConfig, setInitialLlmConfig] = useState({
 		llmApiKey: (config?.llmApiKey as string) || "",
 		llmBaseUrl: (config?.llmBaseUrl as string) || "",
@@ -56,6 +67,9 @@ export function LlmConfigSection({
 		llmTemperature: (config?.llmTemperature as number) ?? 0.7,
 		llmMaxTokens: (config?.llmMaxTokens as number) ?? 2048,
 		llmSmallModel: (config?.llmSmallModel as string) || "",
+		agentApiKey: (config?.llmAgentApiKey as string) || "",
+		agentBaseUrl: (config?.llmAgentBaseUrl as string) || "",
+		agentModel: (config?.llmAgentModel as string) || "",
 	});
 	const [testMessage, setTestMessage] = useState<{
 		type: "success" | "error";
@@ -87,21 +101,29 @@ export function LlmConfigSection({
 			if (config.llmMaxTokens !== undefined) {
 				setLlmMaxTokens((config.llmMaxTokens as number) ?? 2048);
 			}
-			if (config.llmSmallModel !== undefined) {
-				setLlmSmallModel(
-					(config.llmSmallModel as string) || "",
-				);
-			}
-			// 更新初始配置（用于检测变更）
-			setInitialLlmConfig({
-				llmApiKey: (config.llmApiKey as string) || "",
-				llmBaseUrl: (config.llmBaseUrl as string) || "",
-				llmModel: (config.llmModel as string) || "qwen-plus",
-				llmTemperature: (config.llmTemperature as number) ?? 0.7,
-				llmMaxTokens: (config.llmMaxTokens as number) ?? 2048,
-				llmSmallModel:
-					(config.llmSmallModel as string) || "",
-			});
+		if (config.llmSmallModel !== undefined) {
+			setLlmSmallModel(
+				(config.llmSmallModel as string) || "",
+			);
+		}
+		if (config.llmAgentApiKey !== undefined)
+			setAgentApiKey((config.llmAgentApiKey as string) || "");
+		if (config.llmAgentBaseUrl !== undefined)
+			setAgentBaseUrl((config.llmAgentBaseUrl as string) || "");
+		if (config.llmAgentModel !== undefined)
+			setAgentModel((config.llmAgentModel as string) || "");
+
+		setInitialLlmConfig({
+			llmApiKey: (config.llmApiKey as string) || "",
+			llmBaseUrl: (config.llmBaseUrl as string) || "",
+			llmModel: (config.llmModel as string) || "qwen-plus",
+			llmTemperature: (config.llmTemperature as number) ?? 0.7,
+			llmMaxTokens: (config.llmMaxTokens as number) ?? 2048,
+			llmSmallModel: (config.llmSmallModel as string) || "",
+			agentApiKey: (config.llmAgentApiKey as string) || "",
+			agentBaseUrl: (config.llmAgentBaseUrl as string) || "",
+			agentModel: (config.llmAgentModel as string) || "",
+		});
 		}
 	}, [config]);
 
@@ -162,10 +184,16 @@ export function LlmConfigSection({
 			currentBaseUrl !== initialLlmConfig.llmBaseUrl ||
 			currentModel !== initialLlmConfig.llmModel;
 
+		const agentConfigChanged =
+			agentApiKey !== initialLlmConfig.agentApiKey ||
+			agentBaseUrl !== initialLlmConfig.agentBaseUrl ||
+			agentModel !== initialLlmConfig.agentModel;
+
 		const otherConfigChanged =
 			llmTemperature !== initialLlmConfig.llmTemperature ||
 			llmMaxTokens !== initialLlmConfig.llmMaxTokens ||
-			llmSmallModel !== initialLlmConfig.llmSmallModel;
+			llmSmallModel !== initialLlmConfig.llmSmallModel ||
+			agentConfigChanged;
 
 		// 如果没有任何改动，不需要保存
 		if (!llmCoreConfigChanged && !otherConfigChanged) {
@@ -182,6 +210,9 @@ export function LlmConfigSection({
 					llmTemperature,
 					llmMaxTokens,
 					llmSmallModel,
+					llmAgentApiKey: agentApiKey.trim(),
+					llmAgentBaseUrl: agentBaseUrl.trim(),
+					llmAgentModel: agentModel.trim(),
 				},
 			});
 
@@ -193,6 +224,9 @@ export function LlmConfigSection({
 				llmTemperature,
 				llmMaxTokens,
 				llmSmallModel,
+				agentApiKey: agentApiKey.trim(),
+				agentBaseUrl: agentBaseUrl.trim(),
+				agentModel: agentModel.trim(),
 			});
 
 			// 2. 只有当核心配置改变且配置完整时，才测试并初始化 LLM
@@ -388,6 +422,83 @@ export function LlmConfigSection({
 					<p className="mt-1 text-xs text-muted-foreground">
 						{t("smallModelHint")}
 					</p>
+				</div>
+
+				{/* Agent 专属模型（OpenRouter 等） */}
+				<div className="mt-4 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-3 space-y-3">
+					<div>
+						<p className="text-sm font-medium text-foreground">
+							Agent 专属模型（可选）
+						</p>
+						<p className="text-xs text-muted-foreground">
+							配置后 AI 聊天优先使用此模型（如 OpenRouter 的 Claude），工具调用能力更强。留空则使用上面的默认模型。
+						</p>
+					</div>
+					<div>
+						<label
+							htmlFor="agent-api-key"
+							className="mb-1 block text-xs font-medium text-foreground"
+						>
+							API Key
+						</label>
+						<PasswordInput
+							id="agent-api-key"
+							placeholder="sk-or-v1-..."
+							value={agentApiKey}
+							onChange={(e) => setAgentApiKey(e.target.value)}
+							onBlur={handleSaveLlmConfig}
+							disabled={isLoading}
+						/>
+						<p className="mt-1 text-xs text-muted-foreground">
+							OpenRouter:{" "}
+							<a
+								href="https://openrouter.ai/settings/keys"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-primary hover:underline"
+							>
+								获取 API Key
+							</a>
+						</p>
+					</div>
+					<div className="grid grid-cols-2 gap-3">
+						<div>
+							<label
+								htmlFor="agent-base-url"
+								className="mb-1 block text-xs font-medium text-foreground"
+							>
+								Base URL
+							</label>
+							<input
+								id="agent-base-url"
+								type="text"
+								className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								placeholder="https://openrouter.ai/api/v1"
+								value={agentBaseUrl}
+								onChange={(e) => setAgentBaseUrl(e.target.value)}
+								onBlur={handleSaveLlmConfig}
+								disabled={isLoading}
+							/>
+						</div>
+						<div>
+							<label
+								htmlFor="agent-model"
+								className="mb-1 block text-xs font-medium text-foreground"
+							>
+								模型
+							</label>
+							<input
+								id="agent-model"
+								type="text"
+								className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+								placeholder="anthropic/claude-opus-4.6"
+								value={agentModel}
+								onChange={(e) => setAgentModel(e.target.value)}
+								onBlur={handleSaveLlmConfig}
+								disabled={isLoading}
+							/>
+						</div>
+					</div>
 				</div>
 
 				{/* 测试按钮 */}

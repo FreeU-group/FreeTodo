@@ -65,6 +65,8 @@ MODULES: tuple[ModuleDefinition, ...] = (
     ModuleDefinition(id="diary_illustration", router_module="routers.diary_illustration"),
     ModuleDefinition(id="vision", router_module="routers.vision"),
     ModuleDefinition(id="notification", router_module="routers.notification"),
+    ModuleDefinition(id="agent_monitor", router_module="routers.agent_monitor", core=True),
+    ModuleDefinition(id="intent_actions", router_module="routers.intent_actions"),
     ModuleDefinition(id="floating_capture", router_module="routers.floating_capture"),
     ModuleDefinition(id="crawler", router_module="routers.crawler"),
     ModuleDefinition(id="audio", router_module="routers.audio"),
@@ -88,6 +90,7 @@ MODULES: tuple[ModuleDefinition, ...] = (
         router_module="routers.omi_compat",
     ),
     ModuleDefinition(id="location", router_module="routers.location"),
+    ModuleDefinition(id="video_tool", router_module="routers.video_tool"),
 )
 
 MODULE_INDEX = {module.id: module for module in MODULES}

@@ -11,6 +11,7 @@ import {
 const SOURCES: PerceptionSource[] = [
 	"mic_pc",
 	"mic_hardware",
+	"speaker_pc",
 	"ocr_screen",
 	"ocr_proactive",
 	"user_input",

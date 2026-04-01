@@ -2,6 +2,7 @@ export { AudioAsrConfigSection } from "./AudioAsrConfigSection";
 export { AudioConfigSection } from "./AudioConfigSection";
 export { AutomationTasksSection } from "./AutomationTasksSection";
 export { AutoTodoDetectionSection } from "./AutoTodoDetectionSection";
+export { IntentSourcesSection } from "./IntentSourcesSection";
 export { CookiesConfigSection } from "./CookiesConfigSection";
 export { CrawlerConfigSection } from "./CrawlerConfigSection";
 export { DesktopServerSection } from "./DesktopServerSection";

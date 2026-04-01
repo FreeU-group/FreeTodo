@@ -12,6 +12,7 @@ import {
 	AudioConfigSection,
 		AutomationTasksSection,
 		AutoTodoDetectionSection,
+		IntentSourcesSection,
 		CookiesConfigSection,
 		CrawlerConfigSection,
 		DesktopServerSection,
@@ -193,6 +194,7 @@ export function SettingsPanel() {
 				return (
 					<>
 						<AutoTodoDetectionSection config={config} loading={loading} />
+						<IntentSourcesSection config={config} loading={loading} />
 						<JournalSettingsSection />
 						<DiaryIllustrationConfigSection
 							config={config}

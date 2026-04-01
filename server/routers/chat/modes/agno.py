@@ -11,6 +11,12 @@ from llm.agno_agent_io import TOOL_EVENT_PREFIX, TOOL_EVENT_SUFFIX
 from llm.agno_tools.memory_toolkit import MemoryToolkit
 from routers.chat.base import _schedule_preference_extraction, publish_ai_output_to_perception
 from schemas.chat import ChatMessage
+from services.agent_activity_tracker import (
+    add_activity_step,
+    is_cancelled,
+    start_activity,
+    stop_activity,
+)
 from services.chat_service import ChatService
 from util.logging_config import get_logger
 from util.settings import settings
@@ -133,8 +139,11 @@ def _schedule_post_stream_tasks(
     chat_service: ChatService,
     session_id: str,
     user_query: str,
+    *,
+    user_id: str | None = None,
+    conversation_history: list[dict[str, str]] | None = None,
 ) -> None:
-    """将流结束后的后处理（DB 写入、感知发布、偏好提取）移到后台线程，避免阻塞 HTTP 流关闭。"""
+    """将流结束后的后处理（DB 写入、感知发布、偏好提取、Learning）移到后台线程，避免阻塞 HTTP 流关闭。"""
 
     def _bg() -> None:
         try:
@@ -145,6 +154,18 @@ def _schedule_post_stream_tasks(
         storage_text = "".join(storage_chunks).strip()
         if user_query and storage_text:
             _schedule_preference_extraction(user_query, storage_text)
+
+        if user_id and user_query and storage_text:
+            try:
+                AgnoAgentService.run_learning_background(
+                    user_message=user_query,
+                    assistant_response=storage_text,
+                    user_id=user_id,
+                    session_id=session_id,
+                    conversation_history=conversation_history,
+                )
+            except Exception:
+                logger.exception("[stream][agno] 后台 Learning 调度失败")
 
     threading.Thread(target=_bg, daemon=True, name="agno-post-stream").start()
 
@@ -190,6 +211,7 @@ def _build_agent_os_token_generator(
         tool_events: list[dict[str, Any]] = []
         pending_chunk = ""
 
+        aid = start_activity(agent_type="chat", task=(message.message or "")[:100], model="agno")
         try:
             for chunk in agent_service.stream_response(
                 message=message.message,
@@ -199,6 +221,11 @@ def _build_agent_os_token_generator(
                 user_id=user_id,
                 attachments=message.attachments,
             ):
+                if is_cancelled(aid):
+                    yield "\n\n[已中断]"
+                    stop_activity(aid, status="cancelled")
+                    return
+
                 if not chunk:
                     continue
 
@@ -209,6 +236,13 @@ def _build_agent_os_token_generator(
                 )
                 if events:
                     tool_events.extend(events)
+                    for ev in events:
+                        add_activity_step(
+                            aid,
+                            step_type=ev.get("type", "tool_call"),
+                            name=ev.get("name", ev.get("tool", "")),
+                            content=json.dumps(ev, ensure_ascii=False)[:500],
+                        )
                 if content:
                     storage_chunks.append(content)
                     storage_length += len(content)
@@ -220,10 +254,16 @@ def _build_agent_os_token_generator(
                 chat_service,
                 session_id,
                 (message.message or "").strip(),
+                user_id=user_id,
+                conversation_history=conversation_history,
             )
         except Exception as e:
             logger.exception(f"[stream][agno] 生成失败: {e}")
+            stop_activity(aid, status="error")
             yield f"Agno Agent 处理失败: {e!s}"
+            return
+        finally:
+            stop_activity(aid)
 
     return token_generator()
 
@@ -301,6 +341,7 @@ def create_agno_streaming_response(
         external_tools_config=external_tools_config or None,
         model=model_override,
         extra_tools=extra_tools or None,
+        enable_learning=False,
     )
 
     headers = {

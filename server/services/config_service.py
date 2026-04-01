@@ -149,6 +149,9 @@ class ConfigService:
             "llm.small_model",
             "llm.temperature",
             "llm.max_tokens",
+            "llm.agent.api_key",
+            "llm.agent.base_url",
+            "llm.agent.model",
             # 服务器配置
             "server.host",
             "server.port",
@@ -199,6 +202,12 @@ class ConfigService:
             "setup.agent_name",
             "setup.scan_directories",
             "agno.default_workspace",
+            # Intent recognition source toggles
+            "perception.todo_intent.sources.mic_pc",
+            "perception.todo_intent.sources.mic_hardware",
+            "perception.todo_intent.sources.speaker_pc",
+            "perception.todo_intent.sources.ocr_screen",
+            "perception.todo_intent.sources.ocr_proactive",
         ]
 
         config_dict = {}

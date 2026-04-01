@@ -50,14 +50,44 @@ ENGLISH_WEEKDAY_MAP = {
     "sunday": 6,
 }
 
+# Chinese number → digit
+_CN_NUM = {
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    "十": 10,
+    "十一": 11,
+    "十二": 12,
+}
+
+
+def _cn_to_digit(s: str) -> int | None:
+    """Convert Chinese number string to int. Returns None on failure."""
+    s = s.strip()
+    if s.isdigit():
+        return int(s)
+    if s in _CN_NUM:
+        return _CN_NUM[s]
+    if s.startswith("十") and len(s) == 2 and s[1] in _CN_NUM:
+        return 10 + _CN_NUM[s[1]]
+    return None
+
+
 # Time patterns: (regex_pattern, hour_offset)
 CHINESE_TIME_PATTERNS = [
-    (r"下午\s*(\d{1,2})\s*[点:：时]?\s*(\d{0,2})", PM_HOUR_OFFSET),
-    (r"晚上\s*(\d{1,2})\s*[点:：时]?\s*(\d{0,2})", PM_HOUR_OFFSET),
-    (r"上午\s*(\d{1,2})\s*[点:：时]?\s*(\d{0,2})", 0),
-    (r"早上\s*(\d{1,2})\s*[点:：时]?\s*(\d{0,2})", 0),
-    (r"中午\s*(\d{1,2})\s*[点:：时]?\s*(\d{0,2})", 0),
-    (r"(\d{1,2})\s*[点:：时]\s*(\d{0,2})", 0),
+    (r"下午\s*([一二两三四五六七八九十\d]{1,3})\s*[点:：时]?\s*(\d{0,2})(半?)", PM_HOUR_OFFSET),
+    (r"晚上\s*([一二两三四五六七八九十\d]{1,3})\s*[点:：时]?\s*(\d{0,2})(半?)", PM_HOUR_OFFSET),
+    (r"上午\s*([一二两三四五六七八九十\d]{1,3})\s*[点:：时]?\s*(\d{0,2})(半?)", 0),
+    (r"早上\s*([一二两三四五六七八九十\d]{1,3})\s*[点:：时]?\s*(\d{0,2})(半?)", 0),
+    (r"中午\s*([一二两三四五六七八九十\d]{1,3})\s*[点:：时]?\s*(\d{0,2})(半?)", 0),
+    (r"(\d{1,2})\s*[点:：时]\s*(\d{0,2})(半?)", 0),
 ]
 
 
@@ -129,9 +159,47 @@ def _parse_english_weekday(expr: str, now: datetime) -> datetime | None:
     return None
 
 
+def _parse_chinese_date(expr: str, now: datetime) -> datetime | None:
+    """Parse 'X月X号/日' patterns like '4月3号', '12月25日'."""
+    m = re.search(r"(\d{1,2})\s*月\s*(\d{1,2})\s*[号日]", expr)
+    if not m:
+        return None
+    month, day = int(m.group(1)), int(m.group(2))
+    year = now.year
+    try:
+        result = now.replace(
+            year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0
+        )
+    except ValueError:
+        return None
+    if result < now.replace(hour=0, minute=0, second=0, microsecond=0):
+        result = result.replace(year=year + 1)
+    return result
+
+
+def _parse_this_weekday(expr: str, now: datetime) -> datetime | None:
+    """Parse '周X' (this week, no 下) like '周三', '周五'."""
+    m = re.search(r"(?<!下)周([一二三四五六日天])", expr)
+    if not m:
+        return None
+    target = CHINESE_WEEKDAY_MAP[m.group(1)]
+    days_ahead = target - now.weekday()
+    if days_ahead < 0:
+        days_ahead += DAYS_IN_WEEK
+    return (now + timedelta(days=days_ahead)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
 def _parse_relative_time(expr: str, now: datetime) -> datetime | None:
     """Parse all relative time expressions."""
     result = _parse_relative_day(expr, now)
+    if result:
+        return result
+
+    result = _parse_chinese_date(expr, now)
+    if result:
+        return result
+
+    result = _parse_this_weekday(expr, now)
     if result:
         return result
 
@@ -147,12 +215,17 @@ def _parse_relative_time(expr: str, now: datetime) -> datetime | None:
 
 
 def _apply_chinese_time(time_expression: str, result: datetime) -> datetime:
-    """Apply Chinese time patterns like 下午3点."""
+    """Apply Chinese time patterns like 下午3点, 下午两点半."""
     for pattern, offset in CHINESE_TIME_PATTERNS:
         match = re.search(pattern, time_expression)
         if match:
-            hour = int(match.group(1))
+            hour_raw = match.group(1)
+            hour = _cn_to_digit(hour_raw)
+            if hour is None:
+                hour = int(hour_raw) if hour_raw.isdigit() else 0
             minute = int(match.group(2)) if match.group(2) else 0
+            if len(match.groups()) >= 3 and match.group(3) == "半":
+                minute = 30
             if offset == PM_HOUR_OFFSET and hour < PM_HOUR_OFFSET:
                 hour += PM_HOUR_OFFSET
             return result.replace(hour=hour, minute=minute)

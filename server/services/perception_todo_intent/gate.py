@@ -6,6 +6,7 @@ from typing import Any
 
 from llm.llm_client import LLMClient
 from schemas.perception_todo_intent import IntentGateDecision, TodoIntentContext
+from services.agent_activity_tracker import start_activity, stop_activity
 from services.audio_extraction.gate import (
     coerce_gate_decision,
     parse_gate_response,
@@ -74,6 +75,7 @@ class TodoIntentGate:
         if not system_prompt or not user_prompt:
             return IntentGateDecision(should_extract=True, reason="missing_prompt_fallback")
 
+        aid = start_activity(agent_type="intent_gate", task=text[:100], model=model)
         try:
             response = await asyncio.to_thread(
                 client.chat.completions.create,
@@ -129,7 +131,10 @@ class TodoIntentGate:
             )
         except Exception:
             logger.warning("[Gate] LLM调用异常, fallback=extract", exc_info=True)
+            stop_activity(aid, status="error")
             return IntentGateDecision(
                 should_extract=True,
                 reason="gate_error_fallback",
             )
+        finally:
+            stop_activity(aid)

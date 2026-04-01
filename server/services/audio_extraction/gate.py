@@ -126,7 +126,7 @@ async def should_extract_with_llm_gate(  # noqa: PLR0911
             logger.warning("无法加载 gate 提示词，跳过 gate，直接执行提取")
             return True, "missing_prompt", None
 
-        response = llm_client.client.chat.completions.create(
+        response = await llm_client.async_client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": system_prompt},

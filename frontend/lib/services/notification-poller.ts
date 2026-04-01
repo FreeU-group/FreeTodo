@@ -15,6 +15,7 @@ interface NotificationResponse {
 	content: string;
 	timestamp?: string;
 	todoId?: number;
+	notification_type?: string;
 }
 
 class NotificationPoller {
@@ -222,10 +223,41 @@ class NotificationPoller {
 	];
 
 	/**
+	 * Try to trigger an interactive popup for pending intent actions.
+	 * Returns true if handled as interactive, false otherwise.
+	 */
+	private tryInteractivePopup(notification: Notification): boolean {
+		if (
+			typeof window === "undefined" ||
+			!window.electronAPI?.triggerInteractivePopup
+		) {
+			return false;
+		}
+		try {
+			const parsed = JSON.parse(notification.content);
+			if (parsed?.action_id && (parsed.action_type === "todo" || parsed.action_type === "executable")) {
+				window.electronAPI.triggerInteractivePopup({
+					actionId: parsed.action_id,
+					actionType: parsed.action_type,
+					title: parsed.title || notification.title,
+					description: parsed.description || "",
+					executionPlan: parsed.execution_plan,
+				});
+				return true;
+			}
+		} catch {
+			// Not JSON — fall through to legacy popup
+		}
+		return false;
+	}
+
+	/**
 	 * Trigger Electron system popup for todo-related notifications
 	 * (create / update / complete / cancel / invitation / conflict).
 	 */
 	private triggerElectronPopupIfNeeded(notification: Notification): void {
+		if (this.tryInteractivePopup(notification)) return;
+
 		if (
 			typeof window === "undefined" ||
 			!window.electronAPI?.triggerNotificationPopup

@@ -73,8 +73,10 @@ class MemoryManager:
             logger.info("MemoryDeduper initialized")
 
             # L2 Compressor
-            self.compressor = MemoryCompressor(self._memory_dir, llm)
-            logger.info("MemoryCompressor initialized")
+            compress_cfg = self._config.get("compress", {}) or {}
+            compress_model = str(compress_cfg.get("model", "")).strip() or None
+            self.compressor = MemoryCompressor(self._memory_dir, llm, model=compress_model)
+            logger.info(f"MemoryCompressor initialized (model={self.compressor._model})")
 
             # L3 TaskLinker
             linker_cfg = self._config.get("task_linker", {}) or {}
@@ -113,7 +115,7 @@ class MemoryManager:
             logger.info("MemoryWriter subscribed to PerceptionStream")
 
         if self.compressor and self._compress_task is None:
-            compress_interval = self._config.get("compress_interval_seconds", 300)
+            compress_interval = self._config.get("compress_interval_seconds", 1200)
             self._compress_task = asyncio.create_task(
                 self._compress_loop(compress_interval),
                 name="memory-compress-loop",
@@ -122,7 +124,7 @@ class MemoryManager:
 
         if self.profile_builder and self._profile_task is None:
             profile_cfg = self._config.get("profile", {}) or {}
-            interval = profile_cfg.get("interval_seconds", 3600)
+            interval = profile_cfg.get("interval_seconds", 10800)
             self._profile_task = asyncio.create_task(
                 self._profile_loop(interval),
                 name="memory-profile-loop",
@@ -158,17 +160,17 @@ class MemoryManager:
     # ------------------------------------------------------------------
 
     async def _compress_loop(self, interval: int) -> None:
-        """Background loop: run L2 compression + L3 task linking every *interval* seconds."""
+        """Background loop: incremental L2 compression + L3 task linking every *interval* seconds."""
         await asyncio.sleep(60)
         while True:
             from util.time_utils import local_today_str  # noqa: PLC0415
 
             today = local_today_str()
             try:
-                result = await self.compress_and_link(today)
-                logger.info(f"Periodic compress_and_link: {result}")
+                result = await self.incremental_compress_and_link(today)
+                logger.info(f"Periodic incremental_compress_and_link: {result}")
             except Exception:
-                logger.exception(f"Periodic compress_and_link failed for {today}")
+                logger.exception(f"Periodic incremental_compress_and_link failed for {today}")
             await asyncio.sleep(interval)
 
     # ------------------------------------------------------------------
@@ -176,11 +178,11 @@ class MemoryManager:
     # ------------------------------------------------------------------
 
     async def _profile_loop(self, interval: int) -> None:
-        """Background loop: update L4 user profile every *interval* seconds."""
-        await asyncio.sleep(30)
+        """Background loop: update L4 user profile on startup, then every *interval* seconds."""
         while True:
             try:
                 await self.profile_builder.update()  # type: ignore[union-attr]
+                logger.info("ProfileBuilder periodic update completed")
             except Exception:
                 logger.exception("ProfileBuilder periodic update failed")
             await asyncio.sleep(interval)
@@ -190,14 +192,32 @@ class MemoryManager:
     # ------------------------------------------------------------------
 
     async def compress_and_link(self, date_str: str) -> dict:
-        """Run L2 compression then L3 task linking for a given date.
+        """Run **full-rebuild** L2 compression then L3 task linking for a given date.
 
         Returns a summary dict of what happened.
         """
-        result: dict = {"date": date_str, "compressed": False, "linked": 0}
+        result: dict = {"date": date_str, "mode": "full", "compressed": False, "linked": 0}
 
         if self.compressor:
             path = await self.compressor.compress_day(date_str)
+            result["compressed"] = path is not None
+
+        if self.task_linker and result["compressed"]:
+            linked = await self.task_linker.link_day(date_str)
+            result["linked"] = linked
+
+        return result
+
+    async def incremental_compress_and_link(self, date_str: str) -> dict:
+        """Run **incremental** L2 compression then L3 task linking for a given date.
+
+        Only processes new content since last run.
+        Returns a summary dict of what happened.
+        """
+        result: dict = {"date": date_str, "mode": "incremental", "compressed": False, "linked": 0}
+
+        if self.compressor:
+            path = await self.compressor.compress_incremental(date_str)
             result["compressed"] = path is not None
 
         if self.task_linker and result["compressed"]:

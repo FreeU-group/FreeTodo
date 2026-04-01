@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import hashlib
 import json
 import os
@@ -874,93 +875,123 @@ class SensorDaemon:
             await asyncio.sleep(self._AUDIO_RECONNECT_DELAY)
 
     @staticmethod
-    def _find_loopback_device() -> int | None:
-        """Find WASAPI loopback device (Windows) or virtual audio device (macOS BlackHole)."""
-        import sounddevice as sd  # noqa: PLC0415
+    def _patch_numpy_for_soundcard() -> None:
+        """soundcard 内部用了 np.fromstring(binary)，numpy 2.x 不再支持，强制替换为 np.frombuffer。"""
+        np.fromstring = np.frombuffer  # type: ignore[attr-defined]
 
-        devices = sd.query_devices()
-        hostapis = sd.query_hostapis()
+    @staticmethod
+    def _find_loopback_mic():
+        """找到默认扬声器对应的 loopback 虚拟麦克风。"""
+        SensorDaemon._patch_numpy_for_soundcard()
+        import soundcard as sc  # noqa: PLC0415
 
-        wasapi_idx: int | None = None
-        for i, api in enumerate(hostapis):
-            if "wasapi" in api["name"].lower():
-                wasapi_idx = i
-                break
+        speaker = sc.default_speaker()
+        if speaker is None:
+            return None, None
 
-        for i, dev in enumerate(devices):
-            name_lower = dev["name"].lower()
-            if dev["max_input_channels"] > 0:
-                if (
-                    wasapi_idx is not None
-                    and dev.get("hostapi") == wasapi_idx
-                    and "loopback" in name_lower
-                ):
-                    return i
-                if "blackhole" in name_lower:
-                    return i
-                if "stereo mix" in name_lower or "立体声混音" in name_lower:
-                    return i
-        return None
+        all_mics = sc.all_microphones(include_loopback=True)
+        for mic in all_mics:
+            if mic.isloopback and speaker.id in mic.id:
+                return mic, speaker.name
+
+        for mic in all_mics:
+            if mic.isloopback:
+                return mic, mic.name
+
+        return None, speaker.name
 
     async def _run_audio_loopback_stream(self) -> None:
-        import sounddevice as sd  # noqa: PLC0415
+        """使用 soundcard 库以 loopback 模式录制默认扬声器输出。"""
         import websockets  # noqa: PLC0415
 
-        device_id = await asyncio.to_thread(self._find_loopback_device)
-        if device_id is None:
-            logger.warning("[audio-loopback] No loopback device found, retrying later")
+        loopback_mic, speaker_name = await asyncio.to_thread(self._find_loopback_mic)
+        if loopback_mic is None:
+            logger.warning(
+                f"[audio-loopback] No loopback mic found for speaker '{speaker_name}', retrying later"
+            )
             return
 
-        dev_info = sd.query_devices(device_id)
-        dev_name = dev_info["name"] if isinstance(dev_info, dict) else str(dev_info)
-        logger.info(f"[audio-loopback] Using device [{device_id}] {dev_name}")
+        logger.info(
+            f"[audio-loopback] Using loopback: {loopback_mic.name} (speaker: {speaker_name})"
+        )
+
+        audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=200)
+        loop = asyncio.get_running_loop()
+        stop_event = asyncio.Event()
+
+        ready_event = asyncio.Event()
+
+        def _record_thread() -> None:
+            try:
+                SensorDaemon._patch_numpy_for_soundcard()
+                logger.info(f"[audio-loopback] Opening recorder: {loopback_mic.name}")
+                with loopback_mic.recorder(
+                    samplerate=self._AUDIO_SAMPLE_RATE,
+                    channels=1,
+                    blocksize=self._AUDIO_BLOCK_SIZE,
+                ) as recorder:
+                    logger.info("[audio-loopback] Recorder opened, reading first chunk...")
+                    first = recorder.record(numframes=self._AUDIO_BLOCK_SIZE)
+                    pcm16 = (first[:, 0] * 32767).clip(-32768, 32767).astype(np.int16)
+                    loop.call_soon_threadsafe(audio_queue.put_nowait, pcm16.tobytes())
+                    loop.call_soon_threadsafe(ready_event.set)
+                    logger.info(f"[audio-loopback] First chunk OK ({len(pcm16)} samples)")
+                    while not stop_event.is_set():
+                        data = recorder.record(numframes=self._AUDIO_BLOCK_SIZE)
+                        pcm16 = (data[:, 0] * 32767).clip(-32768, 32767).astype(np.int16)
+                        loop.call_soon_threadsafe(audio_queue.put_nowait, pcm16.tobytes())
+            except Exception as exc:
+                logger.error(f"[audio-loopback] Record thread error: {exc}", exc_info=True)
+            finally:
+                loop.call_soon_threadsafe(ready_event.set)
+                loop.call_soon_threadsafe(audio_queue.put_nowait, None)
+
+        record_future = loop.run_in_executor(None, _record_thread)
+
+        try:
+            await asyncio.wait_for(ready_event.wait(), timeout=10.0)
+        except TimeoutError:
+            logger.error("[audio-loopback] Recording thread did not produce data within 10s")
+            stop_event.set()
+            return
+
+        if audio_queue.empty():
+            logger.error("[audio-loopback] Recording thread failed to start, no data in queue")
+            stop_event.set()
+            return
+
+        logger.info("[audio-loopback] Recording thread confirmed working")
 
         ws_url = self.center_url.replace("http://", "ws://").replace("https://", "wss://")
         ws_url = f"{ws_url}/api/audio/transcribe?source=speaker_pc&node_id={self.node_id}"
 
-        async with websockets.connect(ws_url, close_timeout=5) as ws:
-            await ws.send(json.dumps({"is_24x7": True}))
-            logger.info("[audio-loopback] WebSocket connected, starting loopback capture")
+        try:
+            async with websockets.connect(ws_url, close_timeout=5) as ws:
+                await ws.send(json.dumps({"is_24x7": True}))
+                self._audio_loopback_running = True
+                logger.info(f"[audio-loopback] Capture started ({speaker_name} -> Center ASR)")
 
-            audio_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=200)
-            loop = asyncio.get_running_loop()
+                try:
+                    send_task = asyncio.create_task(self._audio_send_loop(ws, audio_queue))
+                    recv_task = asyncio.create_task(self._audio_recv_loop(ws))
+                    config_task = asyncio.create_task(self._audio_loopback_config_watch(ws))
 
-            def _loopback_callback(indata, _frames, _time_info, status) -> None:
-                if status:
-                    logger.warning(f"[audio-loopback] sounddevice status: {status}")
-                loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(indata))
-
-            stream = sd.InputStream(
-                samplerate=self._AUDIO_SAMPLE_RATE,
-                channels=self._AUDIO_CHANNELS,
-                dtype="int16",
-                blocksize=self._AUDIO_BLOCK_SIZE,
-                device=device_id,
-                callback=_loopback_callback,
-            )
-            stream.start()
-            self._audio_loopback_running = True
-            logger.info(f"[audio-loopback] Capture started (device={dev_name} -> Center ASR)")
-
-            try:
-                send_task = asyncio.create_task(self._audio_send_loop(ws, audio_queue))
-                recv_task = asyncio.create_task(self._audio_recv_loop(ws))
-                stop_task = asyncio.create_task(self._audio_loopback_config_watch(ws))
-
-                done, pending = await asyncio.wait(
-                    [send_task, recv_task, stop_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                for t in pending:
-                    t.cancel()
-                for t in done:
-                    if t.exception() is not None:
-                        raise t.exception()  # type: ignore[misc]
-            finally:
-                stream.stop()
-                stream.close()
-                self._audio_loopback_running = False
-                logger.info("[audio-loopback] Capture stopped")
+                    done, pending = await asyncio.wait(
+                        [send_task, recv_task, config_task],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    for t in pending:
+                        t.cancel()
+                    for t in done:
+                        if t.exception() is not None:
+                            raise t.exception()  # type: ignore[misc]
+                finally:
+                    self._audio_loopback_running = False
+                    logger.info("[audio-loopback] Capture stopped")
+        finally:
+            stop_event.set()
+            with contextlib.suppress(Exception):
+                await asyncio.wrap_future(record_future)
 
     async def _audio_loopback_config_watch(self, ws) -> None:
         """Watch audio_loopback_enabled config flag."""

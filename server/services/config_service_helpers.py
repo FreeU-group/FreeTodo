@@ -11,6 +11,7 @@ API_KEY_MASK = "sk-**********************************"
 SENSITIVE_CONFIG_KEYS = frozenset(
     {
         "llm.api_key",
+        "llm.agent.api_key",
         "dify.api_key",
         "tavily.api_key",
         "audio.asr.api_key",
@@ -77,6 +78,20 @@ _SIMPLE_PREFIX_MAP: dict[str, tuple[int, str]] = {
     "volcengine_": (11, "volcengine"),
     "setup_": (6, "setup"),
     "agno_": (5, "agno"),
+}
+
+_AGENT_LLM_KEY_MAPPING: dict[str, str] = {
+    "llm_agent_api_key": "llm.agent.api_key",
+    "llm_agent_base_url": "llm.agent.base_url",
+    "llm_agent_model": "llm.agent.model",
+}
+
+_INTENT_SOURCE_KEY_MAPPING: dict[str, str] = {
+    "intent_source_mic_pc": "perception.todo_intent.sources.mic_pc",
+    "intent_source_mic_hardware": "perception.todo_intent.sources.mic_hardware",
+    "intent_source_speaker_pc": "perception.todo_intent.sources.speaker_pc",
+    "intent_source_ocr_screen": "perception.todo_intent.sources.ocr_screen",
+    "intent_source_ocr_proactive": "perception.todo_intent.sources.ocr_proactive",
 }
 
 _ASR_KEY_MAPPING: dict[str, str] = {
@@ -156,8 +171,12 @@ def _convert_jobs_key(parts: list[str]) -> str:
 def snake_to_dot_notation(key: str) -> str:
     if "." in key or "_" not in key:
         return key
+    if key in _AGENT_LLM_KEY_MAPPING:
+        return _AGENT_LLM_KEY_MAPPING[key]
     if key in _ASR_KEY_MAPPING:
         return _ASR_KEY_MAPPING[key]
+    if key in _INTENT_SOURCE_KEY_MAPPING:
+        return _INTENT_SOURCE_KEY_MAPPING[key]
     if key.startswith("jobs_"):
         parts = key.split("_")
         if parts[0] == "jobs" and len(parts) >= _MIN_JOBS_PARTS:
@@ -168,7 +187,21 @@ def snake_to_dot_notation(key: str) -> str:
     return key.replace("_", ".")
 
 
+_DOT_TO_SNAKE_OVERRIDES: dict[str, str] = {
+    "llm.agent.api_key": "llm_agent_api_key",
+    "llm.agent.base_url": "llm_agent_base_url",
+    "llm.agent.model": "llm_agent_model",
+    "perception.todo_intent.sources.mic_pc": "intent_source_mic_pc",
+    "perception.todo_intent.sources.mic_hardware": "intent_source_mic_hardware",
+    "perception.todo_intent.sources.speaker_pc": "intent_source_speaker_pc",
+    "perception.todo_intent.sources.ocr_screen": "intent_source_ocr_screen",
+    "perception.todo_intent.sources.ocr_proactive": "intent_source_ocr_proactive",
+}
+
+
 def dot_to_snake_notation(key: str) -> str:
+    if key in _DOT_TO_SNAKE_OVERRIDES:
+        return _DOT_TO_SNAKE_OVERRIDES[key]
     if "." not in key:
         return key
     return key.replace(".", "_")

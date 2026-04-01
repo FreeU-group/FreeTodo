@@ -99,7 +99,7 @@ export async function customFetcher<T>(
 	const baseUrl =
 		typeof window !== "undefined"
 			? ""
-			: process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8100";
+			: process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8001";
 
 	const { params, data, responseSchema, body, headers, ...fetchOptions } =
 		options ?? {};

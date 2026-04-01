@@ -9,6 +9,7 @@ import { unwrapApiData } from "@/lib/api/fetcher";
 import { listTodosApiTodosGet } from "@/lib/generated/todos/todos";
 import { IslandMode } from "@/lib/island/types";
 import { queryKeys } from "@/lib/query/keys";
+import { useNotificationPolling } from "@/lib/hooks/useNotificationPolling";
 import { useUiStore } from "@/lib/store/ui-store";
 import type { TodoListResponse } from "@/lib/types";
 import {
@@ -23,6 +24,7 @@ interface DynamicIslandProps {
 }
 
 const DynamicIsland: React.FC<DynamicIslandProps> = ({ mode, onModeChange }) => {
+  useNotificationPolling();
   const tIsland = useTranslations("island");
   const prevModeRef = useRef<IslandMode | null>(null);
   const queryClient = useQueryClient();

@@ -92,6 +92,11 @@ const AGENT_CONFIG: Record<
 		icon: MessageSquare,
 		color: "text-sky-500",
 	},
+	calendar_plan: {
+		label: "日历规划",
+		icon: Clock,
+		color: "text-violet-500",
+	},
 	search: {
 		label: "搜索",
 		icon: Search,

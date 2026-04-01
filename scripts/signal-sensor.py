@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import logging
 import os
 import platform
 import subprocess  # nosec B404
@@ -44,6 +45,31 @@ sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = REPO_ROOT / "frontend"
 POPUP_SCRIPT = FRONTEND_DIR / "scripts" / "signal-popup.js"
+LOG_DIR = REPO_ROOT / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Logging setup: console + file with timestamps and levels
+# ---------------------------------------------------------------------------
+
+_log_formatter = logging.Formatter(
+    fmt="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+_console_handler = logging.StreamHandler(sys.stdout)
+_console_handler.setFormatter(_log_formatter)
+
+_file_handler = logging.FileHandler(
+    LOG_DIR / "signal-sensor.log",
+    encoding="utf-8",
+)
+_file_handler.setFormatter(_log_formatter)
+
+log = logging.getLogger("signal-sensor")
+log.setLevel(logging.DEBUG)
+log.addHandler(_console_handler)
+log.addHandler(_file_handler)
 
 SENSOR_NOTIFY_POLL_INTERVAL = 1.0
 GENERAL_NOTIFY_POLL_INTERVAL = 1.0
@@ -131,7 +157,12 @@ def _launch_popup(data: dict, on_confirm=None, on_dismiss=None) -> bool:
             else:
                 cmd = [_state.electron_bin or "", str(POPUP_SCRIPT), tmp_path]
 
-            print(f"[signal-sensor] 弹窗启动: {data.get('title', '')}")
+            log.info(
+                "弹窗启动: %s (on_confirm=%s, on_dismiss=%s)",
+                data.get("title", ""),
+                on_confirm is not None,
+                on_dismiss is not None,
+            )
             with _state.popup_lock:
                 _state.popup_proc = subprocess.Popen(  # nosec B603
                     cmd,
@@ -143,14 +174,25 @@ def _launch_popup(data: dict, on_confirm=None, on_dismiss=None) -> bool:
                 )
             _state.popup_proc.wait()
             exit_code = _state.popup_proc.returncode
-            print(f"[signal-sensor] 弹窗已关闭 (exit={exit_code})")
+            log.info(
+                "弹窗已关闭 (exit=%d, on_confirm=%s, on_dismiss=%s)",
+                exit_code,
+                on_confirm is not None,
+                on_dismiss is not None,
+            )
 
             if exit_code == 2 and on_dismiss:
+                log.info("触发 on_dismiss 回调")
                 on_dismiss()
             elif exit_code == 0 and on_confirm:
+                log.info("触发 on_confirm 回调")
                 on_confirm()
+            elif exit_code == 0 and on_confirm is None:
+                log.warning("用户点击了确认，但 on_confirm 回调为空，操作被忽略!")
+            elif exit_code == 2 and on_dismiss is None:
+                log.warning("用户点击了忽略，但 on_dismiss 回调为空，操作被忽略!")
         except Exception as exc:
-            print(f"[signal-sensor] 弹窗启动失败: {exc}")
+            log.error("弹窗启动失败: %s", exc, exc_info=True)
         finally:
             with contextlib.suppress(OSError):
                 os.unlink(tmp_path)
@@ -167,9 +209,11 @@ def _launch_popup(data: dict, on_confirm=None, on_dismiss=None) -> bool:
 def _poll_sensor_notifications(client: httpx.Client) -> None:
     """后台线程：定时轮询 Center 拉取针对本节点的推送通知。"""
     url = f"{_state.center_url}/api/sensor/notifications"
-    print(
-        f"[signal-sensor] 推送通知轮询已启动 "
-        f"(endpoint={url}, node_id={_state.node_id}, interval={SENSOR_NOTIFY_POLL_INTERVAL}s)"
+    log.info(
+        "推送通知轮询已启动 (endpoint=%s, node_id=%s, interval=%ss)",
+        url,
+        _state.node_id,
+        SENSOR_NOTIFY_POLL_INTERVAL,
     )
 
     while True:
@@ -178,14 +222,15 @@ def _poll_sensor_notifications(client: httpx.Client) -> None:
             resp.raise_for_status()
             items = resp.json().get("notifications", [])
             for item in items:
-                print(
-                    f"[signal-sensor] 收到推送通知: {item.get('title', '')} "
-                    f"(id={item.get('id', '?')})"
+                log.info(
+                    "收到推送通知: %s (id=%s)",
+                    item.get("title", ""),
+                    item.get("id", "?"),
                 )
                 _launch_popup(item)
                 time.sleep(1)
         except Exception as exc:
-            print(f"[signal-sensor] 推送通知轮询失败: {exc}")
+            log.error("推送通知轮询失败: %s", exc)
         time.sleep(SENSOR_NOTIFY_POLL_INTERVAL)
 
 
@@ -197,9 +242,10 @@ def _poll_sensor_notifications(client: httpx.Client) -> None:
 def _poll_general_notifications(client: httpx.Client) -> None:
     """后台线程：轮询通用通知接口，筛选邀约等重要通知弹窗。"""
     url = f"{_state.center_url}/api/notifications"
-    print(
-        f"[signal-sensor] 通用通知轮询已启动 "
-        f"(endpoint={url}, interval={GENERAL_NOTIFY_POLL_INTERVAL}s)"
+    log.info(
+        "通用通知轮询已启动 (endpoint=%s, interval=%ss)",
+        url,
+        GENERAL_NOTIFY_POLL_INTERVAL,
     )
 
     while True:
@@ -244,32 +290,52 @@ def _poll_general_notifications(client: httpx.Client) -> None:
 
                 content = item.get("content", "")
                 todo_id = item.get("todo_id")
-                print(f"[signal-sensor] 收到重要通知: {title} (id={nid}, type={ntype})")
+                log.info(
+                    "收到重要通知: %s (id=%s, type=%s, todo_id=%s)",
+                    title,
+                    nid,
+                    ntype,
+                    todo_id,
+                )
 
                 if ntype == "pending_todo":
-                    action_id = nid.replace("pa_", "") if nid.startswith("pa_") else nid
+                    action_id = nid[3:] if nid.startswith("pa_") else nid
+                    log.info(
+                        "处理 pending_todo 通知, nid=%s -> action_id=%s", nid, action_id
+                    )
 
                     def _on_confirm_pending(aid=action_id):
-                        print(f"[signal-sensor] 用户确认 pending action {aid}")
+                        log.info(
+                            "用户确认 pending_todo, 调用 POST /api/intent-actions/%s/confirm",
+                            aid,
+                        )
                         try:
-                            httpx.post(
+                            r = httpx.post(
                                 f"{_state.center_url}/api/intent-actions/{aid}/confirm",
                                 timeout=30,
                             )
+                            log.info(
+                                "confirm 响应: status=%d, body=%s",
+                                r.status_code,
+                                r.text[:200],
+                            )
                         except Exception as e:
-                            print(f"[signal-sensor] 确认 pending action 失败: {e}")
+                            log.error("确认 pending_todo 失败: %s", e, exc_info=True)
 
                     def _on_dismiss_pending(aid=action_id):
-                        print(f"[signal-sensor] 用户忽略 pending action {aid}")
+                        log.info(
+                            "用户忽略 pending_todo, 调用 POST /api/intent-actions/%s/reject",
+                            aid,
+                        )
                         try:
-                            httpx.post(
+                            r = httpx.post(
                                 f"{_state.center_url}/api/intent-actions/{aid}/reject",
                                 timeout=10,
                             )
+                            log.info("reject 响应: status=%d", r.status_code)
                         except Exception as e:
-                            print(f"[signal-sensor] 忽略 pending action 失败: {e}")
+                            log.error("忽略 pending_todo 失败: %s", e, exc_info=True)
 
-                    # Parse pending action content for a cleaner subtitle
                     subtitle = content
                     try:
                         pa_data = json.loads(content)
@@ -284,30 +350,113 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                         on_confirm=_on_confirm_pending,
                         on_dismiss=_on_dismiss_pending,
                     )
+                elif ntype == "pending_execute":
+                    action_id = nid[3:] if nid.startswith("pa_") else nid
+                    log.info(
+                        "处理 pending_execute 通知, nid=%s -> action_id=%s",
+                        nid,
+                        action_id,
+                    )
+
+                    subtitle = content
+                    try:
+                        pa_data = json.loads(content)
+                        desc = pa_data.get("description", "")
+                        plan = pa_data.get("execution_plan", [])
+                        plan_text = (
+                            "\n".join(f"  {i + 1}. {s}" for i, s in enumerate(plan))
+                            if plan
+                            else ""
+                        )
+                        subtitle = desc + (
+                            "\n\n执行计划：\n" + plan_text if plan_text else ""
+                        )
+                        log.debug(
+                            "pending_execute 解析: desc=%s, plan_steps=%d",
+                            desc[:80],
+                            len(plan),
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        log.warning(
+                            "pending_execute content 不是有效 JSON: %s", content[:100]
+                        )
+
+                    def _on_confirm_execute(aid=action_id):
+                        log.info(
+                            "用户确认执行, 调用 POST /api/intent-actions/%s/execute",
+                            aid,
+                        )
+                        try:
+                            r = httpx.post(
+                                f"{_state.center_url}/api/intent-actions/{aid}/execute",
+                                timeout=30,
+                            )
+                            if r.status_code == 200:
+                                log.info("执行已启动: %s, 响应=%s", aid, r.text[:200])
+                            else:
+                                log.error(
+                                    "执行启动失败: status=%d, body=%s",
+                                    r.status_code,
+                                    r.text[:200],
+                                )
+                        except Exception as e:
+                            log.error("确认执行失败: %s", e, exc_info=True)
+
+                    def _on_dismiss_execute(aid=action_id):
+                        log.info(
+                            "用户忽略执行, 调用 POST /api/intent-actions/%s/reject", aid
+                        )
+                        try:
+                            r = httpx.post(
+                                f"{_state.center_url}/api/intent-actions/{aid}/reject",
+                                timeout=10,
+                            )
+                            log.info("reject 响应: status=%d", r.status_code)
+                        except Exception as e:
+                            log.error("忽略执行失败: %s", e, exc_info=True)
+
+                    _launch_popup(
+                        {"title": title, "subtitle": subtitle},
+                        on_confirm=_on_confirm_execute,
+                        on_dismiss=_on_dismiss_execute,
+                    )
                 elif ntype in ("auto_todo", "invitation") and todo_id:
                     _tid = todo_id
+                    log.info("处理 %s 通知, todo_id=%s", ntype, _tid)
 
                     def _on_confirm(tid=_tid):
-                        print(f"[signal-sensor] 用户确认待办 {tid}，触发重规划")
+                        log.info(
+                            "用户确认待办 %s，调用 POST /api/notifications/confirm-todo",
+                            tid,
+                        )
                         try:
-                            httpx.post(
+                            r = httpx.post(
                                 f"{_state.center_url}/api/notifications/confirm-todo",
                                 json={"todo_id": tid},
                                 timeout=15,
                             )
+                            log.info(
+                                "confirm-todo 响应: status=%d, body=%s",
+                                r.status_code,
+                                r.text[:200],
+                            )
                         except Exception as e:
-                            print(f"[signal-sensor] 确认待办失败: {e}")
+                            log.error("确认待办失败: %s", e, exc_info=True)
 
                     def _on_dismiss(tid=_tid):
-                        print(f"[signal-sensor] 用户忽略待办 {tid}，删除")
+                        log.info(
+                            "用户忽略待办 %s，调用 POST /api/notifications/dismiss-todo",
+                            tid,
+                        )
                         try:
-                            httpx.post(
+                            r = httpx.post(
                                 f"{_state.center_url}/api/notifications/dismiss-todo",
                                 json={"todo_id": tid},
                                 timeout=10,
                             )
+                            log.info("dismiss-todo 响应: status=%d", r.status_code)
                         except Exception as e:
-                            print(f"[signal-sensor] 忽略待办失败: {e}")
+                            log.error("忽略待办失败: %s", e, exc_info=True)
 
                     _launch_popup(
                         {"title": title, "subtitle": content},
@@ -315,10 +464,11 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                         on_dismiss=_on_dismiss,
                     )
                 else:
+                    log.info("通知类型 %s 无专用回调，仅展示弹窗", ntype)
                     _launch_popup({"title": title, "subtitle": content})
                 time.sleep(1)
         except Exception as exc:
-            print(f"[signal-sensor] 通用通知轮询失败: {exc}")
+            log.error("通用通知轮询失败: %s", exc, exc_info=True)
         time.sleep(GENERAL_NOTIFY_POLL_INTERVAL)
 
 
@@ -330,9 +480,8 @@ def _poll_general_notifications(client: httpx.Client) -> None:
 def _poll_draft_todos(client: httpx.Client) -> None:
     """后台线程：轮询待办草稿接口，发现新草稿时弹窗提醒。"""
     url = f"{_state.center_url}/api/todos"
-    print(
-        f"[signal-sensor] 待办草稿轮询已启动 "
-        f"(endpoint={url}, interval={DRAFT_TODO_POLL_INTERVAL}s)"
+    log.info(
+        "待办草稿轮询已启动 (endpoint=%s, interval=%ss)", url, DRAFT_TODO_POLL_INTERVAL
     )
 
     while True:
@@ -349,17 +498,51 @@ def _poll_draft_todos(client: httpx.Client) -> None:
 
                 if todo_id is not None and todo_id != _state.last_draft_todo_id:
                     _state.last_draft_todo_id = todo_id
-                    print(
-                        f"[signal-sensor] 检测到新草稿待办: {todo_name} (id={todo_id})"
-                    )
+                    log.info("检测到新草稿待办: %s (id=%s)", todo_name, todo_id)
+
+                    def _on_confirm_draft(tid=todo_id, name=todo_name):
+                        log.info(
+                            "用户确认草稿待办 %s, 调用 PUT /api/todos/%s {status: active}",
+                            name,
+                            tid,
+                        )
+                        try:
+                            r = httpx.put(
+                                f"{_state.center_url}/api/todos/{tid}",
+                                json={"status": "active"},
+                                timeout=15,
+                            )
+                            log.info(
+                                "草稿激活响应: status=%d, body=%s",
+                                r.status_code,
+                                r.text[:200],
+                            )
+                        except Exception as e:
+                            log.error("激活草稿待办失败: %s", e, exc_info=True)
+
+                    def _on_dismiss_draft(tid=todo_id, name=todo_name):
+                        log.info(
+                            "用户忽略草稿待办 %s, 调用 DELETE /api/todos/%s", name, tid
+                        )
+                        try:
+                            r = httpx.delete(
+                                f"{_state.center_url}/api/todos/{tid}",
+                                timeout=10,
+                            )
+                            log.info("草稿删除响应: status=%d", r.status_code)
+                        except Exception as e:
+                            log.error("删除草稿待办失败: %s", e, exc_info=True)
+
                     _launch_popup(
                         {
                             "title": "待办提醒",
                             "subtitle": f"检测到：{todo_name}",
-                        }
+                        },
+                        on_confirm=_on_confirm_draft,
+                        on_dismiss=_on_dismiss_draft,
                     )
         except Exception as exc:
-            print(f"[signal-sensor] 待办草稿轮询失败: {exc}")
+            log.error("待办草稿轮询失败: %s", exc, exc_info=True)
         time.sleep(DRAFT_TODO_POLL_INTERVAL)
 
 
@@ -375,9 +558,11 @@ _reminded_todo_ids: set[int] = set()
 def _poll_upcoming_todos(client: httpx.Client) -> None:
     """后台线程：定期扫描即将到期的待办，弹窗提醒。"""
     url = f"{_state.center_url}/api/todos"
-    print(
-        f"[signal-sensor] 待办提醒轮询已启动 "
-        f"(endpoint={url}, ahead={TODO_REMINDER_AHEAD_MINUTES}min, interval={TODO_REMINDER_POLL_INTERVAL}s)"
+    log.info(
+        "待办提醒轮询已启动 (endpoint=%s, ahead=%dmin, interval=%ss)",
+        url,
+        TODO_REMINDER_AHEAD_MINUTES,
+        TODO_REMINDER_POLL_INTERVAL,
     )
 
     while True:
@@ -416,8 +601,8 @@ def _poll_upcoming_todos(client: httpx.Client) -> None:
                 if window_start <= due_dt <= window_end:
                     remaining_min = max(0, int((due_dt - now).total_seconds() // 60))
                     todo_name = todo.get("name", "待办事项")
-                    print(
-                        f"[signal-sensor] ⏰ 待办即将到期: {todo_name} (还有 {remaining_min} 分钟)"
+                    log.info(
+                        "待办即将到期: %s (还有 %d 分钟)", todo_name, remaining_min
                     )
 
                     _launch_popup(
@@ -434,7 +619,7 @@ def _poll_upcoming_todos(client: httpx.Client) -> None:
             _reminded_todo_ids.difference_update(_reminded_todo_ids - active_ids)
 
         except Exception as exc:
-            print(f"[signal-sensor] 待办提醒轮询失败: {exc}")
+            log.error("待办提醒轮询失败: %s", exc)
         time.sleep(TODO_REMINDER_POLL_INTERVAL)
 
 
@@ -510,9 +695,8 @@ def _get_foreground_window_macos() -> tuple[str | None, str | None]:
 def _poll_app_switch(client: httpx.Client) -> None:
     """Background thread: detect foreground app changes and POST to center."""
     url = f"{_state.center_url}/api/perception/app-switch"
-    print(
-        f"[signal-sensor] 应用切换检测已启动 "
-        f"(endpoint={url}, interval={APP_SWITCH_POLL_INTERVAL}s)"
+    log.info(
+        "应用切换检测已启动 (endpoint=%s, interval=%ss)", url, APP_SWITCH_POLL_INTERVAL
     )
 
     while True:
@@ -525,10 +709,7 @@ def _poll_app_switch(client: httpx.Client) -> None:
                 ):
                     _state.last_fg_app = app_name
                     _state.last_fg_title = window_title
-                    print(
-                        f"[signal-sensor] 应用切换: {app_name}"
-                        + (f" — {window_title}" if window_title else "")
-                    )
+                    log.debug("应用切换: %s — %s", app_name, window_title or "")
                     try:
                         resp = client.post(
                             url,
@@ -539,13 +720,11 @@ def _poll_app_switch(client: httpx.Client) -> None:
                             timeout=5,
                         )
                         if resp.status_code != 200:
-                            print(
-                                f"[signal-sensor] 应用切换上报失败: HTTP {resp.status_code}"
-                            )
+                            log.warning("应用切换上报失败: HTTP %d", resp.status_code)
                     except Exception as exc:
-                        print(f"[signal-sensor] 应用切换上报异常: {exc}")
+                        log.error("应用切换上报异常: %s", exc)
         except Exception as exc:
-            print(f"[signal-sensor] 应用切换检测异常: {exc}")
+            log.error("应用切换检测异常: %s", exc)
         time.sleep(APP_SWITCH_POLL_INTERVAL)
 
 
@@ -598,9 +777,10 @@ def _load_demo_data(trigger_value: str) -> dict | None:
 
 def _poll_local_trigger() -> None:
     """后台线程：定时检查触发文件，非零值时加载对应 demo JSON 并弹窗。"""
-    print(
-        f"[signal-sensor] 本地文件触发轮询已启动 "
-        f"(file={DEMO_TRIGGER_FILE}, interval={LOCAL_FILE_POLL_INTERVAL}s)"
+    log.info(
+        "本地文件触发轮询已启动 (file=%s, interval=%ss)",
+        DEMO_TRIGGER_FILE,
+        LOCAL_FILE_POLL_INTERVAL,
     )
 
     while True:
@@ -608,15 +788,15 @@ def _poll_local_trigger() -> None:
             if DEMO_TRIGGER_FILE.exists():
                 value = DEMO_TRIGGER_FILE.read_text(encoding="utf-8").strip()
                 if value and value != "0":
-                    print(f"[signal-sensor] 检测到触发值={value}")
+                    log.info("检测到触发值=%s", value)
                     DEMO_TRIGGER_FILE.write_text("0", encoding="utf-8")
                     data = _load_demo_data(value)
                     if data:
                         _launch_popup(data)
                     else:
-                        print(f"[signal-sensor] 未找到 demo/{value}.json，跳过")
+                        log.warning("未找到 demo/%s.json，跳过", value)
         except Exception as exc:
-            print(f"[signal-sensor] 本地文件触发轮询失败: {exc}")
+            log.error("本地文件触发轮询失败: %s", exc)
         time.sleep(LOCAL_FILE_POLL_INTERVAL)
 
 
@@ -772,53 +952,61 @@ def main() -> None:
 
     _state.electron_bin = _find_electron()
     if _state.electron_bin is None:
-        print("[signal-sensor] 未找到 Electron，请先在 frontend 目录执行 pnpm install")
+        log.error("未找到 Electron，请先在 frontend 目录执行 pnpm install")
         sys.exit(1)
 
     _state.center_url = args.center_url.rstrip("/") if args.center_url else ""
     _state.node_id = args.node_id
 
     if not _state.center_url:
-        print("[signal-sensor] 错误: 必须指定 --center-url")
+        log.error("必须指定 --center-url")
         sys.exit(1)
 
-    print("[signal-sensor] Signal Sensor 启动中...")
-    print(f"  Center:   {_state.center_url}")
-    print(f"  Node ID:  {_state.node_id}")
-    print(f"  Electron: {_state.electron_bin}")
-    print(f"  本地 API: {'可用' if _HAS_FASTAPI else '不可用（缺少 fastapi/uvicorn）'}")
-    print()
-    print("  通知源:")
-    print(
-        f"    [1] 推送通知  /api/sensor/notifications  (每 {SENSOR_NOTIFY_POLL_INTERVAL}s)"
+    log.info("Signal Sensor 启动中...")
+    log.info("  Center:   %s", _state.center_url)
+    log.info("  Node ID:  %s", _state.node_id)
+    log.info("  Electron: %s", _state.electron_bin)
+    log.info("  日志文件: %s", LOG_DIR / "signal-sensor.log")
+    log.info(
+        "  本地 API: %s", "可用" if _HAS_FASTAPI else "不可用（缺少 fastapi/uvicorn）"
     )
-    print(
-        f"    [2] 通用通知  /api/notifications          (每 {GENERAL_NOTIFY_POLL_INTERVAL}s)"
+    log.info("  通知源:")
+    log.info(
+        "    [1] 推送通知  /api/sensor/notifications  (每 %ss)",
+        SENSOR_NOTIFY_POLL_INTERVAL,
     )
-    print(
-        f"    [3] 待办草稿  /api/todos?status=draft      (每 {DRAFT_TODO_POLL_INTERVAL}s)"
+    log.info(
+        "    [2] 通用通知  /api/notifications          (每 %ss)",
+        GENERAL_NOTIFY_POLL_INTERVAL,
     )
-    print(
-        f"    [4] 待办提醒  提前{TODO_REMINDER_AHEAD_MINUTES}分钟            (每 {TODO_REMINDER_POLL_INTERVAL}s)"
+    log.info(
+        "    [3] 待办草稿  /api/todos?status=draft      (每 %ss)",
+        DRAFT_TODO_POLL_INTERVAL,
     )
-    print(
-        f"    [5] 本地触发  {DEMO_TRIGGER_FILE.name}       (每 {LOCAL_FILE_POLL_INTERVAL}s)"
+    log.info(
+        "    [4] 待办提醒  提前%d分钟                    (每 %ss)",
+        TODO_REMINDER_AHEAD_MINUTES,
+        TODO_REMINDER_POLL_INTERVAL,
     )
-    print(
-        f"    [6] 应用切换  /api/perception/app-switch   (每 {APP_SWITCH_POLL_INTERVAL}s)"
+    log.info(
+        "    [5] 本地触发  %s                           (每 %ss)",
+        DEMO_TRIGGER_FILE.name,
+        LOCAL_FILE_POLL_INTERVAL,
     )
-    print()
+    log.info(
+        "    [6] 应用切换  /api/perception/app-switch   (每 %ss)",
+        APP_SWITCH_POLL_INTERVAL,
+    )
 
     http_client = httpx.Client(timeout=10)
 
-    # Wait for backend to be ready before starting poll threads
     health_url = f"{_state.center_url}/health"
-    print(f"[signal-sensor] 等待后端就绪 ({health_url})...")
+    log.info("等待后端就绪 (%s)...", health_url)
     while True:
         try:
             resp = http_client.get(health_url, timeout=3)
             if resp.status_code == 200:
-                print("[signal-sensor] ✅ 后端已就绪")
+                log.info("后端已就绪")
                 break
         except Exception:
             pass
@@ -837,13 +1025,11 @@ def main() -> None:
     threading.Thread(target=_poll_local_trigger, daemon=True).start()
     threading.Thread(target=_poll_app_switch, args=(http_client,), daemon=True).start()
 
-    # Start HTTP API in a background thread (if fastapi available)
     if _HAS_FASTAPI:
         import uvicorn
 
-        print(f"[signal-sensor] 本地 API: http://{args.host}:{args.port}")
-        print(f"[signal-sensor] API 文档: http://{args.host}:{args.port}/docs")
-        print()
+        log.info("本地 API: http://%s:%s", args.host, args.port)
+        log.info("API 文档: http://%s:%s/docs", args.host, args.port)
         threading.Thread(
             target=uvicorn.run,
             kwargs={
@@ -855,23 +1041,20 @@ def main() -> None:
             daemon=True,
         ).start()
 
-    # System tray (blocks main thread on Windows via pystray message loop)
     tray_icon = _build_tray_icon() if _HAS_TRAY else None
     if tray_icon:
-        print("[signal-sensor] 系统托盘已启动（右下角图标）")
-        print()
+        log.info("系统托盘已启动（右下角图标）")
         tray_icon.run()
     else:
         if not _HAS_TRAY:
-            print("[signal-sensor] 系统托盘不可用（安装: pip install pystray pillow）")
-        print("[signal-sensor] 所有轮询线程已启动，主线程等待中...")
-        print("[signal-sensor] 按 Ctrl+C 退出")
-        print()
+            log.info("系统托盘不可用（安装: pip install pystray pillow）")
+        log.info("所有轮询线程已启动，主线程等待中...")
+        log.info("按 Ctrl+C 退出")
         try:
             while True:
                 time.sleep(60)
         except KeyboardInterrupt:
-            print("\n[signal-sensor] 退出")
+            log.info("退出")
 
 
 if __name__ == "__main__":

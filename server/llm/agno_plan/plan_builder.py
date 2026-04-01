@@ -34,7 +34,7 @@ class PlanBuilder:
     def __init__(self, llm_client: LLMClient | None = None):
         self.llm_client = llm_client or LLMClient()
 
-    def build_plan(
+    async def build_plan(
         self,
         *,
         message: str,
@@ -61,7 +61,7 @@ class PlanBuilder:
             {"role": "user", "content": user_prompt},
         ]
 
-        response = self.llm_client.chat(messages=messages, temperature=0.2)
+        response = await self.llm_client.async_chat(messages=messages, temperature=0.2)
         plan_data = self._parse_json(response)
         plan_data = self._normalize_plan(plan_data)
         return PlanSpec.model_validate(plan_data)

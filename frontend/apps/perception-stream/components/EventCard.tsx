@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { Bot, Eye, Fingerprint, Keyboard, MapPin, Mic, Monitor, User, UserPlus, X } from "lucide-react";
+import { Bot, Eye, Fingerprint, Keyboard, MapPin, Mic, Monitor, Speaker, User, UserPlus, X } from "lucide-react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useCallback, useMemo, useState } from "react";
@@ -18,6 +18,7 @@ type SourceStyle = { icon: LucideIcon; accentClassName: string };
 const SOURCE_STYLE_MAP: Record<PerceptionSource, SourceStyle> = {
 	mic_pc: { icon: Mic, accentClassName: "text-blue-600" },
 	mic_hardware: { icon: Mic, accentClassName: "text-indigo-600" },
+	speaker_pc: { icon: Speaker, accentClassName: "text-orange-600" },
 	ocr_screen: { icon: Monitor, accentClassName: "text-amber-600" },
 	ocr_proactive: { icon: Eye, accentClassName: "text-green-600" },
 	user_input: { icon: Keyboard, accentClassName: "text-purple-600" },

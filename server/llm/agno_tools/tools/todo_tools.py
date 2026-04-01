@@ -354,18 +354,18 @@ class TodoTools:
             logger.error(f"Failed to update todo: {e}")
             return self._msg("update_failed", error=str(e))
 
-    def list_todos(self, status: str = "active", limit: int = 10) -> str:
+    def list_todos(self, status: str = "all", limit: int = 50) -> str:
         """List todos with optional status filter
 
         Args:
-            status: Filter by status - 'active', 'completed', 'all' (default: 'active')
-            limit: Maximum number of todos to return (default: 10)
+            status: Filter by status - 'active', 'completed', 'canceled', 'all' (default: 'all')
+            limit: Maximum number of todos to return (default: 50)
 
         Returns:
             Formatted list of todos or empty message
         """
         try:
-            status_filter = status if status in ("active", "completed") else None
+            status_filter = status if status in ("active", "completed", "canceled") else None
             todos = self.todo_repo.list_todos(limit=limit, offset=0, status=status_filter)
 
             if not todos:
@@ -379,6 +379,9 @@ class TodoTools:
                     priority=todo.get("priority", "none"),
                     name=todo["name"],
                 )
+                parent_id = todo.get("parent_todo_id")
+                if parent_id:
+                    item += f" [子任务，父ID:{parent_id}]"
                 start_time = (
                     todo.get("dtstart")
                     or todo.get("due")
@@ -411,6 +414,65 @@ class TodoTools:
             logger.error(f"Failed to list todos: {e}")
             return self._msg("list_empty", status=status)
 
+    def get_todo_detail(self, todo_id: int) -> str:
+        """Get detailed info of a single todo, including parent/child hierarchy
+
+        Args:
+            todo_id: The ID of the todo to inspect
+
+        Returns:
+            Detailed todo info with hierarchy
+        """
+        try:
+            todo = self.todo_repo.get_by_id(todo_id)
+            if not todo:
+                return f"未找到 ID 为 {todo_id} 的待办。"
+
+            lines = [f"待办详情 (ID:{todo_id}):"]
+            lines.append(f"  名称: {todo['name']}")
+            lines.append(f"  状态: {todo.get('status', 'active')}")
+            lines.append(f"  优先级: {todo.get('priority', 'none')}")
+
+            parent_id = todo.get("parent_todo_id")
+            if parent_id:
+                parent = self.todo_repo.get_by_id(parent_id)
+                parent_name = parent["name"] if parent else "未知"
+                lines.append(f"  父任务: {parent_name} (ID:{parent_id})")
+
+            start = todo.get("dtstart") or todo.get("start_time")
+            end = todo.get("dtend") or todo.get("end_time")
+            if start:
+                if isinstance(start, datetime):
+                    start = (to_local(start) or start).strftime("%Y-%m-%d %H:%M")
+                lines.append(f"  开始: {start}")
+            if end:
+                if isinstance(end, datetime):
+                    end = (to_local(end) or end).strftime("%Y-%m-%d %H:%M")
+                lines.append(f"  结束: {end}")
+
+            desc = todo.get("description")
+            if desc:
+                lines.append(f"  描述: {desc[:200]}")
+
+            tags = todo.get("tags")
+            if tags:
+                tag_str = ", ".join(tags) if isinstance(tags, list) else str(tags)
+                lines.append(f"  标签: {tag_str}")
+
+            children = self.todo_repo.list_todos(limit=50, offset=0, status=None)
+            child_list = [t for t in children if t.get("parent_todo_id") == todo_id]
+            if child_list:
+                lines.append(f"  子任务 ({len(child_list)}):")
+                for c in child_list:
+                    c_status = c.get("status", "active")
+                    lines.append(f"    - {c['name']} (ID:{c['id']}, {c_status})")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            logger.error(f"Failed to get todo detail: {e}")
+            return f"获取待办详情失败: {e}"
+
     def search_todos(self, keyword: str) -> str:
         """Search todos by keyword
 
@@ -428,15 +490,16 @@ class TodoTools:
 
             result = self._msg("search_header", keyword=keyword, count=len(matches))
             for todo in matches:
-                result += (
-                    self._msg(
-                        "search_item",
-                        id=todo["id"],
-                        status=todo.get("status", "active"),
-                        name=todo["name"],
-                    )
-                    + "\n"
+                item = self._msg(
+                    "search_item",
+                    id=todo["id"],
+                    status=todo.get("status", "active"),
+                    name=todo["name"],
                 )
+                parent_id = todo.get("parent_todo_id")
+                if parent_id:
+                    item += f" [子任务，父ID:{parent_id}]"
+                result += item + "\n"
 
             return result.strip()
 

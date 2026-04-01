@@ -1,11 +1,22 @@
 """
 LLM客户端模块
-提供与OpenAI兼容API的交互
+提供与OpenAI兼容API的交互。
+
+支持同步 (OpenAI) 和异步 (AsyncOpenAI) 两种调用模式：
+- 同步: chat() / stream_chat()  — 用于同步上下文（Job、生成器等）
+- 异步: async_chat() / async_stream_chat() — 用于 async def 路由/服务
+
+全局并发控制通过 asyncio.Semaphore 实现，防止并发 LLM 调用过多。
 """
 
+from __future__ import annotations
+
+import asyncio
+import os
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, cast
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 if TYPE_CHECKING:
     from openai.types.chat import ChatCompletionMessageParam
@@ -27,6 +38,20 @@ from .llm_client_query import (
 from .llm_client_vision import vision_chat
 
 logger = get_logger()
+
+# ---------------------------------------------------------------------------
+# Global LLM concurrency limiter (asyncio.Semaphore)
+# ---------------------------------------------------------------------------
+_LLM_MAX_CONCURRENT = int(os.environ.get("LLM_MAX_CONCURRENT", "8"))
+_llm_semaphore: asyncio.Semaphore | None = None
+
+
+def get_llm_semaphore() -> asyncio.Semaphore:
+    """Lazy-init a global semaphore for limiting concurrent async LLM calls."""
+    global _llm_semaphore  # noqa: PLW0603
+    if _llm_semaphore is None:
+        _llm_semaphore = asyncio.Semaphore(_LLM_MAX_CONCURRENT)
+    return _llm_semaphore
 
 
 class LLMClient:
@@ -81,6 +106,7 @@ class LLMClient:
 
         if not self._configured:
             self.client = None
+            self.async_client = None
             logger.info("LLM配置未完成，LLM客户端保持不可用状态")
             return
 
@@ -88,11 +114,13 @@ class LLMClient:
             if OpenAI is None:
                 raise ImportError("openai 依赖未安装")
             self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
-            logger.info(f"LLM客户端初始化成功，使用模型: {self.model}")
+            self.async_client = AsyncOpenAI(base_url=self.base_url, api_key=self.api_key)
+            logger.info(f"LLM客户端初始化成功（sync+async），使用模型: {self.model}")
             logger.info(f"API Base URL: {self.base_url}")
         except Exception as e:
             logger.error(f"LLM客户端初始化失败: {e}")
             self.client = None
+            self.async_client = None
 
     def reinitialize(self):
         """重新初始化LLM客户端"""
@@ -253,6 +281,123 @@ class LLMClient:
                     feature_type=feature_type,
                     additional_info=meta,
                 )
+
+    # ------------------------------------------------------------------
+    # Async variants (use AsyncOpenAI + global Semaphore)
+    # ------------------------------------------------------------------
+
+    def _get_async_client(self) -> AsyncOpenAI:
+        if not self.is_available() or self.async_client is None:
+            raise RuntimeError("LLM async 客户端不可用")
+        return self.async_client
+
+    async def async_chat(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.7,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        *,
+        log_usage: bool = True,
+        log_meta: dict[str, Any] | None = None,
+    ) -> str:
+        """异步非流式聊天，不阻塞事件循环。"""
+        if not self.is_available():
+            raise RuntimeError("LLM客户端不可用")
+
+        async with get_llm_semaphore():
+            try:
+                aclient = self._get_async_client()
+                response = await aclient.chat.completions.create(
+                    model=model or self.model,
+                    messages=cast("list[ChatCompletionMessageParam]", messages),
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                content = response.choices[0].message.content or ""
+
+                if log_usage:
+                    usage = getattr(response, "usage", None)
+                    if usage:
+                        meta = dict(log_meta or {})
+                        endpoint = meta.pop("endpoint", "llm_async_chat")
+                        feature_type = meta.pop("feature_type", "") or endpoint
+                        user_query = meta.pop("user_query", "")
+                        response_type = meta.pop("response_type", "chat")
+                        meta["response_length"] = len(content)
+                        log_token_usage(
+                            model=model or self.model,
+                            input_tokens=usage.prompt_tokens,
+                            output_tokens=usage.completion_tokens,
+                            endpoint=endpoint,
+                            user_query=user_query,
+                            response_type=response_type,
+                            feature_type=feature_type,
+                            additional_info=meta,
+                        )
+                return content
+            except Exception as e:
+                logger.error(f"异步文本聊天失败: {e}")
+                raise
+
+    async def async_stream_chat(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.7,
+        model: str | None = None,
+        *,
+        log_usage: bool = True,
+        log_meta: dict[str, Any] | None = None,
+    ) -> AsyncIterator[str]:
+        """异步流式聊天，不阻塞事件循环。"""
+        if not self.is_available():
+            raise RuntimeError("LLM客户端不可用")
+
+        total_chars = 0
+        usage_info = None
+        async with get_llm_semaphore():
+            try:
+                aclient = self._get_async_client()
+                stream = await aclient.chat.completions.create(
+                    model=model or self.model,
+                    messages=cast("list[ChatCompletionMessageParam]", messages),
+                    temperature=temperature,
+                    stream=True,
+                    stream_options={"include_usage": True},
+                )
+                async for chunk in stream:
+                    chunk_any = cast("Any", chunk)
+                    usage = getattr(chunk_any, "usage", None)
+                    if usage:
+                        usage_info = usage
+                    choices = getattr(chunk_any, "choices", None)
+                    if choices:
+                        delta = getattr(choices[0], "delta", None)
+                        text = getattr(delta, "content", None)
+                        if text:
+                            total_chars += len(text)
+                            yield text
+            except Exception as e:
+                logger.error(f"异步流式聊天失败: {e}")
+                raise
+            finally:
+                if log_usage and usage_info:
+                    meta = dict(log_meta or {})
+                    endpoint = meta.pop("endpoint", "llm_async_stream_chat")
+                    feature_type = meta.pop("feature_type", "") or endpoint
+                    user_query = meta.pop("user_query", "")
+                    response_type = meta.pop("response_type", "stream")
+                    meta["response_length"] = total_chars
+                    log_token_usage(
+                        model=model or self.model,
+                        input_tokens=usage_info.prompt_tokens,
+                        output_tokens=usage_info.completion_tokens,
+                        endpoint=endpoint,
+                        user_query=user_query,
+                        response_type=response_type,
+                        feature_type=feature_type,
+                        additional_info=meta,
+                    )
 
     def vision_chat(
         self,

@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import threading
+from collections.abc import AsyncGenerator, Generator
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
@@ -71,13 +73,26 @@ def _build_learning_config() -> tuple[
     db = SqliteDb(db_file=str(db_path))
 
     learning_mode = str(settings.get("agno.learning.mode", "always")).lower()
+    learning_model_id = str(settings.get("agno.learning.model", "")).strip() or settings.get(
+        "llm.small_model", "qwen-turbo"
+    )
+    learning_model = OpenAILike(
+        id=learning_model_id,
+        api_key=settings.llm.api_key,
+        base_url=settings.llm.base_url,
+    )
     if learning_mode == "agentic":
         learning = LearningMachine(
+            model=learning_model,
             user_profile=UserProfileConfig(mode=LearningMode.AGENTIC),
             user_memory=UserMemoryConfig(mode=LearningMode.AGENTIC),
         )
     else:
-        learning = True
+        learning = LearningMachine(
+            model=learning_model,
+            user_profile=UserProfileConfig(mode=LearningMode.ALWAYS),
+            user_memory=UserMemoryConfig(mode=LearningMode.ALWAYS),
+        )
 
     add_history_to_context = bool(settings.get("agno.learning.add_history_to_context", False))
     return db, learning, add_history_to_context, str(db_path)
@@ -110,12 +125,17 @@ def _resolve_identity() -> tuple[str, str]:
 
 
 def _inject_identity(text: str) -> str:
-    """Replace {user_name} and {agent_name} placeholders in instructions."""
+    """Replace {user_name}, {agent_name}, and {workspace} placeholders in instructions."""
     user_name, agent_name = _resolve_identity()
+    workspace = str(settings.get("agno.default_workspace", ".")).strip() or "."
     try:
-        return text.format(user_name=user_name, agent_name=agent_name)
+        return text.format(user_name=user_name, agent_name=agent_name, workspace=workspace)
     except (KeyError, IndexError):
-        return text.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
+        return (
+            text.replace("{user_name}", user_name)
+            .replace("{agent_name}", agent_name)
+            .replace("{workspace}", workspace)
+        )
 
 
 def _build_instructions(
@@ -193,6 +213,54 @@ def _collect_tool_names(tools_to_use: list[Toolkit]) -> list[str]:
     return names
 
 
+def _get_mcp_tools() -> list[Toolkit]:
+    """Get globally connected MCP toolkits (safe to call from sync context)."""
+    try:
+        from llm.agno_mcp_manager import get_connected_mcp_tools  # noqa: PLC0415
+
+        return get_connected_mcp_tools()
+    except Exception:
+        return []
+
+
+def _get_mcp_superseded_tools() -> set[str]:
+    """Get set of built-in external tool names superseded by MCP servers."""
+    try:
+        from llm.agno_mcp_manager import get_mcp_superseded_external_tools  # noqa: PLC0415
+
+        return get_mcp_superseded_external_tools()
+    except Exception:
+        return set()
+
+
+def _resolve_agent_llm(model_override: str | None = None) -> tuple[str, str, str]:
+    """Resolve model/api_key/base_url for the Agent.
+
+    Priority: explicit override > llm.agent.* > llm.*
+    """
+    _placeholders = {"", "YOUR_LLM_KEY_HERE", "YOUR_BASE_URL_HERE"}
+
+    agent_cfg = settings.get("llm.agent", {}) or {}
+    agent_key = str(agent_cfg.get("api_key", "") or "").strip()
+    agent_url = str(agent_cfg.get("base_url", "") or "").strip()
+    agent_model = str(agent_cfg.get("model", "") or "").strip()
+
+    if agent_key and agent_key not in _placeholders and agent_url and agent_model:
+        resolved_model = model_override or agent_model
+        logger.info(
+            "Agent 使用专属模型配置: model=%s, base_url=%s",
+            resolved_model,
+            agent_url,
+        )
+        return resolved_model, agent_key, agent_url
+
+    return (
+        model_override or settings.llm.model,
+        settings.llm.api_key,
+        settings.llm.base_url,
+    )
+
+
 def _build_tool_guard(lang: str, available_tool_names: list[str] | None) -> str | None:
     """构建工具约束指令，防止模型调用不存在的工具。"""
     if not available_tool_names:
@@ -234,6 +302,7 @@ class AgnoAgentService:
         agent_id: str | None = None,
         agent_name: str | None = None,
         model: str | None = None,
+        enable_learning: bool = True,
     ):
         """初始化 Agno Agent 服务
 
@@ -246,6 +315,10 @@ class AgnoAgentService:
                            If None or empty, no external tools are enabled.
             external_tools_config: Configuration dict for external tools.
                            Example: {"file": {"base_dir": "/path/to/workspace", "enable_delete": False}}
+            enable_learning: When False the agent is created without Learning
+                           so the stream finishes as soon as all content is
+                           yielded.  Learning can then run in a background
+                           thread via ``run_learning_background``.
         """
         try:
             self.lang = lang or DEFAULT_LANG
@@ -254,6 +327,11 @@ class AgnoAgentService:
             )
             if extra_tools:
                 tools_to_use.extend(extra_tools)
+
+            # Inject globally connected MCP tools
+            mcp_tools = _get_mcp_tools()
+            if mcp_tools:
+                tools_to_use.extend(mcp_tools)
 
             # 判断工具配置
             total_lifetrace_tools_count = 17
@@ -273,14 +351,19 @@ class AgnoAgentService:
                 available_tool_names=available_tool_names,
             )
 
-            db, learning, add_history_to_context, db_path = _build_learning_config()
+            if enable_learning:
+                db, learning, add_history_to_context, db_path = _build_learning_config()
+            else:
+                db, learning, add_history_to_context, db_path = None, None, False, None
 
-            resolved_model = model or settings.llm.model
+            resolved_model, resolved_api_key, resolved_base_url = _resolve_agent_llm(model)
+            agent_temperature = float(settings.get("llm.agent_temperature", 0.3))
             self.agent = Agent(
                 model=OpenAILike(
                     id=resolved_model,
-                    api_key=settings.llm.api_key,
-                    base_url=settings.llm.base_url,
+                    api_key=resolved_api_key,
+                    base_url=resolved_base_url,
+                    temperature=agent_temperature,
                 ),
                 tools=tools_to_use if tools_to_use else None,
                 instructions=instructions_list,
@@ -288,6 +371,7 @@ class AgnoAgentService:
                 learning=learning,
                 add_history_to_context=add_history_to_context,
                 markdown=True,
+                retries=1,
                 tool_hooks=tool_hooks,
                 pre_hooks=pre_hooks,
                 post_hooks=post_hooks,
@@ -301,9 +385,13 @@ class AgnoAgentService:
                     db_path,
                 )
             logger.info(
-                f"Agno Agent 初始化成功，模型: {resolved_model}, "
-                f"Base URL: {settings.llm.base_url}, lang: {self.lang}, "
-                f"工具数量: {len(tools_to_use)}",
+                "Agno Agent 初始化成功，模型: %s, Base URL: %s, lang: %s, "
+                "Toolkit数: %d, 工具函数: %s",
+                resolved_model,
+                settings.llm.base_url,
+                self.lang,
+                len(tools_to_use),
+                available_tool_names or [],
             )
         except Exception as e:
             logger.error(f"Agno Agent 初始化失败: {e}")
@@ -333,8 +421,11 @@ class AgnoAgentService:
 
         # Initialize external tools with config
         if external_tools and len(external_tools) > 0:
+            mcp_superseded = _get_mcp_superseded_tools()
             for tool_name in external_tools:
-                # 获取该工具的配置
+                if tool_name in mcp_superseded:
+                    logger.info("跳过内置外部工具 %r（已被 MCP 服务器取代）", tool_name)
+                    continue
                 config = external_tools_config.get(tool_name, {})
                 external_tool = create_external_tool(tool_name, **config)
                 if external_tool:
@@ -530,6 +621,100 @@ class AgnoAgentService:
             # 清理 ContextVar
             current_session_id.set(None)
 
+    async def async_stream_response(
+        self,
+        message: str,
+        conversation_history: list[dict[str, str]] | None = None,
+        include_tool_events: bool = True,
+        session_id: str | None = None,
+        user_id: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> AsyncGenerator[str]:
+        """异步流式生成 Agent 回复（使用 arun，原生支持 async 工具如 MCP）。"""
+        current_session_id.set(session_id)
+        learning_snapshot = self._capture_learning_snapshot(user_id)
+
+        try:
+            input_data = self._build_input_data(message, conversation_history, attachments)
+            run_kwargs = {
+                "stream": True,
+                "stream_events": include_tool_events,
+                "session_id": session_id,
+            }
+            if user_id:
+                run_kwargs["user_id"] = user_id
+
+            stream = await self.agent.arun(input_data, **run_kwargs)
+
+            async for chunk in stream:
+                output = self._process_stream_chunk(chunk, include_tool_events)
+                if output:
+                    yield output
+
+            if user_id:
+                memory_event = self._build_memory_event(user_id, learning_snapshot)
+                if memory_event:
+                    yield self._format_tool_event(memory_event)
+
+        except Exception as e:
+            logger.error(f"Agno Agent 异步流式生成失败: {e}")
+            yield f"Agno Agent 处理失败: {e!s}"
+        finally:
+            current_session_id.set(None)
+
     def is_available(self) -> bool:
         """检查 Agno Agent 是否可用"""
         return hasattr(self, "agent") and self.agent is not None
+
+    @staticmethod
+    def run_learning_background(
+        user_message: str,
+        assistant_response: str,
+        user_id: str,
+        session_id: str,
+        conversation_history: list[dict[str, str]] | None = None,
+    ) -> None:
+        """Fire-and-forget: run Learning Machine in a background thread.
+
+        Creates a lightweight agent solely for memory / profile extraction
+        so the main streaming agent can finish without waiting for learning.
+        """
+        db, learning, _, db_path = _build_learning_config()
+        if not learning:
+            return
+
+        def _bg() -> None:
+            try:
+                messages: list[Message] = []
+                if conversation_history:
+                    for msg in conversation_history[-6:]:
+                        messages.append(
+                            Message(role=msg.get("role", "user"), content=msg.get("content", ""))
+                        )
+                messages.append(Message(role="user", content=user_message))
+                messages.append(Message(role="assistant", content=assistant_response))
+
+                learning_model_id = str(
+                    settings.get("agno.learning.model", "")
+                ).strip() or settings.get("llm.small_model", "qwen-turbo")
+                learning_agent = Agent(
+                    model=OpenAILike(
+                        id=learning_model_id,
+                        api_key=settings.llm.api_key,
+                        base_url=settings.llm.base_url,
+                    ),
+                    learning=learning,
+                    db=db,
+                    instructions=["Respond with OK only."],
+                    markdown=False,
+                )
+                learning_agent.run(
+                    messages,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                logger.info("[Learning] Background learning completed for user %s", user_id)
+            except Exception:
+                logger.exception("[Learning] Background learning failed")
+
+        threading.Thread(target=_bg, daemon=True, name="bg-learning").start()

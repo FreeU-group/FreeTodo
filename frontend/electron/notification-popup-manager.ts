@@ -1,229 +1,214 @@
 /**
- * 系统级通知弹窗管理器
- * 事件驱动：当自动待办检测发现新待办时弹出通知，停留 3 秒后自动消失
- * 完全独立于主应用逻辑，不影响现有功能
+ * 交互式通知弹窗管理器 (v3)
+ *
+ * 支持三种模式：
+ * 1. 简易通知 — 3秒自动消失（向后兼容旧行为）
+ * 2. 待办确认 — 展示"确认添加"/"忽略"按钮
+ * 3. 任务执行 — 展示"执行"/"仅添加待办"/"忽略"，执行后展示步骤进度
+ *
+ * v3 改进：
+ * - 所有 interactive 弹窗走统一队列，串行弹出
+ * - 按 actionId 去重，同一个 action 不会弹两次
+ * - 状态机管理（idle / showing / transitioning），杜绝定时器冲突
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, ipcMain, screen } from "electron";
 import { logger } from "./logger";
+import { getBackendUrl } from "./next-server";
 
-/** 通知显示持续时间（毫秒）- 3 秒 */
-const NOTIFICATION_DURATION_MS = 3_000;
-/** 弹窗窗口尺寸 */
-const POPUP_WIDTH = 360;
-const POPUP_HEIGHT = 120;
-/** 距屏幕边缘的间距 */
+const TOAST_DURATION_MS = 3_000;
+const POPUP_WIDTH = 400;
+const POPUP_HEIGHT_TOAST = 120;
+const POPUP_HEIGHT_INTERACTIVE = 220;
+const POPUP_HEIGHT_PROGRESS = 320;
 const MARGIN = 16;
+const TRANSITION_MS = 400;
 
-/** 配置文件接口 */
 interface PopupConfig {
 	enabled: boolean;
 }
 
-/** 弹窗内容数据 */
-interface PopupData {
+/** Legacy toast data (backward compatible) */
+export interface PopupData {
 	title?: string;
 	message?: string;
 }
 
-/** 默认弹窗文案 */
-const DEFAULT_TITLE = "待办提醒";
-const DEFAULT_MESSAGE = "检测到新的待办事项";
+/** Interactive pending-action popup data */
+export interface InteractivePopupData {
+	actionId: string;
+	actionType: "todo" | "executable";
+	title: string;
+	description: string;
+	executionPlan?: string[];
+	todoData?: Record<string, unknown>;
+}
 
-/**
- * 系统级通知弹窗管理器
- */
+type QueueState = "idle" | "showing" | "transitioning" | "progress";
+
 export class NotificationPopupManager {
 	private popupWindow: BrowserWindow | null = null;
 	private hideTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private fadeTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	private avatarBase64 = "";
+	private currentMode: "toast" | "interactive" | "progress" = "toast";
+	private currentActionId: string | null = null;
+	private progressPollTimer: ReturnType<typeof setInterval> | null = null;
 
-	/**
-	 * 读取配置文件
-	 */
+	// ── Queue state machine ──
+	private queueState: QueueState = "idle";
+	private queue: InteractivePopupData[] = [];
+	private seenActionIds: Set<string> = new Set();
+	private readonly MAX_SEEN = 200;
+
+	// ── Config ──
+
 	private readConfig(): PopupConfig {
 		try {
 			const configPath = path.join(__dirname, "..", ".notification-popup.json");
 			if (fs.existsSync(configPath)) {
 				const raw = fs.readFileSync(configPath, "utf-8");
 				const cfg = JSON.parse(raw) as Partial<PopupConfig>;
-				return {
-					enabled: typeof cfg.enabled === "boolean" ? cfg.enabled : true,
-				};
+				return { enabled: typeof cfg.enabled === "boolean" ? cfg.enabled : true };
 			}
-		} catch {
-			// 配置文件不存在或解析失败，使用默认值
-		}
+		} catch { /* use default */ }
 		return { enabled: true };
 	}
 
-	/**
-	 * 加载头像图片并转为 base64 数据 URI
-	 */
 	private loadAvatar(): void {
 		try {
 			const possiblePaths = [
-				// 开发模式：图片在 public/ 目录
 				path.join(__dirname, "..", "public", "hi_dog2.png"),
-				// 生产模式（打包后）：图片在 resources 目录
-				app.isPackaged
-					? path.join(process.resourcesPath, "hi_dog2.png")
-					: "",
+				app.isPackaged ? path.join(process.resourcesPath, "hi_dog2.png") : "",
 			].filter(Boolean);
-
 			for (const avatarPath of possiblePaths) {
 				if (fs.existsSync(avatarPath)) {
 					const buffer = fs.readFileSync(avatarPath);
 					this.avatarBase64 = `data:image/png;base64,${buffer.toString("base64")}`;
-					logger.info(`Notification avatar loaded from: ${avatarPath}`);
 					return;
 				}
 			}
-
-			logger.warn("Notification avatar not found in any expected location");
 		} catch (error) {
-			logger.error(
-				`Failed to load notification avatar: ${error instanceof Error ? error.message : String(error)}`,
-			);
+			logger.error(`Failed to load avatar: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 
-	/**
-	 * 生成通知弹窗 HTML 内容
-	 */
-	private getNotificationHtml(): string {
-		const durationSeconds = NOTIFICATION_DURATION_MS / 1000;
+	// ── HTML template ──
+
+	private getPopupHtml(): string {
 		return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
+<html><head><meta charset="UTF-8">
 <style>
-	*{margin:0;padding:0;box-sizing:border-box}
-	html,body{
-		background:transparent!important;
-		overflow:hidden;
-		font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
-		-webkit-font-smoothing:antialiased;
-	}
-	.popup-wrapper{
-		position:fixed;
-		bottom:8px;left:8px;right:8px;
-		opacity:0;
-		transform:translateY(30px) scale(0.9);
-	}
-	.popup-wrapper.show{
-		animation:slideIn .45s cubic-bezier(.16,1,.3,1) forwards;
-	}
-	.popup-wrapper.hide{
-		animation:slideOut .3s cubic-bezier(.4,0,1,1) forwards;
-	}
-	@keyframes slideIn{
-		to{opacity:1;transform:translateY(0) scale(1)}
-	}
-	@keyframes slideOut{
-		from{opacity:1;transform:translateY(0) scale(1)}
-		to{opacity:0;transform:translateY(10px) scale(.95)}
-	}
-	.card{
-		position:relative;
-		overflow:hidden;
-		border-radius:18px;
-		background:rgba(255,255,255,.96);
-		backdrop-filter:blur(24px);
-		-webkit-backdrop-filter:blur(24px);
-		box-shadow:
-			0 20px 44px -8px rgba(0,0,0,.14),
-			0 8px 18px -4px rgba(0,0,0,.08),
-			0 0 0 1px rgba(0,0,0,.04);
-		padding:16px 18px;
-	}
-	.content{
-		display:flex;
-		align-items:center;
-		gap:14px;
-	}
-	.avatar-ring{
-		width:50px;height:50px;
-		border-radius:50%;
-		padding:2.5px;
-		background:linear-gradient(135deg,#fbbf24,#f97316,#ef4444);
-		flex-shrink:0;
-	}
-	.avatar-ring img{
-		width:100%;height:100%;
-		border-radius:50%;
-		object-fit:cover;
-		background:#fff;
-		display:block;
-	}
-	.text{flex:1;min-width:0}
-	.title{
-		font-size:14.5px;
-		font-weight:700;
-		color:#0f172a;
-		line-height:1.3;
-		letter-spacing:-.01em;
-	}
-	.message{
-		font-size:12.5px;
-		color:#64748b;
-		line-height:1.45;
-		margin-top:3px;
-	}
-	.progress{
-		position:absolute;
-		bottom:0;left:0;
-		height:2.5px;
-		background:linear-gradient(90deg,#fbbf24,#f97316);
-		border-radius:0 0 0 18px;
-	}
-	.progress.animate{
-		width:100%;
-		animation:shrink ${durationSeconds}s linear forwards;
-	}
-	@keyframes shrink{
-		from{width:100%}
-		to{width:0%}
-	}
-</style>
-</head>
-<body>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:transparent!important;overflow:hidden;
+  font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
+  -webkit-font-smoothing:antialiased;}
+.popup-wrapper{position:fixed;bottom:8px;left:8px;right:8px;opacity:0;transform:translateY(30px) scale(.9)}
+.popup-wrapper.show{animation:slideIn .45s cubic-bezier(.16,1,.3,1) forwards}
+.popup-wrapper.hide{animation:slideOut .3s cubic-bezier(.4,0,1,1) forwards}
+@keyframes slideIn{to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes slideOut{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(10px) scale(.95)}}
+.card{position:relative;overflow:hidden;border-radius:18px;
+  background:rgba(255,255,255,.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  box-shadow:0 20px 44px -8px rgba(0,0,0,.14),0 8px 18px -4px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.04);
+  padding:16px 18px}
+@media(prefers-color-scheme:dark){
+  .card{background:rgba(30,30,30,.95)}
+  .title{color:#f1f5f9!important}
+  .desc{color:#94a3b8!important}
+  .btn-secondary{background:#334155!important;color:#cbd5e1!important}
+  .btn-secondary:hover{background:#475569!important}
+  .btn-ghost{color:#64748b!important}
+  .result-area{background:#1e293b!important;color:#cbd5e1!important}
+}
+.content{display:flex;align-items:flex-start;gap:14px}
+.avatar-ring{width:44px;height:44px;border-radius:50%;padding:2px;
+  background:linear-gradient(135deg,#fbbf24,#f97316,#ef4444);flex-shrink:0;margin-top:2px}
+.avatar-ring img{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#fff;display:block}
+.text-area{flex:1;min-width:0}
+.title{font-size:14px;font-weight:700;color:#0f172a;line-height:1.3}
+.desc{font-size:12px;color:#64748b;line-height:1.45;margin-top:3px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.actions{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+.actions button{border:none;border-radius:10px;padding:7px 16px;font-size:12px;font-weight:600;
+  cursor:pointer;transition:all .2s}
+.btn-primary{background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff}
+.btn-primary:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn-secondary{background:#f1f5f9;color:#475569}
+.btn-secondary:hover{background:#e2e8f0}
+.btn-execute{background:linear-gradient(135deg,#10b981,#059669);color:#fff}
+.btn-execute:hover{filter:brightness(1.1);transform:translateY(-1px)}
+.btn-ghost{background:transparent;color:#94a3b8;padding:7px 10px}
+.btn-ghost:hover{color:#64748b}
+.progress-area{margin-top:12px;display:none}
+.progress-area.visible{display:block}
+.step{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;color:#64748b}
+.step-icon{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10px;flex-shrink:0}
+.step-pending .step-icon{background:#f1f5f9;color:#94a3b8}
+.step-running .step-icon{background:#dbeafe;color:#3b82f6;animation:pulse 1.5s infinite}
+.step-done .step-icon{background:#d1fae5;color:#059669}
+.step-failed .step-icon{background:#fee2e2;color:#ef4444}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.step-label{flex:1}
+.result-area{margin-top:10px;padding:10px;border-radius:10px;background:#f8fafc;
+  font-size:12px;color:#334155;line-height:1.5;display:none;max-height:80px;overflow-y:auto}
+.result-area.visible{display:block}
+.progress-bar{position:absolute;bottom:0;left:0;height:2.5px;background:linear-gradient(90deg,#fbbf24,#f97316);
+  border-radius:0 0 0 18px;width:0}
+.progress-bar.animate{width:100%;animation:shrink ${TOAST_DURATION_MS / 1000}s linear forwards}
+@keyframes shrink{from{width:100%}to{width:0}}
+</style></head><body>
 <div class="popup-wrapper" id="popup">
-	<div class="card">
-		<div class="content">
-			<div class="avatar-ring">
-				<img src="${this.avatarBase64}" alt="Avatar" />
-			</div>
-			<div class="text">
-				<div class="title" id="notif-title">${DEFAULT_TITLE}</div>
-				<div class="message" id="notif-message">${DEFAULT_MESSAGE}</div>
-			</div>
-		</div>
-		<div class="progress" id="progress"></div>
-	</div>
+  <div class="card">
+    <div class="content">
+      <div class="avatar-ring"><img src="${this.avatarBase64}" alt="" /></div>
+      <div class="text-area">
+        <div class="title" id="notif-title"></div>
+        <div class="desc" id="notif-desc"></div>
+      </div>
+    </div>
+    <div class="actions" id="actions"></div>
+    <div class="progress-area" id="progress-area"></div>
+    <div class="result-area" id="result-area"></div>
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
 </div>
-</body>
-</html>`;
+<script>
+const { ipcRenderer } = require('electron');
+function doAction(action, actionId) {
+  ipcRenderer.send('popup-action', { action, actionId });
+}
+ipcRenderer.on('update-progress', (_e, data) => {
+  const area = document.getElementById('progress-area');
+  if (!data.steps || !data.steps.length) return;
+  area.className = 'progress-area visible';
+  area.innerHTML = data.steps.map(s => {
+    const icons = { pending:'○', running:'◌', done:'✓', failed:'✗' };
+    return '<div class="step step-'+s.status+'"><span class="step-icon">'+(icons[s.status]||'○')+'</span><span class="step-label">'+s.label+'</span></div>';
+  }).join('');
+  if (data.result) {
+    const ra = document.getElementById('result-area');
+    ra.className = 'result-area visible';
+    ra.textContent = data.result;
+  }
+});
+</script>
+</body></html>`;
 	}
 
-	/**
-	 * 创建弹窗窗口（创建一次，后续复用）
-	 */
-	private createWindow(): void {
-		if (this.popupWindow && !this.popupWindow.isDestroyed()) {
-			return;
-		}
+	// ── Window management ──
 
+	private createWindow(height: number = POPUP_HEIGHT_TOAST): void {
+		if (this.popupWindow && !this.popupWindow.isDestroyed()) return;
 		const workArea = screen.getPrimaryDisplay().workArea;
-
 		this.popupWindow = new BrowserWindow({
 			width: POPUP_WIDTH,
-			height: POPUP_HEIGHT,
+			height,
 			x: workArea.x + MARGIN,
-			y: workArea.y + workArea.height - POPUP_HEIGHT - MARGIN,
+			y: workArea.y + workArea.height - height - MARGIN,
 			frame: false,
 			transparent: true,
 			alwaysOnTop: true,
@@ -233,167 +218,363 @@ export class NotificationPopupManager {
 			focusable: false,
 			hasShadow: false,
 			show: false,
-			webPreferences: {
-				nodeIntegration: false,
-				contextIsolation: true,
-			},
+			webPreferences: { nodeIntegration: true, contextIsolation: false },
 		});
-
-		// 设置为最高层级，确保在所有窗口之上
 		this.popupWindow.setAlwaysOnTop(true, "screen-saver");
-
-		// macOS: 在所有工作区可见
 		if (process.platform === "darwin") {
-			this.popupWindow.setVisibleOnAllWorkspaces(true, {
-				visibleOnFullScreen: true,
-			});
+			this.popupWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 		}
-
-		// 点击穿透：通知弹窗不拦截鼠标事件，不影响用户操作
-		this.popupWindow.setIgnoreMouseEvents(true, { forward: true });
-
-		// 加载通知 HTML
-		const html = this.getNotificationHtml();
-		this.popupWindow.loadURL(
-			`data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
-		);
-
-		this.popupWindow.on("closed", () => {
-			this.popupWindow = null;
-		});
-
-		logger.info("Notification popup window created");
+		this.popupWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(this.getPopupHtml())}`);
+		this.popupWindow.on("closed", () => { this.popupWindow = null; });
 	}
 
-	/**
-	 * 安全转义字符串，用于嵌入到 JS 字符串字面量中
-	 */
-	private static escapeForJs(str: string): string {
-		return str
-			.replace(/\\/g, "\\\\")
-			.replace(/'/g, "\\'")
-			.replace(/"/g, '\\"')
-			.replace(/\n/g, "\\n")
-			.replace(/\r/g, "\\r");
+	private static esc(str: string): string {
+		return str.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"')
+			.replace(/\n/g, "\\n").replace(/\r/g, "\\r");
 	}
 
-	/**
-	 * 显示一次通知
-	 * @param data 可选的弹窗内容数据
-	 */
-	private showNotification(data?: PopupData): void {
-		if (!this.popupWindow || this.popupWindow.isDestroyed()) {
-			this.createWindow();
-		}
-
-		if (!this.popupWindow) return;
-
-		// 重新定位到屏幕左下角（适应屏幕尺寸变化）
+	private resizeAndReposition(height: number): void {
+		if (!this.popupWindow || this.popupWindow.isDestroyed()) return;
 		const workArea = screen.getPrimaryDisplay().workArea;
+		this.popupWindow.setSize(POPUP_WIDTH, height);
 		this.popupWindow.setPosition(
 			workArea.x + MARGIN,
-			workArea.y + workArea.height - POPUP_HEIGHT - MARGIN,
+			workArea.y + workArea.height - height - MARGIN,
 		);
+	}
 
-		const title = NotificationPopupManager.escapeForJs(
-			data?.title || DEFAULT_TITLE,
-		);
-		const message = NotificationPopupManager.escapeForJs(
-			data?.message || DEFAULT_MESSAGE,
-		);
+	private setInteractive(interactive: boolean): void {
+		if (!this.popupWindow || this.popupWindow.isDestroyed()) return;
+		this.popupWindow.setIgnoreMouseEvents(!interactive, { forward: !interactive });
+		this.popupWindow.setFocusable(interactive);
+	}
 
-		// 更新文本内容、重置动画状态并播放入场动画
-		this.popupWindow.webContents
-			.executeJavaScript(
-				`(function(){
-				var p=document.getElementById('popup');
-				var b=document.getElementById('progress');
-				var t=document.getElementById('notif-title');
-				var m=document.getElementById('notif-message');
-				if(t) t.textContent='${title}';
-				if(m) m.textContent='${message}';
-				p.className='popup-wrapper';
-				b.className='progress';
-				void p.offsetHeight;
-				p.classList.add('show');
-				b.classList.add('animate');
-			})();`,
-			)
-			.catch(() => {});
+	private clearTimers(): void {
+		if (this.fadeTimeoutId) { clearTimeout(this.fadeTimeoutId); this.fadeTimeoutId = null; }
+		if (this.hideTimeoutId) { clearTimeout(this.hideTimeoutId); this.hideTimeoutId = null; }
+		if (this.progressPollTimer) { clearInterval(this.progressPollTimer); this.progressPollTimer = null; }
+	}
 
-		// 不抢焦点地显示窗口
+	private slideIn(): void {
+		if (!this.popupWindow || this.popupWindow.isDestroyed()) return;
+		this.popupWindow.webContents.executeJavaScript(
+			`(function(){var p=document.getElementById('popup');p.className='popup-wrapper';void p.offsetHeight;p.classList.add('show');})();`
+		).catch(() => {});
 		this.popupWindow.showInactive();
+	}
 
-		// 清除之前的定时器
-		if (this.fadeTimeoutId) clearTimeout(this.fadeTimeoutId);
-		if (this.hideTimeoutId) clearTimeout(this.hideTimeoutId);
+	/** Hide the popup window completely (no animation, immediate). */
+	private hideNow(): void {
+		this.clearTimers();
+		if (this.popupWindow && !this.popupWindow.isDestroyed()) {
+			this.popupWindow.hide();
+		}
+		this.setInteractive(false);
+		this.currentActionId = null;
+		this.currentMode = "toast";
+	}
 
-		// 在持续时间结束前 300ms 播放退场动画
+	private slideOutAndHide(delayMs: number = 0): void {
 		this.fadeTimeoutId = setTimeout(() => {
 			if (this.popupWindow && !this.popupWindow.isDestroyed()) {
-				this.popupWindow.webContents
-					.executeJavaScript(
-						`(function(){
-						var p=document.getElementById('popup');
-						p.classList.remove('show');
-						p.classList.add('hide');
-					})();`,
-					)
-					.catch(() => {});
+				this.popupWindow.webContents.executeJavaScript(
+					`(function(){var p=document.getElementById('popup');p.classList.remove('show');p.classList.add('hide');})();`
+				).catch(() => {});
 			}
-		}, NOTIFICATION_DURATION_MS - 300);
-
-		// 持续时间结束后隐藏窗口
+		}, delayMs);
 		this.hideTimeoutId = setTimeout(() => {
 			if (this.popupWindow && !this.popupWindow.isDestroyed()) {
 				this.popupWindow.hide();
 			}
-		}, NOTIFICATION_DURATION_MS);
+			this.setInteractive(false);
+			this.currentActionId = null;
+			this.currentMode = "toast";
+		}, delayMs + 350);
 	}
 
+	// ── Queue state machine ──
+
 	/**
-	 * 初始化弹窗管理器（加载资源，预创建窗口）
+	 * Enqueue an interactive popup. Deduplicates by actionId.
+	 * If idle, immediately shows the first item.
 	 */
+	triggerInteractive(data: InteractivePopupData): void {
+		const cfg = this.readConfig();
+		if (!cfg.enabled) return;
+
+		if (this.seenActionIds.has(data.actionId)) {
+			logger.info(`[Queue] Skip duplicate: ${data.actionId}`);
+			return;
+		}
+		this.seenActionIds.add(data.actionId);
+		if (this.seenActionIds.size > this.MAX_SEEN) {
+			const first = this.seenActionIds.values().next().value;
+			if (first) this.seenActionIds.delete(first);
+		}
+
+		this.queue.push(data);
+		logger.info(`[Queue] Enqueued "${data.title}" (${data.actionType}), queue=${this.queue.length}, state=${this.queueState}`);
+
+		if (this.queueState === "idle") {
+			this.processQueue();
+		}
+	}
+
+	/** Process the next item in the queue. */
+	private processQueue(): void {
+		const next = this.queue.shift();
+		if (!next) {
+			this.queueState = "idle";
+			this.hideNow();
+			logger.info("[Queue] Empty, state → idle");
+			return;
+		}
+
+		this.queueState = "showing";
+		logger.info(`[Queue] Showing "${next.title}", remaining=${this.queue.length}`);
+		this.renderInteractive(next);
+	}
+
+	/** After user action, show brief feedback then process next. */
+	private finishCurrentAndNext(message: string, delayMs: number = 1200): void {
+		this.queueState = "transitioning";
+
+		// Show feedback text
+		this.popupWindow?.webContents.executeJavaScript(
+			`(function(){
+				document.getElementById('notif-title').textContent='${NotificationPopupManager.esc(message)}';
+				document.getElementById('notif-desc').textContent='';
+				document.getElementById('actions').innerHTML='';
+			})();`
+		).catch(() => {});
+
+		// After delay, hide and show next
+		setTimeout(() => {
+			this.hideNow();
+			setTimeout(() => this.processQueue(), 200);
+		}, delayMs);
+	}
+
+	/** Render one interactive popup immediately. */
+	private renderInteractive(data: InteractivePopupData): void {
+		this.clearTimers();
+		this.currentMode = "interactive";
+		this.currentActionId = data.actionId;
+
+		if (!this.popupWindow || this.popupWindow.isDestroyed()) this.createWindow(POPUP_HEIGHT_INTERACTIVE);
+		this.resizeAndReposition(POPUP_HEIGHT_INTERACTIVE);
+		this.setInteractive(true);
+
+		const remaining = this.queue.length;
+		const badge = remaining > 0 ? ` (还有 ${remaining} 条)` : "";
+		const title = NotificationPopupManager.esc(data.title + badge);
+		const desc = NotificationPopupManager.esc(data.description);
+		const aid = NotificationPopupManager.esc(data.actionId);
+
+		let buttonsHtml: string;
+		if (data.actionType === "executable") {
+			buttonsHtml = `
+				<button class="btn-execute" onclick="doAction('execute','${aid}')">执行</button>
+				<button class="btn-secondary" onclick="doAction('confirm','${aid}')">仅添加待办</button>
+				<button class="btn-ghost" onclick="doAction('reject','${aid}')">忽略</button>`;
+		} else {
+			buttonsHtml = `
+				<button class="btn-primary" onclick="doAction('confirm','${aid}')">确认</button>
+				<button class="btn-ghost" onclick="doAction('reject','${aid}')">忽略</button>`;
+		}
+
+		this.popupWindow!.webContents.executeJavaScript(
+			`(function(){
+				document.getElementById('notif-title').textContent='${title}';
+				document.getElementById('notif-desc').textContent='${desc}';
+				document.getElementById('actions').innerHTML=\`${buttonsHtml}\`;
+				document.getElementById('progress-area').className='progress-area';
+				document.getElementById('result-area').className='result-area';
+				document.getElementById('progress-bar').className='progress-bar';
+			})();`
+		).catch(() => {});
+
+		this.slideIn();
+	}
+
+	// ── Progress mode ──
+
+	private switchToProgressMode(actionId: string): void {
+		this.queueState = "progress";
+		this.currentMode = "progress";
+		this.resizeAndReposition(POPUP_HEIGHT_PROGRESS);
+
+		this.popupWindow?.webContents.executeJavaScript(
+			`(function(){
+				document.getElementById('notif-title').textContent='正在执行...';
+				document.getElementById('actions').innerHTML='';
+				document.getElementById('progress-area').className='progress-area visible';
+				document.getElementById('progress-area').innerHTML='<div class="step step-running"><span class="step-icon">◌</span><span class="step-label">启动中...</span></div>';
+			})();`
+		).catch(() => {});
+
+		this.startProgressPolling(actionId);
+	}
+
+	private startProgressPolling(actionId: string): void {
+		if (this.progressPollTimer) clearInterval(this.progressPollTimer);
+
+		const baseUrl = getBackendUrl();
+
+		this.progressPollTimer = setInterval(async () => {
+			try {
+				const res = await fetch(`${baseUrl}/api/intent-actions/${actionId}/progress`);
+				if (!res.ok) return;
+				const data = await res.json();
+
+				if (this.popupWindow && !this.popupWindow.isDestroyed()) {
+					this.popupWindow.webContents.send("update-progress", data);
+				}
+
+				if (data.status === "completed" || data.status === "failed") {
+					if (this.progressPollTimer) {
+						clearInterval(this.progressPollTimer);
+						this.progressPollTimer = null;
+					}
+					const msg = data.status === "completed" ? "✓ 执行完成" : "✗ 执行失败";
+					this.finishCurrentAndNext(msg, 3000);
+				}
+			} catch {
+				// Network error — will retry on next interval
+			}
+		}, 1000);
+	}
+
+	// ── IPC handlers ──
+
+	private registerIpcHandlers(): void {
+		ipcMain.on("popup-action", async (_event, payload: { action: string; actionId: string }) => {
+			const { action, actionId } = payload;
+
+			const baseUrl = getBackendUrl();
+			logger.info(`[Action] ${action} for ${actionId} → ${baseUrl}`);
+
+			try {
+				if (action === "close") {
+					this.finishCurrentAndNext("", 0);
+					return;
+				}
+
+				if (action === "confirm") {
+					const res = await fetch(`${baseUrl}/api/intent-actions/${actionId}/confirm`, { method: "POST" });
+					logger.info(`[Action] confirm response: ${res.status}`);
+					const body = await res.text().catch(() => "");
+					let parsed: { success?: boolean; message?: string; detail?: unknown } | null = null;
+					try {
+						parsed = JSON.parse(body) as {
+							success?: boolean;
+							message?: string;
+							detail?: unknown;
+						};
+					} catch {
+						/* 非 JSON */
+					}
+					const errToast = (): string => {
+						if (parsed?.message) return String(parsed.message);
+						if (typeof parsed?.detail === "string") return parsed.detail;
+						return res.status === 404 ? "操作已过期" : `失败 (${res.status})`;
+					};
+					// 历史上存在 HTTP 200 但 success=false，需看 body；409 表示已处理过等
+					if (res.ok && parsed?.success !== false) {
+						this.finishCurrentAndNext("✓ 已添加待办");
+					} else {
+						logger.error(`[Action] confirm failed: ${res.status} ${body.slice(0, 200)}`);
+						this.finishCurrentAndNext(errToast(), 2000);
+					}
+					return;
+				}
+
+				if (action === "reject") {
+					await fetch(`${baseUrl}/api/intent-actions/${actionId}/reject`, { method: "POST" }).catch(() => {});
+					this.finishCurrentAndNext("已忽略", 500);
+					return;
+				}
+
+				if (action === "execute") {
+					const res = await fetch(`${baseUrl}/api/intent-actions/${actionId}/execute`, { method: "POST" });
+					logger.info(`[Action] execute response: ${res.status}`);
+					const body = await res.text().catch(() => "");
+					let parsed: { success?: boolean; message?: string; detail?: unknown } | null = null;
+					try {
+						parsed = JSON.parse(body) as {
+							success?: boolean;
+							message?: string;
+							detail?: unknown;
+						};
+					} catch {
+						/* 非 JSON */
+					}
+					const execErr = (): string => {
+						if (parsed?.message) return String(parsed.message);
+						if (typeof parsed?.detail === "string") return parsed.detail;
+						return res.status === 404 ? "操作已过期" : `执行失败 (${res.status})`;
+					};
+					if (res.ok && parsed?.success !== false) {
+						this.switchToProgressMode(actionId);
+					} else {
+						logger.error(`[Action] execute failed: ${res.status} ${body.slice(0, 200)}`);
+						this.finishCurrentAndNext(execErr(), 2000);
+					}
+					return;
+				}
+			} catch (error) {
+				logger.error(`[Action] error: ${error instanceof Error ? error.message : String(error)}`);
+				this.finishCurrentAndNext("网络错误", 1500);
+			}
+		});
+	}
+
+	// ── Public API ──
+
 	init(): void {
 		this.loadAvatar();
 		this.createWindow();
-
-		const cfg = this.readConfig();
-		logger.info(
-			`Notification popup manager initialized (event-driven, duration: ${NOTIFICATION_DURATION_MS}ms, enabled: ${cfg.enabled})`,
-		);
+		this.registerIpcHandlers();
+		logger.info("NotificationPopupManager v3 initialized (queue-based)");
 	}
 
-	/**
-	 * 触发一次通知弹窗（由外部事件调用，如自动待办检测）
-	 * 会检查配置中的 enabled 开关
-	 * @param data 可选的弹窗内容数据
-	 */
+	/** Legacy toast notification (3s auto-dismiss). */
 	trigger(data?: PopupData): void {
 		const cfg = this.readConfig();
-		if (!cfg.enabled) {
-			logger.info("Notification popup is disabled, skipping trigger");
-			return;
-		}
-		this.showNotification(data);
+		if (!cfg.enabled) return;
+
+		this.clearTimers();
+		this.currentMode = "toast";
+		this.currentActionId = null;
+
+		if (!this.popupWindow || this.popupWindow.isDestroyed()) this.createWindow(POPUP_HEIGHT_TOAST);
+		this.resizeAndReposition(POPUP_HEIGHT_TOAST);
+		this.setInteractive(false);
+
+		const title = NotificationPopupManager.esc(data?.title || "待办提醒");
+		const message = NotificationPopupManager.esc(data?.message || "检测到新的待办事项");
+		this.popupWindow!.webContents.executeJavaScript(
+			`(function(){
+				document.getElementById('notif-title').textContent='${title}';
+				document.getElementById('notif-desc').textContent='${message}';
+				document.getElementById('actions').innerHTML='';
+				document.getElementById('progress-area').className='progress-area';
+				document.getElementById('result-area').className='result-area';
+				var b=document.getElementById('progress-bar');b.className='progress-bar';void b.offsetHeight;b.classList.add('animate');
+			})();`
+		).catch(() => {});
+
+		this.slideIn();
+		this.slideOutAndHide(TOAST_DURATION_MS - 300);
 	}
 
-	/**
-	 * 停止并清理所有资源
-	 */
 	stop(): void {
-		if (this.hideTimeoutId) {
-			clearTimeout(this.hideTimeoutId);
-			this.hideTimeoutId = null;
-		}
-		if (this.fadeTimeoutId) {
-			clearTimeout(this.fadeTimeoutId);
-			this.fadeTimeoutId = null;
-		}
+		this.clearTimers();
+		this.queue.length = 0;
 		if (this.popupWindow && !this.popupWindow.isDestroyed()) {
 			this.popupWindow.close();
 			this.popupWindow = null;
 		}
-		logger.info("Notification popup manager stopped");
+		logger.info("NotificationPopupManager stopped");
 	}
 }

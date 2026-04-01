@@ -1,5 +1,7 @@
 """视觉多模态相关路由"""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from core.dependencies import get_rag_service
@@ -57,7 +59,8 @@ async def vision_chat(request: VisionChatRequest):
             )
 
         # 调用视觉模型
-        result = rag_service.llm_client.vision_chat(
+        result = await asyncio.to_thread(
+            rag_service.llm_client.vision_chat,
             screenshot_ids=request.screenshot_ids,
             prompt=request.prompt,
             model=request.model,

@@ -19,11 +19,11 @@ from schemas.perception_todo_intent import (
     IntegrationAction,
     TodoIntegrationResult,
 )
+from services.agent_activity_tracker import start_activity, stop_activity
 from services.perception_todo_intent.pending_actions import (
     ActionType,
     create_pending_action,
 )
-from services.agent_activity_tracker import start_activity, stop_activity
 from storage.notification_storage import add_notification
 from util.prompt_loader import get_prompt
 from util.settings import settings
@@ -89,10 +89,12 @@ def _get_or_create_agent() -> AgnoAgentService:
             agent_id="todo_intent_agent",
             agent_name="TodoIntentAgent",
             model=model,
+            enable_learning=False,
         )
 
         if instructions_text:
             service.agent.instructions = [date_instruction, instructions_text]
+        service.agent.tool_call_limit = 6
 
         _agent_instance = service
         logger.info(
@@ -178,6 +180,94 @@ def _parse_agent_json(response: str) -> dict[str, Any] | None:
 _NOTIFICATION_TITLE_MAX_LEN = 40
 
 
+def _process_single_intent(
+    item: dict[str, Any],
+    context: TodoIntentContext,
+    raw_response: str,
+) -> TodoIntegrationResult:
+    """Process one intent item from the agent's JSON output."""
+    action_type_str = str(item.get("action_type", "skip")).lower()
+
+    if action_type_str == "skip":
+        reason = item.get("reason", "无意图")
+        logger.info("[TodoIntentAgent] Skip: %s", reason)
+        return TodoIntegrationResult(
+            action=IntegrationAction.SKIPPED,
+            reason=f"agent_skip: {reason}",
+        )
+
+    if action_type_str == "todo":
+        title = str(item.get("title", "新待办"))
+        description = str(item.get("description", ""))
+        todo_data = item.get("todo_data", {})
+        if not isinstance(todo_data, dict):
+            todo_data = {}
+
+        pending = create_pending_action(
+            action_type=ActionType.TODO,
+            title=title,
+            description=description,
+            context_id=context.context_id,
+            todo_data=todo_data,
+            agent_raw_output=raw_response,
+        )
+
+        add_notification(
+            notification_id=f"pa_{pending.action_id}",
+            title=title,
+            content=json.dumps(pending.to_dict(), ensure_ascii=False),
+            timestamp=get_utc_now(),
+            notification_type="pending_todo",
+        )
+
+        logger.info("[TodoIntentAgent] Created pending TODO: %s — %s", pending.action_id, title)
+        return TodoIntegrationResult(
+            action=IntegrationAction.QUEUED_REVIEW,
+            reason=f"pending_todo: {pending.action_id}",
+        )
+
+    if action_type_str == "executable":
+        title = str(item.get("title", "可执行任务"))
+        description = str(item.get("description", ""))
+        execution_plan = item.get("execution_plan", [])
+        if not isinstance(execution_plan, list):
+            execution_plan = []
+
+        pending = create_pending_action(
+            action_type=ActionType.EXECUTABLE,
+            title=title,
+            description=description,
+            context_id=context.context_id,
+            execution_plan=execution_plan,
+            agent_raw_output=raw_response,
+        )
+
+        add_notification(
+            notification_id=f"pa_{pending.action_id}",
+            title=title,
+            content=json.dumps(pending.to_dict(), ensure_ascii=False),
+            timestamp=get_utc_now(),
+            notification_type="pending_execute",
+        )
+
+        logger.info(
+            "[TodoIntentAgent] Created pending EXECUTABLE: %s — %s (steps=%d)",
+            pending.action_id,
+            title,
+            len(execution_plan),
+        )
+        return TodoIntegrationResult(
+            action=IntegrationAction.QUEUED_REVIEW,
+            reason=f"pending_execute: {pending.action_id}",
+        )
+
+    logger.warning("[TodoIntentAgent] Unknown action_type: %s", action_type_str)
+    return TodoIntegrationResult(
+        action=IntegrationAction.SKIPPED,
+        reason=f"agent_unknown_type: {action_type_str}",
+    )
+
+
 async def run_intent_agent(
     context: TodoIntentContext,
     *,
@@ -218,89 +308,31 @@ async def run_intent_agent(
                 reason=f"agent_unparseable: {response.strip()[:200]}",
             )
 
-        action_type_str = str(parsed.get("action_type", "skip")).lower()
+        # Agent may return a single object or an array of intents
+        items: list[dict[str, Any]] = parsed if isinstance(parsed, list) else [parsed]
 
-        if action_type_str == "skip":
-            reason = parsed.get("reason", "无意图")
-            logger.info("[TodoIntentAgent] Skip: %s", reason)
-            return TodoIntegrationResult(
-                action=IntegrationAction.SKIPPED,
-                reason=f"agent_skip: {reason}",
-            )
+        last_result: TodoIntegrationResult | None = None
+        reasons: list[str] = []
 
-        if action_type_str == "todo":
-            title = str(parsed.get("title", "新待办"))
-            description = str(parsed.get("description", ""))
-            todo_data = parsed.get("todo_data", {})
-            if not isinstance(todo_data, dict):
-                todo_data = {}
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            result = _process_single_intent(item, context, response)
+            if result.action == IntegrationAction.QUEUED_REVIEW:
+                reasons.append(result.reason or "")
+                last_result = result
+            elif last_result is None:
+                last_result = result
 
-            pending = create_pending_action(
-                action_type=ActionType.TODO,
-                title=title,
-                description=description,
-                context_id=context.context_id,
-                todo_data=todo_data,
-                agent_raw_output=response,
-            )
-
-            add_notification(
-                notification_id=f"pa_{pending.action_id}",
-                title=title,
-                content=json.dumps(pending.to_dict(), ensure_ascii=False),
-                timestamp=get_utc_now(),
-                notification_type="pending_todo",
-            )
-
-            logger.info(
-                "[TodoIntentAgent] Created pending TODO: %s — %s",
-                pending.action_id,
-                title,
-            )
+        if reasons:
             return TodoIntegrationResult(
                 action=IntegrationAction.QUEUED_REVIEW,
-                reason=f"pending_todo: {pending.action_id}",
+                reason="; ".join(reasons),
             )
 
-        if action_type_str == "executable":
-            title = str(parsed.get("title", "可执行任务"))
-            description = str(parsed.get("description", ""))
-            execution_plan = parsed.get("execution_plan", [])
-            if not isinstance(execution_plan, list):
-                execution_plan = []
-
-            pending = create_pending_action(
-                action_type=ActionType.EXECUTABLE,
-                title=title,
-                description=description,
-                context_id=context.context_id,
-                execution_plan=execution_plan,
-                agent_raw_output=response,
-            )
-
-            add_notification(
-                notification_id=f"pa_{pending.action_id}",
-                title=title,
-                content=json.dumps(pending.to_dict(), ensure_ascii=False),
-                timestamp=get_utc_now(),
-                notification_type="pending_execute",
-            )
-
-            logger.info(
-                "[TodoIntentAgent] Created pending EXECUTABLE: %s — %s (steps=%d)",
-                pending.action_id,
-                title,
-                len(execution_plan),
-            )
-            return TodoIntegrationResult(
-                action=IntegrationAction.QUEUED_REVIEW,
-                reason=f"pending_execute: {pending.action_id}",
-            )
-
-        logger.warning("[TodoIntentAgent] Unknown action_type: %s", action_type_str)
-        return TodoIntegrationResult(
+        return last_result or TodoIntegrationResult(
             action=IntegrationAction.SKIPPED,
-            reason=f"agent_unknown_type: {action_type_str}",
+            reason="agent_no_actionable_items",
         )
 
     except Exception:

@@ -92,6 +92,12 @@ perception:
     intent_mode: agent # agent | legacy — agent=ReAct Agent 模式, legacy=Extractor+Integration 流水线
     mode: memory_preview # memory_preview | draft | active | review_queue
     disable_legacy_auto_extraction: true # 启用后跳过旧自动提取链路（audio/proactive_ocr/todo_recorder）
+    sources:
+      mic_pc: true
+      mic_hardware: true
+      speaker_pc: true
+      ocr_screen: true
+      ocr_proactive: true
     window_seconds: 0
     max_context_chars: 5000
     max_todos_per_context: 5
@@ -223,9 +229,38 @@ chat:
 agno:
   user_id: local-user # 默认用户 ID（用于个人画像/记忆）
   default_workspace: "." # 默认工作区路径（Agent 文件操作的根目录）
+  # MCP (Model Context Protocol) 服务器配置
+  # 每个 MCP 服务器提供额外的工具能力（文件操作、代码执行、知识图谱等）
+  # Agno Agent 在启动时自动连接，所有 Agent 实例共享这些工具
+  mcp_servers: []
+  # 示例配置（取消注释并按需修改）：
+  # mcp_servers:
+  #   - name: filesystem              # 服务器名称（用于日志标识）
+  #     command: "npx -y @modelcontextprotocol/server-filesystem {workspace} {allowed_dirs}"
+  #     enabled: true                  # 是否启用
+  #     timeout_seconds: 30            # 连接超时（秒）
+  #     allowed_dirs:                  # 额外允许访问的目录（{allowed_dirs} 占位符展开）
+  #       - D:\my_files
+  #       - "C:\\Users\\me\\Documents"
+  #     # include_tools: []            # 只启用指定工具（留空=全部）
+  #     # exclude_tools: []            # 排除指定工具
+  #   - name: sequential-thinking
+  #     command: "npx -y @modelcontextprotocol/server-sequential-thinking"
+  #     enabled: false
+  #   - name: memory
+  #     command: "npx -y @modelcontextprotocol/server-memory"
+  #     enabled: false
+  #   - name: git
+  #     command: "npx -y @modelcontextprotocol/server-git"
+  #     enabled: false
+  #   - name: custom-remote            # 远程 MCP 服务器示例
+  #     url: "http://localhost:3000/mcp"
+  #     transport: streamable-http
+  #     enabled: false
   learning:
     enabled: true # 是否启用 Agno Learning
     mode: always # always | agentic
+    model: "" # 留空则使用 llm.small_model（推荐 qwen-turbo 等快速模型）
     db_path: agno/learning.db # 相对 base_dir 的学习数据库路径
     add_history_to_context: false # 是否使用 Agno 自带历史注入
   tracing:
@@ -256,7 +291,15 @@ llm:
   model: qwen-plus # 主模型：深度分析、意图提取、Agent 执行
   small_model: qwen-turbo # 小模型：快速过滤、去重判断、压缩摘要
   vision_model: qwen3-vl-plus # 视觉多模态模型名称（用于图片分析）
-  temperature: 0.7 # 温度参数
+  temperature: 0.7 # 温度参数（聊天模式用）
+  agent_temperature: 0.3 # Agent 模式温度（越低越严格遵循工具调用指令）
+  # Agent 专属模型配置（可选）
+  # 配置后 Agent 聊天模式优先使用此模型，工具调用能力更强
+  # 未配置或 api_key 为空时回退到上面的默认 llm 配置
+  agent:
+    api_key: "" # 留空则使用默认 llm.api_key
+    base_url: "" # 留空则使用默认 llm.base_url（OpenRouter: https://openrouter.ai/api/v1）
+    model: "" # 留空则使用默认 llm.model（OpenRouter Claude: anthropic/claude-sonnet-4.6）
   max_tokens: 2048 # 最大token数
   # 模型价格配置（单位：人民币/千token）
   model_prices:

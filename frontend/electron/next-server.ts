@@ -96,7 +96,8 @@ function setActualFrontendPort(port: number): void {
 /**
  * 获取后端服务器 URL（需要从外部传入）
  */
-let backendUrl = "http://localhost:8000";
+/** 与 server 默认端口一致（settings.server.port 默认 8001），启动后由 setBackendUrl 覆盖 */
+let backendUrl = "http://127.0.0.1:8001";
 
 /**
  * 设置后端 URL
@@ -167,12 +168,16 @@ export async function startNextServer(): Promise<void> {
 			}
 		}
 
+		const devBackendUrl = getBackendUrl();
 		nextProcess = spawn(devCommand, devArgs, {
 			cwd: path.join(__dirname, ".."),
 			env: {
 				...process.env,
 				PORT: String(getActualFrontendPort()),
 				NODE_ENV: "development",
+				NEXT_PUBLIC_API_URL: devBackendUrl,
+				FREETODO_REMOTE_API_URL: devBackendUrl,
+				API_REWRITE_URL: devBackendUrl,
 				// Set UTF-8 encoding for child process
 				...(process.platform === "win32" && { CHCP: "65001" }),
 			},
@@ -295,7 +300,11 @@ export async function startNextServer(): Promise<void> {
 		serverEnv.HOSTNAME = "localhost";
 	serverEnv.NODE_ENV = "production"; // 强制生产模式
 	// 注入后端 URL，让 Next.js 的 rewrite 和 API 调用使用正确的后端地址
-	serverEnv.NEXT_PUBLIC_API_URL = getBackendUrl();
+	const backend = getBackendUrl();
+	serverEnv.NEXT_PUBLIC_API_URL = backend;
+	// layout.tsx 用此变量写入 window.__BACKEND_URL__，供 WebSocket / getRuntimeBackendUrl 与主进程一致
+	serverEnv.FREETODO_REMOTE_API_URL = backend;
+	serverEnv.API_REWRITE_URL = backend;
 
 	// 使用 fork 启动 Node.js 服务器进程
 	// fork 是 spawn 的特殊情况，专门用于 Node.js 脚本，提供更好的 IPC 支持

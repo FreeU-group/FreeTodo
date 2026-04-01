@@ -144,7 +144,7 @@ async def create_plan(request: PlanCreateRequest):
             context_info = f"{context_info}\n\nextra:\n{extra_context}".strip()
 
         builder = PlanBuilder()
-        plan = builder.build_plan(
+        plan = await builder.build_plan(
             message=request.message,
             context_info=context_info or "none",
             tools_catalog=_build_tools_catalog(),

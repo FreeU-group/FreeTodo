@@ -430,7 +430,7 @@ class AudioExtractionService:
 
             extracted_items: list[dict[str, Any]] = []
             client = self.llm_client
-            openai_client = client._get_client()
+            async_client = client.async_client
 
             for index, chunk_obj in enumerate(chunk_objs):
                 if chunk_gate and not chunk_gate[index].get("should_extract"):
@@ -441,7 +441,7 @@ class AudioExtractionService:
 
                 response = cast(
                     "Any",
-                    openai_client.chat.completions.create(
+                    await async_client.chat.completions.create(
                         model=client.model,
                         messages=[
                             {"role": "system", "content": system_prompt},

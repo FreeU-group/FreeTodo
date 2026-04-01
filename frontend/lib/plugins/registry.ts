@@ -209,6 +209,16 @@ const panelRegistry: Record<PanelFeature, PanelPlugin> = {
 				default: mod.UserProfilePanel,
 			})),
 	},
+	agentMonitor: {
+		id: "agentMonitor",
+		labelKey: "agentMonitorLabel",
+		placeholderKey: "agentMonitorPlaceholder",
+		icon: FEATURE_ICON_MAP.agentMonitor,
+		loader: () =>
+			import("@/apps/agent-monitor/AgentMonitorPanel").then((mod) => ({
+				default: mod.AgentMonitorPanel,
+			})),
+	},
 };
 
 const lazyPanelCache = new Map<PanelFeature, LazyExoticComponent<ComponentType>>();

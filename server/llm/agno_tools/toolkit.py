@@ -86,6 +86,7 @@ class LifetraceToolkit(
             "complete_todo": self.complete_todo,
             "update_todo": self.update_todo,
             "list_todos": self.list_todos,
+            "get_todo_detail": self.get_todo_detail,
             "search_todos": self.search_todos,
             "delete_todo": self.delete_todo,
             # Task breakdown (from BreakdownTools)

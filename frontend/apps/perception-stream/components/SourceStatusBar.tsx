@@ -17,6 +17,7 @@ const STATUS_PATH_CANDIDATES = ["/api/perception/status", "/perception/status"] 
 const SOURCES: PerceptionSource[] = [
 	"mic_pc",
 	"mic_hardware",
+	"speaker_pc",
 	"ocr_screen",
 	"ocr_proactive",
 	"user_input",

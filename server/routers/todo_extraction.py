@@ -1,5 +1,7 @@
 """待办提取相关路由"""
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from llm.todo_extraction_service import todo_extraction_service
@@ -47,7 +49,8 @@ async def extract_todos_from_event(request: TodoExtractionRequest):
         logger.info(f"开始提取事件 {event_id} 的待办事项，应用: {app_name}")
 
         # 调用待办提取服务
-        result = todo_extraction_service.extract_todos_from_event(
+        result = await asyncio.to_thread(
+            todo_extraction_service.extract_todos_from_event,
             event_id=event_id,
             screenshot_sample_ratio=request.screenshot_sample_ratio,
         )

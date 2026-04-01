@@ -139,10 +139,32 @@ class TodoIntentSubscriber:
         self._enabled = bool(enabled)
         logger.info(f"TodoIntentSubscriber enabled={self._enabled}")
 
+    @staticmethod
+    def _is_source_enabled(source: SourceType) -> bool:
+        """Check whether *source* is allowed to trigger intent recognition."""
+        from util.settings import settings  # noqa: PLC0415
+
+        _ALWAYS_SKIP = {SourceType.AI_OUTPUT, SourceType.APP_SWITCH, SourceType.GPS_MOBILE}
+        if source in _ALWAYS_SKIP:
+            return False
+
+        _SOURCE_CONFIG_KEY: dict[SourceType, str] = {
+            SourceType.MIC_PC: "perception.todo_intent.sources.mic_pc",
+            SourceType.MIC_HARDWARE: "perception.todo_intent.sources.mic_hardware",
+            SourceType.SPEAKER_PC: "perception.todo_intent.sources.speaker_pc",
+            SourceType.OCR_SCREEN: "perception.todo_intent.sources.ocr_screen",
+            SourceType.OCR_PROACTIVE: "perception.todo_intent.sources.ocr_proactive",
+        }
+
+        config_key = _SOURCE_CONFIG_KEY.get(source)
+        if config_key is None:
+            return False
+        return bool(settings.get(config_key, True))
+
     async def on_event(self, event: PerceptionEvent) -> None:
         if not self._enabled:
             return
-        if event.source in (SourceType.AI_OUTPUT, SourceType.APP_SWITCH, SourceType.GPS_MOBILE):
+        if not self._is_source_enabled(event.source):
             return
         if event.source == SourceType.USER_INPUT:
             meta = event.metadata if isinstance(event.metadata, dict) else {}

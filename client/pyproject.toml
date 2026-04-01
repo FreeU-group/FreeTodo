@@ -17,6 +17,7 @@ dependencies = [
     "dynaconf[yaml]>=3.2.0",
     "pyyaml>=6.0",
     "sounddevice>=0.5.0",
+    "SoundCard>=0.4.0",
     "websockets>=15.0",
     # macOS
     "pyobjc-framework-Cocoa>=12.1; sys_platform == 'darwin'",
