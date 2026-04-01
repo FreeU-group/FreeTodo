@@ -16,10 +16,12 @@ from __future__ import annotations
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 from util.time_utils import get_utc_now
 
@@ -59,6 +61,8 @@ class PendingAction:
     execution_steps: list[ExecutionStep] = field(default_factory=list)
     execution_result: str = ""
     agent_raw_output: str = ""
+    streaming_output: str = ""
+    activity_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -76,6 +80,8 @@ class PendingAction:
                 for s in self.execution_steps
             ],
             "execution_result": self.execution_result,
+            "streaming_output": self.streaming_output,
+            "activity_id": self.activity_id,
         }
 
 
@@ -140,6 +146,22 @@ def set_execution_result(action_id: str, result: str) -> PendingAction | None:
         if action is not None:
             action.execution_result = result
             action.status = ActionStatus.COMPLETED
+        return action
+
+
+def append_streaming_output(action_id: str, chunk: str) -> PendingAction | None:
+    with _lock:
+        action = _actions.get(action_id)
+        if action is not None:
+            action.streaming_output += chunk
+        return action
+
+
+def set_activity_id(action_id: str, activity_id: str) -> PendingAction | None:
+    with _lock:
+        action = _actions.get(action_id)
+        if action is not None:
+            action.activity_id = activity_id
         return action
 
 

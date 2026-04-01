@@ -150,7 +150,8 @@ html,body{background:transparent!important;overflow:hidden;
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .step-label{flex:1}
 .result-area{margin-top:10px;padding:10px;border-radius:10px;background:#f8fafc;
-  font-size:12px;color:#334155;line-height:1.5;display:none;max-height:80px;overflow-y:auto}
+  font-size:12px;color:#334155;line-height:1.5;display:none;max-height:120px;overflow-y:auto;
+  white-space:pre-wrap;word-break:break-word}
 .result-area.visible{display:block}
 .progress-bar{position:absolute;bottom:0;left:0;height:2.5px;background:linear-gradient(90deg,#fbbf24,#f97316);
   border-radius:0 0 0 18px;width:0}
@@ -178,17 +179,16 @@ function doAction(action, actionId) {
   ipcRenderer.send('popup-action', { action, actionId });
 }
 ipcRenderer.on('update-progress', (_e, data) => {
-  const area = document.getElementById('progress-area');
-  if (!data.steps || !data.steps.length) return;
-  area.className = 'progress-area visible';
-  area.innerHTML = data.steps.map(s => {
-    const icons = { pending:'○', running:'◌', done:'✓', failed:'✗' };
-    return '<div class="step step-'+s.status+'"><span class="step-icon">'+(icons[s.status]||'○')+'</span><span class="step-label">'+s.label+'</span></div>';
-  }).join('');
-  if (data.result) {
-    const ra = document.getElementById('result-area');
+  const ra = document.getElementById('result-area');
+  if (data.streaming_output) {
+    ra.className = 'result-area visible';
+    ra.textContent = data.streaming_output;
+    ra.scrollTop = ra.scrollHeight;
+  }
+  if (data.result && (data.status === 'completed' || data.status === 'failed')) {
     ra.className = 'result-area visible';
     ra.textContent = data.result;
+    ra.scrollTop = ra.scrollHeight;
   }
 });
 </script>
@@ -404,8 +404,10 @@ ipcRenderer.on('update-progress', (_e, data) => {
 			`(function(){
 				document.getElementById('notif-title').textContent='正在执行...';
 				document.getElementById('actions').innerHTML='';
-				document.getElementById('progress-area').className='progress-area visible';
-				document.getElementById('progress-area').innerHTML='<div class="step step-running"><span class="step-icon">◌</span><span class="step-label">启动中...</span></div>';
+				document.getElementById('progress-area').className='progress-area';
+				var ra = document.getElementById('result-area');
+				ra.className = 'result-area visible';
+				ra.textContent = '启动中...';
 			})();`
 		).catch(() => {});
 

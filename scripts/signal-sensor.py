@@ -202,6 +202,75 @@ def _launch_popup(data: dict, on_confirm=None, on_dismiss=None) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Pending action popup handler (pending_todo / pending_execute)
+# ---------------------------------------------------------------------------
+
+
+def _handle_pending_action_notification(item: dict, ntype: str) -> None:
+    """Parse a pending_todo / pending_execute notification and launch an interactive popup."""
+    content_raw = item.get("content", "")
+    nid = str(item.get("id", ""))
+    try:
+        parsed = json.loads(content_raw)
+    except (json.JSONDecodeError, TypeError):
+        log.warning("[FLOW][Sensor] pending通知内容不是JSON, 跳过: nid=%s", nid)
+        return
+
+    action_id = parsed.get("action_id", "")
+    action_type = parsed.get("action_type", "")
+    title = parsed.get("title", "") or item.get("title", "待办事项")
+    description = parsed.get("description", "")
+
+    if not action_id:
+        log.warning("[FLOW][Sensor] pending通知缺少action_id, 跳过: nid=%s", nid)
+        return
+
+    log.info(
+        "[FLOW][Sensor] 处理 %s 通知: action_id=%s, title=%s",
+        ntype,
+        action_id,
+        title,
+    )
+
+    if action_type == "executable":
+        popup_data = {
+            "title": f"任务确认：{title}",
+            "subtitle": description or "AI 建议执行此任务，是否确认？",
+            "buttons": [
+                {"label": "忽略", "action": "dismiss", "style": "ghost"},
+                {"label": "执行", "action": "close", "style": "primary"},
+            ],
+        }
+    else:
+        popup_data = {
+            "title": f"待办确认：{title}",
+            "subtitle": description or "AI 建议添加此待办，是否确认？",
+        }
+
+    def _on_confirm(aid=action_id, atype=action_type):
+        endpoint = "execute" if atype == "executable" else "confirm"
+        url = f"{_state.center_url}/api/intent-actions/{aid}/{endpoint}"
+        log.info("[FLOW][Sensor] 用户确认 → POST %s", url)
+        try:
+            r = httpx.post(url, timeout=30)
+            log.info(
+                "[FLOW][Sensor] 响应: HTTP %d, body=%s", r.status_code, r.text[:200]
+            )
+        except Exception as e:
+            log.error("[FLOW][Sensor] 请求失败: %s", e, exc_info=True)
+
+    def _on_dismiss(aid=action_id):
+        url = f"{_state.center_url}/api/intent-actions/{aid}/reject"
+        log.info("[FLOW][Sensor] 用户忽略 → POST %s", url)
+        try:
+            httpx.post(url, timeout=10)
+        except Exception as e:
+            log.error("[FLOW][Sensor] reject失败: %s", e)
+
+    _launch_popup(popup_data, on_confirm=_on_confirm, on_dismiss=_on_dismiss)
+
+
+# ---------------------------------------------------------------------------
 # 通知源 1：Center 推送通知（/api/sensor/notifications）
 # ---------------------------------------------------------------------------
 
@@ -301,12 +370,7 @@ def _poll_general_notifications(client: httpx.Client) -> None:
                 )
 
                 if ntype in ("pending_todo", "pending_execute"):
-                    log.info(
-                        "[FLOW][Sensor] 跳过 %s 通知(由Electron主应用处理): nid=%s, title=%s",
-                        ntype,
-                        nid,
-                        title,
-                    )
+                    _handle_pending_action_notification(item, ntype)
                     continue
                 elif ntype in ("auto_todo", "invitation") and todo_id:
                     _tid = todo_id

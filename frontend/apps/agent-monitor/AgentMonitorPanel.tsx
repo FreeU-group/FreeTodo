@@ -102,6 +102,11 @@ const AGENT_CONFIG: Record<
 		icon: Search,
 		color: "text-orange-500",
 	},
+	executor: {
+		label: "任务执行",
+		icon: Zap,
+		color: "text-rose-500",
+	},
 };
 
 function getAgentConfig(agentType: string) {

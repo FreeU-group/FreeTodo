@@ -288,23 +288,27 @@ function triggerPopupForQueuedReview(record: TodoIntentProcessingRecord): void {
 	for (const result of record.integration_results) {
 		if (result.action !== "queued_review" || !result.reason) continue;
 
-		const todoMatch = result.reason.match(/^pending_todo:\s*(\S+)/);
-		const execMatch = result.reason.match(/^pending_execute:\s*(\S+)/);
-		if (!todoMatch && !execMatch) continue;
+		const segments = result.reason.split(";").map((s) => s.trim());
+		for (let i = 0; i < segments.length; i++) {
+			const seg = segments[i];
+			const todoMatch = seg.match(/^pending_todo:\s*(pa_\w+)/);
+			const execMatch = seg.match(/^pending_execute:\s*(pa_\w+)/);
+			if (!todoMatch && !execMatch) continue;
 
-		const actionId = (todoMatch || execMatch)![1];
-		const actionType: "todo" | "executable" = execMatch ? "executable" : "todo";
-		const candidate = record.candidates[0];
-		const title = candidate?.name || "新待办事项";
-		const description = candidate?.description || record.merged_text?.slice(0, 120) || "";
+			const actionId = (todoMatch || execMatch)![1];
+			const actionType: "todo" | "executable" = execMatch ? "executable" : "todo";
+			const candidate = record.candidates[i] ?? record.candidates[0];
+			const title = candidate?.name || "新待办事项";
+			const description = candidate?.description || record.merged_text?.slice(0, 120) || "";
 
-		console.log(`[FLOW][WS] WebSocket收到queued_review → 触发Electron弹窗: actionId=${actionId}, type=${actionType}, title="${title}"`);
-		window.electronAPI.triggerInteractivePopup({
-			actionId,
-			actionType,
-			title,
-			description,
-		});
+			console.log(`[FLOW][WS] WebSocket收到queued_review → 触发Electron弹窗: actionId=${actionId}, type=${actionType}, title="${title}"`);
+			window.electronAPI.triggerInteractivePopup({
+				actionId,
+				actionType,
+				title,
+				description,
+			});
+		}
 	}
 }
 

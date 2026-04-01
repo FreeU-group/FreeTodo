@@ -1,26 +1,36 @@
-"""Execution Engine — runs a Sub-Agent in the background for 'executable' actions.
+"""Execution Engine — runs a full-capability Agent for 'executable' actions.
 
-When the user confirms an executable pending action, this module spawns an
-AgnoAgentService with full tools, streams progress step-by-step, and stores
-the result back into the PendingAction.
+Reuses the same AgnoAgentService architecture as the chat agent, with:
+- Full tool support (all Lifetrace tools + MemoryToolkit + MCP)
+- Activity tracker integration for real-time WebSocket monitoring
+- Streaming output stored in PendingAction for progress polling
+- Cancellation support via activity tracker cancel events
 """
 
 from __future__ import annotations
 
 import asyncio
-import re
+import json
 import threading
+from typing import Any
 
 from llm.agno_agent import AgnoAgentService
+from llm.agno_agent_io import TOOL_EVENT_PREFIX, TOOL_EVENT_SUFFIX
 from llm.agno_tools.memory_toolkit import MemoryToolkit
+from services.agent_activity_tracker import (
+    add_activity_step,
+    is_cancelled,
+    start_activity,
+    stop_activity,
+)
 from services.perception_todo_intent.pending_actions import (
     ActionStatus,
-    ExecutionStep,
     PendingAction,
+    append_streaming_output,
     get_action,
+    set_activity_id,
     set_execution_result,
     update_action_status,
-    update_execution_steps,
 )
 from storage.notification_storage import add_notification
 from util.logging_config import get_logger
@@ -28,6 +38,9 @@ from util.settings import settings
 from util.time_utils import get_utc_now
 
 logger = get_logger()
+
+_running_tasks: dict[str, asyncio.Task[None]] = {}
+_tasks_lock = threading.Lock()
 
 _EXECUTOR_TOOLS = [
     "create_todo",
@@ -42,12 +55,9 @@ _EXECUTOR_TOOLS = [
     "draft_reply_message",
 ]
 
-_running_tasks: dict[str, asyncio.Task[None]] = {}
-_tasks_lock = threading.Lock()
-
 
 def _create_executor_agent(task_description: str) -> AgnoAgentService:
-    """Create a full-capability agent for task execution."""
+    """Create a full-capability agent mirroring the chat agent architecture."""
     agent_cfg = settings.get("llm.agent", {}) or {}
     agent_model = str(agent_cfg.get("model", "") or "").strip()
     model = (
@@ -55,6 +65,19 @@ def _create_executor_agent(task_description: str) -> AgnoAgentService:
         or agent_model
         or settings.llm.model
     )
+
+    memory_toolkit = MemoryToolkit(lang="zh")
+
+    service = AgnoAgentService(
+        lang="zh",
+        selected_tools=_EXECUTOR_TOOLS,
+        extra_tools=[memory_toolkit],
+        agent_id="todo_intent_executor",
+        agent_name="TaskExecutor",
+        model=model,
+        enable_learning=False,
+    )
+
     user_name = settings.get("setup.user_name", "") or "用户"
     agent_name = settings.get("setup.agent_name", "") or "Free U"
 
@@ -66,72 +89,83 @@ def _create_executor_agent(task_description: str) -> AgnoAgentService:
         "1. 逐步完成任务，每完成一步简要说明进展。\n"
         "2. 遇到问题时说明原因，不要编造结果。\n"
         "3. 完成后用简洁的中文总结成果。\n"
-        "4. 每个步骤的开头用 [STEP] 标记，格式：[STEP] 步骤描述\n"
-    )
-
-    memory_toolkit = MemoryToolkit(lang="zh")
-    service = AgnoAgentService(
-        lang="zh",
-        selected_tools=_EXECUTOR_TOOLS,
-        extra_tools=[memory_toolkit],
-        agent_id="todo_intent_executor",
-        agent_name="TaskExecutor",
-        model=model,
     )
     service.agent.instructions = [instructions]
     return service
 
 
-def _run_executor_sync(
-    action: PendingAction,
-) -> str:
-    """Run the executor agent synchronously, updating steps in real-time."""
-    logger.info("[FLOW][ExecSync] 开始构建Agent: action_id=%s", action.action_id)
+def _strip_tool_events(text: str) -> str:
+    """Remove [TOOL_EVENT:...] markers from text, keeping only readable content."""
+    result = []
+    cursor = 0
+    while True:
+        start = text.find(TOOL_EVENT_PREFIX, cursor)
+        if start == -1:
+            result.append(text[cursor:])
+            break
+        result.append(text[cursor:start])
+        end = text.find(TOOL_EVENT_SUFFIX, start)
+        if end == -1:
+            break
+        cursor = end + len(TOOL_EVENT_SUFFIX)
+    return "".join(result)
+
+
+def _parse_tool_event_json(text: str) -> dict[str, Any] | None:
+    """Extract tool event JSON from a chunk containing TOOL_EVENT markers."""
+    start = text.find(TOOL_EVENT_PREFIX)
+    if start == -1:
+        return None
+    end = text.find(TOOL_EVENT_SUFFIX, start)
+    if end == -1:
+        return None
+    json_str = text[start + len(TOOL_EVENT_PREFIX) : end]
+    try:
+        return json.loads(json_str)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _run_executor_sync(action: PendingAction, activity_id: str) -> str:
+    """Run the executor agent synchronously with streaming output + activity tracking."""
+    logger.info("[FLOW][ExecSync] 构建Agent: action_id=%s", action.action_id)
+
     plan_text = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(action.execution_plan))
     task_msg = f"请执行以下任务：{action.title}\n\n详细描述：{action.description}\n\n"
     if plan_text:
         task_msg += f"建议步骤：\n{plan_text}\n\n"
-    task_msg += "请开始执行，每完成一步用 [STEP] 标记进展。"
+    task_msg += "请开始执行。"
 
     service = _create_executor_agent(task_msg)
-    logger.info("[FLOW][ExecSync] Agent已创建, 开始stream_response: action_id=%s", action.action_id)
-
-    steps: list[ExecutionStep] = [
-        ExecutionStep(label=s, status="pending") for s in action.execution_plan
-    ]
-    if not steps:
-        steps = [ExecutionStep(label="执行任务", status="running")]
-    else:
-        steps[0].status = "running"
-    update_execution_steps(action.action_id, steps)
+    logger.info("[FLOW][ExecSync] Agent已创建, 开始stream: action_id=%s", action.action_id)
 
     parts: list[str] = []
-    current_step_idx = 0
 
     for chunk in service.stream_response(task_msg, include_tool_events=True):
-        if "\n[TOOL_EVENT:" in chunk:
+        if is_cancelled(activity_id):
+            logger.info("[FLOW][ExecSync] 收到取消信号: action_id=%s", action.action_id)
+            append_streaming_output(action.action_id, "\n\n[已中断]")
+            return "".join(parts).strip()
+
+        if not chunk:
             continue
-        parts.append(chunk)
 
-        if "[STEP]" in chunk:
-            if current_step_idx < len(steps):
-                steps[current_step_idx].status = "done"
-            current_step_idx += 1
-            if current_step_idx < len(steps):
-                steps[current_step_idx].status = "running"
-            else:
-                step_label_match = re.search(r"\[STEP\]\s*(.+)", chunk)
-                label = step_label_match.group(1).strip() if step_label_match else "执行中..."
-                steps.append(ExecutionStep(label=label, status="running"))
-            update_execution_steps(action.action_id, steps)
+        event = _parse_tool_event_json(chunk)
+        if event:
+            add_activity_step(
+                activity_id,
+                step_type=event.get("type", "tool_call"),
+                name=event.get("name", event.get("tool", "")),
+                content=json.dumps(event, ensure_ascii=False)[:500],
+            )
 
-    for step in steps:
-        if step.status == "running":
-            step.status = "done"
-    update_execution_steps(action.action_id, steps)
+        clean = _strip_tool_events(chunk)
+        if clean:
+            parts.append(clean)
+            append_streaming_output(action.action_id, clean)
 
     raw = "".join(parts)
-    return re.sub(r"\n\[TOOL_EVENT:.*?\]\n", "", raw).strip()
+    return raw.strip()
 
 
 async def execute_action(action_id: str) -> bool:
@@ -143,8 +177,19 @@ async def execute_action(action_id: str) -> bool:
         return False
 
     update_action_status(action_id, ActionStatus.EXECUTING)
+
+    activity_id = start_activity(
+        agent_type="executor",
+        task=f"执行任务: {action.title}"[:100],
+        model="agno",
+    )
+    set_activity_id(action_id, activity_id)
+
     logger.info(
-        "[FLOW][ExecEngine] 状态→EXECUTING: action_id=%s, title=%s", action_id, action.title
+        "[FLOW][ExecEngine] 状态→EXECUTING: action_id=%s, activity_id=%s, title=%s",
+        action_id,
+        activity_id,
+        action.title,
     )
 
     async def _run() -> None:
@@ -154,13 +199,28 @@ async def execute_action(action_id: str) -> bool:
                 action_id,
                 len(action.execution_plan),
             )
-            result_text = await asyncio.to_thread(_run_executor_sync, action)
+            result_text = await asyncio.to_thread(_run_executor_sync, action, activity_id)
+
+            if is_cancelled(activity_id):
+                update_action_status(action_id, ActionStatus.FAILED)
+                stop_activity(activity_id, status="cancelled")
+                add_notification(
+                    notification_id=f"exec_cancel_{action_id}",
+                    title=f"任务已中断：{action.title}",
+                    content="任务已被用户中断。",
+                    timestamp=get_utc_now(),
+                    notification_type="execution_cancelled",
+                )
+                return
+
             set_execution_result(action_id, result_text)
+            stop_activity(activity_id, status="completed")
             logger.info(
                 "[FLOW][ExecEngine] ✓ 执行完成: action_id=%s, result_len=%d",
                 action_id,
                 len(result_text),
             )
+
             title_max = 40
             title = f"任务完成：{action.title}"
             if len(title) > title_max:
@@ -175,6 +235,7 @@ async def execute_action(action_id: str) -> bool:
         except Exception:
             logger.exception("[FLOW][ExecEngine] ✗ 执行失败: action_id=%s", action_id)
             update_action_status(action_id, ActionStatus.FAILED)
+            stop_activity(activity_id, status="error")
             add_notification(
                 notification_id=f"exec_fail_{action_id}",
                 title=f"任务失败：{action.title}",

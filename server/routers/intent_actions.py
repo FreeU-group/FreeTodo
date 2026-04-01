@@ -186,16 +186,14 @@ async def execute_task(action_id: str) -> ActionResponse:
 
 @router.get("/{action_id}/progress")
 async def get_progress(action_id: str) -> dict[str, Any]:
-    """Poll execution progress for a running action."""
+    """Poll execution progress — returns streaming_output for real-time text."""
     action = get_action(action_id)
     if action is None:
         raise HTTPException(status_code=404, detail="Action not found")
     return {
         "action_id": action_id,
         "status": action.status.value,
-        "steps": [
-            {"label": s.label, "status": s.status, "detail": s.detail}
-            for s in action.execution_steps
-        ],
+        "streaming_output": action.streaming_output,
         "result": action.execution_result,
+        "activity_id": action.activity_id,
     }
