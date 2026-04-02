@@ -12,6 +12,7 @@ from fastapi import APIRouter, UploadFile
 from pydantic import BaseModel
 
 from services.config_service import ConfigService
+from services.voiceprint_enrollment import enroll_voiceprint
 from util.base_paths import get_user_data_dir
 from util.logging_config import get_logger
 from util.settings import settings
@@ -413,7 +414,7 @@ async def complete_setup(req: CompleteRequest):
 
 @router.post("/save-voiceprint")
 async def save_voiceprint(file: UploadFile):
-    """接收录制的声纹音频文件并保存到本地。"""
+    """接收录制的声纹音频文件，保存到本地，提取声纹向量并注册为「我」。"""
     voiceprint_dir = get_user_data_dir() / "voiceprint"
     voiceprint_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -421,26 +422,72 @@ async def save_voiceprint(file: UploadFile):
     content = await file.read()
     dest.write_bytes(content)
     logger.info(f"声纹音频已保存: {dest} ({len(content)} bytes)")
-    return {"success": True, "path": str(dest), "size": len(content)}
+
+    enrollment = await enroll_voiceprint(dest)
+    return {
+        "success": True,
+        "path": str(dest),
+        "size": len(content),
+        **enrollment,
+    }
 
 
 @router.get("/voiceprint-status")
 async def voiceprint_status():
-    """返回当前声纹录制状态。"""
+    """返回当前声纹录制状态，包括是否已注册为「我」。"""
     voiceprint_dir = get_user_data_dir() / "voiceprint"
     if not voiceprint_dir.exists():
-        return {"exists": False}
+        return {"exists": False, "enrolled": False}
     files = sorted(
         voiceprint_dir.glob("voiceprint_*.*"), key=lambda p: p.stat().st_mtime, reverse=True
     )
     if not files:
-        return {"exists": False}
+        return {"exists": False, "enrolled": False}
     latest = files[0]
+
+    enrolled = False
+    speaker_id = None
+    speaker_name = None
+    try:
+        from services.speaker_service import VoiceprintStore  # noqa: PLC0415
+
+        store = VoiceprintStore()
+        store._ensure_cache()
+        for sid, sname, _emb, is_me in store._cache:
+            if is_me:
+                enrolled = True
+                speaker_id = sid
+                speaker_name = sname
+                break
+    except Exception:
+        pass
+
     return {
         "exists": True,
         "path": str(latest),
         "size": latest.stat().st_size,
+        "enrolled": enrolled,
+        "speaker_id": speaker_id,
+        "speaker_name": speaker_name,
     }
+
+
+@router.post("/enroll-voiceprint")
+async def enroll_existing_voiceprint():
+    """对已有的声纹音频文件提取向量并注册为「我」。"""
+    voiceprint_dir = get_user_data_dir() / "voiceprint"
+    if not voiceprint_dir.exists():
+        return {"success": False, "reason": "no voiceprint directory"}
+    files = sorted(
+        voiceprint_dir.glob("voiceprint_*.*"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    if not files:
+        return {"success": False, "reason": "no voiceprint files found"}
+
+    latest = files[0]
+    logger.info(f"对已有声纹文件提取向量: {latest}")
+    enrollment = await enroll_voiceprint(latest)
+    return {"success": enrollment.get("enrolled", False), "file": str(latest), **enrollment}
 
 
 @router.post("/delete-voiceprint")

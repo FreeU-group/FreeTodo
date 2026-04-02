@@ -24,8 +24,15 @@ router = APIRouter(prefix="/api/sensor", tags=["sensor-control"])
 
 _sensor_nodes: dict[str, dict[str, Any]] = {}
 _notification_queues: dict[str, list[dict[str, Any]]] = defaultdict(list)
+_runtime_overrides: dict[str, Any] = {}
 
 _OFFLINE_THRESHOLD_SECONDS = 90
+
+
+class AudioDeviceInfo(BaseModel):
+    id: int
+    name: str
+    channels: int = 1
 
 
 class HeartbeatRequest(BaseModel):
@@ -39,6 +46,8 @@ class HeartbeatRequest(BaseModel):
     last_screenshot_at: str | None = None
     last_proactive_ocr_at: str | None = None
     uptime_seconds: float = 0
+    audio_devices: list[AudioDeviceInfo] = []
+    audio_device_selected: str | int | None = None
 
 
 @router.post("/heartbeat")
@@ -52,7 +61,7 @@ async def sensor_heartbeat(req: HeartbeatRequest):
 
 
 def _read_sensor_config() -> dict[str, Any]:
-    return {
+    cfg: dict[str, Any] = {
         "screenshot_enabled": settings.get("sensor.screenshot_enabled", True),
         "screenshot_interval": float(settings.get("sensor.screenshot_interval", 10.0)),
         "proactive_ocr_enabled": settings.get("sensor.proactive_ocr_enabled", True),
@@ -62,6 +71,10 @@ def _read_sensor_config() -> dict[str, Any]:
         "recorder_blacklist_enabled": settings.get("jobs.recorder.params.blacklist.enabled", False),
         "recorder_blacklist_apps": settings.get("jobs.recorder.params.blacklist.apps", []),
     }
+    audio_device = _runtime_overrides.get("audio_device", settings.get("sensor.audio_device"))
+    if audio_device is not None:
+        cfg["audio_device"] = audio_device
+    return cfg
 
 
 @router.get("/config")
@@ -77,6 +90,43 @@ async def list_sensor_nodes():
         info["online"] = (now - info.get("last_seen", 0)) < _OFFLINE_THRESHOLD_SECONDS
         nodes.append(info)
     return {"nodes": nodes}
+
+
+# ---------------------------------------------------------------------------
+# Audio device management
+# ---------------------------------------------------------------------------
+
+
+@router.get("/nodes/{node_id}/audio-devices")
+async def get_audio_devices(node_id: str):
+    """Return the list of audio input devices last reported by a sensor node."""
+    node = _sensor_nodes.get(node_id)
+    if node is None:
+        return {"devices": [], "error": f"Node '{node_id}' not found"}
+    return {
+        "devices": node.get("audio_devices", []),
+        "selected": node.get("audio_device_selected"),
+        "config_device": _runtime_overrides.get(
+            "audio_device", settings.get("sensor.audio_device")
+        ),
+    }
+
+
+class SetAudioDeviceRequest(BaseModel):
+    device: str | int | None = None
+
+
+@router.put("/audio-device")
+async def set_audio_device(req: SetAudioDeviceRequest):
+    """Set the preferred audio input device. Sensor picks it up on next config poll.
+
+    Pass ``null`` / omit ``device`` to revert to auto-detection.
+    """
+    if req.device is None:
+        _runtime_overrides.pop("audio_device", None)
+    else:
+        _runtime_overrides["audio_device"] = req.device
+    return {"ok": True, "audio_device": req.device}
 
 
 # ---------------------------------------------------------------------------

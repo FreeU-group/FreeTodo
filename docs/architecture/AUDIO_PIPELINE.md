@@ -16,6 +16,15 @@
                 │                    │                           │
                 ▼                    ▼                           ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
+│                     SharedAudioProcessor (统一处理核心)                              │
+│  services/audio_session.py                                                        │
+│  • 说话人识别: DiartDiarizer (CAM++ / Diart)                                        │
+│  • 二次处理: SecondPassASRProcessor (Paraformer-v2)                                 │
+│  • 感知流发布: PerceptionEvent 统一构建                                              │
+└─────────────────────────────────────────────────────────────────────────────────┘
+                │
+                ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
 │                           音频接收与预处理 (1)                                      │
 └─────────────────────────────────────────────────────────────────────────────────┘
 │  • WebSocket 接收 bytes 或 text 消息                                                │
@@ -54,12 +63,13 @@
                 │
                 ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           二次处理 (5) 仅 /v4/listen                                │
+│                           二次处理 (5) 所有入口点均可启用                              │
 └─────────────────────────────────────────────────────────────────────────────────┘
 │  • 阿里云 DashScope Paraformer-v2 离线转录 API                                       │
 │  • 说话人分离 (diarization) + 本地 CAM++ 声纹映射 (speaker_name)                     │
 │  • 去抖: debounce_seconds + interval_seconds 后按句子边界切片                       │
 │  • 输出: transcript_refined 推给客户端 + 精修结果推感知流                             │
+│  • 由 SharedAudioProcessor 统一管理，/api/audio/transcribe 与 /v4/listen 共享        │
 └─────────────────────────────────────────────────────────────────────────────────┘
                 │
                 ▼
@@ -165,7 +175,14 @@ audio:
 - **流程**: 缓冲音频 → 提取 192 维声纹向量 → VoiceprintStore 余弦相似度匹配
 - **可选**: FSMN-VAD 语音活动检测，按说话轮次切段
 
-### 5.2 可选方案: Diart (pyannote)
+### 5.2 声纹注册 (Enrollment)
+
+- **入口**: `POST /api/setup/save-voiceprint`（上传 WebM 录音）
+- **流程**: 保存文件 → ffmpeg 转 PCM-16kHz → CAM++ 提取向量 → VoiceprintStore 匹配/注册 → `set_as_me`
+- **效果**: 录完声纹后系统自动识别该声音为「我」，后续实时/二次处理均会标记 `is_me=True`
+- **依赖**: 需要安装 ffmpeg 和 funasr
+
+### 5.3 可选方案: Diart (pyannote)
 
 - **默认**: 关闭
 - **启用**: `audio.speaker.diart.enabled: true`，需 `pip install diart` 和 HuggingFace 登录
@@ -190,7 +207,7 @@ audio:
 
 ## 6. 二次处理 (Second-Pass)
 
-**仅对 `/v4/listen` 生效**。
+**所有音频入口点均可启用**（通过 `SharedAudioProcessor` 统一管理）。
 
 ### 6.1 流程
 
@@ -273,16 +290,49 @@ PerceptionStream (L0)
 
 ---
 
-## 9. 文件与模块索引
+## 9. 音频设备管理
+
+### 9.1 自动检测与热插拔
+
+Sensor (`client/sensor.py`) 在启动音频采集前会先通过 `_find_input_device()` 检测可用的输入设备:
+
+1. **无设备时等待**: 如果没有任何输入设备, sensor 不会连接 WebSocket, 而是每 3 秒轮询一次设备列表, 直到有可用设备接入。
+2. **设备断开后重连**: 采集过程中设备断开会触发异常, sensor 自动重试并重新检测设备。
+3. **设备选择优先级**: 用户指定设备名 > 用户指定设备 ID > 系统默认设备 > 任意可用设备。
+
+### 9.2 设备报告
+
+Sensor 在每次心跳 (`POST /api/sensor/heartbeat`) 中上报:
+
+- `audio_devices`: 当前系统所有可用输入设备列表 (`id`, `name`, `channels`)
+- `audio_device_selected`: 当前使用的设备 (配置指定值或 `null` 表示自动)
+
+### 9.3 远程设备选择
+
+- `GET /api/sensor/nodes/{node_id}/audio-devices` — 查询某个 sensor 节点的可用设备列表
+- `PUT /api/sensor/audio-device` — 设置偏好设备 (设备名子串或 ID), sensor 在下次配置轮询时生效
+- 设置 `null` 恢复为自动检测
+
+### 9.4 配置
+
+| 配置路径 | 说明 |
+|----------|------|
+| `sensor.audio_device` | 指定偏好音频输入设备 (名称子串或数字 ID), 留空为自动 |
+
+---
+
+## 10. 文件与模块索引
 
 | 模块 | 用途 |
 |------|------|
+| `services/audio_session.py` | **SharedAudioProcessor**: 统一音频处理核心 (说话人 + 二次处理 + 感知流) |
 | `routers/audio_ws.py` | 音频 WebSocket 路由、流生成、回调 |
-| `routers/audio_ws_handler.py` | 转录流程编排、感知流发布 |
+| `routers/audio_ws_handler.py` | 转录流程编排，使用 SharedAudioProcessor |
 | `routers/audio_ws_segment.py` | 24x7 分段监控与保存 |
-| `routers/omi_compat/listen.py` | `/v4/listen` 实现、二次处理 |
+| `routers/omi_compat/listen.py` | `/v4/listen` 实现，使用 SharedAudioProcessor |
 | `routers/audio.py` | 音频路由注册、录音列表 |
 | `routers/hardware_audio.py` | 硬件音频流 |
+| `routers/sensor_control.py` | Sensor 配置、心跳、设备管理 |
 | `routers/perception_ws.py` | 感知流 WebSocket |
 | `services/asr_client_dashscope.py` | DashScope ASR 客户端 |
 | `services/second_pass_asr.py` | 二次处理 (Paraformer-v2 + 声纹映射) |
@@ -297,7 +347,7 @@ PerceptionStream (L0)
 
 ---
 
-## 10. 配置项速查
+## 11. 配置项速查
 
 | 配置路径 | 说明 |
 |----------|------|
@@ -306,3 +356,4 @@ PerceptionStream (L0)
 | `audio.second_pass.*` | 二次处理开关、去抖、模型 |
 | `perception.audio_enabled` | 是否启用音频感知 |
 | `perception.audio_source` | 默认音频来源类型 |
+| `sensor.audio_device` | 偏好输入设备 (名称子串或数字 ID) |

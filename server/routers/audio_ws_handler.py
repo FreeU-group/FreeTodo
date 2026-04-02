@@ -12,6 +12,11 @@ import json
 
 from fastapi import WebSocket, WebSocketDisconnect
 
+from services.audio_second_pass import (
+    SP_MIN_FINAL_TEXT_LEN,
+    publish_second_pass_result,
+    run_second_pass_debounce_loop,
+)
 from util.time_utils import get_utc_now
 
 
@@ -19,29 +24,6 @@ def _track_handler_task(task_set: set[asyncio.Task], coro) -> None:
     task = asyncio.create_task(coro)
     task_set.add(task)
     task.add_done_callback(task_set.discard)
-
-
-async def _publish_perception_audio_sentence(
-    *, text: str, logger, ws_source: str = "mic_pc", ws_node_id: str = "local"
-) -> None:
-    try:
-        from perception.manager import try_get_perception_manager  # noqa: PLC0415
-        from perception.models import SourceType  # noqa: PLC0415
-
-        mgr = try_get_perception_manager()
-        if mgr is None:
-            return
-        try:
-            source_type = SourceType(ws_source)
-        except ValueError:
-            source_type = None
-        await mgr.try_publish_audio_transcription(
-            text,
-            metadata={"source": "audio_ws", "node_id": ws_node_id},
-            source=source_type,
-        )
-    except Exception as exc:
-        logger.debug(f"Perception publish skipped: {exc}")
 
 
 async def _handle_json_error(websocket: WebSocket, logger, e: json.JSONDecodeError) -> None:
@@ -248,8 +230,11 @@ async def _start_segment_monitor_internal(
     )
 
 
-def _setup_websocket_state():
+def _setup_websocket_state(*, ws_source: str = "mic_pc", ws_node_id: str = "local"):
     """初始化 WebSocket 状态变量"""
+    from perception.models import SourceType  # noqa: PLC0415
+    from services.audio_session import SharedAudioProcessor  # noqa: PLC0415
+
     recording_started_at = get_utc_now()
     transcription_text_ref: list[str] = [""]
     audio_chunks: list[bytes] = []
@@ -261,14 +246,16 @@ def _setup_websocket_state():
     task_set: set[asyncio.Task] = set()
     speaker_segments_ref: list[list] = [[]]
 
-    speaker_diarizer = None
-    with contextlib.suppress(Exception):
-        from services.diart_diarizer import DiartDiarizer  # noqa: PLC0415
+    try:
+        source_type = SourceType(ws_source)
+    except ValueError:
+        source_type = SourceType.MIC_PC
 
-        diarizer = DiartDiarizer()
-        diarizer.start()
-        if diarizer.enabled:
-            speaker_diarizer = diarizer
+    processor = SharedAudioProcessor(
+        source_type=source_type,
+        endpoint="/api/audio/transcribe",
+        node_id=ws_node_id,
+    )
 
     return {
         "recording_started_at": recording_started_at,
@@ -280,8 +267,9 @@ def _setup_websocket_state():
         "is_24x7_ref": is_24x7_ref,
         "data_saved_ref": data_saved_ref,
         "task_set": task_set,
-        "speaker_diarizer": speaker_diarizer,
+        "speaker_diarizer": processor.speaker_diarizer,
         "speaker_segments_ref": speaker_segments_ref,
+        "processor": processor,
     }
 
 
@@ -316,7 +304,9 @@ async def _setup_websocket_connection(*, websocket: WebSocket, logger) -> dict:
     logger.info(
         f"WebSocket client connected: application_state={websocket.application_state}, client_state={websocket.client_state}"
     )
-    return _setup_websocket_state()
+    ws_source = websocket.query_params.get("source", "mic_pc")
+    ws_node_id = websocket.query_params.get("node_id", "local")
+    return _setup_websocket_state(ws_source=ws_source, ws_node_id=ws_node_id)
 
 
 async def _create_handlers_and_monitor(
@@ -443,8 +433,9 @@ async def _cleanup_websocket(*, state: dict, save_final_data, logger, websocket:
     """清理 WebSocket 连接"""
     state["is_connected_ref"][0] = False
 
-    if (diarizer := state.get("speaker_diarizer")) is not None and hasattr(diarizer, "stop"):
-        diarizer.stop()
+    processor = state.get("processor")
+    if processor is not None:
+        processor.stop()
 
     try:
         await save_final_data()
@@ -456,35 +447,71 @@ async def _cleanup_websocket(*, state: dict, save_final_data, logger, websocket:
     )
 
 
-async def _handle_transcribe_ws(*, websocket: WebSocket, logger, asr_client, audio_service) -> None:
+async def _handle_transcribe_ws(  # noqa: C901, PLR0915
+    *, websocket: WebSocket, logger, asr_client, audio_service
+) -> None:
     funcs = _get_audio_ws_functions()
     state = await _setup_websocket_connection(websocket=websocket, logger=logger)
     segment_task: asyncio.Task | None = None
 
-    if state.get("speaker_diarizer"):
-        logger.info("说话人识别已启用 (Speaker Diarization + Voiceprint Re-ID)")
-
+    processor = state["processor"]
     ws_source = websocket.query_params.get("source", "mic_pc")
     ws_node_id = websocket.query_params.get("node_id", "local")
     logger.info(f"Audio WS params: source={ws_source}, node_id={ws_node_id}")
 
+    # Mutable refs for second-pass state (shared across closures)
+    sp_cursor_ref: list[int] = [0]
+    sp_final_idx_ref: list[int] = [0]
+    second_pass_trigger = asyncio.Event()
+
+    async def _publish_realtime_with_speaker(text: str) -> None:
+        """Identify speaker then publish perception (same as /v4/listen path)."""
+        speaker_info = await processor.identify_current_speaker()
+        speaker_tag, speaker_id = processor.resolve_speaker(speaker_info)
+        await processor.publish_perception(
+            text,
+            is_realtime=True,
+            speaker_tag=speaker_tag,
+            speaker_id=speaker_id,
+        )
+
+    sp_pending_text: list[str] = []
+
     def on_final_sentence(text: str) -> None:
-        _track_handler_task(
-            state["task_set"],
-            _publish_perception_audio_sentence(
-                text=text, logger=logger, ws_source=ws_source, ws_node_id=ws_node_id
-            ),
+        if processor.second_pass_enabled:
+            sp_pending_text.append(text)
+            merged = "".join(sp_pending_text)
+            if len(merged.strip()) >= SP_MIN_FINAL_TEXT_LEN:
+                sp_final_idx_ref[0] = len(state["audio_chunks"])
+                second_pass_trigger.set()
+        else:
+            _track_handler_task(
+                state["task_set"],
+                _publish_realtime_with_speaker(text),
+            )
+
+    async def _second_pass_final() -> None:
+        """Run second-pass on remaining audio at disconnect."""
+        if not processor.second_pass_enabled:
+            return
+        end = sp_final_idx_ref[0]
+        if end <= sp_cursor_ref[0]:
+            return
+        chunks_slice = state["audio_chunks"][sp_cursor_ref[0] : end]
+        start = sp_cursor_ref[0]
+        sp_cursor_ref[0] = end
+        logger.info(f"[transcribe] Second-pass final: processing chunks [{start}:{end}]")
+        result = await processor.run_second_pass(chunks_slice)
+        await publish_second_pass_result(
+            processor=processor, result=result, websocket=websocket, logger=logger
         )
 
     async def stop_segment_task():
-        """停止分段监控任务"""
         nonlocal segment_task
         if segment_task and not segment_task.done():
             segment_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await segment_task
-            except asyncio.CancelledError:
-                logger.info("分段监控任务已取消")
 
     save_final_data = await _create_save_final_data_func(
         state=state,
@@ -495,6 +522,20 @@ async def _handle_transcribe_ws(*, websocket: WebSocket, logger, asr_client, aud
         _save_transcription_if_any=funcs["_save_transcription_if_any"],
     )
 
+    sp_task: asyncio.Task | None = None
+    if processor.second_pass_enabled:
+        sp_task = asyncio.create_task(
+            run_second_pass_debounce_loop(
+                processor=processor,
+                state=state,
+                trigger=second_pass_trigger,
+                cursor_ref=sp_cursor_ref,
+                final_idx_ref=sp_final_idx_ref,
+                pending_text=sp_pending_text,
+                websocket=websocket,
+                logger=logger,
+            )
+        )
     try:
         await _run_main_transcription_flow(
             asr_client=asr_client,
@@ -516,6 +557,11 @@ async def _handle_transcribe_ws(*, websocket: WebSocket, logger, asr_client, aud
             _handle_websocket_error=funcs["_handle_websocket_error"],
         )
     finally:
+        if sp_task is not None and not sp_task.done():
+            sp_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await sp_task
+        await _second_pass_final()
         await _cleanup_websocket(
             state=state,
             save_final_data=save_final_data,

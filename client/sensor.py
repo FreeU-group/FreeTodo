@@ -193,6 +193,7 @@ class SensorDaemon:
         self._proactive_ocr_enabled: bool = True
         self._audio_enabled: bool = True
         self._audio_loopback_enabled: bool = True
+        self._preferred_audio_device: str | int | None = None
         self._screenshot_interval: float = 10.0
         self._proactive_ocr_interval: float = 1.0
         self._blacklist_enabled: bool = False
@@ -289,6 +290,11 @@ class SensorDaemon:
             logger.info(f"Audio perception: {'enabled' if new_audio else 'disabled'} (remote)")
         self._audio_enabled = new_audio
 
+        new_audio_device = config.get("audio_device")
+        if new_audio_device != getattr(self, "_preferred_audio_device", None):
+            logger.info(f"Audio device preference: {new_audio_device or 'auto'}")
+        self._preferred_audio_device = new_audio_device
+
         new_loopback = bool(config.get("audio_loopback_enabled", True))
         if new_loopback != self._audio_loopback_enabled:
             logger.info(f"Audio loopback: {'enabled' if new_loopback else 'disabled'} (remote)")
@@ -300,6 +306,19 @@ class SensorDaemon:
     # ------------------------------------------------------------------
     # Heartbeat
     # ------------------------------------------------------------------
+
+    def _list_audio_input_devices(self) -> list[dict[str, Any]]:
+        """Return a list of available audio input devices (non-blocking best-effort)."""
+        try:
+            import sounddevice as sd  # noqa: PLC0415
+
+            result = []
+            for i, d in enumerate(sd.query_devices()):
+                if d["max_input_channels"] > 0:
+                    result.append({"id": i, "name": d["name"], "channels": d["max_input_channels"]})
+            return result
+        except Exception:
+            return []
 
     async def heartbeat(self) -> None:
         url = f"{self.center_url}/api/sensor/heartbeat"
@@ -314,6 +333,8 @@ class SensorDaemon:
             "last_screenshot_at": self._last_screenshot_at,
             "last_proactive_ocr_at": self._last_proactive_ocr_at,
             "uptime_seconds": round(time.time() - self._start_time, 1),
+            "audio_devices": self._list_audio_input_devices(),
+            "audio_device_selected": getattr(self, "_preferred_audio_device", None),
         }
         try:
             resp = await self.client.post(url, json=payload)
@@ -744,22 +765,80 @@ class SensorDaemon:
     _AUDIO_RECONNECT_DELAY = 5.0
     _AUDIO_DISABLE_CHECK_INTERVAL = 3.0
 
+    _AUDIO_DEVICE_POLL_INTERVAL = 3.0
+    _AUDIO_NO_DEVICE_LOG_INTERVAL = 30.0
+
+    @staticmethod
+    def _find_input_device(  # noqa: C901
+        preferred: str | int | None = None,
+    ):
+        """Find a suitable audio input device.
+
+        Args:
+            preferred: Device name (substring match) or numeric index.
+                       ``None`` uses the system default.
+
+        Returns:
+            ``(device_id, device_info_dict)`` or ``(None, None)`` when
+            no input device is available.
+        """
+        import sounddevice as sd  # noqa: PLC0415
+
+        devices = sd.query_devices()
+
+        if preferred is not None:
+            if isinstance(preferred, int):
+                if 0 <= preferred < len(devices) and devices[preferred]["max_input_channels"] > 0:
+                    return preferred, devices[preferred]
+            elif isinstance(preferred, str) and preferred:
+                for i, d in enumerate(devices):
+                    if d["max_input_channels"] > 0 and preferred.lower() in d["name"].lower():
+                        return i, d
+
+        default_id = sd.default.device[0]
+        if isinstance(default_id, int) and 0 <= default_id < len(devices):
+            d = devices[default_id]
+            if d["max_input_channels"] > 0:
+                return default_id, d
+
+        for i, d in enumerate(devices):
+            if d["max_input_channels"] > 0:
+                return i, d
+
+        return None, None
+
     async def _audio_loop(self) -> None:
         """持续感知 PC 音频流: sounddevice 采集 -> WebSocket 流式发送至 Center ASR."""
         await asyncio.sleep(3)
+        _last_no_device_log = 0.0
         while True:
             if not self._audio_enabled:
                 self._audio_running = False
                 await asyncio.sleep(self._AUDIO_DISABLE_CHECK_INTERVAL)
                 continue
+
+            preferred = getattr(self, "_preferred_audio_device", None)
+            dev_id, dev_info = self._find_input_device(preferred)
+            if dev_id is None:
+                import time as _t  # noqa: PLC0415
+
+                now = _t.monotonic()
+                if now - _last_no_device_log > self._AUDIO_NO_DEVICE_LOG_INTERVAL:
+                    logger.info("[audio] No input device detected, waiting for device...")
+                    _last_no_device_log = now
+                self._audio_running = False
+                await asyncio.sleep(self._AUDIO_DEVICE_POLL_INTERVAL)
+                continue
+
+            logger.info(f"[audio] 使用输入设备: [{dev_id}] {dev_info['name']}")
             try:
-                await self._run_audio_stream()
+                await self._run_audio_stream(device=dev_id)
             except Exception as exc:
-                logger.error(f"Audio stream error: {exc}", exc_info=True)
+                logger.error(f"Audio stream error: {exc}")
                 self._audio_running = False
             await asyncio.sleep(self._AUDIO_RECONNECT_DELAY)
 
-    async def _run_audio_stream(self) -> None:
+    async def _run_audio_stream(self, *, device: int | None = None) -> None:
         import sounddevice as sd  # noqa: PLC0415
         import websockets  # noqa: PLC0415
 
@@ -767,7 +846,6 @@ class SensorDaemon:
         ws_url = f"{ws_url}/api/audio/transcribe?source=mic_pc&node_id={self.node_id}"
         connect_kwargs: dict[str, Any] = {"close_timeout": 5}
         if _is_local_center(self.center_url):
-            # Local development should bypass env proxies to avoid socks dependency errors.
             connect_kwargs["proxy"] = None
 
         logger.info(f"[audio] Connecting to {ws_url}")
@@ -784,6 +862,7 @@ class SensorDaemon:
                 loop.call_soon_threadsafe(audio_queue.put_nowait, bytes(indata))
 
             stream = sd.InputStream(
+                device=device,
                 samplerate=self._AUDIO_SAMPLE_RATE,
                 channels=self._AUDIO_CHANNELS,
                 dtype="int16",
@@ -876,7 +955,7 @@ class SensorDaemon:
 
     @staticmethod
     def _patch_numpy_for_soundcard() -> None:
-        """soundcard 内部用了 np.fromstring(binary)，numpy 2.x 不再支持，强制替换为 np.frombuffer。"""
+        """Patch soundcard to use np.frombuffer instead of np.fromstring."""
         np.fromstring = np.frombuffer  # type: ignore[attr-defined]
 
     @staticmethod
@@ -900,14 +979,15 @@ class SensorDaemon:
 
         return None, speaker.name
 
-    async def _run_audio_loopback_stream(self) -> None:
+    async def _run_audio_loopback_stream(self) -> None:  # noqa: PLR0915
         """使用 soundcard 库以 loopback 模式录制默认扬声器输出。"""
         import websockets  # noqa: PLC0415
 
         loopback_mic, speaker_name = await asyncio.to_thread(self._find_loopback_mic)
         if loopback_mic is None:
             logger.warning(
-                f"[audio-loopback] No loopback mic found for speaker '{speaker_name}', retrying later"
+                "[audio-loopback] No loopback mic found for speaker '%s', retrying later",
+                speaker_name,
             )
             return
 
