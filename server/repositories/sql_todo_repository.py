@@ -49,7 +49,7 @@ class SqlTodoRepository(ITodoRepository):
     def update(self, todo_id: int, **kwargs) -> bool:
         return self._manager.update_todo(todo_id, **kwargs)
 
-    def delete(self, todo_id: int) -> bool:
+    def delete(self, todo_id: int) -> list[int] | None:
         return self._manager.delete_todo(todo_id)
 
     def reorder(self, items: list[dict[str, Any]]) -> bool:

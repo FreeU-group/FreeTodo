@@ -125,15 +125,22 @@ class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
                     siblings = [self._todo_to_dict(session, t) for t in sibling_todos]
 
                 # 递归向下查找所有子任务
-                def _get_children_recursive(parent_todo_id: int) -> list[dict[str, Any]]:
+                def _get_children_recursive(
+                    parent_todo_id: int,
+                    visited: set[int] | None = None,
+                ) -> list[dict[str, Any]]:
+                    if visited is None:
+                        visited = set()
+                    if parent_todo_id in visited:
+                        return []
+                    visited.add(parent_todo_id)
                     children: list[dict[str, Any]] = []
                     child_todos = (
                         session.query(Todo).filter(col(Todo.parent_todo_id) == parent_todo_id).all()
                     )
                     for child in child_todos:
                         child_dict = self._todo_to_dict(session, child)
-                        # 递归获取子任务的子任务
-                        child_dict["children"] = _get_children_recursive(child.id)
+                        child_dict["children"] = _get_children_recursive(child.id, visited)
                         children.append(child_dict)
                     return children
 
@@ -278,14 +285,24 @@ class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
             logger.error(f"获取用于提示词的活跃 todo 列表失败: {e}")
             return []
 
-    def _delete_todo_recursive(self, session, todo_id: int) -> None:
-        """递归删除 todo 及其所有子任务"""
-        # 查找所有子任务
+    def _delete_todo_recursive(
+        self,
+        session,
+        todo_id: int,
+        visited: set[int] | None = None,
+    ) -> list[int]:
+        """递归删除 todo 及其所有子任务，返回所有被删除的 todo id 列表"""
+        if visited is None:
+            visited = set()
+        if todo_id in visited:
+            return []
+        visited.add(todo_id)
+
+        deleted_ids: list[int] = []
         child_todos = session.query(Todo).filter(col(Todo.parent_todo_id) == todo_id).all()
 
-        # 递归删除所有子任务
         for child in child_todos:
-            self._delete_todo_recursive(session, child.id)
+            deleted_ids.extend(self._delete_todo_recursive(session, child.id, visited))
 
         # 清理关联关系（不删除 Tag/Attachment 实体）
         session.query(TodoTagRelation).filter(col(TodoTagRelation.todo_id) == todo_id).delete()
@@ -297,24 +314,27 @@ class TodoManager(TodoAttachmentMixin, TodoIcalMixin):
         todo = session.query(Todo).filter_by(id=todo_id).first()
         if todo:
             session.delete(todo)
+            deleted_ids.append(todo_id)
             logger.info(f"删除 todo: {todo_id}")
 
-    def delete_todo(self, todo_id: int) -> bool:
+        return deleted_ids
+
+    def delete_todo(self, todo_id: int) -> list[int] | None:
+        """删除 todo 及其所有子任务，返回所有被删除的 id 列表，失败返回 None"""
         try:
             with self.db_base.get_session() as session:
                 todo = session.query(Todo).filter_by(id=todo_id).first()
                 if not todo:
                     logger.warning(f"todo 不存在: {todo_id}")
-                    return False
+                    return None
 
-                # 递归删除 todo 及其所有子任务
-                self._delete_todo_recursive(session, todo_id)
+                deleted_ids = self._delete_todo_recursive(session, todo_id)
                 session.flush()
-                logger.info(f"删除 todo 及其子任务: {todo_id}")
-                return True
+                logger.info(f"删除 todo 及其子任务: {todo_id}, 共删除 {len(deleted_ids)} 个")
+                return deleted_ids
         except SQLAlchemyError as e:
             logger.error(f"删除 todo 失败: {e}")
-            return False
+            return None
 
     # ========== 关系写入 ==========
     def reorder_todos(self, items: list[dict[str, Any]]) -> bool:

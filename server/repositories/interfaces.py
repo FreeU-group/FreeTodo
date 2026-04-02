@@ -149,8 +149,8 @@ class ITodoRepository(ABC):
         pass
 
     @abstractmethod
-    def delete(self, todo_id: int) -> bool:
-        """删除todo"""
+    def delete(self, todo_id: int) -> list[int] | None:
+        """删除 todo 及其子任务，返回被删除的 id 列表，失败返回 None"""
         pass
 
     @abstractmethod

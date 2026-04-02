@@ -106,12 +106,10 @@ export function parseDeadline(deadline?: string): Date | null {
 export function isAllDayDeadlineString(value?: string): boolean {
 	if (!value) return false;
 	if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return true;
-	if (
-		value.includes("T00:00:00") &&
-		!value.includes("Z") &&
-		!value.includes("+") &&
-		!/\d{2}:\d{2}:\d{2}-/.test(value)
-	) {
+	// Match T00:00:00 with optional Z suffix or no timezone —
+	// the fetcher normalizes bare datetimes by appending "Z", so we must
+	// accept both "T00:00:00" and "T00:00:00Z" as all-day markers.
+	if (/T00:00:00(Z|\.000Z)?$/.test(value)) {
 		return true;
 	}
 	return false;

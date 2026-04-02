@@ -102,6 +102,19 @@ class TodoIcalMixin:
     ) -> int | None:
         try:
             with self.db_base.get_session() as session:
+                if parent_todo_id is not None:
+                    from storage.sql_utils import col as _col  # noqa: PLC0415
+
+                    parent_exists = (
+                        session.query(_col(Todo.id)).filter(_col(Todo.id) == parent_todo_id).first()
+                    )
+                    if not parent_exists:
+                        logger.warning(
+                            "create_todo: parent_todo_id 不存在: %s",
+                            parent_todo_id,
+                        )
+                        parent_todo_id = None
+
                 todo = Todo(
                     **prepare_create_todo_kwargs(
                         name=name,

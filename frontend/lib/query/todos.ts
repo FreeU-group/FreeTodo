@@ -128,7 +128,7 @@ export function useTodos(params?: UseTodosParams) {
 			query: {
 				queryKey: queryKeys.todos.list(params),
 				staleTime: 5 * 1000,
-				refetchInterval: 1000,
+				refetchInterval: 5000,
 				select: (data: unknown) => {
 					// Data is now auto-converted to camelCase by the fetcher
 					const response = data as TodoListResponse;
@@ -149,6 +149,10 @@ export function useTodos(params?: UseTodosParams) {
 // 防抖更新相关的全局状态
 const pendingUpdateTimers = new Map<number, ReturnType<typeof setTimeout>>();
 const pendingUpdatePayloads = new Map<number, UpdateTodoInput>();
+const pendingUpdateResolvers = new Map<
+	number,
+	{ resolve: (v: Todo) => void; reject: (e: unknown) => void }[]
+>();
 
 /**
  * 创建 Todo 的 Mutation Hook
@@ -236,32 +240,41 @@ export function useUpdateTodo() {
 			};
 			pendingUpdatePayloads.set(id, merged);
 
-			// 如果需要防抖，返回一个 Promise 延迟执行
 			if (shouldDebounce) {
 				return new Promise<Todo>((resolve, reject) => {
 					const existingTimer = pendingUpdateTimers.get(id);
 					if (existingTimer) clearTimeout(existingTimer);
 
+					// 收集所有等待中的 resolver，当定时器触发时统一 settle
+					const resolvers = pendingUpdateResolvers.get(id) ?? [];
+					resolvers.push({ resolve, reject });
+					pendingUpdateResolvers.set(id, resolvers);
+
 					const timer = setTimeout(async () => {
 						pendingUpdateTimers.delete(id);
 						const body = pendingUpdatePayloads.get(id);
 						pendingUpdatePayloads.delete(id);
+						const waitingResolvers =
+							pendingUpdateResolvers.get(id) ?? [];
+						pendingUpdateResolvers.delete(id);
+
 						if (!body || Object.keys(body).length === 0) {
-							const cachedData = queryClient.getQueryData<TodoListResponse>(
-								queryKeys.todos.list(),
-							);
+							const cachedData =
+								queryClient.getQueryData<TodoListResponse>(
+									queryKeys.todos.list(),
+								);
 							const todos = cachedData?.todos ?? [];
 							const todo = todos.find((t) => t.id === id);
 							if (todo) {
-								resolve(todo);
+								for (const r of waitingResolvers) r.resolve(todo);
 							} else {
-								reject(new Error("Todo not found"));
+								const err = new Error("Todo not found");
+								for (const r of waitingResolvers) r.reject(err);
 							}
 							return;
 						}
 
 						try {
-							// Build payload with normalized date/time inputs
 							const payload = {
 								...body,
 								deadline: normalizeDateTimeValue(body.deadline),
@@ -272,34 +285,46 @@ export function useUpdateTodo() {
 								due: normalizeDateTimeValue(body.due),
 								dtstamp: normalizeDateTimeValue(body.dtstamp),
 								created: normalizeDateTimeValue(body.created),
-								lastModified: normalizeDateTimeValue(body.lastModified),
-								recurrenceId: normalizeDateTimeValue(body.recurrenceId),
-								completedAt: normalizeDateTimeValue(body.completedAt),
+								lastModified: normalizeDateTimeValue(
+									body.lastModified,
+								),
+								recurrenceId: normalizeDateTimeValue(
+									body.recurrenceId,
+								),
+								completedAt: normalizeDateTimeValue(
+									body.completedAt,
+								),
 								rrule: body.rrule,
 							};
 							const updated = await updateTodoApiTodosTodoIdPut(
 								id,
 								payload as never,
 							);
-							resolve(
-								normalizeTodo(updated as unknown as Record<string, unknown>),
+							const result = normalizeTodo(
+								updated as unknown as Record<string, unknown>,
 							);
+							for (const r of waitingResolvers) r.resolve(result);
 						} catch (err) {
-							reject(err);
+							for (const r of waitingResolvers) r.reject(err);
 						}
 					}, 500);
 					pendingUpdateTimers.set(id, timer);
 				});
 			}
 
-			// 非防抖字段立即更新
+			// 非防抖字段立即更新 — 同时刷掉该 todo 的待发防抖
+			const existingTimer = pendingUpdateTimers.get(id);
+			if (existingTimer) {
+				clearTimeout(existingTimer);
+				pendingUpdateTimers.delete(id);
+			}
+
 			const body = pendingUpdatePayloads.get(id);
 			pendingUpdatePayloads.delete(id);
 			if (!body || Object.keys(body).length === 0) {
 				throw new Error("No fields to update");
 			}
 
-			// Build payload with normalized date/time inputs
 			const payload = {
 				...body,
 				deadline: normalizeDateTimeValue(body.deadline),
@@ -316,7 +341,16 @@ export function useUpdateTodo() {
 				rrule: body.rrule,
 			};
 			const updated = await updateTodoApiTodosTodoIdPut(id, payload as never);
-			return normalizeTodo(updated as unknown as Record<string, unknown>);
+			const result = normalizeTodo(
+				updated as unknown as Record<string, unknown>,
+			);
+
+			// settle 所有等待防抖的 resolver
+			const waitingResolvers = pendingUpdateResolvers.get(id) ?? [];
+			pendingUpdateResolvers.delete(id);
+			for (const r of waitingResolvers) r.resolve(result);
+
+			return result;
 		},
 		onMutate: async ({ id, input }) => {
 			await queryClient.cancelQueries({ queryKey: queryKeys.todos.all });

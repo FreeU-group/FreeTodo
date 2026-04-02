@@ -286,11 +286,13 @@ class TodoService:
         """删除 Todo"""
         if not self.repository.get_by_id(todo_id):
             raise HTTPException(status_code=404, detail="todo 不存在")
-        if not self.repository.delete(todo_id):
+        deleted_ids = self.repository.delete(todo_id)
+        if deleted_ids is None:
             raise HTTPException(status_code=500, detail="删除 todo 失败")
-        remove_todo_reminder_jobs(todo_id)
-        clear_notification_by_todo_id(todo_id)
-        clear_dismissed_mark(todo_id)
+        for did in deleted_ids:
+            remove_todo_reminder_jobs(did)
+            clear_notification_by_todo_id(did)
+            clear_dismissed_mark(did)
 
     def reorder_todos(self, items: list[dict[str, Any]]) -> dict[str, Any]:
         """批量重排序 Todo"""

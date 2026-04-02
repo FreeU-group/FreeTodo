@@ -173,7 +173,7 @@ async def reorder_todos(
         {
             "id": item.id,
             "order": item.order,
-            **({"parent_todo_id": item.parent_todo_id} if item.parent_todo_id is not None else {}),
+            "parent_todo_id": item.parent_todo_id,
         }
         for item in request.items
     ]
@@ -299,21 +299,21 @@ def _resolve_overlaps(suggestions: list[dict]) -> list[dict]:
                 end = start + timedelta(hours=1)
             parsed.append((start, end, s))
         except (KeyError, ValueError):
-            parsed.append((_dt.min, _dt.min, s))
+            parsed.append((_dt.min, _dt.min, s))  # noqa: DTZ901
 
     parsed.sort(key=lambda x: x[0])
 
     resolved: list[dict] = []
     prev_end: _dt | None = None
     for start, end, s in parsed:
-        if start == _dt.min:
+        if start == _dt.min:  # noqa: DTZ901
             resolved.append(s)
             continue
         duration = end - start
         if prev_end and start < prev_end:
-            start = prev_end + timedelta(minutes=15)
-            end = start + duration
-            s = {**s, "suggested_start": start.isoformat(), "suggested_end": end.isoformat()}
+            start = prev_end + timedelta(minutes=15)  # noqa: PLW2901
+            end = start + duration  # noqa: PLW2901
+            s = {**s, "suggested_start": start.isoformat(), "suggested_end": end.isoformat()}  # noqa: PLW2901
         prev_end = end
         resolved.append(s)
 
@@ -321,12 +321,13 @@ def _resolve_overlaps(suggestions: list[dict]) -> list[dict]:
 
 
 @router.post("/ai-plan", response_model=AiPlanResponse)
-async def ai_plan(
+async def ai_plan(  # noqa: C901, PLR0912, PLR0915
     req: AiPlanRequest,
     service: TodoService = Depends(get_todo_service),
 ):
     """AI 智能规划时间安排"""
     from openai import OpenAI  # noqa: PLC0415
+
     from util.base_paths import get_user_data_dir  # noqa: PLC0415
     from util.settings import settings  # noqa: PLC0415
     from util.time_utils import get_local_now  # noqa: PLC0415
