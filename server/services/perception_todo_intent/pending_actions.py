@@ -16,7 +16,7 @@ from __future__ import annotations
 import threading
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -26,12 +26,12 @@ if TYPE_CHECKING:
 from util.time_utils import get_utc_now
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     TODO = "todo"
     EXECUTABLE = "executable"
 
 
-class ActionStatus(str, Enum):
+class ActionStatus(StrEnum):
     PENDING = "pending"
     CONFIRMED = "confirmed"
     EXECUTING = "executing"
@@ -42,9 +42,16 @@ class ActionStatus(str, Enum):
 
 @dataclass
 class ExecutionStep:
+    key: str
     label: str
     status: str = "pending"  # pending | running | done | failed
     detail: str = ""
+
+
+@dataclass
+class ExecutionMessage:
+    role: str
+    content: str
 
 
 @dataclass
@@ -59,10 +66,12 @@ class PendingAction:
     todo_data: dict[str, Any] = field(default_factory=dict)
     execution_plan: list[str] = field(default_factory=list)
     execution_steps: list[ExecutionStep] = field(default_factory=list)
+    execution_messages: list[ExecutionMessage] = field(default_factory=list)
     execution_result: str = ""
     agent_raw_output: str = ""
     streaming_output: str = ""
     activity_id: str = ""
+    execution_session_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -76,16 +85,21 @@ class PendingAction:
             "todo_data": self.todo_data,
             "execution_plan": self.execution_plan,
             "execution_steps": [
-                {"label": s.label, "status": s.status, "detail": s.detail}
+                {"key": s.key, "label": s.label, "status": s.status, "detail": s.detail}
                 for s in self.execution_steps
+            ],
+            "execution_messages": [
+                {"role": m.role, "content": m.content} for m in self.execution_messages
             ],
             "execution_result": self.execution_result,
             "streaming_output": self.streaming_output,
             "activity_id": self.activity_id,
+            "execution_session_id": self.execution_session_id,
         }
 
 
 _MAX_ACTIONS = 200
+_MAX_MESSAGES = 200
 _lock = threading.Lock()
 _actions: OrderedDict[str, PendingAction] = OrderedDict()
 
@@ -100,6 +114,7 @@ def create_pending_action(
     execution_plan: list[str] | None = None,
     agent_raw_output: str = "",
 ) -> PendingAction:
+    plan_items = execution_plan or []
     action = PendingAction(
         action_id=f"pa_{uuid4().hex[:12]}",
         action_type=action_type,
@@ -109,7 +124,12 @@ def create_pending_action(
         created_at=get_utc_now(),
         context_id=context_id,
         todo_data=todo_data or {},
-        execution_plan=execution_plan or [],
+        execution_plan=plan_items,
+        execution_steps=[
+            ExecutionStep(key=f"plan_{index + 1}", label=str(step))
+            for index, step in enumerate(plan_items)
+            if str(step).strip()
+        ],
         agent_raw_output=agent_raw_output,
     )
     with _lock:
@@ -157,11 +177,74 @@ def append_streaming_output(action_id: str, chunk: str) -> PendingAction | None:
         return action
 
 
+def append_execution_message(
+    action_id: str,
+    *,
+    role: str,
+    content: str,
+    merge_with_last: bool = False,
+) -> PendingAction | None:
+    normalized = content.strip()
+    if not normalized:
+        return None
+
+    with _lock:
+        action = _actions.get(action_id)
+        if action is None:
+            return None
+
+        if merge_with_last and action.execution_messages:
+            last = action.execution_messages[-1]
+            if last.role == role:
+                last.content += normalized
+                return action
+
+        action.execution_messages.append(ExecutionMessage(role=role, content=normalized))
+        if len(action.execution_messages) > _MAX_MESSAGES:
+            del action.execution_messages[: len(action.execution_messages) - _MAX_MESSAGES]
+        return action
+
+
+def upsert_execution_step(
+    action_id: str,
+    *,
+    key: str,
+    label: str,
+    status: str,
+    detail: str = "",
+) -> PendingAction | None:
+    with _lock:
+        action = _actions.get(action_id)
+        if action is None:
+            return None
+
+        for step in action.execution_steps:
+            if step.key == key:
+                step.label = label
+                step.status = status
+                if detail:
+                    step.detail = detail
+                return action
+
+        action.execution_steps.append(
+            ExecutionStep(key=key, label=label, status=status, detail=detail)
+        )
+        return action
+
+
 def set_activity_id(action_id: str, activity_id: str) -> PendingAction | None:
     with _lock:
         action = _actions.get(action_id)
         if action is not None:
             action.activity_id = activity_id
+        return action
+
+
+def set_execution_session_id(action_id: str, session_id: str) -> PendingAction | None:
+    with _lock:
+        action = _actions.get(action_id)
+        if action is not None:
+            action.execution_session_id = session_id
         return action
 
 

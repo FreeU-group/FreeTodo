@@ -45,6 +45,7 @@ sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = REPO_ROOT / "frontend"
 POPUP_SCRIPT = FRONTEND_DIR / "scripts" / "signal-popup.js"
+PENDING_ACTION_POPUP_SCRIPT = FRONTEND_DIR / "scripts" / "pending-action-popup.js"
 LOG_DIR = REPO_ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -201,6 +202,70 @@ def _launch_popup(data: dict, on_confirm=None, on_dismiss=None) -> bool:
     return True
 
 
+def _launch_pending_action_popup(data: dict) -> bool:
+    """Launch the dedicated pending-action popup that handles confirm/execute itself."""
+    with _state.popup_lock:
+        if _state.popup_proc and _state.popup_proc.poll() is None:
+            return False
+
+    tmp_path = ""
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".json",
+        prefix="signal_pending_action_",
+        dir=str(REPO_ROOT),
+        delete=False,
+        encoding="utf-8",
+    ) as tmp:
+        json.dump(data, tmp, ensure_ascii=False)
+        tmp_path = tmp.name
+
+    def _run() -> None:
+        try:
+            if _state.electron_bin and _state.electron_bin.endswith(("npx", "npx.cmd")):
+                cmd = [
+                    _state.electron_bin,
+                    "electron",
+                    str(PENDING_ACTION_POPUP_SCRIPT),
+                    tmp_path,
+                ]
+            else:
+                cmd = [
+                    _state.electron_bin or "",
+                    str(PENDING_ACTION_POPUP_SCRIPT),
+                    tmp_path,
+                ]
+
+            log.info(
+                "pending-action弹窗启动: title=%s, action_id=%s",
+                data.get("title", ""),
+                data.get("actionId", ""),
+            )
+            with _state.popup_lock:
+                _state.popup_proc = subprocess.Popen(  # nosec B603
+                    cmd,
+                    cwd=str(FRONTEND_DIR),
+                    env={
+                        **os.environ,
+                        "ELECTRON_DISABLE_SECURITY_WARNINGS": "true",
+                    },
+                )
+            _state.popup_proc.wait()
+            log.info(
+                "pending-action弹窗已关闭: action_id=%s, exit=%s",
+                data.get("actionId", ""),
+                _state.popup_proc.returncode,
+            )
+        except Exception as exc:
+            log.error("pending-action弹窗启动失败: %s", exc, exc_info=True)
+        finally:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+
+    threading.Thread(target=_run, daemon=True).start()
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Pending action popup handler (pending_todo / pending_execute)
 # ---------------------------------------------------------------------------
@@ -232,42 +297,22 @@ def _handle_pending_action_notification(item: dict, ntype: str) -> None:
         title,
     )
 
-    if action_type == "executable":
-        popup_data = {
-            "title": f"任务确认：{title}",
-            "subtitle": description or "AI 建议执行此任务，是否确认？",
-            "buttons": [
-                {"label": "忽略", "action": "dismiss", "style": "ghost"},
-                {"label": "执行", "action": "close", "style": "primary"},
-            ],
-        }
-    else:
-        popup_data = {
-            "title": f"待办确认：{title}",
-            "subtitle": description or "AI 建议添加此待办，是否确认？",
-        }
+    popup_data = {
+        "centerUrl": _state.center_url,
+        "actionId": action_id,
+        "actionType": action_type
+        or ("executable" if ntype == "pending_execute" else "todo"),
+        "title": title,
+        "description": description or "AI 检测到一个待办，确认后可直接开始执行。",
+        "executionPlan": parsed.get("execution_plan", []),
+    }
 
-    def _on_confirm(aid=action_id, atype=action_type):
-        endpoint = "execute" if atype == "executable" else "confirm"
-        url = f"{_state.center_url}/api/intent-actions/{aid}/{endpoint}"
-        log.info("[FLOW][Sensor] 用户确认 → POST %s", url)
-        try:
-            r = httpx.post(url, timeout=30)
-            log.info(
-                "[FLOW][Sensor] 响应: HTTP %d, body=%s", r.status_code, r.text[:200]
-            )
-        except Exception as e:
-            log.error("[FLOW][Sensor] 请求失败: %s", e, exc_info=True)
-
-    def _on_dismiss(aid=action_id):
-        url = f"{_state.center_url}/api/intent-actions/{aid}/reject"
-        log.info("[FLOW][Sensor] 用户忽略 → POST %s", url)
-        try:
-            httpx.post(url, timeout=10)
-        except Exception as e:
-            log.error("[FLOW][Sensor] reject失败: %s", e)
-
-    _launch_popup(popup_data, on_confirm=_on_confirm, on_dismiss=_on_dismiss)
+    launched = _launch_pending_action_popup(popup_data)
+    if not launched:
+        log.info(
+            "[FLOW][Sensor] 已有弹窗在显示，跳过本次 pending-action 弹窗: action_id=%s",
+            action_id,
+        )
 
 
 # ---------------------------------------------------------------------------
