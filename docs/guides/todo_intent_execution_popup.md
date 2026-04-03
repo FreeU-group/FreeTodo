@@ -6,11 +6,11 @@
 
 相关实现：
 
-- `server/routers/intent_actions.py`
-- `server/services/perception_todo_intent/pending_actions.py`
-- `server/services/perception_todo_intent/execution_engine.py`
+- `local-api/routers/intent_actions.py`
+- `local-api/services/perception_todo_intent/pending_actions.py`
+- `local-api/services/perception_todo_intent/execution_engine.py`
 - `scripts/signal-sensor.py`
-- `frontend/scripts/pending-action-popup.js`
+- `local-web/scripts/pending-action-popup.js`
 
 ## 当前交互目标
 

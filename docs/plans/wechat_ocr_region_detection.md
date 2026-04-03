@@ -29,7 +29,7 @@
 
 **目标**：将左侧联系人列表从截图中移除，只保留右侧聊天区域。
 
-**文件**：`client/proactive_ocr/priors/wechat.py` → `_find_sidebar_boundary()`
+**文件**：`local-sensor/proactive_ocr/priors/wechat.py` → `_find_sidebar_boundary()`
 
 ### 算法：列背景亮度水平交叉检测
 
@@ -62,7 +62,7 @@
 
 **目标**：在聊天区 ROI 中定位标题栏和消息内容的分界线。
 
-**文件**：`client/proactive_ocr/priors/wechat.py` → `find_title_divider_y()`
+**文件**：`local-sensor/proactive_ocr/priors/wechat.py` → `find_title_divider_y()`
 
 ### 策略一：脉冲检测（优先）
 
@@ -200,7 +200,7 @@ HSV 无法判断时，用预设气泡 RGB 值（容差 40）比对：
 
 ## WinRT OCR 引擎适配
 
-**文件**：`client/proactive_ocr/ocr_engine_winrt.py`
+**文件**：`local-sensor/proactive_ocr/ocr_engine_winrt.py`
 
 ### CJK 字符间距归一化
 
@@ -243,7 +243,7 @@ WinRT OCR 不返回置信度，`_estimate_line_confidence()` 基于字符质量�
 
 ### Debug 图像输出
 
-sensor 启动时加 `--debug-images` 参数（默认已启用），每次微信截图会保存到 `client/sensor_debug/`：
+sensor 启动时加 `--debug-images` 参数（默认已启用），每次微信截图会保存到 `local-sensor/sensor_debug/`：
 
 | 文件 | 内容 |
 |------|------|
@@ -255,13 +255,13 @@ sensor 启动时加 `--debug-images` 参数（默认已启用），每次微信�
 
 ```bash
 # 1. 把微信截图放入测试目录
-client/sensor_debug/wechat_test/input/
+local-sensor/sensor_debug/wechat_test/input/
 
 # 2. 运行测试
-cd client && uv run python sensor_debug/wechat_test/run_test.py
+cd local-sensor && uv run python sensor_debug/wechat_test/run_test.py
 
 # 3. 查看结果
-client/sensor_debug/wechat_test/results/
+local-sensor/sensor_debug/wechat_test/results/
 #   <name>_regions.png     - 区域标注图（红线=侧边栏, 青线=分隔线）
 #   <name>_title.png       - 标题区裁剪
 #   <name>_title_ocr.png   - 标题区 OCR 标注
@@ -274,8 +274,8 @@ client/sensor_debug/wechat_test/results/
 
 | 文件 | 职责 |
 |------|------|
-| `client/proactive_ocr/priors/wechat.py` | 侧边栏裁剪、标题分隔线检测、主题识别、气泡颜色定义 |
-| `client/proactive_ocr/wechat_message_parser.py` | 消息解析器：时间戳/编辑框/昵称/说话人分类 |
-| `client/proactive_ocr/models.py` | ChatMessage、ChatContext、ChatType 数据模型 |
-| `client/proactive_ocr/ocr_engine_winrt.py` | WinRT OCR 引擎（CJK 归一化、启发式置信度、GBK 安全） |
-| `client/sensor.py` | 集成入口：截图→ROI→分隔→OCR→解析→发送 |
+| `local-sensor/proactive_ocr/priors/wechat.py` | 侧边栏裁剪、标题分隔线检测、主题识别、气泡颜色定义 |
+| `local-sensor/proactive_ocr/wechat_message_parser.py` | 消息解析器：时间戳/编辑框/昵称/说话人分类 |
+| `local-sensor/proactive_ocr/models.py` | ChatMessage、ChatContext、ChatType 数据模型 |
+| `local-sensor/proactive_ocr/ocr_engine_winrt.py` | WinRT OCR 引擎（CJK 归一化、启发式置信度、GBK 安全） |
+| `local-sensor/sensor.py` | 集成入口：截图→ROI→分隔→OCR→解析→发送 |

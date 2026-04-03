@@ -152,7 +152,7 @@
 ### 4.1 配置
 
 ```yaml
-# server/config/default_config.yaml
+# local-api/config/default_config.yaml
 audio:
   asr:
     api_key: YOUR_LLM_KEY_HERE
@@ -294,7 +294,7 @@ PerceptionStream (L0)
 
 ### 9.1 自动检测与热插拔
 
-Sensor (`client/sensor.py`) 在启动音频采集前会先通过 `_find_input_device()` 检测可用的输入设备:
+Sensor (`local-sensor/sensor.py`) 在启动音频采集前会先通过 `_find_input_device()` 检测可用的输入设备:
 
 1. **无设备时等待**: 如果没有任何输入设备, sensor 不会连接 WebSocket, 而是每 3 秒轮询一次设备列表, 直到有可用设备接入。
 2. **设备断开后重连**: 采集过程中设备断开会触发异常, sensor 自动重试并重新检测设备。

@@ -58,7 +58,7 @@ git checkout vc
 make build-server
 ```
 
-该命令在 `server/` 目录下执行 `docker build`，生成镜像 `freeu/lifetrace-server:latest`。
+该命令在 `local-api/` 目录下执行 `docker build`，生成镜像 `freeu/lifetrace-server:latest`。
 
 ### 2.4 配置环境变量
 
@@ -132,7 +132,7 @@ Frontend 运行在本地电脑上，通过网络连接云端 Server。
 
 ```bash
 # 新开一个命令行窗口
-cd FreeTodo/frontend
+cd FreeTodo/local-web
 
 pnpm install
 ```
@@ -143,7 +143,7 @@ pnpm install
 cp .env.example .env
 ```
 
-编辑 `frontend/.env`，将 `NEXT_PUBLIC_API_URL` 修改为云端 Server 的地址：
+编辑 `local-web/.env`，将 `NEXT_PUBLIC_API_URL` 修改为云端 Server 的地址：
 
 ```bash
 NEXT_PUBLIC_API_URL=http://<云服务器公网IP>:8001
@@ -172,16 +172,16 @@ Client 是 Python 感知客户端，负责屏幕截图采集、OCR 识别等，�
 # 新开一个命令行窗口
 cd FreeTodo
 
-uv sync --directory client
+uv sync --directory local-sensor
 ```
 
 ### 4.3 配置环境变量
 
 ```bash
-cp client/.env.example client/.env
+cp local-sensor/.env.example local-sensor/.env
 ```
 
-编辑 `client/.env`，将 `CENTER_URL` 修改为云端 Server 的地址：
+编辑 `local-sensor/.env`，将 `CENTER_URL` 修改为云端 Server 的地址：
 
 ```bash
 CENTER_URL=http://<云服务器公网IP>:8001
@@ -191,10 +191,10 @@ CENTER_URL=http://<云服务器公网IP>:8001
 
 ```bash
 # 使用 .env 中的 CENTER_URL（推荐）
-uv run --directory client python sensor.py
+uv run --directory local-sensor python sensor.py
 
 # 或者手动指定地址（命令行参数优先级更高）
-uv run --directory client python sensor.py --center-url http://<云服务器公网IP>:8001
+uv run --directory local-sensor python sensor.py --center-url http://<云服务器公网IP>:8001
 ```
 
 ## 5. 手机 APP 与硬件连接

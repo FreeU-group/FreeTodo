@@ -58,7 +58,7 @@ Server 是 FreeTodo 的核心服务，本地部署时直接用 Python 运行。
 ### 4.1 安装依赖
 
 ```bash
-cd server
+cd local-api
 
 uv sync
 source .venv/bin/activate
@@ -71,13 +71,13 @@ source .venv/bin/activate
 
 > 请注意，如果你不是开发者，这一步可以完全跳过，在界面上可以直接配置 API KEY。
 
-首次启动时，Server 会自动从 `server/config/default_config.yaml` 生成 `server/config/config.yaml`。你也可以提前手动复制并修改：
+首次启动时，Server 会自动从 `local-api/config/default_config.yaml` 生成 `local-api/config/config.yaml`。你也可以提前手动复制并修改：
 
 ```bash
 cp config/default_config.yaml config/config.yaml
 ```
 
-编辑 `server/config/config.yaml`，至少配置 LLM 密钥：
+编辑 `local-api/config/config.yaml`，至少配置 LLM 密钥：
 
 ```yaml
 # LLM配置（必填）
@@ -100,13 +100,13 @@ banna2:
   api_key: your-gemini-api-key
 ```
 
-也可以通过 `server/.env` 环境变量配置（优先级高于 `config.yaml`）：
+也可以通过 `local-api/.env` 环境变量配置（优先级高于 `config.yaml`）：
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `server/.env`，按需填入：
+编辑 `local-api/.env`，按需填入：
 
 ```bash
 LIFETRACE_LLM__API_KEY=your-llm-api-key(required)
@@ -133,7 +133,7 @@ AgentOS 提供 Agno Agent 工具调度能力，如不需要可跳过：
 
 ```bash
 # 新开一个命令行窗口
-cd FreeTodo/server
+cd FreeTodo/local-api
 
 python agent_os.py
 ```
@@ -146,7 +146,7 @@ Frontend 运行在本地，连接本地 Server。
 
 ```bash
 # 新开一个命令行窗口
-cd FreeTodo/frontend
+cd FreeTodo/local-web
 
 pnpm install
 ```
@@ -180,13 +180,13 @@ Client 是 Python 感知客户端，负责屏幕截图采集、OCR 识别等，�
 ```bash
 # 新开一个命令行窗口
 cd FreeTodo
-uv sync --directory client
+uv sync --directory local-sensor
 ```
 
 ### 6.2 配置环境变量
 
 ```bash
-cp client/.env.example client/.env
+cp local-sensor/.env.example local-sensor/.env
 ```
 
 本地部署时默认配置已指向 `localhost`，无需修改：
@@ -199,10 +199,10 @@ CENTER_URL=http://localhost:8001
 
 ```bash
 # 使用 .env 中的 CENTER_URL（推荐）
-uv run --directory client python sensor.py
+uv run --directory local-sensor python sensor.py
 
 # 或者手动指定地址（命令行参数优先级更高）
-uv run --directory client python sensor.py --center-url http://localhost:8001
+uv run --directory local-sensor python sensor.py --center-url http://localhost:8001
 ```
 
 ## 7. 手机 APP 与硬件连接
@@ -254,7 +254,7 @@ ipconfig | findstr "IPv4"
 
 ## 8. 数据存储
 
-本地部署时，所有数据存储在 `server/data/` 目录下：
+本地部署时，所有数据存储在 `local-api/data/` 目录下：
 
 - SQLite 数据库（`lifetrace.db`）
 - 截图文件（`screenshots/`）
@@ -263,19 +263,19 @@ ipconfig | findstr "IPv4"
 - 向量数据库（`vector_db/`）
 - 日志文件（`logs/`）
 
-> 备份时只需复制整个 `server/data/` 目录即可。
+> 备份时只需复制整个 `local-api/data/` 目录即可。
 
 ## 9. 常见问题
 
 ### 9.1 Frontend 无法连接 Server
 
 1. 确认 Server 已启动并正常运行
-2. 确认 `frontend/.env` 中 `NEXT_PUBLIC_API_URL` 为 `http://localhost:8001`
+2. 确认 `local-web/.env` 中 `NEXT_PUBLIC_API_URL` 为 `http://localhost:8001`
 3. 测试连通性：`curl http://localhost:8001/api/health`
 
 ### 9.2 AI 功能不可用
 
-确认 `server/config/config.yaml` 中 `llm.api_key` 已正确配置，且 `llm.base_url` 可访问。
+确认 `local-api/config/config.yaml` 中 `llm.api_key` 已正确配置，且 `llm.base_url` 可访问。
 
 ### 9.3 Client 上报数据失败
 
@@ -292,4 +292,4 @@ ipconfig | findstr "IPv4"
 
 ### 9.5 端口被占用
 
-如果 8001 端口被占用，可修改 `server/config/config.yaml` 中的 `server.port`，同时更新 `frontend/.env` 和 Client 启动参数中的端口号。
+如果 8001 端口被占用，可修改 `local-api/config/config.yaml` 中的 `server.port`，同时更新 `local-web/.env` 和 Client 启动参数中的端口号。

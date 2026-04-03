@@ -8,8 +8,8 @@
 
 | 配置项 | 值 | 文件 |
 |--------|-----|------|
-| Center API 地址 | `https://tybbackend.cpolar.cn/` | `phone/lib/env/lifetrace_env.dart` |
-| LifeTrace 模式 | `true` | `phone/lib/main.dart` (`_kLifeTraceMode`) |
+| Center API 地址 | `https://tybbackend.cpolar.cn/` | `phone-app/lib/env/lifetrace_env.dart` |
+| LifeTrace 模式 | `true` | `phone-app/lib/main.dart` (`_kLifeTraceMode`) |
 | 认证 Token | `lifetrace-omi-compat-2026` | `lifetrace_env.dart` ↔ `config.yaml → omi_compat.token` |
 | 用户 UID | `lifetrace-user` | `lifetrace_env.dart` ↔ `config.yaml → omi_compat.uid` |
 | Firebase Auth | 已跳过 | `auth_service.dart` / `auth_provider.dart` / `shared.dart` |
@@ -82,15 +82,15 @@ uv run python scripts/test_omi_compat.py https://tybbackend.cpolar.cn
 虽然运行时完全跳过 Firebase Auth，但 Flutter 编译仍需要 Firebase 配置文件存在：
 
 - **Android**: 在 [Firebase Console](https://console.firebase.google.com/) 创建一个免费项目，
-  下载 `google-services.json` 放到 `phone/android/app/google-services.json`
-- **iOS**: 下载 `GoogleService-Info.plist` 放到 `phone/ios/Runner/GoogleService-Info.plist`
+  下载 `google-services.json` 放到 `phone-app/android/app/google-services.json`
+- **iOS**: 下载 `GoogleService-Info.plist` 放到 `phone-app/ios/Runner/GoogleService-Info.plist`
 
-> 这些文件已在 `phone/.gitignore` 中排除，不会提交到仓库。
+> 这些文件已在 `phone-app/.gitignore` 中排除，不会提交到仓库。
 
 ### 3.2 构建并运行
 
 ```bash
-cd phone
+cd phone-app
 flutter pub get
 flutter run
 ```
@@ -135,7 +135,7 @@ flutter run
 
 ### Q: App 停在登录页
 
-A: 确认 `phone/lib/main.dart` 中 `_kLifeTraceMode = true`。
+A: 确认 `phone-app/lib/main.dart` 中 `_kLifeTraceMode = true`。
 执行 `flutter clean && flutter run` 重新构建。
 
 ### Q: API 请求 401

@@ -63,26 +63,26 @@
 **完整的端到端新功能**，检测用户当前在使用哪个应用程序，并记录切换行为。
 
 - **客户端采集**（`scripts/signal-sensor.py`）：新增第 6 号轮询线程，每秒通过 Windows `GetForegroundWindow` / macOS `osascript` 获取当前前台窗口的 `app_name` 和 `window_title`，当发生切换时 POST 到服务端
-- **服务端接入**（`server/routers/perception_ingest.py`）：新增 `POST /api/perception/app-switch` 端点，接收应用切换事件
-- **感知适配器**（`server/perception/adapters/app_switch_adapter.py`）：新文件，`AppSwitchAdapter` 负责去重（连续相同应用不重复记录）并构建 `PerceptionEvent`，事件标记为 `SourceType.APP_SWITCH`
-- **感知管理器**（`server/perception/manager.py`）：注册 `app_switch` 适配器，新增 `try_publish_app_switch` 和 `try_publish_app_switch_threadsafe` 方法，支持异步/同步两种调用方式
-- **数据模型**（`server/perception/models.py` + `client/perception/models.py`）：新增 `APP_SWITCH` 感知源类型
+- **服务端接入**（`local-api/routers/perception_ingest.py`）：新增 `POST /api/perception/app-switch` 端点，接收应用切换事件
+- **感知适配器**（`local-api/perception/adapters/app_switch_adapter.py`）：新文件，`AppSwitchAdapter` 负责去重（连续相同应用不重复记录）并构建 `PerceptionEvent`，事件标记为 `SourceType.APP_SWITCH`
+- **感知管理器**（`local-api/perception/manager.py`）：注册 `app_switch` 适配器，新增 `try_publish_app_switch` 和 `try_publish_app_switch_threadsafe` 方法，支持异步/同步两种调用方式
+- **数据模型**（`local-api/perception/models.py` + `local-sensor/perception/models.py`）：新增 `APP_SWITCH` 感知源类型
 - **定位**：纯上下文记录（写入 Memory L0/L1），不触发待办意图识别
 
 ### B. 新增感知源：PC 扬声器音频回环（Audio Loopback）
 
 **完整的端到端新功能**，采集电脑扬声器输出的音频（如会议、视频播放内容）。
 
-- **客户端采集**（`client/sensor.py`）：新增 `_audio_loopback_loop` 循环，通过 WASAPI Loopback / BlackHole / 立体声混音设备捕获系统音频输出，经 WebSocket 流式传输到服务端进行 ASR 转录
+- **客户端采集**（`local-sensor/sensor.py`）：新增 `_audio_loopback_loop` 循环，通过 WASAPI Loopback / BlackHole / 立体声混音设备捕获系统音频输出，经 WebSocket 流式传输到服务端进行 ASR 转录
 - **设备检测**：`_find_loopback_device` 方法自动查找可用的回环设备，支持 Windows WASAPI Loopback、macOS BlackHole、立体声混音
 - **独立开关**：新增 `--no-audio-loopback` 命令行参数和 `audio_loopback_enabled` 远程配置项，与麦克风音频独立控制
-- **前端设置**（`frontend/apps/settings/components/SensorNodesSection.tsx`）：传感器节点面板新增 Audio Loopback 运行状态指示灯和独立开关
+- **前端设置**（`local-web/apps/settings/components/SensorNodesSection.tsx`）：传感器节点面板新增 Audio Loopback 运行状态指示灯和独立开关
 - **数据模型**：新增 `SPEAKER_PC` 感知源类型
-- **意图编排**（`server/services/perception_todo_intent/orchestrator.py`）：`SPEAKER_PC` 归类为"音频"类源，纳入待办意图提取流程
+- **意图编排**（`local-api/services/perception_todo_intent/orchestrator.py`）：`SPEAKER_PC` 归类为"音频"类源，纳入待办意图提取流程
 
 ### C. 微信 OCR 消息解析器优化
 
-对 `client/proactive_ocr/wechat_message_parser.py` 进行重构，改善消息归属判断准确率。
+对 `local-sensor/proactive_ocr/wechat_message_parser.py` 进行重构，改善消息归属判断准确率。
 
 - **合并分类逻辑**：将原来的 `_classify_side_by_color` + `_classify_side_by_position` 两步判断合并为统一的 `_classify_speaker` 函数
 - **多信号融合策略**：① 绿色气泡 → 判定为"我"（微信中只有自己的气泡是绿色）；② 位置明确偏右(>60%) → "我"；③ 位置明确偏左(<40%) → "对方"；④ 模糊区域(40%-60%) → 回退到 RGB 颜色匹配，再回退到位置
@@ -90,12 +90,12 @@
 
 ### D. 待办意图提取 Prompt 大幅升级
 
-对 `server/config/prompts/todo.yaml` 进行重大优化，提升从聊天内容自动提取待办的准确度。
+对 `local-api/config/prompts/todo.yaml` 进行重大优化，提升从聊天内容自动提取待办的准确度。
 
 - **"已发送 = 已执行"原则**（核心新增）：[我] 发出的消息本身就是动作的执行，不应为已完成的动作创建待办。例如 [我] 说"王哥你方便把md文件再发我一下"→ 正确待办是"等待王烨权发送MD文件"（executor=对方），而非"向王哥索取MD文件"（executor=我）
 - **who_executor 判定规则细化**：明确 [我] 请求对方→executor=对方，对方指派用户→executor=用户，用户自己计划→executor=用户
 - **时间计算增强**：新增 `{current_time}` 变量注入，要求 LLM 将相对时间（"20分钟后"、"明天下午3点"）转换为绝对 ISO 8601 时间
-- **提取器代码**（`server/services/perception_todo_intent/extractor.py`）：在调用 LLM 前获取当前本地时间并注入到 prompt
+- **提取器代码**（`local-api/services/perception_todo_intent/extractor.py`）：在调用 LLM 前获取当前本地时间并注入到 prompt
 
 ### E. 一键启停脚本 & 环境配置
 

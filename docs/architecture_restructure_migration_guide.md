@@ -20,7 +20,7 @@
 | `server/` | `local-api/` | 352 | FastAPI 后端（SQLite + ChromaDB） |
 | `frontend/` | `local-web/` | 916 | Next.js 前端 + Electron/Tauri 桌面壳 |
 | `client/` | `local-sensor/` | 32 | Python 本地感知客户端（OCR、屏幕捕获） |
-| `phone/` | 已删除 | ~995 | Flutter 移动应用代码从此分支移除 |
+| `phone/` | `phone-app/` | ~995 | Flutter 移动应用（配置与文档路径统一为 `phone-app/`；若曾从本分支移除代码，可从旧分支恢复后再 `git mv phone phone-app`） |
 
 ### 1.2 新增目录
 
@@ -71,6 +71,7 @@ FreeTodo/
 ├── local-api/          # FastAPI 后端（SQLite + ChromaDB）
 ├── local-web/          # Next.js 前端 + Electron/Tauri 桌面壳
 ├── local-sensor/       # Python 感知客户端（OCR、屏幕捕获）
+├── phone-app/          # Flutter 移动应用（若仓库包含移动端代码）
 ├── cloud-api/          # 云端 API（用户认证、数据同步、Postgres）
 ├── cli/                # FreeTodo CLI 工具
 ├── deploy/             # Docker Compose 部署配置
@@ -105,7 +106,13 @@ git mv frontend local-web
 git mv client local-sensor
 ```
 
-如果需要移除 `phone/`：
+如果需要保留移动端目录并与配置一致，执行：
+
+```bash
+git mv phone phone-app
+```
+
+若确定不保留移动端代码，可改为：
 
 ```bash
 git rm -r phone
@@ -518,12 +525,9 @@ auth:
 - 未登录用户统一跳转 `/login`
 - `docs/user.md` 中"访客模式"标记为已移除
 
-### 5.4 phone/ 目录处理
+### 5.4 `phone-app/` 目录处理
 
-本次从 `feat/user` 分支移除了 `phone/` 目录（约 995 个 Flutter 文件）。如果合作者分支仍需要移动端代码：
-
-- 保留为 `phone-app/`（与 `.gitignore` 中的新路径一致）
-- 或根据实际需要决定是否保留
+历史上部分分支曾移除根目录 `phone/`（约 995 个 Flutter 文件）。当前约定：移动端代码目录名为 `phone-app/`，与 `.gitignore` 等配置一致。若合作者分支仍带旧名 `phone/`，应执行 `git mv phone phone-app`；若确定不保留移动端，再使用 `git rm -r phone`（或 `phone-app`）。
 
 ---
 

@@ -12,10 +12,10 @@ git checkout dev
 git pull origin dev
 
 # 2. 安装/更新前端依赖
-pnpm --dir frontend install
+pnpm --dir local-web install
 
 # 3.（可选）如果有后端依赖变更
-uv sync --directory server
+uv sync --directory local-api
 ```
 
 > **提示**：如果你用的是 worktree 开发模式，确保在对应 worktree 目录操作，不要在主仓库直接改代码。
@@ -28,12 +28,12 @@ uv sync --directory server
 
 ```bash
 # 1. 安装 CocoaPods 依赖（首次或 Podfile 变更后需要执行）
-cd phone/ios
+cd phone-app/ios
 pod install
 cd ../..
 
 # 2. 打开项目（必须打开 .xcworkspace）
-open phone/ios/Runner.xcworkspace
+open phone-app/ios/Runner.xcworkspace
 ```
 
 > **注意**：必须打开 `.xcworkspace` 而非 `.xcodeproj`，否则 CocoaPods 依赖不会加载。如果 `Runner.xcworkspace` 不存在，说明还没执行过 `pod install`。
@@ -52,7 +52,7 @@ open phone/ios/Runner.xcworkspace
 3. 如有 CocoaPods 依赖问题，尝试：
 
 ```bash
-cd phone/ios
+cd phone-app/ios
 pod install --repo-update
 ```
 
@@ -160,11 +160,11 @@ pod install --repo-update
 git pull origin dev
 
 # 安装前端依赖
-pnpm --dir frontend install
+pnpm --dir local-web install
 
 # 安装 CocoaPods 依赖（首次或 Podfile 变更后）
-cd phone/ios && pod install && cd ../..
+cd phone-app/ios && pod install && cd ../..
 
 # 打开 Xcode 项目
-open phone/ios/Runner.xcworkspace
+open phone-app/ios/Runner.xcworkspace
 ```

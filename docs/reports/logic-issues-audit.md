@@ -1,7 +1,7 @@
 # FreeTodo 逻辑问题全面审计报告
 
 **审查日期**: 2026-04-02
-**审查范围**: 全仓库核心模块 (server/, frontend/, electron/)
+**审查范围**: 全仓库核心模块 (local-api/, local-web/, electron/)
 **审查方法**: 逐文件人工代码审查，重点关注数据完整性、并发安全、用户体验影响
 
 ---
@@ -23,7 +23,7 @@
 
 ### C-01: 子任务循环引用导致服务端栈溢出 [已修复]
 
-**文件**: `server/storage/todo_manager.py` L128-138, L281-299
+**文件**: `local-api/storage/todo_manager.py` L128-138, L281-299
 
 **问题**: `_get_children_recursive` 和 `_delete_todo_recursive` 两个递归函数都没有 `visited` 集合防止循环。与 C-02 叠加，如果数据库中出现循环引用（A→B→A），这两个函数会无限递归直到 Python 栈溢出导致服务崩溃。
 
@@ -33,7 +33,7 @@
 
 ### C-02: create_todo 缺少 parent_todo_id 校验 [已修复]
 
-**文件**: `server/storage/todo_manager_ical.py` L58-161, `server/services/todo_service.py` L86-168
+**文件**: `local-api/storage/todo_manager_ical.py` L58-161, `local-api/services/todo_service.py` L86-168
 
 **问题**: `create_todo` 直接将 `parent_todo_id` 写入数据库，不校验父任务是否存在。相比之下 `update_todo` 和 `reorder_todos` 都会调用 `_validate_parent_link`。这允许创建指向不存在 todo 的子任务，或构造循环引用。
 
@@ -45,7 +45,7 @@
 
 ### C-03: reorder 端点无法将子任务提升为顶级任务 [已修复]
 
-**文件**: `server/routers/todo.py` L172-179
+**文件**: `local-api/routers/todo.py` L172-179
 
 **问题**: 原代码使用条件展开 `**({"parent_todo_id": item.parent_todo_id} if item.parent_todo_id is not None else {})`，当 `parent_todo_id=None`（表示提升为顶级任务）时，`parent_todo_id` 键被完全省略。下游 `reorder_todos` 只在 `"parent_todo_id" in item` 时更新父子关系，因此用户永远无法通过 reorder API 将子任务拖回顶级。
 
@@ -57,7 +57,7 @@
 
 ### C-04: 防抖 Promise 永不 settle 导致内存泄漏 [已修复]
 
-**文件**: `frontend/lib/query/todos.ts` L241-292
+**文件**: `local-web/lib/query/todos.ts` L241-292
 
 **问题**: 当用户快速连续编辑 description/userNotes 字段时，每次编辑创建一个新 Promise 并 clearTimeout 旧定时器。旧 Promise 的 resolve/reject 闭包被 GC 引用但永远不会执行。React Query 将这些 mutation 视为永久 pending 状态。
 
@@ -72,7 +72,7 @@
 
 ### C-05: 1 秒轮询覆盖乐观更新导致 UI 闪烁 [已修复]
 
-**文件**: `frontend/lib/query/todos.ts` L131
+**文件**: `local-web/lib/query/todos.ts` L131
 
 **问题**: `refetchInterval: 1000` 每秒轮询一次，不受乐观更新状态约束。当用户执行操作后（特别是防抖延迟 500ms 的字段），refetch 返回的旧数据会立即覆盖乐观更新，导致 UI 先显示新值再闪回旧值再变回新值。
 
@@ -84,7 +84,7 @@
 
 ### C-06: 时区处理不一致导致日历全天事件检测失败 [已修复]
 
-**文件**: `frontend/lib/api/fetcher.ts` L13-16, `frontend/apps/calendar/utils.ts` L106-118
+**文件**: `local-web/lib/api/fetcher.ts` L13-16, `local-web/apps/calendar/utils.ts` L106-118
 
 **问题**: 数据流存在不一致：
 1. 用户设置纯日期 deadline "2024-06-15"
@@ -102,7 +102,7 @@
 
 ### C-07: BackendReadyGate 端口不一致 + 不阻止子组件挂载 [已修复]
 
-**文件**: `frontend/components/common/ui/BackendReadyGate.tsx`
+**文件**: `local-web/components/common/ui/BackendReadyGate.tsx`
 
 **问题**:
 1. 健康检查硬编码默认端口 8100，而 `runtime-backend-url.ts` 和 `next.config.ts` 默认端口是 8001。桌面模式未设置 `NEXT_PUBLIC_API_URL` 时，健康检查打到错误端口永远不通。
@@ -120,7 +120,7 @@
 
 ### C-08: 拖拽排序 TODO_CARD_SLOT 处理器是空实现 [已修复]
 
-**文件**: `frontend/lib/dnd/handlers.ts` L471-481
+**文件**: `local-web/lib/dnd/handlers.ts` L471-481
 
 **问题**: `handleTodoToTodoCardSlot` 已注册到 handler registry，但函数体只有一行 `return { success: true }`。拖拽 todo 到另一个 todo 的"前面"或"后面"插槽时返回成功但不做任何重排序。
 
@@ -134,7 +134,7 @@
 
 ### H-01: CORS 全开放 + 无鉴权
 
-**文件**: `server/server.py` L116-123
+**文件**: `local-api/server.py` L116-123
 
 `allow_origins=["*"]` + `allow_credentials=True` + 所有 API 无任何认证中间件。任何人可以读取、修改、删除所有 todo 数据。
 
@@ -144,7 +144,7 @@
 
 ### H-02: 附件路径穿越风险
 
-**文件**: `server/routers/todo.py` L119-133
+**文件**: `local-api/routers/todo.py` L119-133
 
 `get_attachment_file` 从数据库读取 `file_path` 直接传给 `FileResponse`，未验证路径是否在预期目录内。
 
@@ -154,7 +154,7 @@
 
 ### H-03: 双重防抖导致笔记保存延迟约 1 秒
 
-**文件**: `frontend/apps/todo-detail/TodoDetail.tsx` L134-158, `frontend/lib/query/todos.ts` L228-231
+**文件**: `local-web/apps/todo-detail/TodoDetail.tsx` L134-158, `local-web/lib/query/todos.ts` L228-231
 
 `TodoDetail.handleNotesChange` 已经防抖 500ms，然后调用 `updateTodo`，`useUpdateTodo` 检测到 `userNotes` 字段后再次防抖 500ms。实际延迟约 1000ms。
 
@@ -166,7 +166,7 @@
 
 ### H-04: 防抖字段与非防抖字段的 payload 合并逻辑问题
 
-**文件**: `frontend/lib/query/todos.ts` L232-300
+**文件**: `local-web/lib/query/todos.ts` L232-300
 
 如果用户正在编辑 description（防抖中），然后点击修改 status，会导致 description 被搭载到 status 更新中一起发送，而原防抖 Promise 从缓存返回可能过时的数据。
 
@@ -176,7 +176,7 @@
 
 ### H-05: ChatPanel pendingPrompt 发送时序不保证
 
-**文件**: `frontend/apps/chat/ChatPanel.tsx` L56-68
+**文件**: `local-web/apps/chat/ChatPanel.tsx` L56-68
 
 `handleNewChat(true)` 是同步调用但触发异步状态更新，`setTimeout(, 0)` 不保证新会话状态已就绪。`setPendingPrompt(null)` 在 `sendMessage` 执行前就清空了 prompt。
 
@@ -186,7 +186,7 @@
 
 ### H-06: 软删除逻辑形同虚设
 
-**文件**: `server/storage/todo_manager.py` L188-189
+**文件**: `local-api/storage/todo_manager.py` L188-189
 
 `suppress(Exception)` 吞掉 `deleted_at` 过滤异常。`_delete_todo_recursive` 执行硬删除(`session.delete`)，而查询用软删除过滤。两种逻辑混用，且如果 `deleted_at` 列不存在，所有已删除数据会重新出现。
 
@@ -196,7 +196,7 @@
 
 ### H-07: "未来" 过滤器显示无时间的 todo
 
-**文件**: `frontend/apps/todo-list/hooks/useOrderedTodos.ts` L12-17
+**文件**: `local-web/apps/todo-list/hooks/useOrderedTodos.ts` L12-17
 
 没有设置时间的 todo 在 `dueTimeFilter === "future"` 时也被显示。
 
@@ -206,7 +206,7 @@
 
 ### H-08: 通知内存存储无限增长
 
-**文件**: `server/storage/notification_storage.py` L16-19
+**文件**: `local-api/storage/notification_storage.py` L16-19
 
 `_notifications` 和 `_dismissed_notifications` 两个内存字典只增不减，无 TTL 和大小上限。
 
@@ -216,7 +216,7 @@
 
 ### H-09: 附件上传先写磁盘后验证 todo
 
-**文件**: `server/routers/todo.py` L74-103
+**文件**: `local-api/routers/todo.py` L74-103
 
 文件先写入磁盘（`target_path.write_bytes(content)`），然后才调用 `service.add_attachment` 验证 todo 是否存在。如果 todo 不存在，文件成为永久孤儿。
 
@@ -226,7 +226,7 @@
 
 ### H-10: delete_attachment 不清理磁盘文件
 
-**文件**: `server/routers/todo.py` L108-115
+**文件**: `local-api/routers/todo.py` L108-115
 
 只解绑 todo-attachment 关联，不删除实际文件和 attachment 记录。
 
@@ -236,7 +236,7 @@
 
 ### H-11: 三栏模式下面板宽度计算错误
 
-**文件**: `frontend/lib/store/ui-store/store.ts` L276-308
+**文件**: `local-web/lib/store/ui-store/store.ts` L276-308
 
 `getFeatureWidth("panelB")` 在三栏模式下返回 `1 - panelAWidth`，实际应为 `1 - panelAWidth - panelCWidth`。`setFeatureWidth("panelB", w)` 同样没有考虑 panelC。
 
@@ -246,7 +246,7 @@
 
 ### H-12: useToggleTodoStatus 读取原始缓存而非 select 转换后的数据
 
-**文件**: `frontend/lib/query/todos.ts` L438-457
+**文件**: `local-web/lib/query/todos.ts` L438-457
 
 `queryClient.getQueryData<TodoListResponse>` 读取原始缓存格式，字段可能是 snake_case，与 `select` 转换后的 camelCase `Todo` 不一致。
 
@@ -258,19 +258,19 @@
 
 ### M-01: TOCTOU 竞态 — update/delete 先查后改
 
-`server/services/todo_service.py` 的 `update_todo` 和 `delete_todo` 先调用 `get_by_id` 检查存在性，再在独立事务中执行操作。并发请求可能导致双重删除（500 错误）。
+`local-api/services/todo_service.py` 的 `update_todo` 和 `delete_todo` 先调用 `get_by_id` 检查存在性，再在独立事务中执行操作。并发请求可能导致双重删除（500 错误）。
 
 ### M-02: 流式 API 跨 chunk 的 TOOL_EVENT 前缀丢失
 
-`frontend/lib/api.ts` L249-263 — 如果一个 chunk 以 `"\n[TO"` 结尾（前缀的一部分），不会匹配完整前缀，工具事件被当作正常文本。
+`local-web/lib/api.ts` L249-263 — 如果一个 chunk 以 `"\n[TO"` 结尾（前缀的一部分），不会匹配完整前缀，工具事件被当作正常文本。
 
 ### M-03: 日历拖拽 pointer 事件闭包过时
 
-`frontend/apps/calendar/views/DayView.tsx` L340-374 — `handleMove` 闭包在 `pointerdown` 时捕获 `displayStart` 等值，drag 过程中状态变化但闭包使用旧值。
+`local-web/apps/calendar/views/DayView.tsx` L340-374 — `handleMove` 闭包在 `pointerdown` 时捕获 `displayStart` 等值，drag 过程中状态变化但闭包使用旧值。
 
 ### M-04: breakdown-store 使用 snake_case 的 parent_todo_id
 
-`frontend/lib/store/breakdown-store.ts` L163-168 — 命名不一致，虽然运行时因 `camelToSnake` 幂等不会报错。
+`local-web/lib/store/breakdown-store.ts` L163-168 — 命名不一致，虽然运行时因 `camelToSnake` 幂等不会报错。
 
 ### M-05: WeekView 的 weekDays 未被 memo 化
 
@@ -278,7 +278,7 @@
 
 ### M-06: 布局切换不清除 autoClosedPanels 栈
 
-`frontend/lib/store/ui-store/layout-actions.ts` — 切换布局预设时不清除自动关闭的面板记录，窗口变大时恢复旧布局中的面板。
+`local-web/lib/store/ui-store/layout-actions.ts` — 切换布局预设时不清除自动关闭的面板记录，窗口变大时恢复旧布局中的面板。
 
 ### M-07: validatePanelFeatureMap 不检查重复功能
 
@@ -286,27 +286,27 @@
 
 ### M-08: Electron requestSingleInstanceLock 的 lockName 无效
 
-`frontend/electron/main.ts` L63-64 — Electron API 不支持 `lockName` 参数，`as never` 掩盖了问题。不同 serverMode 共享同一个锁。
+`local-web/electron/main.ts` L63-64 — Electron API 不支持 `lockName` 参数，`as never` 掩盖了问题。不同 serverMode 共享同一个锁。
 
 ### M-09: DnD pendingTodoId 的 150ms 固定超时竞态
 
-`frontend/lib/dnd/context.tsx` — 硬编码 150ms 等待乐观更新传播，低性能设备上可能过早清除。
+`local-web/lib/dnd/context.tsx` — 硬编码 150ms 等待乐观更新传播，低性能设备上可能过早清除。
 
 ### M-10: 前端通知 notifiedIds Set 无限增长
 
-`frontend/lib/store/notification-store.ts` — 只增不减的 Set 在长期运行的 Electron 应用中造成渐进内存泄漏。
+`local-web/lib/store/notification-store.ts` — 只增不减的 Set 在长期运行的 Electron 应用中造成渐进内存泄漏。
 
 ### M-11: Fetcher 不转换查询参数的 key 命名
 
-`frontend/lib/api/fetcher.ts` L117-119 — 请求体自动 camelToSnake，但查询参数 key 不转换。当前碰巧没问题但随时可能爆。
+`local-web/lib/api/fetcher.ts` L117-119 — 请求体自动 camelToSnake，但查询参数 key 不转换。当前碰巧没问题但随时可能爆。
 
 ### M-12: useWindowAdaptivePanels 中 storeRef 可能读到过时状态
 
-`frontend/lib/hooks/useWindowAdaptivePanels.ts` — `storeRef` 仅在 render 时更新，`ResizeObserver` 回调可能使用过时值。
+`local-web/lib/hooks/useWindowAdaptivePanels.ts` — `storeRef` 仅在 render 时更新，`ResizeObserver` 回调可能使用过时值。
 
 ### M-13: reorder_todos 报告更新数量不准
 
-`server/services/todo_service.py` L295-299 — 不存在的 todo 被跳过但消息仍报告全部成功。
+`local-api/services/todo_service.py` L295-299 — 不存在的 todo 被跳过但消息仍报告全部成功。
 
 ### M-14: who_founder/who_executor 在 update 路径未做空字符串清理
 
@@ -322,15 +322,15 @@ Service 层和 Storage 层各做一次字段同步，产生意外交互效果。
 
 ### L-01: 配置变更日志泄露 API Key
 
-`server/core/config_watcher.py` L88 — 当 key 为 `llm.api_key` 时，新旧值都打印到日志。
+`local-api/core/config_watcher.py` L88 — 当 key 为 `llm.api_key` 时，新旧值都打印到日志。
 
 ### L-02: AI plan 端点泄露内部错误信息
 
-`server/routers/todo.py` L424 — `f"LLM 调用失败: {exc}"` 可能包含 API Key 和内部 URL。
+`local-api/routers/todo.py` L424 — `f"LLM 调用失败: {exc}"` 可能包含 API Key 和内部 URL。
 
 ### L-03: 生产代码遗留 console.log
 
-`frontend/lib/dnd/context.tsx` L128, L140 — 每次拖拽操作输出调试日志。
+`local-web/lib/dnd/context.tsx` L128, L140 — 每次拖拽操作输出调试日志。
 
 ### L-04: ui-store storage.ts 中 backendDisabledFeatures 验证是死代码
 

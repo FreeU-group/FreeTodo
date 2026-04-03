@@ -500,7 +500,7 @@ ModuleDefinition(
 ## 九、参考资源
 
 - omi 后端代码：`ref_project/omi_backend/`
-- omi Flutter App：`phone/`
+- omi Flutter App：`phone-app/`
 - omi 硬件固件：`hardware/omi/`
 - omi Glass：`hardware/omiGlass/`
 - omi 官方文档：https://docs.omi.me/
