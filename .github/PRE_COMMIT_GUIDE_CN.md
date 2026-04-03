@@ -198,13 +198,13 @@ repos:
       # Run the linter.
       - id: ruff
         language_version: python3.12
-        files: ^server/
+        files: ^local-api/
         types_or: [ python, pyi ]
         args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
         language_version: python3.12
-        files: ^server/
+        files: ^local-api/
         types_or: [ python, pyi ]
   # Biome for frontend (JavaScript/TypeScript)
   - repo: https://github.com/biomejs/pre-commit
@@ -212,7 +212,7 @@ repos:
     hooks:
       - id: biome-check
         additional_dependencies: ["@biomejs/biome@2.3.13"]
-        files: ^frontend/
+        files: ^local-web/
 
   # Local hooks
   - repo: local
@@ -220,40 +220,40 @@ repos:
       # TypeScript 类型检查
       - id: tsc-frontend
         name: TypeScript type check (frontend)
-        entry: bash -c 'cd frontend && pnpm run type-check'
+        entry: bash -c 'cd local-web && pnpm run type-check'
         language: system
-        files: ^frontend/.*\.(ts|tsx)$
+        files: ^local-web/.*\.(ts|tsx)$
         pass_filenames: false
 
       # 前端代码行数检查（有效代码行数上限 500 行）
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX/JS/JSX code lines (max 500)
-        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,.vercel,build,coverage,dist,dist-electron,node_modules,out,lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
+        entry: node local-web/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,.vercel,build,coverage,dist,dist-electron,node_modules,out,lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
         language: system
-        files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
+        files: ^(local-web|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
 
       # 后端代码行数检查（有效代码行数上限 500 行）
       - id: check-python-code-lines
         name: Check Python code lines (max 500)
-        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build
+        entry: uv run --project local-api --no-sync python local-api/scripts/check_code_lines.py --include local-api,local-sensor,scripts --exclude .venv,local-api/.venv,local-api/__pycache__,local-api/dist,local-api/migrations/versions,local-sensor/.venv,local-sensor/__pycache__,local-sensor/dist,local-sensor/build
         language: system
-        files: ^(server|client|scripts)/.*\.py$
+        files: ^(local-api|local-sensor|scripts)/.*\.py$
         pass_filenames: true
 
       # Tauri Rust 代码行数检查（有效代码行数上限 500 行）
       - id: check-tauri-rust-code-lines
         name: Check Tauri Rust code lines (max 500)
-        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
+        entry: node local-web/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
         language: system
-        files: ^frontend/src-tauri/.*\.rs$
+        files: ^local-web/src-tauri/.*\.rs$
         pass_filenames: true
 ```
 
 **主要配置**：
-- `files: ^(server|client|scripts)/` - 只检查 `server/`、`client/` 和 `scripts/` 下的 Python 文件
-- `files: ^(frontend|scripts)/` - 只检查 `frontend/` 和 `scripts/` 下的前端文件
-- `files: ^frontend/src-tauri/` - 只检查 `frontend/src-tauri/` 下的 Tauri Rust 文件
+- `files: ^(local-api|local-sensor|scripts)/` - 只检查 `local-api/`、`local-sensor/` 和 `scripts/` 下的 Python 文件
+- `files: ^(local-web|scripts)/` - 只检查 `local-web/` 和 `scripts/` 下的前端文件
+- `files: ^local-web/src-tauri/` - 只检查 `local-web/src-tauri/` 下的 Tauri Rust 文件
 - `language_version: python3.12` - 指定 Python 版本
 - `args: [ --fix ]` - 自动修复可修复的问题
 - `additional_dependencies` - 为 Biome 指定依赖版本
@@ -369,8 +369,8 @@ pre-commit run --all-files
 - 排除：`.next/`、`.turbo/`、`.vercel/`、`build/`、`coverage/`、`dist/`、`dist-electron/`、`node_modules/`、`out/`、`lib/generated/`，以及少数白名单超长文件
 
 **后端检查目录**（可通过参数调整）：
-- 包含：`server/`、`client/`、`scripts/`
-- 排除：`.venv/`、`server/.venv/`、`server/__pycache__/`、`server/dist/`、`server/migrations/versions/`、`client/.venv/`、`client/__pycache__/`、`client/dist/`、`client/build/`
+- 包含：`local-api/`、`local-sensor/`、`scripts/`
+- 排除：`.venv/`、`local-api/.venv/`、`local-api/__pycache__/`、`local-api/dist/`、`local-api/migrations/versions/`、`local-sensor/.venv/`、`local-sensor/__pycache__/`、`local-sensor/dist/`、`local-sensor/build/`
 
 **Tauri Rust 检查目录**（可通过参数调整）：
 - 包含：`src-tauri/src/`
@@ -384,27 +384,27 @@ pre-commit run --all-files
 
 ```bash
 # 检查前端所有 TS/TSX/JS/JSX 文件
-node frontend/scripts/check_code_lines.js
+node local-web/scripts/check_code_lines.js
 
-# 检查 server/client/scripts 下的所有 Python 文件
-uv run --project server --no-sync python server/scripts/check_code_lines.py
+# 检查 local-api/local-sensor/scripts 下的所有 Python 文件
+uv run --project local-api --no-sync python local-api/scripts/check_code_lines.py
 
 # 检查所有 Tauri Rust 文件
-node frontend/scripts/check_rust_code_lines.js
+node local-web/scripts/check_rust_code_lines.js
 
 # 使用自定义参数
-node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,dist,node_modules,lib/generated --max 600
-uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,client/.venv --max 600
-node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target --max 600
+node local-web/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,dist,node_modules,lib/generated --max 600
+uv run --project local-api --no-sync python local-api/scripts/check_code_lines.py --include local-api,local-sensor,scripts --exclude .venv,local-api/.venv,local-api/__pycache__,local-sensor/.venv --max 600
+node local-web/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target --max 600
 ```
 
 **模式 2：检查指定文件（pre-commit 模式）**
 
 ```bash
 # 只检查指定的文件
-node frontend/scripts/check_code_lines.js frontend/apps/chat/ChatPanel.tsx frontend/apps/todo/TodoList.tsx
-uv run --project server --no-sync python server/scripts/check_code_lines.py server/routers/chat.py server/services/todo.py
-node frontend/scripts/check_rust_code_lines.js frontend/src-tauri/src/backend.rs frontend/src-tauri/src/main.rs
+node local-web/scripts/check_code_lines.js local-web/apps/chat/ChatPanel.tsx local-web/apps/todo/TodoList.tsx
+uv run --project local-api --no-sync python local-api/scripts/check_code_lines.py local-api/routers/chat.py local-api/services/todo.py
+node local-web/scripts/check_rust_code_lines.js local-web/src-tauri/src/backend.rs local-web/src-tauri/src/main.rs
 ```
 
 > **注意**：在 `git commit` 时，pre-commit 会自动传入暂存的文件，只检查这些文件而不是整个目录。

@@ -29,7 +29,7 @@ Create a new React component based on project conventions, including:
 - Responsive design
 - Internationalization support (if needed)
 
-Please create components in the `frontend/components/` directory and follow the project's code conventions.
+Please create components in the `local-web/components/` directory and follow the project's code conventions.
 
 ### Creating Shadcn UI Components
 
@@ -53,8 +53,8 @@ Create custom components based on existing Shadcn UI components:
 
 The project uses next-intl for internationalization, with language switching managed through Zustand store (no URL routing mode).
 
-- **Translation Files**: `frontend/lib/i18n/messages/zh.json` and `frontend/lib/i18n/messages/en.json`
-- **Request Configuration**: `frontend/lib/i18n/request.ts`
+- **Translation Files**: `local-web/lib/i18n/messages/zh.json` and `local-web/lib/i18n/messages/en.json`
+- **Request Configuration**: `local-web/lib/i18n/request.ts`
 - **Language Management**: `lib/store/locale.ts` (syncs to cookie on switch)
 - **Access Method**: `useTranslations(namespace)` imported from `next-intl`
 

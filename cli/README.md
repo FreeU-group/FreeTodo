@@ -14,7 +14,7 @@ uv sync --directory cli
 2. Start the backend (local or remote):
 
 ```bash
-uv run --directory server python server.py
+uv run --directory local-api python server.py
 ```
 
 3. Run the CLI:

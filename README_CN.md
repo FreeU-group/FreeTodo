@@ -51,14 +51,14 @@
 
 FreeTodo 采用**分布式多模块**架构，包含三大核心组件：
 
-- **Server**（`server/`）：FastAPI (Python) — 中心节点，部署在云端或本地服务器，负责 LLM 处理、数据存储和业务 API
-- **Client**（`client/`）：Python 感知守护进程 — 轻量级感知代理，运行在本地设备上，负责屏幕截图、OCR 识别和数据转发
-- **Frontend**（`frontend/`）：Next.js (React + TypeScript) — 现代化 Web 界面，支持 Tauri 桌面打包
+- **Server**（`local-api/`）：FastAPI (Python) — 中心节点，部署在云端或本地服务器，负责 LLM 处理、数据存储和业务 API
+- **Client**（`local-sensor/`）：Python 感知守护进程 — 轻量级感知代理，运行在本地设备上，负责屏幕截图、OCR 识别和数据转发
+- **Frontend**（`local-web/`）：Next.js (React + TypeScript) — 现代化 Web 界面，支持 Tauri 桌面打包
 
 桌面打包说明：
 
-- 推荐的 Tauri 打包命令：`pnpm --dir frontend build:tauri:web:script:full`
-- 打包文档：`frontend/src-tauri/PACKAGING_GUIDE.md`
+- 推荐的 Tauri 打包命令：`pnpm --dir local-web build:tauri:web:script:full`
+- 打包文档：`local-web/src-tauri/PACKAGING_GUIDE.md`
 
 辅助模块：
 
@@ -106,13 +106,13 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ```bash
 # Server 依赖
-uv sync --directory server
+uv sync --directory local-api
 
 # Client 依赖
-uv sync --directory client
+uv sync --directory local-sensor
 
 # Frontend 依赖
-pnpm --dir frontend install
+pnpm --dir local-web install
 ```
 
 ### 配置环境变量
@@ -121,16 +121,16 @@ pnpm --dir frontend install
 
 ```bash
 # Server 环境变量
-cp server/.env.example server/.env
+cp local-api/.env.example local-api/.env
 
 # Frontend 环境变量
-cp frontend/.env.example frontend/.env
+cp local-web/.env.example local-web/.env
 
 # Client 环境变量（感知客户端）
-cp client/.env.example client/.env
+cp local-sensor/.env.example local-sensor/.env
 ```
 
-编辑 `server/.env`，填入必要的密钥：
+编辑 `local-api/.env`，填入必要的密钥：
 
 ```bash
 # LLM API Key（必填 — 未配置时 AI 相关功能不可用）
@@ -196,24 +196,24 @@ bash scripts/stop_all.sh
 **1. 启动 Server**（中心节点）：
 
 ```bash
-uv run --directory server python server.py
-uv run --directory server python agent_os.py
+uv run --directory local-api python server.py
+uv run --directory local-api python agent_os.py
 ```
 
 **2. 启动 Client**（感知守护进程，可选）：
 
 ```bash
-# 默认使用 client/.env 中的 CENTER_URL
-uv run --directory client python sensor.py
+# 默认使用 local-sensor/.env 中的 CENTER_URL
+uv run --directory local-sensor python sensor.py
 
 # 也可以手动指定中心节点地址
-uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC
+uv run --directory local-sensor python sensor.py --center-url http://localhost:8001 --node-id MY-PC
 ```
 
 **3. 启动 Frontend**：
 
 ```bash
-pnpm --dir frontend dev
+pnpm --dir local-web dev
 ```
 
 实际的前端地址和后端连接状态会在控制台显示。服务启动后，在浏览器中访问控制台显示的前端地址（通常为 `http://localhost:3001`）开始使用 FreeTodo！
@@ -334,7 +334,7 @@ git config core.hooksPath .githooks
 ### 项目结构
 
 ```
-├── server/                     # Server — 中心节点（FastAPI 后端）
+├── local-api/                  # Server — 中心节点（FastAPI 后端）
 │   ├── server.py               # FastAPI 应用入口
 │   ├── agent_os.py             # AgentOS 入口（Agno Agent 服务）
 │   ├── pyproject.toml          # Server Python 依赖
@@ -353,14 +353,14 @@ git config core.hooksPath .githooks
 │   ├── migrations/             # 数据库迁移（Alembic）
 │   ├── observability/          # 可观测性与链路追踪
 │   └── util/                   # 工具函数
-├── client/                     # Client — 感知守护进程（轻量级感知代理）
+├── local-sensor/               # Client — 感知守护进程（轻量级感知代理）
 │   ├── sensor.py               # 主入口，屏幕截图 / OCR 采集
 │   ├── pyproject.toml          # Client Python 依赖
 │   ├── config/                 # 客户端配置
 │   ├── perception/             # 感知模型与逻辑
 │   ├── proactive_ocr/          # 主动 OCR 引擎（macOS/Windows）
 │   └── util/                   # 工具函数
-├── frontend/                   # Frontend — Web 与桌面 UI（Next.js + Electron）
+├── local-web/                  # Frontend — Web 与桌面 UI（Next.js + Electron）
 │   ├── app/                    # Next.js 应用目录
 │   ├── apps/                   # 功能模块
 │   │   ├── todo-list/          # 待办列表模块

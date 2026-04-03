@@ -129,7 +129,7 @@ import axios from "axios"
 ## 🏗️ Project Structure
 
 ```
-frontend/
+local-web/
 ├── app/                      # Next.js App Router
 │   ├── layout.tsx           # Root layout
 │   ├── page.tsx             # Home page

@@ -7,11 +7,11 @@ script = '''
 cd "$CODEX_WORKTREE_PATH"
 
 # Server 依赖
-uv sync --directory server
+uv sync --directory local-api
 
 # Client 依赖
-uv sync --directory client
+uv sync --directory local-sensor
 
 # Frontend 依赖
-pnpm --dir frontend install
+pnpm --dir local-web install
 '''

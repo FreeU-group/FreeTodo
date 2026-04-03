@@ -131,8 +131,8 @@ python -m lifetrace.server
 ### Frontend Setup
 
 ```bash
-# Navigate to frontend directory
-cd frontend
+# Navigate to local-web directory
+cd local-web
 
 # Install pnpm (if not already installed)
 npm install -g pnpm
@@ -299,7 +299,7 @@ For detailed frontend guidelines, see: [**Frontend Development Guidelines**](FRO
 **Quick Check**:
 
 ```bash
-cd frontend
+cd local-web
 
 # Run ESLint
 pnpm lint

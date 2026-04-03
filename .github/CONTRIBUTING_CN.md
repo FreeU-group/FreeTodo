@@ -133,8 +133,8 @@ python -m lifetrace.server
 ### 前端设置
 
 ```bash
-# 进入前端目录
-cd frontend
+# 进入 local-web 目录
+cd local-web
 
 # 安装 pnpm（如果还没有安装）
 npm install -g pnpm
@@ -301,7 +301,7 @@ uv run ruff format .
 **快速检查**：
 
 ```bash
-cd frontend
+cd local-web
 
 # 运行 ESLint 检查
 pnpm lint

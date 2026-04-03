@@ -29,7 +29,7 @@
 - 响应式设计
 - 国际化支持（如需要）
 
-请在 `frontend/components/` 目录下创建组件，并遵循项目的代码规范。
+请在 `local-web/components/` 目录下创建组件，并遵循项目的代码规范。
 
 ### 创建 Shadcn UI 组件
 
@@ -53,8 +53,8 @@
 
 项目使用 next-intl 实现国际化，通过 Zustand store 管理语言切换（无 URL 路由模式）。
 
-- **翻译文件**：`frontend/lib/i18n/messages/zh.json` 与 `frontend/lib/i18n/messages/en.json`
-- **请求配置**：`frontend/lib/i18n/request.ts`
+- **翻译文件**：`local-web/lib/i18n/messages/zh.json` 与 `local-web/lib/i18n/messages/en.json`
+- **请求配置**：`local-web/lib/i18n/request.ts`
 - **语言管理**：`lib/store/locale.ts`（切换时同步到 cookie）
 - **访问方法**：`useTranslations(namespace)` 从 `next-intl` 导入
 

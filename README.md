@@ -46,14 +46,14 @@
 
 FreeTodo adopts a **distributed multi-module** architecture with three core components:
 
-- **Server** (`server/`): FastAPI (Python) - Center node deployed on cloud or local server, handling LLM processing, data storage, and business APIs
-- **Client** (`client/`): Python perception daemon - Lightweight sensing agent running on local devices for screen capture, OCR recognition, and data forwarding
-- **Frontend** (`frontend/`): Next.js (React + TypeScript) - Modern web interface with Tauri desktop packaging support
+- **Server** (`local-api/`): FastAPI (Python) - Center node deployed on cloud or local server, handling LLM processing, data storage, and business APIs
+- **Client** (`local-sensor/`): Python perception daemon - Lightweight sensing agent running on local devices for screen capture, OCR recognition, and data forwarding
+- **Frontend** (`local-web/`): Next.js (React + TypeScript) - Modern web interface with Tauri desktop packaging support
 
 Desktop packaging notes:
 
-- Recommended Tauri packaging command: `pnpm --dir frontend build:tauri:web:script:full`
-- Packaging guide: `frontend/src-tauri/PACKAGING_GUIDE.md`
+- Recommended Tauri packaging command: `pnpm --dir local-web build:tauri:web:script:full`
+- Packaging guide: `local-web/src-tauri/PACKAGING_GUIDE.md`
 
 Supporting modules:
 
@@ -101,13 +101,13 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ```bash
 # Server dependencies
-uv sync --directory server
+uv sync --directory local-api
 
 # Client dependencies
-uv sync --directory client
+uv sync --directory local-sensor
 
 # Frontend dependencies
-pnpm --dir frontend install
+pnpm --dir local-web install
 ```
 
 ### Configure Environment Variables
@@ -116,16 +116,16 @@ Copy `.env.example` to `.env` for each module, then fill in your configuration:
 
 ```bash
 # Server environment
-cp server/.env.example server/.env
+cp local-api/.env.example local-api/.env
 
 # Frontend environment
-cp frontend/.env.example frontend/.env
+cp local-web/.env.example local-web/.env
 
 # Client environment (for perception daemon)
-cp client/.env.example client/.env
+cp local-sensor/.env.example local-sensor/.env
 ```
 
-Edit `server/.env` and fill in the required keys:
+Edit `local-api/.env` and fill in the required keys:
 
 ```bash
 # LLM API Key (required — AI features won't work without it)
@@ -191,24 +191,24 @@ bash scripts/stop_all.sh
 **1. Start the Server** (center node):
 
 ```bash
-uv run --directory server python server.py
-uv run --directory server python agent_os.py
+uv run --directory local-api python server.py
+uv run --directory local-api python agent_os.py
 ```
 
 **2. Start the Client** (perception daemon, optional):
 
 ```bash
-# Uses CENTER_URL from client/.env by default
-uv run --directory client python sensor.py
+# Uses CENTER_URL from local-sensor/.env by default
+uv run --directory local-sensor python sensor.py
 
 # Or specify the center URL explicitly
-uv run --directory client python sensor.py --center-url http://localhost:8001 --node-id MY-PC
+uv run --directory local-sensor python sensor.py --center-url http://localhost:8001 --node-id MY-PC
 ```
 
 **3. Start the Frontend**:
 
 ```bash
-pnpm --dir frontend dev
+pnpm --dir local-web dev
 ```
 
 The actual frontend URL and backend connection status will be displayed in the console. Once both services are running, open your browser and navigate to the displayed frontend URL (typically `http://localhost:3001`) to enjoy FreeTodo!
@@ -329,7 +329,7 @@ For details, see: [.github/PRE_COMMIT_GUIDE.md](.github/PRE_COMMIT_GUIDE.md)
 ### Project Structure
 
 ```
-├── server/                     # Server — Center node (FastAPI backend)
+├── local-api/                  # Server — Center node (FastAPI backend)
 │   ├── server.py               # FastAPI application entry point
 │   ├── agent_os.py             # AgentOS entry point (Agno Agent service)
 │   ├── pyproject.toml          # Server Python dependencies
@@ -348,14 +348,14 @@ For details, see: [.github/PRE_COMMIT_GUIDE.md](.github/PRE_COMMIT_GUIDE.md)
 │   ├── migrations/             # Database migrations (Alembic)
 │   ├── observability/          # Observability & tracing
 │   └── util/                   # Utility functions
-├── client/                     # Client — Perception daemon (lightweight sensing agent)
+├── local-sensor/               # Client — Perception daemon (lightweight sensing agent)
 │   ├── sensor.py               # Main entry point for screen/OCR capture
 │   ├── pyproject.toml          # Client Python dependencies
 │   ├── config/                 # Client configuration
 │   ├── perception/             # Perception models & logic
 │   ├── proactive_ocr/          # Proactive OCR engine (macOS/Windows)
 │   └── util/                   # Utility functions
-├── frontend/                   # Frontend — Web & Desktop UI (Next.js + Electron)
+├── local-web/                  # Frontend — Web & Desktop UI (Next.js + Electron)
 │   ├── app/                    # Next.js app directory
 │   ├── apps/                   # Feature modules
 │   │   ├── todo-list/          # Todo list module
