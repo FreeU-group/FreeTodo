@@ -149,9 +149,11 @@ class ConfigService:
             "llm.small_model",
             "llm.temperature",
             "llm.max_tokens",
+            "llm.chat_model",
             "llm.agent.api_key",
             "llm.agent.base_url",
             "llm.agent.model",
+            "perception.todo_intent.agent.model",
             # 服务器配置
             "server.host",
             "server.port",

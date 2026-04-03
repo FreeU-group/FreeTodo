@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -106,15 +105,12 @@ class PlanningTools:
             Formatted schedule plan with time assignments and summary
         """
         try:
+            from openai import OpenAI  # noqa: PLC0415
+
+            from llm.agno_agent_config import resolve_agent_llm  # noqa: PLC0415
             from util.base_paths import get_user_data_dir  # noqa: PLC0415
 
-            from openai import OpenAI  # noqa: PLC0415
-            from util.settings import settings as _settings  # noqa: PLC0415
-
-            agent_cfg = _settings.get("llm.agent", {}) or {}
-            api_key = str(agent_cfg.get("api_key", "") or "").strip() or _settings.llm.api_key
-            base_url = str(agent_cfg.get("base_url", "") or "").strip() or _settings.llm.base_url
-            model_id = str(agent_cfg.get("model", "") or "").strip() or _settings.llm.model
+            model_id, api_key, base_url = resolve_agent_llm()
 
             client = OpenAI(api_key=api_key, base_url=base_url)
 
@@ -221,7 +217,7 @@ class PlanningTools:
                 lines.append(line)
 
             if auto_apply:
-                lines.append(f"\n✅ 已自动将时间写入待办列表。")
+                lines.append("\n✅ 已自动将时间写入待办列表。")
 
             return "\n".join(lines)
 

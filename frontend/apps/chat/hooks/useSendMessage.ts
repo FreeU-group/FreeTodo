@@ -209,6 +209,8 @@ export const useSendMessage = ({
 
 			let assistantContent = "";
 			let requestSessionId = currentConversationId;
+			let thinkingContent = "";
+			let isThinking = false;
 
 			// 本地缓存当前消息的 toolCallSteps，避免竞态条件
 			let cachedToolCallSteps: ReturnType<
@@ -244,6 +246,8 @@ export const useSendMessage = ({
 									content,
 									toolCallSteps: stepsToUse,
 									toolCallAnchors: anchorsToUse,
+									thinkingContent: thinkingContent || undefined,
+									isThinking,
 								}
 							: msg,
 					);
@@ -366,6 +370,23 @@ export const useSendMessage = ({
 					// onToolEvent 回调
 					(event: ToolCallEvent) => {
 						if (abortController.signal.aborted) return;
+
+						if (event.type === "reasoning_started") {
+							isThinking = true;
+							thinkingContent = "";
+							updateAssistantMessage(assistantContent);
+							return;
+						}
+						if (event.type === "reasoning_delta" && event.content) {
+							thinkingContent += event.content;
+							updateAssistantMessage(assistantContent);
+							return;
+						}
+						if (event.type === "reasoning_completed") {
+							isThinking = false;
+							updateAssistantMessage(assistantContent);
+							return;
+						}
 
 						if (event.type === "memory_saved") {
 							toastInfo(buildMemoryToastMessage(event), { duration: 3500 });

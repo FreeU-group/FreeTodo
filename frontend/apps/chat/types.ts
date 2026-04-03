@@ -58,6 +58,10 @@ export type ChatMessage = {
 	toolCallSteps?: ToolCallStep[];
 	/** 工具调用在消息内容中的锚点（仅 assistant 消息可能有） */
 	toolCallAnchors?: ToolCallAnchor[];
+	/** 模型思考过程（Qwen thinking 模式） */
+	thinkingContent?: string;
+	/** 是否正在思考中 */
+	isThinking?: boolean;
 };
 
 export type ChatMode = "agno";

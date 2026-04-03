@@ -94,6 +94,7 @@ class AgnoAgentService:
         agent_name: str | None = None,
         model: str | None = None,
         enable_learning: bool = True,
+        force_main_llm: bool = False,
     ):
         """初始化 Agno Agent 服务
 
@@ -110,6 +111,8 @@ class AgnoAgentService:
                            so the stream finishes as soon as all content is
                            yielded.  Learning can then run in a background
                            thread via ``run_learning_background``.
+            force_main_llm: When True, skip agent-specific LLM config and
+                           always use the main llm.* credentials.
         """
         try:
             self.lang = lang or DEFAULT_LANG
@@ -147,15 +150,26 @@ class AgnoAgentService:
             else:
                 db, learning, add_history_to_context, db_path = None, None, False, None
 
-            resolved_model, resolved_api_key, resolved_base_url = resolve_agent_llm(model)
+            resolved_model, resolved_api_key, resolved_base_url = resolve_agent_llm(
+                model, force_main_llm=force_main_llm
+            )
             agent_temperature = float(settings.get("llm.agent_temperature", 0.3))
+
+            is_qwen_thinking = resolved_model.lower().startswith("qwen")
+            model_kwargs: dict[str, Any] = {
+                "id": resolved_model,
+                "api_key": resolved_api_key,
+                "base_url": resolved_base_url,
+                "temperature": agent_temperature,
+            }
+            if is_qwen_thinking:
+                model_kwargs["request_params"] = {
+                    "extra_body": {"enable_thinking": True},
+                }
+                logger.info("Qwen 模型检测到，已启用 thinking 模式: %s", resolved_model)
+
             self.agent = Agent(
-                model=OpenAILike(
-                    id=resolved_model,
-                    api_key=resolved_api_key,
-                    base_url=resolved_base_url,
-                    temperature=agent_temperature,
-                ),
+                model=OpenAILike(**model_kwargs),
                 tools=tools_to_use if tools_to_use else None,
                 instructions=instructions_list,
                 db=db,

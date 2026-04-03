@@ -200,26 +200,33 @@ def get_mcp_superseded_tools() -> set[str]:
         return set()
 
 
-def resolve_agent_llm(model_override: str | None = None) -> tuple[str, str, str]:
+def resolve_agent_llm(
+    model_override: str | None = None,
+    *,
+    force_main_llm: bool = False,
+) -> tuple[str, str, str]:
     """Resolve model/api_key/base_url for the Agent.
 
     Priority: explicit override > llm.agent.* > llm.*
+    When *force_main_llm* is True, skip the agent config entirely and
+    always return the main LLM credentials.
     """
-    _placeholders = {"", "YOUR_LLM_KEY_HERE", "YOUR_BASE_URL_HERE"}
+    if not force_main_llm:
+        _placeholders = {"", "YOUR_LLM_KEY_HERE", "YOUR_BASE_URL_HERE"}
 
-    agent_cfg = settings.get("llm.agent", {}) or {}
-    agent_key = str(agent_cfg.get("api_key", "") or "").strip()
-    agent_url = str(agent_cfg.get("base_url", "") or "").strip()
-    agent_model = str(agent_cfg.get("model", "") or "").strip()
+        agent_cfg = settings.get("llm.agent", {}) or {}
+        agent_key = str(agent_cfg.get("api_key", "") or "").strip()
+        agent_url = str(agent_cfg.get("base_url", "") or "").strip()
+        agent_model = str(agent_cfg.get("model", "") or "").strip()
 
-    if agent_key and agent_key not in _placeholders and agent_url and agent_model:
-        resolved_model = model_override or agent_model
-        logger.info(
-            "Agent 使用专属模型配置: model=%s, base_url=%s",
-            resolved_model,
-            agent_url,
-        )
-        return resolved_model, agent_key, agent_url
+        if agent_key and agent_key not in _placeholders and agent_url and agent_model:
+            resolved_model = model_override or agent_model
+            logger.info(
+                "Agent 使用专属模型配置: model=%s, base_url=%s",
+                resolved_model,
+                agent_url,
+            )
+            return resolved_model, agent_key, agent_url
 
     return (
         model_override or settings.llm.model,

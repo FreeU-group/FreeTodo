@@ -297,6 +297,7 @@ llm:
   # Agent 专属模型配置（可选）
   # 配置后 Agent 聊天模式优先使用此模型，工具调用能力更强
   # 未配置或 api_key 为空时回退到上面的默认 llm 配置
+  chat_model: "" # 聊天模型：留空则跟随 Agent 专属模型或主模型
   agent:
     api_key: "" # 留空则使用默认 llm.api_key
     base_url: "" # 留空则使用默认 llm.base_url（OpenRouter: https://openrouter.ai/api/v1）

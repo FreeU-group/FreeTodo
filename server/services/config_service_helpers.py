@@ -84,6 +84,7 @@ _AGENT_LLM_KEY_MAPPING: dict[str, str] = {
     "llm_agent_api_key": "llm.agent.api_key",
     "llm_agent_base_url": "llm.agent.base_url",
     "llm_agent_model": "llm.agent.model",
+    "perception_intent_model": "perception.todo_intent.agent.model",
 }
 
 _INTENT_SOURCE_KEY_MAPPING: dict[str, str] = {
@@ -191,6 +192,7 @@ _DOT_TO_SNAKE_OVERRIDES: dict[str, str] = {
     "llm.agent.api_key": "llm_agent_api_key",
     "llm.agent.base_url": "llm_agent_base_url",
     "llm.agent.model": "llm_agent_model",
+    "perception.todo_intent.agent.model": "perception_intent_model",
     "perception.todo_intent.sources.mic_pc": "intent_source_mic_pc",
     "perception.todo_intent.sources.mic_hardware": "intent_source_mic_hardware",
     "perception.todo_intent.sources.speaker_pc": "intent_source_speaker_pc",

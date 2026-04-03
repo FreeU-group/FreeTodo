@@ -334,6 +334,11 @@ def create_agno_streaming_response(
         if selected_memory_tools:
             extra_tools.append(MemoryToolkit(lang=lang, selected_tools=selected_memory_tools))
 
+    if not model_override:
+        chat_model = str(settings.get("llm.chat_model", "") or "").strip()
+        if chat_model:
+            model_override = chat_model
+
     agent_service = AgnoAgentService(
         lang=lang,
         selected_tools=message.selected_tools,

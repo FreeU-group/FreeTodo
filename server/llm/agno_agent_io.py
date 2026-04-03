@@ -193,6 +193,20 @@ def process_stream_chunk(chunk, include_tool_events: bool, logger) -> str | None
     result = None
     if chunk.event == RunEvent.run_content:
         result = chunk.content if chunk.content else None
+    elif chunk.event == RunEvent.reasoning_started:
+        logger.debug("Reasoning 开始")
+        result = format_tool_event({"type": "reasoning_started"})
+    elif chunk.event == RunEvent.reasoning_content_delta:
+        content = getattr(chunk, "content", None) or getattr(chunk, "reasoning_content", None)
+        if content:
+            result = format_tool_event({"type": "reasoning_delta", "content": content})
+    elif chunk.event == RunEvent.reasoning_step:
+        content = getattr(chunk, "reasoning_content", None) or getattr(chunk, "content", None)
+        if content:
+            result = format_tool_event({"type": "reasoning_delta", "content": content})
+    elif chunk.event == RunEvent.reasoning_completed:
+        logger.debug("Reasoning 完成")
+        result = format_tool_event({"type": "reasoning_completed"})
     elif include_tool_events:
         if chunk.event == RunEvent.tool_call_started:
             result = _build_tool_start_event(chunk, logger)

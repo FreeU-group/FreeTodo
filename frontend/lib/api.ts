@@ -25,7 +25,10 @@ export type ToolCallEventType =
 	| "tool_call_end"
 	| "run_started"
 	| "run_completed"
-	| "memory_saved";
+	| "memory_saved"
+	| "reasoning_started"
+	| "reasoning_delta"
+	| "reasoning_completed";
 
 /**
  * 工具调用事件数据
@@ -35,6 +38,7 @@ export interface ToolCallEvent {
 	tool_name?: string;
 	tool_args?: Record<string, unknown>;
 	result_preview?: string;
+	content?: string;
 	memories?: string[];
 	profile_updates?: { field: string; value: string }[];
 	more_count?: number;

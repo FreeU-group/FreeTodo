@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { MessageAttachments } from "./MessageAttachments";
 import { MessageContent } from "./MessageContent";
 import { MessageTodoExtractionPanel } from "./MessageTodoExtractionPanel";
+import { ThinkingBlock } from "./ThinkingBlock";
 import {
 	removeToolCalls,
 	removeToolEvents,
@@ -46,9 +47,8 @@ export function MessageItem({
 		: "";
 	const trimmedContent = contentWithoutToolCalls.trim();
 
-	// 跳过没有内容的 assistant 消息
-	// 注意：这里使用 contentWithoutToolCalls 来判断，排除工具调用标记
-	if (!trimmedContent && message.role === "assistant") {
+	// 跳过没有内容的 assistant 消息（有思考内容时不跳过）
+	if (!trimmedContent && message.role === "assistant" && !message.thinkingContent && !message.isThinking) {
 		return null;
 	}
 
@@ -110,6 +110,12 @@ export function MessageItem({
 							>
 								<MoreVertical className="h-3.5 w-3.5" />
 							</button>
+						)}
+						{message.role === "assistant" && (message.thinkingContent || message.isThinking) && (
+							<ThinkingBlock
+								content={message.thinkingContent || ""}
+								isThinking={message.isThinking}
+							/>
 						)}
 						<MessageContent
 							message={message}

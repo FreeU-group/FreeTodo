@@ -277,6 +277,114 @@ def _validate_config_fields(config_data: dict[str, str]) -> dict[str, Any] | Non
     return None
 
 
+def _validate_agent_triplet(config_data: dict[str, Any]) -> dict[str, Any] | None:
+    """校验 Agent 专属模型三联：api_key / base_url / model 必须全空或全填。
+
+    Returns validation error dict, or None if valid.
+    """
+    agent_key = str(
+        get_config_value(config_data, "llmAgentApiKey", "llm_agent_api_key") or ""
+    ).strip()
+    agent_url = str(
+        get_config_value(config_data, "llmAgentBaseUrl", "llm_agent_base_url") or ""
+    ).strip()
+    agent_model = str(
+        get_config_value(config_data, "llmAgentModel", "llm_agent_model") or ""
+    ).strip()
+
+    if is_masked_api_key(agent_key):
+        agent_key = str(settings.get("llm.agent.api_key", "") or "").strip()
+
+    filled = [
+        ("API Key", bool(agent_key)),
+        ("Base URL", bool(agent_url)),
+        ("模型", bool(agent_model)),
+    ]
+    filled_count = sum(1 for _, v in filled if v)
+
+    if filled_count != 0 and filled_count != 3:
+        missing = [name for name, v in filled if not v]
+        return {
+            "success": False,
+            "error": f"Agent 专属模型配置不完整，缺少: {', '.join(missing)}。请全部填写或全部留空。",
+            "field": "agent_triplet",
+        }
+    return None
+
+
+def _test_llm_channel(api_key: str, base_url: str, model: str) -> dict[str, Any]:
+    """Test a single LLM channel by sending a minimal request. Runs synchronously."""
+    try:
+        from openai import OpenAI  # noqa: PLC0415
+    except Exception as exc:
+        return {"success": False, "error": f"OpenAI 依赖未安装: {exc}"}
+
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "test"}],
+            max_tokens=5,
+        )
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/test-llm-channels")
+async def test_llm_channels(config_data: dict[str, Any] | None = None):
+    """测试所有已配置的 LLM 通道连通性。
+
+    如果传入 config_data 则用请求中的值测试；否则用当前服务端配置。
+    返回 { main: {success, error?}, agent?: {success, error?} }
+    """
+    results: dict[str, Any] = {}
+
+    if config_data:
+        main_key = str(get_config_value(config_data, "llmApiKey", "llm_api_key") or "").strip()
+        main_url = str(get_config_value(config_data, "llmBaseUrl", "llm_base_url") or "").strip()
+        main_model = str(get_config_value(config_data, "llmModel", "llm_model") or "").strip()
+        if is_masked_api_key(main_key):
+            main_key = str(settings.get("llm.api_key", "") or "").strip()
+
+        agent_key = str(
+            get_config_value(config_data, "llmAgentApiKey", "llm_agent_api_key") or ""
+        ).strip()
+        agent_url = str(
+            get_config_value(config_data, "llmAgentBaseUrl", "llm_agent_base_url") or ""
+        ).strip()
+        agent_model = str(
+            get_config_value(config_data, "llmAgentModel", "llm_agent_model") or ""
+        ).strip()
+        if is_masked_api_key(agent_key):
+            agent_key = str(settings.get("llm.agent.api_key", "") or "").strip()
+    else:
+        main_key = str(settings.get("llm.api_key", "") or "").strip()
+        main_url = str(settings.get("llm.base_url", "") or "").strip()
+        main_model = str(settings.get("llm.model", "") or "").strip()
+        agent_cfg = settings.get("llm.agent", {}) or {}
+        agent_key = str(agent_cfg.get("api_key", "") or "").strip()
+        agent_url = str(agent_cfg.get("base_url", "") or "").strip()
+        agent_model = str(agent_cfg.get("model", "") or "").strip()
+
+    if main_key and main_url and main_model:
+        results["main"] = await asyncio.to_thread(_test_llm_channel, main_key, main_url, main_model)
+        results["main"]["model"] = main_model
+        results["main"]["base_url"] = main_url
+    else:
+        results["main"] = {"success": False, "error": "主通道未配置完整"}
+
+    _placeholders = {"", "YOUR_LLM_KEY_HERE", "YOUR_BASE_URL_HERE"}
+    if agent_key and agent_key not in _placeholders and agent_url and agent_model:
+        results["agent"] = await asyncio.to_thread(
+            _test_llm_channel, agent_key, agent_url, agent_model
+        )
+        results["agent"]["model"] = agent_model
+        results["agent"]["base_url"] = agent_url
+
+    return {"success": True, "channels": results}
+
+
 @router.post("/save-and-init-llm")
 async def save_and_init_llm(config_data: dict[str, str]):
     """保存配置并重新初始化LLM服务"""
@@ -285,6 +393,11 @@ async def save_and_init_llm(config_data: dict[str, str]):
         validation_error = _validate_config_fields(config_data)
         if validation_error:
             return validation_error
+
+        # 校验 Agent 三联完整性
+        triplet_error = _validate_agent_triplet(config_data)
+        if triplet_error:
+            return triplet_error
 
         # 1. 先测试配置
         test_result = await test_llm_config(config_data)
@@ -320,6 +433,20 @@ async def save_config(settings: dict[str, Any]):
     """保存配置到config.yaml文件"""
     try:
         logger.info(f"[/save-config] 收到请求，键: {list(settings.keys())}")
+
+        # 校验 Agent 三联完整性（如果请求中包含 Agent 字段）
+        _agent_keys = {
+            "llmAgentApiKey",
+            "llm_agent_api_key",
+            "llmAgentBaseUrl",
+            "llm_agent_base_url",
+            "llmAgentModel",
+            "llm_agent_model",
+        }
+        if _agent_keys & settings.keys():
+            triplet_error = _validate_agent_triplet(settings)
+            if triplet_error:
+                return triplet_error
 
         # 定义更新 LLM 配置状态的回调函数（配置状态已通过 config.is_configured() 实时获取）
         def update_llm_configured_status():

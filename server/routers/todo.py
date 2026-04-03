@@ -328,14 +328,11 @@ async def ai_plan(  # noqa: C901, PLR0912, PLR0915
     """AI 智能规划时间安排"""
     from openai import OpenAI  # noqa: PLC0415
 
+    from llm.agno_agent_config import resolve_agent_llm  # noqa: PLC0415
     from util.base_paths import get_user_data_dir  # noqa: PLC0415
-    from util.settings import settings  # noqa: PLC0415
     from util.time_utils import get_local_now  # noqa: PLC0415
 
-    agent_cfg = settings.get("llm.agent", {}) or {}
-    api_key = str(agent_cfg.get("api_key", "") or "").strip() or settings.llm.api_key
-    base_url = str(agent_cfg.get("base_url", "") or "").strip() or settings.llm.base_url
-    model_id = str(agent_cfg.get("model", "") or "").strip() or settings.llm.model
+    model_id, api_key, base_url = resolve_agent_llm()
 
     llm_client = OpenAI(api_key=api_key, base_url=base_url)
 

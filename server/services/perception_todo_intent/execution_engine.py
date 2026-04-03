@@ -74,13 +74,7 @@ def build_execution_kickoff_prompt(action: PendingAction) -> str:
 
 def _create_executor_agent(task_description: str) -> AgnoAgentService:
     """Create a full-capability agent mirroring the chat agent architecture."""
-    agent_cfg = settings.get("llm.agent", {}) or {}
-    agent_model = str(agent_cfg.get("model", "") or "").strip()
-    model = (
-        str(settings.get("perception.todo_intent.agent.model", "")).strip()
-        or agent_model
-        or settings.llm.model
-    )
+    model = None
 
     memory_toolkit = MemoryToolkit(lang="zh")
 

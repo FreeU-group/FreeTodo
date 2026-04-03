@@ -62,7 +62,7 @@ export function getNotificationPopupHtml(
 <html><head><meta charset="UTF-8">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{background:transparent!important;overflow:hidden;
+html,body{background:transparent!important;background-color:rgba(0,0,0,0)!important;overflow:hidden;
   font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
   -webkit-font-smoothing:antialiased;}
 .popup-wrapper{position:fixed;bottom:8px;left:8px;right:8px;opacity:0;transform:translateY(30px) scale(.9)}

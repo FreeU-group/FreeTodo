@@ -93,6 +93,7 @@ export class NotificationPopupManager {
 			y: workArea.y + workArea.height - height - MARGIN,
 			frame: false,
 			transparent: true,
+			backgroundColor: "#00000000",
 			alwaysOnTop: true,
 			skipTaskbar: true,
 			resizable: false,
