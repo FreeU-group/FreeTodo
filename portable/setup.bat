@@ -115,14 +115,14 @@ REM  [5/8] 复制源代码
 REM ================================================================
 echo [5/8] Copying source code...
 
-echo   Copying server...
-robocopy "%REPO_ROOT%\server" "%PORTABLE_ROOT%\app\server" /E /PURGE ^
+echo   Copying local-api...
+robocopy "%REPO_ROOT%\local-api" "%PORTABLE_ROOT%\app\local-api" /E /PURGE ^
     /XD .venv __pycache__ data logs .ruff_cache .pytest_cache .mypy_cache node_modules ^
     /XF *.pyc ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
 
-echo   Copying client...
-robocopy "%REPO_ROOT%\client" "%PORTABLE_ROOT%\app\client" /E /PURGE ^
+echo   Copying local-sensor...
+robocopy "%REPO_ROOT%\local-sensor" "%PORTABLE_ROOT%\app\local-sensor" /E /PURGE ^
     /XD .venv __pycache__ data logs .ruff_cache .pytest_cache .mypy_cache sensor_debug ^
     /XF *.pyc ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
@@ -138,17 +138,17 @@ REM  [6/8] 安装 Python 依赖（较慢，请耐心等待）
 REM ================================================================
 echo [6/8] Installing Python dependencies (may take 5-10 minutes)...
 
-echo   Syncing server dependencies (torch-cpu, chromadb, etc.)...
-"%UV%" sync --directory "%PORTABLE_ROOT%\app\server" --python-preference only-managed
+echo   Syncing local-api dependencies (torch-cpu, chromadb, etc.)...
+"%UV%" sync --directory "%PORTABLE_ROOT%\app\local-api" --python-preference only-managed
 if !ERRORLEVEL! NEQ 0 (
-    echo [ERROR] Server dependency sync failed.
+    echo [ERROR] local-api dependency sync failed.
     pause & exit /b 1
 )
 
-echo   Syncing client dependencies (OCR, etc.)...
-"%UV%" sync --directory "%PORTABLE_ROOT%\app\client" --python-preference only-managed
+echo   Syncing local-sensor dependencies (OCR, etc.)...
+"%UV%" sync --directory "%PORTABLE_ROOT%\app\local-sensor" --python-preference only-managed
 if !ERRORLEVEL! NEQ 0 (
-    echo [ERROR] Client dependency sync failed.
+    echo [ERROR] local-sensor dependency sync failed.
     pause & exit /b 1
 )
 echo   All Python dependencies installed OK.
@@ -158,7 +158,7 @@ REM  [7/8] 构建前端 (Next.js standalone)
 REM ================================================================
 echo [7/8] Building frontend (Next.js standalone)...
 
-pushd "%REPO_ROOT%\frontend"
+pushd "%REPO_ROOT%\local-web"
 set "NEXT_PUBLIC_API_URL=http://127.0.0.1:8001"
 call pnpm build
 if !ERRORLEVEL! NEQ 0 (
@@ -169,24 +169,24 @@ if !ERRORLEVEL! NEQ 0 (
 popd
 
 echo   Copying standalone output...
-robocopy "%REPO_ROOT%\frontend\.next\standalone" "%PORTABLE_ROOT%\app\frontend" /E /PURGE ^
+robocopy "%REPO_ROOT%\local-web\.next\standalone" "%PORTABLE_ROOT%\app\local-web" /E /PURGE ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
-robocopy "%REPO_ROOT%\frontend\.next\static" "%PORTABLE_ROOT%\app\frontend\.next\static" /E /PURGE ^
+robocopy "%REPO_ROOT%\local-web\.next\static" "%PORTABLE_ROOT%\app\local-web\.next\static" /E /PURGE ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
-robocopy "%REPO_ROOT%\frontend\public" "%PORTABLE_ROOT%\app\frontend\public" /E /PURGE ^
+robocopy "%REPO_ROOT%\local-web\public" "%PORTABLE_ROOT%\app\local-web\public" /E /PURGE ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
 
 echo   Resolving pnpm symlinks in standalone...
-"%NODE%" "%REPO_ROOT%\frontend\scripts\resolve-symlinks.js"
+"%NODE%" "%REPO_ROOT%\local-web\scripts\resolve-symlinks.js"
 echo   Copying missing deps to standalone...
-"%NODE%" "%REPO_ROOT%\frontend\scripts\copy-missing-deps.js"
+"%NODE%" "%REPO_ROOT%\local-web\scripts\copy-missing-deps.js"
 
 echo   Copying fixed standalone to portable...
-robocopy "%REPO_ROOT%\frontend\.next\standalone" "%PORTABLE_ROOT%\app\frontend" /E ^
+robocopy "%REPO_ROOT%\local-web\.next\standalone" "%PORTABLE_ROOT%\app\local-web" /E ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
-robocopy "%REPO_ROOT%\frontend\.next\static" "%PORTABLE_ROOT%\app\frontend\.next\static" /E ^
+robocopy "%REPO_ROOT%\local-web\.next\static" "%PORTABLE_ROOT%\app\local-web\.next\static" /E ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
-robocopy "%REPO_ROOT%\frontend\public" "%PORTABLE_ROOT%\app\frontend\public" /E ^
+robocopy "%REPO_ROOT%\local-web\public" "%PORTABLE_ROOT%\app\local-web\public" /E ^
     /NFL /NDL /NJH /NJS /NC /NS /NP >nul
 echo   Frontend build OK.
 
@@ -196,14 +196,14 @@ REM ================================================================
 echo [8/8] Initializing config files...
 
 if not exist "%PORTABLE_ROOT%\data\config\server.env" (
-    if exist "%REPO_ROOT%\server\.env.example" (
-        copy /Y "%REPO_ROOT%\server\.env.example" "%PORTABLE_ROOT%\data\config\server.env" >nul
+    if exist "%REPO_ROOT%\local-api\.env.example" (
+        copy /Y "%REPO_ROOT%\local-api\.env.example" "%PORTABLE_ROOT%\data\config\server.env" >nul
         echo   Created data\config\server.env from template.
     )
 )
 if not exist "%PORTABLE_ROOT%\data\config\client.env" (
-    if exist "%REPO_ROOT%\client\.env.example" (
-        copy /Y "%REPO_ROOT%\client\.env.example" "%PORTABLE_ROOT%\data\config\client.env" >nul
+    if exist "%REPO_ROOT%\local-sensor\.env.example" (
+        copy /Y "%REPO_ROOT%\local-sensor\.env.example" "%PORTABLE_ROOT%\data\config\client.env" >nul
         echo   Created data\config\client.env from template.
     )
 )
