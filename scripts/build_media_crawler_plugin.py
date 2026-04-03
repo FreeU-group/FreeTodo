@@ -117,7 +117,7 @@ EXCLUDE_EXTENSIONS: set[str] = {
 
 
 def find_project_root() -> Path:
-    """向上查找项目根目录（包含 server/ 和 MediaCrawlerPro-Python/ 的目录）。"""
+    """向上查找项目根目录（包含 local-api/ 和 MediaCrawlerPro-Python/ 的目录）。"""
     # 尝试从脚本位置推导
     script_dir = Path(__file__).resolve().parent
     candidates = [
@@ -125,9 +125,9 @@ def find_project_root() -> Path:
         Path.cwd(),  # 当前工作目录
     ]
     for root in candidates:
-        if (root / "server").is_dir() and (root / "MediaCrawlerPro-Python").is_dir():
+        if (root / "local-api").is_dir() and (root / "MediaCrawlerPro-Python").is_dir():
             return root
-    print("错误: 无法找到项目根目录（需要包含 server/ 和 MediaCrawlerPro-Python/）")
+    print("错误: 无法找到项目根目录（需要包含 local-api/ 和 MediaCrawlerPro-Python/）")
     sys.exit(1)
 
 

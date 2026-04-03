@@ -55,8 +55,8 @@ if "%HEALTH_CODE%"=="200" (
 )
 echo.
 
-REM Build sensor command (runs from client/ directory which is a standalone uv project)
-set "SENSOR_DIR=%REPO_ROOT%\client"
+REM Build sensor command (runs from local-sensor/ directory which is a standalone uv project)
+set "SENSOR_DIR=%REPO_ROOT%\local-sensor"
 set "SENSOR_CMD=uv run python -m sensor --center-url %CENTER_URL% --node-id %NODE_ID% --debug-images"
 
 REM Start perception daemon
@@ -66,7 +66,7 @@ start /MIN "LifeTrace Sensor" cmd /k "pushd %SENSOR_DIR% && %SENSOR_CMD%"
 REM Start signal-sensor (unified notification daemon + interactive popup)
 echo [2/3] Starting signal-sensor (notification polling + popup)...
 set "SIGNAL_SCRIPT=%REPO_ROOT%\scripts\signal-sensor.py"
-start /MIN "LifeTrace Signal" cmd /k "pushd %REPO_ROOT%\client && uv run python "%SIGNAL_SCRIPT%" --center-url %CENTER_URL% --node-id %NODE_ID%"
+start /MIN "LifeTrace Signal" cmd /k "pushd %REPO_ROOT%\local-sensor && uv run python "%SIGNAL_SCRIPT%" --center-url %CENTER_URL% --node-id %NODE_ID%"
 echo Signal sensor started (center: %CENTER_URL%, node: %NODE_ID%)
 
 REM Open browser

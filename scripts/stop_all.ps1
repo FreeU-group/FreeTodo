@@ -29,7 +29,7 @@ function Stop-ProcessWithTimeout {
 }
 
 function Cleanup-FrontendLock {
-    $lockPath = Join-Path $repoRoot "frontend\.next\dev\lock"
+    $lockPath = Join-Path $repoRoot "local-web\.next\dev\lock"
     if (Test-Path $lockPath) {
         Write-Host "Removing frontend dev lock: $lockPath"
         Remove-Item -Force $lockPath

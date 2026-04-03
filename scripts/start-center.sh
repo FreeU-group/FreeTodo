@@ -35,19 +35,19 @@ echo
 
 # ── [1/7] Phoenix ─────────────────────────────────────────
 rotate_log "$LOG_DIR/phoenix.log"
-(cd "$REPO_ROOT/server" && uv run phoenix serve) >>"$LOG_DIR/phoenix.log" 2>&1 &
+(cd "$REPO_ROOT/local-api" && uv run phoenix serve) >>"$LOG_DIR/phoenix.log" 2>&1 &
 echo $! >"$LOG_DIR/phoenix.pid"
 echo "[1/7] Phoenix started (http://127.0.0.1:6006), PID $!"
 
 # ── [2/7] AgentOS ─────────────────────────────────────────
 rotate_log "$LOG_DIR/agent_os.log"
-(cd "$REPO_ROOT/server" && uv run python agent_os.py) >>"$LOG_DIR/agent_os.log" 2>&1 &
+(cd "$REPO_ROOT/local-api" && uv run python agent_os.py) >>"$LOG_DIR/agent_os.log" 2>&1 &
 echo $! >"$LOG_DIR/agent_os.pid"
 echo "[2/7] AgentOS started (http://127.0.0.1:8200), PID $!"
 
 # ── [3/7] Backend (center mode) ──────────────────────────
 rotate_log "$LOG_DIR/backend_center_new.log"
-(cd "$REPO_ROOT/server" && uv run python server.py) >>"$LOG_DIR/backend_center_new.log" 2>&1 &
+(cd "$REPO_ROOT/local-api" && uv run python server.py) >>"$LOG_DIR/backend_center_new.log" 2>&1 &
 echo $! >"$LOG_DIR/backend_center.pid"
 echo "[3/7] Backend (center) started (http://0.0.0.0:$BACKEND_PORT), PID $!"
 
@@ -59,7 +59,7 @@ rotate_log "$LOG_DIR/frontend_center.log"
 pid=$(lsof -ti tcp:"$FRONTEND_PORT" 2>/dev/null) && kill -9 $pid 2>/dev/null || true
 sleep 1
 (
-  cd "$REPO_ROOT/frontend"
+  cd "$REPO_ROOT/local-web"
   export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:$BACKEND_PORT}"
   export API_REWRITE_URL="http://127.0.0.1:$BACKEND_PORT"
   pnpm build:frontend:web && pnpm start --port "$FRONTEND_PORT" --hostname 0.0.0.0
@@ -125,7 +125,7 @@ fi
 cat <<EOF
 
 Sensor startup (run from another terminal):
-  cd client && uv run python -m sensor --center-url http://127.0.0.1:$BACKEND_PORT
+  cd local-sensor && uv run python -m sensor --center-url http://127.0.0.1:$BACKEND_PORT
 
 Logs : $LOG_DIR
 PIDs : $LOG_DIR/*.pid

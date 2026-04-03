@@ -11,8 +11,8 @@ Signal Sensor — 统一通知守护进程（Center 轮询 + 交互式弹窗）
 可选本地 HTTP API（需 fastapi/uvicorn）：POST /trigger 直接触发弹窗（本地调试）
 
 启动:
-  uv run --directory client python ../scripts/signal-sensor.py --center-url https://xxx.cpolar.cn
-  uv run --directory client python ../scripts/signal-sensor.py --center-url https://xxx.cpolar.cn --node-id MY-PC
+  uv run --directory local-sensor python ../scripts/signal-sensor.py --center-url https://xxx.cpolar.cn
+  uv run --directory local-sensor python ../scripts/signal-sensor.py --center-url https://xxx.cpolar.cn --node-id MY-PC
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ import httpx
 sys.stdout.reconfigure(line_buffering=True)  # type: ignore[attr-defined]
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = REPO_ROOT / "frontend"
+FRONTEND_DIR = REPO_ROOT / "local-web"
 POPUP_SCRIPT = FRONTEND_DIR / "scripts" / "signal-popup.js"
 
 SENSOR_NOTIFY_POLL_INTERVAL = 1.0
@@ -418,7 +418,7 @@ def main() -> None:
 
     _state.electron_bin = _find_electron()
     if _state.electron_bin is None:
-        print("[signal-sensor] 未找到 Electron，请先在 frontend 目录执行 pnpm install")
+        print("[signal-sensor] 未找到 Electron，请先在 local-web 目录执行 pnpm install")
         sys.exit(1)
 
     _state.center_url = args.center_url.rstrip("/") if args.center_url else ""

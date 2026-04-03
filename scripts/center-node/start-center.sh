@@ -141,7 +141,7 @@ sleep_with_message 5 "Waiting for backend (5s)..."
 
 # 前端直连本地后端，不再注入任何公网地址。
 echo "[4/4] Building frontend (client API = ${BACKEND_LOCAL_URL}, rewrite = localhost:${BACKEND_PORT})..."
-start_bg "center-frontend" "$repo_root/frontend" \
+start_bg "center-frontend" "$repo_root/local-web" \
   "NEXT_PUBLIC_API_URL='${BACKEND_LOCAL_URL}' API_REWRITE_URL='${BACKEND_LOCAL_URL}' pnpm build:frontend:web && pnpm start --port ${FRONTEND_PORT} --hostname 0.0.0.0"
 sleep_with_message 30 "Waiting for frontend build (~30s)..."
 
@@ -157,8 +157,8 @@ Services:
   Backend:      ${BACKEND_LOCAL_URL}
   Frontend:     ${FRONTEND_LOCAL_URL}
 
-Sensor startup command (run from client/ directory):
-  cd client && uv run python -m sensor --center-url ${BACKEND_LOCAL_URL}
+Sensor startup command (run from local-sensor/ directory):
+  cd local-sensor && uv run python -m sensor --center-url ${BACKEND_LOCAL_URL}
 
 Logs: ${log_dir}
 PIDs: ${log_dir}/*.pid

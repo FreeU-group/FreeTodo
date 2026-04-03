@@ -8,8 +8,8 @@ setlocal enabledelayedexpansion
 
 for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
 cd /d "%REPO_ROOT%"
-set "SERVER_DIR=%REPO_ROOT%\server"
-set "FRONTEND_DIR=%REPO_ROOT%\frontend"
+set "SERVER_DIR=%REPO_ROOT%\local-api"
+set "FRONTEND_DIR=%REPO_ROOT%\local-web"
 set "LOG_DIR=%REPO_ROOT%\.run-logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
@@ -145,7 +145,7 @@ echo   Backend:      http://0.0.0.0:%BACKEND_PORT%
 echo   Frontend:     http://0.0.0.0:%FRONTEND_PORT%
 echo.
 echo Local sensor (same machine):
-echo   cd client ^&^& uv run python -m sensor --center-url http://127.0.0.1:%BACKEND_PORT%
+echo   cd local-sensor ^&^& uv run python -m sensor --center-url http://127.0.0.1:%BACKEND_PORT%
 echo.
 echo Tip: close each window to stop its service.
 echo.

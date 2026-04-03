@@ -15,8 +15,8 @@ set -euo pipefail
 SESSION="lt-local"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-FRONTEND_DIR="$REPO_ROOT/frontend"
-CLIENT_DIR="$REPO_ROOT/client"
+FRONTEND_DIR="$REPO_ROOT/local-web"
+CLIENT_DIR="$REPO_ROOT/local-sensor"
 LOG_DIR="$REPO_ROOT/.run-logs"
 mkdir -p "$LOG_DIR"
 
@@ -59,12 +59,12 @@ FRONTEND_PORT="$(find_free_port "$FRONTEND_PORT")"
 #  Validate
 # ================================================================
 if [[ ! -f "$FRONTEND_DIR/package.json" ]]; then
-    echo "[ERROR] Frontend directory not found: $FRONTEND_DIR"
+    echo "[ERROR] local-web directory not found: $FRONTEND_DIR"
     exit 1
 fi
 
 if [[ ! -d "$CLIENT_DIR" ]]; then
-    echo "[ERROR] Client directory not found: $CLIENT_DIR"
+    echo "[ERROR] local-sensor directory not found: $CLIENT_DIR"
     exit 1
 fi
 
@@ -73,18 +73,18 @@ fi
 # ================================================================
 echo "Generating .env files..."
 
-# frontend/.env
+# local-web/.env
 cat > "$FRONTEND_DIR/.env" <<EOF
 NEXT_PUBLIC_API_URL=$CENTER_URL
 EOF
-echo "  frontend/.env → NEXT_PUBLIC_API_URL=$CENTER_URL"
+echo "  local-web/.env → NEXT_PUBLIC_API_URL=$CENTER_URL"
 
-# client/.env
+# local-sensor/.env
 cat > "$CLIENT_DIR/.env" <<EOF
 CENTER_URL=$CENTER_URL
 NODE_ID=$NODE_ID
 EOF
-echo "  client/.env   → CENTER_URL=$CENTER_URL  NODE_ID=$NODE_ID"
+echo "  local-sensor/.env → CENTER_URL=$CENTER_URL  NODE_ID=$NODE_ID"
 echo ""
 
 # ================================================================

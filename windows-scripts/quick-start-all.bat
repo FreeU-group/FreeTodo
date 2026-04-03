@@ -8,9 +8,9 @@ setlocal enabledelayedexpansion
 
 for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
 cd /d "%REPO_ROOT%"
-set "SERVER_DIR=%REPO_ROOT%\server"
-set "FRONTEND_DIR=%REPO_ROOT%\frontend"
-set "SENSOR_DIR=%REPO_ROOT%\client"
+set "SERVER_DIR=%REPO_ROOT%\local-api"
+set "FRONTEND_DIR=%REPO_ROOT%\local-web"
+set "SENSOR_DIR=%REPO_ROOT%\local-sensor"
 
 REM Load local config
 if exist "%~dp0local-env.bat" call "%~dp0local-env.bat"

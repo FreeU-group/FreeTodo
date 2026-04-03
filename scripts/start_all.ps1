@@ -43,7 +43,7 @@ function Test-FrontendDevRunning {
 }
 
 function Cleanup-FrontendLock {
-    $lockPath = Join-Path $repoRoot "frontend\.next\dev\lock"
+    $lockPath = Join-Path $repoRoot "local-web\.next\dev\lock"
     if (-not (Test-Path $lockPath)) {
         return
     }
@@ -68,9 +68,9 @@ function Ensure-Env {
     }
 }
 
-$serverDir = Join-Path $repoRoot "server"
-$clientDir = Join-Path $repoRoot "client"
-$frontendDir = Join-Path $repoRoot "frontend"
+$serverDir = Join-Path $repoRoot "local-api"
+$clientDir = Join-Path $repoRoot "local-sensor"
+$frontendDir = Join-Path $repoRoot "local-web"
 
 Ensure-Env -Dir $serverDir
 Ensure-Env -Dir $frontendDir
@@ -96,12 +96,12 @@ function Check-ServerEnv {
     if ($warnings.Count -eq 0) { return }
 
     Write-Host ""
-    Write-Host "WARNING: server/.env still contains default placeholder values:" -ForegroundColor Yellow
+    Write-Host "WARNING: local-api/.env still contains default placeholder values:" -ForegroundColor Yellow
     foreach ($w in $warnings) {
         Write-Host $w -ForegroundColor Yellow
     }
     Write-Host ""
-    Write-Host "Please edit server/.env and fill in your real API keys (LIFETRACE_LLM__API_KEY is required):" -ForegroundColor Yellow
+    Write-Host "Please edit local-api/.env and fill in your real API keys (LIFETRACE_LLM__API_KEY is required):" -ForegroundColor Yellow
     Write-Host "  notepad $envFile" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Then re-run:" -ForegroundColor Yellow
@@ -118,7 +118,7 @@ Start-LoggedProcess -Name "agent_os" -Command "uv run python agent_os.py" -Worki
 Start-Sleep -Seconds 1
 
 Cleanup-FrontendLock
-Start-LoggedProcess -Name "frontend" -Command "pnpm --dir frontend dev"
+Start-LoggedProcess -Name "frontend" -Command "pnpm --dir local-web dev"
 Start-Sleep -Seconds 1
 
 Start-LoggedProcess -Name "client" -Command "uv run python sensor.py" -WorkingDirectory $clientDir

@@ -12,7 +12,7 @@ wait_for_port "$BACKEND_PORT" 30 "Backend"
 pid=$(lsof -ti tcp:"$FRONTEND_PORT" 2>/dev/null) && kill -9 $pid 2>/dev/null || true
 sleep 1
 (
-  cd "$REPO_ROOT/frontend"
+  cd "$REPO_ROOT/local-web"
   # Client-side API URL: default to local backend; override via NEXT_PUBLIC_API_URL in local-env.sh
   export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://127.0.0.1:$BACKEND_PORT}"
   export API_REWRITE_URL="http://127.0.0.1:$BACKEND_PORT"

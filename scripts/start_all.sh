@@ -13,12 +13,12 @@ ensure_env() {
   fi
 }
 
-ensure_env "$repo_root/server"
-ensure_env "$repo_root/frontend"
-ensure_env "$repo_root/client"
+ensure_env "$repo_root/local-api"
+ensure_env "$repo_root/local-web"
+ensure_env "$repo_root/local-sensor"
 
 check_server_env() {
-  local env_file="$repo_root/server/.env"
+  local env_file="$repo_root/local-api/.env"
   local placeholders=("your-api-key" "your-asr-api-key" "your-tavily-api-key" "your-gemini-api-key")
   local warnings=()
 
@@ -38,12 +38,12 @@ check_server_env() {
   fi
 
   echo ""
-  echo "WARNING: server/.env still contains default placeholder values:"
+  echo "WARNING: local-api/.env still contains default placeholder values:"
   for w in "${warnings[@]}"; do
     echo "$w"
   done
   echo ""
-  echo "Please edit server/.env and fill in your real API keys (LIFETRACE_LLM__API_KEY is required):"
+  echo "Please edit local-api/.env and fill in your real API keys (LIFETRACE_LLM__API_KEY is required):"
   echo "  vi $env_file"
   echo ""
   echo "Then re-run:"
@@ -72,12 +72,12 @@ run_bg() {
 }
 
 cleanup_frontend_lock() {
-  local lock_path="$repo_root/frontend/.next/dev/lock"
+  local lock_path="$repo_root/local-web/.next/dev/lock"
   if [ ! -f "$lock_path" ]; then
     return
   fi
   if command -v pgrep >/dev/null 2>&1; then
-    if pgrep -fa "next dev" | grep -q "$repo_root/frontend"; then
+    if pgrep -fa "next dev" | grep -q "$repo_root/local-web"; then
       echo "Frontend dev lock present and Next.js appears running; leaving lock in place."
       return
     fi
@@ -86,17 +86,17 @@ cleanup_frontend_lock() {
   rm -f "$lock_path"
 }
 
-run_bg "server" "$repo_root/server" "uv run python server.py"
+run_bg "server" "$repo_root/local-api" "uv run python server.py"
 sleep 2
 
-run_bg "agent_os" "$repo_root/server" "uv run python agent_os.py"
+run_bg "agent_os" "$repo_root/local-api" "uv run python agent_os.py"
 sleep 1
 
 cleanup_frontend_lock
-run_bg "frontend" "$repo_root" "pnpm --dir frontend dev"
+run_bg "frontend" "$repo_root" "pnpm --dir local-web dev"
 sleep 1
 
-run_bg "client" "$repo_root/client" "uv run python sensor.py"
+run_bg "client" "$repo_root/local-sensor" "uv run python sensor.py"
 
 echo ""
 echo "All processes started."

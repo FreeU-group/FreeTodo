@@ -15,9 +15,9 @@ set -euo pipefail
 SESSION="lt-all"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SERVER_DIR="$REPO_ROOT/server"
-FRONTEND_DIR="$REPO_ROOT/frontend"
-SENSOR_DIR="$REPO_ROOT/client"
+SERVER_DIR="$REPO_ROOT/local-api"
+FRONTEND_DIR="$REPO_ROOT/local-web"
+SENSOR_DIR="$REPO_ROOT/local-sensor"
 LOG_DIR="$REPO_ROOT/.run-logs"
 mkdir -p "$LOG_DIR"
 
@@ -115,7 +115,7 @@ echo "  Backend:   $CENTER_URL"
 echo "  Frontend:  http://127.0.0.1:$FRONTEND_PORT"
 echo "  Node ID:   $NODE_ID"
 [[ "$BACKEND_PORT" != "$BACKEND_PORT_ORIG" ]] && echo "  Note: backend port $BACKEND_PORT_ORIG busy, switched to $BACKEND_PORT"
-[[ "$FRONTEND_PORT" != "$FRONTEND_PORT_ORIG" ]] && echo "  Note: frontend port $FRONTEND_PORT_ORIG busy, switched to $FRONTEND_PORT"
+[[ "$FRONTEND_PORT" != "$FRONTEND_PORT_ORIG" ]] && echo "  Note: local-web port $FRONTEND_PORT_ORIG busy, switched to $FRONTEND_PORT"
 echo ""
 
 # ================================================================

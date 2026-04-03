@@ -7,7 +7,7 @@ REM ================================================================
 
 for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
 cd /d "%REPO_ROOT%"
-set "FRONTEND_DIR=%REPO_ROOT%\frontend"
+set "FRONTEND_DIR=%REPO_ROOT%\local-web"
 set "POPUP_SCRIPT=%FRONTEND_DIR%\scripts\signal-popup.js"
 set "KOL_DATA=%REPO_ROOT%\scripts\kol_push_data.json"
 

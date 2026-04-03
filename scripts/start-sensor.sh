@@ -41,7 +41,7 @@ else
 fi
 echo
 
-SENSOR_DIR="$REPO_ROOT/client"
+SENSOR_DIR="$REPO_ROOT/local-sensor"
 
 cleanup() {
     echo
@@ -58,13 +58,13 @@ trap cleanup EXIT INT TERM
 
 # Start perception daemon (setsid gives it its own process group)
 echo "[1/3] Starting perception daemon..."
-setsid uv run python -m sensor --center-url "$CENTER_URL" --node-id "$NODE_ID" --debug-images &
+( cd "$SENSOR_DIR" && exec setsid uv run python -m sensor --center-url "$CENTER_URL" --node-id "$NODE_ID" --debug-images ) &
 SENSOR_PID=$!
 
 # Start signal-sensor (setsid for clean group kill)
 echo "[2/3] Starting signal-sensor (notification polling + popup)..."
 SIGNAL_SCRIPT="$REPO_ROOT/scripts/signal-sensor.py"
-setsid uv run python "$SIGNAL_SCRIPT" --center-url "$CENTER_URL" --node-id "$NODE_ID" &
+( cd "$SENSOR_DIR" && exec setsid uv run python "$SIGNAL_SCRIPT" --center-url "$CENTER_URL" --node-id "$NODE_ID" ) &
 SIGNAL_PID=$!
 echo "Signal sensor started (center: $CENTER_URL, node: $NODE_ID)"
 
