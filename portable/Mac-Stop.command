@@ -10,10 +10,10 @@ echo ""
 
 # Sync .env back to data/config
 PORTABLE_ROOT="$(cd "$(dirname "$0")" && pwd)"
-[ -f "$PORTABLE_ROOT/app/server/.env" ] && \
-    cp "$PORTABLE_ROOT/app/server/.env" "$PORTABLE_ROOT/data/config/server.env" 2>/dev/null
-[ -f "$PORTABLE_ROOT/app/client/.env" ] && \
-    cp "$PORTABLE_ROOT/app/client/.env" "$PORTABLE_ROOT/data/config/client.env" 2>/dev/null
+[ -f "$PORTABLE_ROOT/app/local-api/.env" ] && \
+    cp "$PORTABLE_ROOT/app/local-api/.env" "$PORTABLE_ROOT/data/config/server.env" 2>/dev/null
+[ -f "$PORTABLE_ROOT/app/local-sensor/.env" ] && \
+    cp "$PORTABLE_ROOT/app/local-sensor/.env" "$PORTABLE_ROOT/data/config/client.env" 2>/dev/null
 
 kill_by_pattern() {
     local pattern="$1" name="$2"

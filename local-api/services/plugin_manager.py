@@ -71,7 +71,7 @@ class MediaCrawlerPlugin:
             ├── requirements.txt
             └── ...
 
-    开发模式下，也支持从项目根目录（与 server/ 同级）直接读取。
+    开发模式下，也支持从项目根目录（与 local-api/ 同级）直接读取。
     """
 
     PLUGIN_ID = "media-crawler"
@@ -101,12 +101,12 @@ class MediaCrawlerPlugin:
         return self.install_dir / _MANIFEST_FILE
 
     # ------------------------------------------------------------------
-    # 开发模式路径（与 server/ 同级）
+    # 开发模式路径（与 local-api/ 同级）
     # ------------------------------------------------------------------
 
     @staticmethod
     def _dev_project_root() -> Path:
-        """返回项目根目录（server/ 的父目录）。"""
+        """返回项目根目录（local-api/ 的父目录）。"""
         return get_app_root().parent
 
     @property

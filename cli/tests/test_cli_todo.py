@@ -1235,16 +1235,16 @@ def test_scheduler_pause_all_dry_run():
 def test_logs_content_calls_client(monkeypatch):
     def behavior(name, **kwargs):
         assert name == "get_log_content"
-        assert kwargs["file_path"] == "server/app.log"
-        return {"file": "server/app.log", "content": "line1\nline2"}, "req-logs-content"
+        assert kwargs["file_path"] == "local-api/app.log"
+        return {"file": "local-api/app.log", "content": "line1\nline2"}, "req-logs-content"
 
     monkeypatch.setattr("cli.commands.logs.create_logs_client", lambda: _StubLogsClient(behavior))
 
-    result = runner.invoke(app, ["logs", "content", "--file", "server/app.log"])
+    result = runner.invoke(app, ["logs", "content", "--file", "local-api/app.log"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["data"]["file"] == "server/app.log"
+    assert payload["data"]["file"] == "local-api/app.log"
     assert "line1" in payload["data"]["content"]
 
 

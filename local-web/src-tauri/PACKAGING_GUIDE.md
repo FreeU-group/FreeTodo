@@ -21,7 +21,7 @@ Run from the repository root and make sure these are installed first:
 Install frontend dependencies:
 
 ```bash
-pnpm --dir frontend install
+pnpm --dir local-web install
 ```
 
 ## Build Commands
@@ -29,7 +29,7 @@ pnpm --dir frontend install
 Recommended full packaging command:
 
 ```bash
-pnpm --dir frontend build:tauri:web:script:full
+pnpm --dir local-web build:tauri:web:script:full
 ```
 
 This command will:
@@ -42,7 +42,7 @@ This command will:
 You can also run the base Tauri build directly:
 
 ```bash
-pnpm --dir frontend tauri:build
+pnpm --dir local-web tauri:build
 ```
 
 But `build:tauri:web:script:full` is the safer command because it includes the final resource copy step.
@@ -52,14 +52,14 @@ But `build:tauri:web:script:full` is the safer command because it includes the f
 The main build outputs are written under:
 
 ```text
-frontend/src-tauri/target/release/bundle/
+local-web/src-tauri/target/release/bundle/
 ```
 
 macOS outputs:
 
 ```text
-frontend/src-tauri/target/release/bundle/macos/FreeTodo.app
-frontend/src-tauri/target/release/bundle/dmg/FreeTodo_0.1.2_aarch64.dmg
+local-web/src-tauri/target/release/bundle/macos/FreeTodo.app
+local-web/src-tauri/target/release/bundle/dmg/FreeTodo_0.1.2_aarch64.dmg
 ```
 
 ## Runtime Config
@@ -100,19 +100,19 @@ When you open the packaged app:
 Open the app bundle directly:
 
 ```bash
-open "frontend/src-tauri/target/release/bundle/macos/FreeTodo.app"
+open "local-web/src-tauri/target/release/bundle/macos/FreeTodo.app"
 ```
 
 Or double-click:
 
 ```text
-frontend/src-tauri/target/release/bundle/macos/FreeTodo.app
+local-web/src-tauri/target/release/bundle/macos/FreeTodo.app
 ```
 
 If you want to distribute it, use the generated DMG:
 
 ```text
-frontend/src-tauri/target/release/bundle/dmg/FreeTodo_0.1.2_aarch64.dmg
+local-web/src-tauri/target/release/bundle/dmg/FreeTodo_0.1.2_aarch64.dmg
 ```
 
 ## Troubleshooting
@@ -122,13 +122,13 @@ frontend/src-tauri/target/release/bundle/dmg/FreeTodo_0.1.2_aarch64.dmg
 Check that the packaged app contains standalone assets:
 
 ```text
-frontend/src-tauri/target/release/bundle/macos/FreeTodo.app/Contents/Resources/standalone/
+local-web/src-tauri/target/release/bundle/macos/FreeTodo.app/Contents/Resources/standalone/
 ```
 
 If that directory is missing, rebuild with:
 
 ```bash
-pnpm --dir frontend build:tauri:web:script:full
+pnpm --dir local-web build:tauri:web:script:full
 ```
 
 ### App opens but API calls fail
@@ -154,7 +154,7 @@ curl http://127.0.0.1:8100/ready
 Always use the full command so packaged resources stay in sync:
 
 ```bash
-pnpm --dir frontend build:tauri:web:script:full
+pnpm --dir local-web build:tauri:web:script:full
 ```
 
 ---

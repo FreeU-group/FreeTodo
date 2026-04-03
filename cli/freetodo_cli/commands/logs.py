@@ -17,7 +17,7 @@ logs_app = typer.Typer(
         "Use these commands to inspect backend log files and read recent log content.\n\n"
         "Examples:\n"
         "  freetodo logs files --json\n"
-        "  freetodo logs content --file server/app.log --json"
+        "  freetodo logs content --file local-api/app.log --json"
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -57,7 +57,7 @@ def list_log_files(
 def get_log_content(
     file_path: Annotated[
         str,
-        typer.Option("--file", help="Relative log file path, such as server/app.log."),
+        typer.Option("--file", help="Relative log file path, such as local-api/app.log."),
     ],
     json_output: Annotated[
         bool,

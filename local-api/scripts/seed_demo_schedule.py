@@ -3,10 +3,10 @@
 Creates sample schedule events so the Agent can demonstrate
 proactive conflict detection and smart rescheduling.
 
-Usage (from project root or server/ directory):
-    python server/scripts/seed_demo_schedule.py
-    python server/scripts/seed_demo_schedule.py 2026-03-17
-    cd server && python scripts/seed_demo_schedule.py
+Usage (from project root or local-api/ directory):
+    python local-api/scripts/seed_demo_schedule.py
+    python local-api/scripts/seed_demo_schedule.py 2026-03-17
+    cd local-api && python scripts/seed_demo_schedule.py
 """
 
 from __future__ import annotations

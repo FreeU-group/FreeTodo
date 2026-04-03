@@ -130,12 +130,12 @@ _portable_copy() {
     done
 }
 
-echo "  Copying server..."
-_portable_copy "$REPO_ROOT/server" "$PORTABLE_ROOT/app/server" \
+echo "  Copying local-api..."
+_portable_copy "$REPO_ROOT/local-api" "$PORTABLE_ROOT/app/local-api" \
     '.venv*' '__pycache__' 'data' 'logs' '.ruff_cache' '.pytest_cache' '*.pyc'
 
-echo "  Copying client..."
-_portable_copy "$REPO_ROOT/client" "$PORTABLE_ROOT/app/client" \
+echo "  Copying local-sensor..."
+_portable_copy "$REPO_ROOT/local-sensor" "$PORTABLE_ROOT/app/local-sensor" \
     '.venv*' '__pycache__' 'data' 'logs' '.ruff_cache' '.pytest_cache' 'sensor_debug' '*.pyc'
 
 echo "  Copying scripts..."
@@ -147,11 +147,11 @@ _portable_copy "$REPO_ROOT/scripts" "$PORTABLE_ROOT/app/scripts" \
 # ================================================================
 echo "[6/8] Installing Python dependencies (may take 5-10 minutes)..."
 
-echo "  Syncing server dependencies..."
-"$UV" sync --directory "$PORTABLE_ROOT/app/server" --python-preference only-managed
+echo "  Syncing local-api dependencies..."
+"$UV" sync --directory "$PORTABLE_ROOT/app/local-api" --python-preference only-managed
 
-echo "  Syncing client dependencies..."
-"$UV" sync --directory "$PORTABLE_ROOT/app/client" --python-preference only-managed
+echo "  Syncing local-sensor dependencies..."
+"$UV" sync --directory "$PORTABLE_ROOT/app/local-sensor" --python-preference only-managed
 
 echo "  All Python dependencies installed OK."
 
@@ -160,22 +160,22 @@ echo "  All Python dependencies installed OK."
 # ================================================================
 echo "[7/8] Setting up frontend..."
 
-if [ ! -f "$PORTABLE_ROOT/app/frontend/server.js" ]; then
+if [ ! -f "$PORTABLE_ROOT/app/local-web/server.js" ]; then
     echo "  Building frontend (Next.js standalone)..."
-    cd "$REPO_ROOT/frontend"
+    cd "$REPO_ROOT/local-web"
     NEXT_PUBLIC_API_URL=http://127.0.0.1:8001 pnpm build
 
     echo "  Resolving pnpm symlinks..."
-    "$NODE_BIN" "$REPO_ROOT/frontend/scripts/resolve-symlinks.js"
+    "$NODE_BIN" "$REPO_ROOT/local-web/scripts/resolve-symlinks.js"
     echo "  Copying missing deps..."
-    "$NODE_BIN" "$REPO_ROOT/frontend/scripts/copy-missing-deps.js"
+    "$NODE_BIN" "$REPO_ROOT/local-web/scripts/copy-missing-deps.js"
 
     echo "  Copying standalone output..."
-    cp -R "$REPO_ROOT/frontend/.next/standalone/." "$PORTABLE_ROOT/app/frontend/"
-    mkdir -p "$PORTABLE_ROOT/app/frontend/.next/static"
-    cp -R "$REPO_ROOT/frontend/.next/static/." "$PORTABLE_ROOT/app/frontend/.next/static/"
-    mkdir -p "$PORTABLE_ROOT/app/frontend/public"
-    cp -R "$REPO_ROOT/frontend/public/." "$PORTABLE_ROOT/app/frontend/public/"
+    cp -R "$REPO_ROOT/local-web/.next/standalone/." "$PORTABLE_ROOT/app/local-web/"
+    mkdir -p "$PORTABLE_ROOT/app/local-web/.next/static"
+    cp -R "$REPO_ROOT/local-web/.next/static/." "$PORTABLE_ROOT/app/local-web/.next/static/"
+    mkdir -p "$PORTABLE_ROOT/app/local-web/public"
+    cp -R "$REPO_ROOT/local-web/public/." "$PORTABLE_ROOT/app/local-web/public/"
     cd "$PORTABLE_ROOT"
 else
     echo "  Frontend already exists (built on another platform), skipping build."
@@ -190,9 +190,9 @@ else
     SHARP_PKG="@img/sharp-darwin-x64"
     SHARP_PNPM="@img+sharp-darwin-x64"
 fi
-SHARP_DEST="$PORTABLE_ROOT/app/frontend/node_modules/$SHARP_PKG"
+SHARP_DEST="$PORTABLE_ROOT/app/local-web/node_modules/$SHARP_PKG"
 if [ ! -d "$SHARP_DEST" ]; then
-    SHARP_SRC=$(find "$REPO_ROOT/frontend/node_modules/.pnpm" -maxdepth 1 -name "${SHARP_PNPM}@*" -type d 2>/dev/null | head -1)
+    SHARP_SRC=$(find "$REPO_ROOT/local-web/node_modules/.pnpm" -maxdepth 1 -name "${SHARP_PNPM}@*" -type d 2>/dev/null | head -1)
     if [ -n "$SHARP_SRC" ] && [ -d "$SHARP_SRC/node_modules/$SHARP_PKG" ]; then
         echo "  Copying $SHARP_PKG..."
         mkdir -p "$(dirname "$SHARP_DEST")"
@@ -210,14 +210,14 @@ echo "  Frontend OK."
 echo "[8/8] Initializing config files..."
 
 if [ ! -f "$PORTABLE_ROOT/data/config/server.env" ]; then
-    if [ -f "$REPO_ROOT/server/.env.example" ]; then
-        cp "$REPO_ROOT/server/.env.example" "$PORTABLE_ROOT/data/config/server.env"
+    if [ -f "$REPO_ROOT/local-api/.env.example" ]; then
+        cp "$REPO_ROOT/local-api/.env.example" "$PORTABLE_ROOT/data/config/server.env"
         echo "  Created data/config/server.env from template."
     fi
 fi
 if [ ! -f "$PORTABLE_ROOT/data/config/client.env" ]; then
-    if [ -f "$REPO_ROOT/client/.env.example" ]; then
-        cp "$REPO_ROOT/client/.env.example" "$PORTABLE_ROOT/data/config/client.env"
+    if [ -f "$REPO_ROOT/local-sensor/.env.example" ]; then
+        cp "$REPO_ROOT/local-sensor/.env.example" "$PORTABLE_ROOT/data/config/client.env"
         echo "  Created data/config/client.env from template."
     fi
 fi

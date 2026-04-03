@@ -20,10 +20,10 @@ portable/
 │   └── mac-x64/                  Mac Intel: uv, node/, python/, uv-cache/
 │
 ├── app/                       应用代码（跨平台共享）
-│   ├── server/                   后端源码 + .venv-{platform}/
-│   ├── client/                   感知客户端 + .venv-{platform}/
+│   ├── local-api/                后端源码 + .venv-{platform}/
+│   ├── local-sensor/             感知客户端 + .venv-{platform}/
 │   ├── scripts/                  辅助脚本
-│   └── frontend/                 Next.js standalone（JS/CSS 共享，sharp 按平台）
+│   └── local-web/                Next.js standalone（JS/CSS 共享，sharp 按平台）
 │
 └── data/                      用户数据（跨平台共享）
     ├── config/                   server.env, client.env

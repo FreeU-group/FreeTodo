@@ -26,11 +26,11 @@ from pathlib import Path
 DEFAULT_INCLUDE = ["."]
 DEFAULT_EXCLUDE = [
     ".venv",
-    "server/.venv",
+    "local-api/.venv",
     "__pycache__",
     "dist",
     "migrations/versions",
-    "client/.venv",
+    "local-sensor/.venv",
     "node_modules",
     "lifetrace",
 ]
