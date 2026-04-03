@@ -7,39 +7,39 @@ repos:
       - id: check-toml
       - id: check-json
       - id: end-of-file-fixer
-        exclude: ^frontend/lib/generated/
+        exclude: ^local-web/lib/generated/
       - id: trailing-whitespace
-        exclude: ^frontend/lib/generated/
+        exclude: ^local-web/lib/generated/
         args: [--markdown-linebreak-ext=md]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.10
     hooks:
       - id: ruff
         language_version: python3.12
-        files: ^(server|scripts)/
-        exclude: ^server/migrations/versions/
+        files: ^(local-api|scripts)/
+        exclude: ^local-api/migrations/versions/
         types_or: [ python, pyi ]
         args: [ --fix ]
       - id: ruff-format
         language_version: python3.12
-        files: ^(server|scripts)/
+        files: ^(local-api|scripts)/
         types_or: [ python, pyi ]
       - id: ruff
         language_version: python3.12
-        files: ^client/
+        files: ^local-sensor/
         types_or: [ python, pyi ]
         args: [ --fix ]
       - id: ruff-format
         language_version: python3.12
-        files: ^client/
+        files: ^local-sensor/
         types_or: [ python, pyi ]
   - repo: local
     hooks:
       - id: biome-check
-        name: Biome check (frontend)
-        entry: pnpm --dir frontend exec biome check --write --no-errors-on-unmatched
+        name: Biome check (local-web)
+        entry: pnpm --dir local-web exec biome check --write --no-errors-on-unmatched
         language: system
-        files: ^frontend/.*\.(js|jsx|ts|tsx|json|jsonc|css|astro|vue|svelte|graphql|gql)$
+        files: ^local-web/.*\.(js|jsx|ts|tsx|json|jsonc|css|astro|vue|svelte|graphql|gql)$
         pass_filenames: true
 
       # Temporarily disabled local hooks. Restore these blocks when the local
@@ -49,7 +49,7 @@ repos:
       #   # Avoid uv venv sync races in concurrent hooks (Windows file-lock issues).
       #   entry: uv run --no-sync bandit -c bandit.yaml
       #   language: system
-      #   files: ^(server|scripts)/.*\.py$
+      #   files: ^(local-api|scripts)/.*\.py$
       #   pass_filenames: true
       #   require_serial: true
 
@@ -57,41 +57,41 @@ repos:
       #   name: Pyright type check
       #   entry: uv run --no-sync python -m pyright --project pyrightconfig.json
       #   language: system
-      #   files: ^(server|scripts)/.*\.(py|pyi)$
+      #   files: ^(local-api|scripts)/.*\.(py|pyi)$
       #   pass_filenames: true
       #   require_serial: true
 
       - id: pytest-quick
         name: Pytest quick checks
-        entry: uv run --directory server --no-sync pytest -q tests/test_todo_service_mapping.py tests/test_icalendar_service.py tests/test_todo_serialization.py
+        entry: uv run --directory local-api --no-sync pytest -q tests/test_todo_service_mapping.py tests/test_icalendar_service.py tests/test_todo_serialization.py
         language: system
-        files: ^(server|tests)/.*\.py$
+        files: ^(local-api|tests)/.*\.py$
         pass_filenames: false
         require_serial: true
 
       - id: tsc-frontend
-        name: TypeScript type check (frontend/)
-        entry: pnpm --dir frontend run type-check
+        name: TypeScript type check (local-web/)
+        entry: pnpm --dir local-web run type-check
         language: system
-        files: ^frontend/.*\.(ts|tsx)$
+        files: ^local-web/.*\.(ts|tsx)$
         pass_filenames: false
 
       # 前端 TS/TSX/JS/JSX 有效代码行数检查（不含空行和注释，上限 500 行）
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-frontend-code-lines
         name: Check frontend TS/TSX/JS/JSX code lines (max 500)
-        entry: node frontend/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,.vercel,build,coverage,dist,dist-electron,node_modules,out,lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
+        entry: node local-web/scripts/check_code_lines.js --include apps,components,electron,lib,scripts --exclude .next,.turbo,.vercel,build,coverage,dist,dist-electron,node_modules,out,lib/generated,apps/crawler/CrawlerDetailPanel.tsx,apps/crawler/store.ts,apps/todo-intent/TodoIntentPanel.tsx,lib/store/audio-recording-store.ts
         language: system
-        files: ^(frontend|scripts)/.*\.(ts|tsx|js|jsx)$
+        files: ^(local-web|scripts)/.*\.(ts|tsx|js|jsx)$
         pass_filenames: true
 
       # Python 有效代码行数检查（不含空行和注释，上限 500 行）
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-python-code-lines
         name: Check Python code lines (max 500)
-        entry: uv run --project server --no-sync python server/scripts/check_code_lines.py --include server,client,scripts --exclude .venv,server/.venv,server/__pycache__,server/dist,server/migrations/versions,client/.venv,client/__pycache__,client/dist,client/build,client/sensor.py,scripts/signal-sensor.py,server/perception/manager.py
+        entry: uv run --project local-api --no-sync python local-api/scripts/check_code_lines.py --include local-api,local-sensor,scripts --exclude .venv,local-api/.venv,local-api/__pycache__,local-api/dist,local-api/migrations/versions,local-sensor/.venv,local-sensor/__pycache__,local-sensor/dist,local-sensor/build,local-sensor/sensor.py,scripts/signal-sensor.py,local-api/perception/manager.py
         language: system
-        files: ^(server|client|scripts)/.*\.py$
+        files: ^(local-api|local-sensor|scripts)/.*\.py$
         pass_filenames: true
         require_serial: true
 
@@ -99,9 +99,9 @@ repos:
       # pre-commit 会传入暂存的文件，只检查这些文件
       - id: check-tauri-rust-code-lines
         name: Check Tauri Rust code lines (max 500)
-        entry: node frontend/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
+        entry: node local-web/scripts/check_rust_code_lines.js --include src-tauri/src --exclude src-tauri/.tauri-lint-dist,src-tauri/gen,src-tauri/target
         language: system
-        files: ^frontend/src-tauri/.*\.rs$
+        files: ^local-web/src-tauri/.*\.rs$
         pass_filenames: true
 
       # Rust format check (rustfmt)
@@ -109,7 +109,7 @@ repos:
         name: Rust format (rustfmt)
         entry: python scripts/precommit_rustfmt.py
         language: system
-        files: ^frontend/src-tauri/.*\.rs$
+        files: ^local-web/src-tauri/.*\.rs$
         pass_filenames: false
 
       # Rust linter (clippy)
@@ -117,5 +117,5 @@ repos:
         name: Rust linter (clippy)
         entry: python scripts/precommit_clippy.py
         language: system
-        files: ^frontend/src-tauri/.*\.rs$
+        files: ^local-web/src-tauri/.*\.rs$
         pass_filenames: false

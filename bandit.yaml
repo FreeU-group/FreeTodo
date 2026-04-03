@@ -4,9 +4,9 @@ exclude_dirs:
   - dist
   - build
   - migrations/versions
-  - server/.venv
-  - server/data
-  - server/migrations/versions
-  - server/build
-  - server/dist
+  - local-api/.venv
+  - local-api/data
+  - local-api/migrations/versions
+  - local-api/build
+  - local-api/dist
 skips: []

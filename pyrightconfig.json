@@ -3,7 +3,7 @@
   "pythonVersion": "3.12",
   "venvPath": ".",
   "venv": ".venv",
-  "include": ["server", "scripts"],
+  "include": ["local-api", "scripts"],
   "exclude": [
     "**/__pycache__",
     ".venv",
@@ -12,9 +12,9 @@
     "build/**",
     "dist",
     "dist/**",
-    "server/data",
-    "server/data/**",
-    "server/migrations/versions"
+    "local-api/data",
+    "local-api/data/**",
+    "local-api/migrations/versions"
   ],
   "reportMissingTypeStubs": "none"
 }

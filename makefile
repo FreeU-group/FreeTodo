@@ -13,7 +13,7 @@ export
 # Build Docker images
 build-server:
 	@echo "Building Server Docker image: $(SERVER_IMAGE):$(VERSION)..."
-	cd server && docker build -t $(SERVER_IMAGE):$(VERSION) .
+	cd local-api && docker build -t $(SERVER_IMAGE):$(VERSION) .
 	@echo "Server Docker image built successfully: $(SERVER_IMAGE):$(VERSION)"
 
 

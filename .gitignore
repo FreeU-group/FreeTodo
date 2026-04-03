@@ -41,10 +41,10 @@ Thumbs.db
 # LifeTrace specific (both legacy and new paths)
 lifetrace/data/
 lifetrace/config/config.yaml
-server/data/
-server/config/config.yaml
+local-api/data/
+local-api/config/config.yaml
 lifetrace/config/
-client/config/config.yaml
+local-sensor/config/config.yaml
 
 # Legacy submodules (not used)
 MediaCrawlerPro-Downloader/
@@ -90,7 +90,7 @@ dist-backend/
 **/Cargo.lock
 **/WixTools/
 **/gen/
-!phone/lib/gen/
+!phone-app/lib/gen/
 /pop
 
 # 实验性项目（不提交）
@@ -122,10 +122,10 @@ deploy/volume/
 deploy-*
 
 # iOS / CocoaPods build artifacts
-phone/ios/Pods/
-phone/ios/.symlinks/
-phone/ios/Flutter/Flutter.podspec
-phone/ios/Runner.xcworkspace/
+phone-app/ios/Pods/
+phone-app/ios/.symlinks/
+phone-app/ios/Flutter/Flutter.podspec
+phone-app/ios/Runner.xcworkspace/
 **/xcuserdata/
 
 # Local env scripts (DO NOT commit secrets)
@@ -136,4 +136,4 @@ windows-scripts/local-env.bat
 sensor_debug/
 
 # frontend runtime artifacts
-frontend/.notification-popup.json
+local-web/.notification-popup.json

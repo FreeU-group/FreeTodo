@@ -28,10 +28,10 @@ jobs:
               - 'bandit.yaml'
               - '.pre-commit-config.yaml'
             frontend:
-              - 'frontend/**'
+              - 'local-web/**'
               - '.pre-commit-config.yaml'
             rust:
-              - 'frontend/src-tauri/**'
+              - 'local-web/src-tauri/**'
               - 'scripts/precommit_rustfmt.py'
               - 'scripts/precommit_clippy.py'
               - '.pre-commit-config.yaml'
@@ -182,7 +182,7 @@ jobs:
           version: "9"
       - name: Install frontend deps
         run: pnpm install
-        working-directory: frontend
+        working-directory: local-web
       - name: Install pre-commit
         run: python -m pip install --upgrade pip pre-commit
       - name: Run frontend hooks
