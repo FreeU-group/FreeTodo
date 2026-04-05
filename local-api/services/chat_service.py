@@ -124,13 +124,21 @@ class ChatService:
         metadata: str | None = None,
     ) -> dict[str, Any] | None:
         """创建聊天会话（数据库）"""
-        return self.repository.create_chat(
+        result = self.repository.create_chat(
             session_id=session_id,
             chat_type=chat_type,
             title=title,
             context_id=context_id,
             metadata=metadata,
         )
+        try:
+            from services.sync_hooks import notify_chat_created  # noqa: PLC0415
+
+            if result:
+                notify_chat_created(session_id, result)
+        except Exception:
+            pass
+        return result
 
     def get_chat_by_session_id(self, session_id: str) -> dict[str, Any] | None:
         """根据 session_id 获取聊天会话"""
@@ -174,7 +182,15 @@ class ChatService:
 
     def delete_chat(self, session_id: str) -> bool:
         """删除聊天会话及其所有消息"""
-        return self.repository.delete_chat(session_id)
+        result = self.repository.delete_chat(session_id)
+        try:
+            from services.sync_hooks import notify_chat_deleted  # noqa: PLC0415
+
+            if result:
+                notify_chat_deleted(session_id)
+        except Exception:
+            pass
+        return result
 
     # ===== 消息管理 =====
 
@@ -188,7 +204,7 @@ class ChatService:
         metadata: str | None = None,
     ) -> dict[str, Any] | None:
         """添加消息到聊天会话（数据库）"""
-        return self.repository.add_message(
+        result = self.repository.add_message(
             session_id=session_id,
             role=role,
             content=content,
@@ -196,6 +212,14 @@ class ChatService:
             model=model,
             metadata=metadata,
         )
+        try:
+            from services.sync_hooks import notify_message_created  # noqa: PLC0415
+
+            if result and result.get("uid"):
+                notify_message_created(result["uid"], result)
+        except Exception:
+            pass
+        return result
 
     def get_messages(
         self,

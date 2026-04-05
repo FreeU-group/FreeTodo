@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SetupWizard } from "@/apps/setup/SetupWizard";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -11,9 +12,25 @@ import { usePanelResize } from "@/lib/hooks/usePanelResize";
 import { useWindowAdaptivePanels } from "@/lib/hooks/useWindowAdaptivePanels";
 import { useConfig } from "@/lib/query";
 import { useSetupStatus } from "@/lib/query/setup";
+import { useAuthStore } from "@/lib/store/auth-store";
 import { useUiStore } from "@/lib/store/ui-store";
 
 export default function HomePageClient() {
+	const router = useRouter();
+	const { isAuthenticated, hydrate } = useAuthStore();
+	const [hydrated, setHydrated] = useState(false);
+
+	useEffect(() => {
+		hydrate();
+		setHydrated(true);
+	}, [hydrate]);
+
+	useEffect(() => {
+		if (hydrated && !isAuthenticated) {
+			router.replace("/login");
+		}
+	}, [hydrated, isAuthenticated, router]);
+
 	// 初始化向导门控
 	const { data: setupStatus, isLoading: setupLoading } = useSetupStatus();
 	const [setupDone, setSetupDone] = useState(false);
@@ -141,8 +158,7 @@ export default function HomePageClient() {
 			setGlobalResizeCursor,
 		});
 
-	// 等待 setup status API 返回，避免主页面先闪一下再跳到向导
-	if (setupLoading) {
+	if (!hydrated || !isAuthenticated || setupLoading) {
 		return <div className="fixed inset-0 bg-neutral-950" />;
 	}
 

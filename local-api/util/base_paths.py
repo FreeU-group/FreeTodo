@@ -1,13 +1,20 @@
 """
 基础路径工具模块
 提供不依赖运行时配置的路径获取函数。
+
+Profile 感知：get_user_data_dir() 根据 active Profile 返回对应的
+profiles/{profile_id}/ 子目录，使下游所有路径函数自动指向正确的 Profile 空间。
 """
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
+
+_active_profile_id_cache: str | None = None
+_profile_cache_loaded: bool = False
 
 
 def get_app_root() -> Path:
@@ -109,20 +116,63 @@ def get_user_config_dir() -> Path:
     return get_config_dir()
 
 
-def get_user_data_dir() -> Path:
-    """
-    获取用户数据目录（数据目录下的 data）。
-
-    如果设置了 LIFETRACE_DATA_DIR，返回 {data_dir}/data/；
-    否则返回应用目录下的 data/。
-
-    Returns:
-        Path: 用户数据目录路径
-    """
+def _get_data_root() -> Path:
+    """获取数据根目录（profiles.json 所在的目录）"""
     data_dir = get_data_directory()
     if data_dir:
         return data_dir / "data"
     return get_app_root() / "data"
+
+
+def _get_active_profile_id() -> str | None:
+    """从 profiles.json 读取 active_profile_id，结果缓存到模块变量。"""
+    global _active_profile_id_cache, _profile_cache_loaded  # noqa: PLW0603
+    if _profile_cache_loaded:
+        return _active_profile_id_cache
+
+    _profile_cache_loaded = True
+    profiles_path = _get_data_root() / "profiles.json"
+    if not profiles_path.exists():
+        _active_profile_id_cache = None
+        return None
+
+    try:
+        raw = json.loads(profiles_path.read_text(encoding="utf-8"))
+        _active_profile_id_cache = raw.get("active_profile_id")
+    except Exception:
+        _active_profile_id_cache = None
+    return _active_profile_id_cache
+
+
+def invalidate_profile_cache() -> None:
+    """清除 Profile ID 缓存，下次调用 get_user_data_dir 时重新读取。"""
+    global _active_profile_id_cache, _profile_cache_loaded  # noqa: PLW0603
+    _active_profile_id_cache = None
+    _profile_cache_loaded = False
+
+
+def set_active_profile_id(profile_id: str | None) -> None:
+    """直接设置缓存中的 active profile id（用于 server 启动阶段）。"""
+    global _active_profile_id_cache, _profile_cache_loaded  # noqa: PLW0603
+    _active_profile_id_cache = profile_id
+    _profile_cache_loaded = True
+
+
+def get_user_data_dir() -> Path:
+    """
+    获取当前 Profile 的数据目录。
+
+    如果存在 active Profile，返回 {data_root}/profiles/{profile_id}/；
+    否则回退到 {data_root}/（兼容无 Profile 的旧布局）。
+
+    Returns:
+        Path: 用户数据目录路径
+    """
+    root = _get_data_root()
+    profile_id = _get_active_profile_id()
+    if profile_id:
+        return root / "profiles" / profile_id
+    return root
 
 
 def get_user_logs_dir() -> Path:

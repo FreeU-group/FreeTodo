@@ -54,3 +54,26 @@ def get_db():
         yield session
     finally:
         session.close()
+
+
+def reinitialize_db() -> None:
+    """Profile 切换后重新初始化数据库连接和管理器。"""
+    global engine, SessionLocal  # noqa: PLW0603
+
+    db_base.reinitialize()
+    engine = db_base.engine
+    SessionLocal = db_base.SessionLocal
+
+    screenshot_mgr.db_base = db_base
+    event_mgr.db_base = db_base
+    ocr_mgr.db_base = db_base
+    todo_mgr.db_base = db_base
+    chat_mgr.db_base = db_base
+    stats_mgr.db_base = db_base
+    journal_mgr.db_base = db_base
+    activity_mgr.db_base = db_base
+    automation_task_mgr.db_base = db_base
+    agent_plan_mgr.db_base = db_base
+    location_mgr.db_base = db_base
+
+    logger.info("数据库已重新初始化（Profile 切换）")

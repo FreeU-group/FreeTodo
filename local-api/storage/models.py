@@ -6,6 +6,7 @@
 # pyright: reportIncompatibleVariableOverride=false
 
 from datetime import datetime
+from enum import StrEnum
 from typing import ClassVar
 from uuid import uuid4
 
@@ -149,6 +150,8 @@ class Todo(TimestampMixin, table=True):
     related_activities: str | None = Field(
         default=None, sa_column=Column(Text)
     )  # 关联活动ID的JSON数组
+    sync_status: str = Field(default="pending", max_length=20)  # pending/synced/conflict
+    cloud_version: int = Field(default=0)
 
     def __repr__(self):
         return f"<Todo(id={self.id}, name={self.name}, status={self.status})>"
@@ -321,6 +324,8 @@ class Chat(TimestampMixin, table=True):
     extra_data: str | None = Field(default=None, sa_column=Column(Text))  # 额外数据（JSON格式）
     context: str | None = Field(default=None, sa_column=Column(Text))  # 会话上下文（JSON格式）
     last_message_at: datetime | None = None  # 最后一条消息的时间
+    sync_status: str = Field(default="pending", max_length=20)  # pending/synced/conflict
+    cloud_version: int = Field(default=0)
 
     def __repr__(self):
         return f"<Chat(id={self.id}, session_id={self.session_id}, type={self.chat_type})>"
@@ -332,12 +337,17 @@ class Message(TimestampMixin, table=True):
     __tablename__: ClassVar[str] = "messages"
 
     id: int | None = Field(default=None, primary_key=True)
+    uid: str = Field(
+        default_factory=lambda: str(uuid4()), max_length=64, index=True
+    )  # 跨设备唯一标识
     chat_id: int  # 关联的聊天会话ID
     role: str = Field(max_length=20)  # 消息角色：user, assistant, system
     content: str = Field(sa_column=Column(Text))  # 消息内容
     token_count: int | None = None  # token数量
     model: str | None = Field(default=None, max_length=100)  # 使用的模型名称
     extra_data: str | None = Field(default=None, sa_column=Column(Text))  # 额外数据
+    sync_status: str = Field(default="pending", max_length=20)  # pending/synced/conflict
+    cloud_version: int = Field(default=0)
 
     def __repr__(self):
         return f"<Message(id={self.id}, chat_id={self.chat_id}, role={self.role})>"
@@ -592,6 +602,85 @@ class LocationRecord(TimestampMixin, table=True):
 
     def __repr__(self):
         return f"<LocationRecord(id={self.id}, lat={self.latitude}, lon={self.longitude})>"
+
+
+# ========== 用户系统模型 ==========
+
+
+class UserType(StrEnum):
+    USER = "user"
+    ADMIN = "admin"
+
+
+class AuthMode(StrEnum):
+    LOCAL = "local"
+    CLOUD = "cloud"
+
+
+class MembershipType(StrEnum):
+    FREE = "free"
+    MONTHLY = "monthly"
+    YEARLY = "yearly"
+
+
+class User(TimestampMixin, table=True):
+    """用户模型 — 支持本地模式和云端模式"""
+
+    __tablename__: ClassVar[str] = "users"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    username: str = Field(index=True, max_length=100)
+    phone: str | None = Field(default=None, index=True, max_length=20)
+    password_hash: str | None = Field(default=None, max_length=256)
+    user_type: str = Field(default=UserType.USER, max_length=20)
+    auth_mode: str = Field(default=AuthMode.LOCAL, max_length=20)
+    cloud_user_id: str | None = Field(default=None, max_length=100)
+    avatar_key: str | None = Field(default=None, max_length=500)
+    is_dev: bool = Field(default=False)
+    last_login_at: datetime | None = Field(default=None)
+    is_deleted: bool = Field(default=False)
+
+
+class MembershipPlan(TimestampMixin, table=True):
+    """会员计划模型"""
+
+    __tablename__: ClassVar[str] = "membership_plans"
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(max_length=50)
+    type: str = Field(max_length=20, index=True)
+    project_limit: int = Field(default=10)
+    note_limit: int = Field(default=50)
+    initial_credits: int = Field(default=0)
+    daily_refresh_credits: int = Field(default=0)
+    price: float = Field(default=0.0)
+    currency: str = Field(default="CNY", max_length=10)
+    duration_days: int = Field(default=365)
+    is_active: bool = Field(default=True)
+    description: str | None = Field(default=None, sa_column=Column(Text))
+    is_deleted: bool = Field(default=False)
+
+
+class UserMembership(TimestampMixin, table=True):
+    """用户会员关系模型"""
+
+    __tablename__: ClassVar[str] = "user_memberships"
+
+    id: int | None = Field(default=None, primary_key=True)
+    user_id: str = Field(index=True, max_length=100)
+    membership_plan_id: int = Field(index=True)
+    start_date: datetime = Field(default_factory=get_utc_time)
+    end_date: datetime = Field(default_factory=get_utc_time)
+    is_active: bool = Field(default=True, index=True)
+    total_chat_count: int = Field(default=0)
+    daily_credits: int = Field(default=0)
+    permanent_credits: int = Field(default=0)
+    daily_credits_consumed: int = Field(default=0)
+    total_credits_consumed: int = Field(default=0)
+    total_credits_purchased: int = Field(default=0)
+    last_reset_date: datetime = Field(default_factory=get_utc_time)
+    last_credit_refresh_date: datetime = Field(default_factory=get_utc_time)
+    is_deleted: bool = Field(default=False)
 
 
 # 为兼容旧代码，保留 Base 引用（指向 SQLModel.metadata）

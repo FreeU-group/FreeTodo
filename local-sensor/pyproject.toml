@@ -1,5 +1,5 @@
 [project]
-name = "lifetrace-client"
+name = "freeu-local-sensor"
 version = "0.1.0"
 description = "Lifetrace Client — lightweight perception daemon for screen/OCR capture"
 readme = "README.md"

@@ -118,7 +118,43 @@ def add_notification(  # noqa: PLR0913
 
         _notifications[notification_id] = notification
         logger.info(f"添加通知: {notification_id} - {title}")
-        return True
+
+    _forward_to_cloud(title, content, notification_type, todo_id)
+    return True
+
+
+def _forward_to_cloud(
+    title: str,
+    content: str,
+    notification_type: str | None,
+    todo_id: int | None,
+) -> None:
+    """Forward notification to cloud-api for cross-device push (best-effort)."""
+    try:
+        from util.settings import settings  # noqa: PLC0415
+
+        if not settings.get("sync.enabled", False):
+            return
+
+        from services.sync_client import get_sync_client  # noqa: PLC0415
+
+        client = get_sync_client()
+        if not client.connected:
+            return
+
+        client.enqueue_change(
+            entity_type="notification",
+            entity_id=f"notif-{title[:20]}",
+            operation="create",
+            data={
+                "title": title,
+                "content": content,
+                "notification_type": notification_type,
+                "related_todo_id": todo_id,
+            },
+        )
+    except Exception:
+        pass
 
 
 def get_latest_notification() -> dict[str, Any] | None:

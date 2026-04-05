@@ -15,6 +15,27 @@ setup:
   allowed_apps:
     - 微信
 
+# 认证配置
+auth:
+  secret_key: "freetodo-local-default-secret-key"
+  algorithm: "HS256"
+  access_token_expire_minutes: 60 # 云端模式 access_token 有效期（分钟）
+  refresh_token_expire_days: 7 # 云端模式 refresh_token 有效期（天）
+  local_access_token_expire_days: 30 # 本地模式 access_token 有效期（天）
+  local_refresh_token_expire_days: 365 # 本地模式 refresh_token 有效期（天）
+  cloud_api_url: "http://127.0.0.1:8000" # cloud-api 地址，手机号认证请求转发至此
+  is_debug: false # 调试模式（使用固定验证码）
+  debug_code: "888888" # 调试模式下的固定验证码
+
+# 云端同步配置
+sync:
+  enabled: false # 云端登录后自动启用
+  ws_url: "ws://127.0.0.1:8000/api/v1/sync/ws"
+  reconnect_interval: 5 # 重连间隔（秒）
+  max_reconnect_interval: 300 # 最大重连间隔（秒）
+  batch_size: 50 # 批量同步大小
+  heartbeat_interval: 30 # 心跳间隔（秒）
+
 # 部署角色配置
 deployment:
   role: standalone # standalone（单机） | center（中心节点，接受远程感知数据）
@@ -63,6 +84,9 @@ backend_modules:
     - memory
     - omi_compat
     - location
+    - auth
+    - user_api
+    - profile
 
 # Omi App / 硬件兼容层配置
 omi_compat:

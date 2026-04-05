@@ -165,6 +165,12 @@ class TodoService:
             refresh_todo_reminders(todo)
         except Exception as e:
             logger.warning(f"创建待办后同步提醒失败: {e}")
+        try:
+            from services.sync_hooks import notify_todo_created  # noqa: PLC0415
+
+            notify_todo_created(todo.uid, todo.model_dump(mode="json"))
+        except Exception:
+            pass
         return todo
 
     def update_todo(self, todo_id: int, data: TodoUpdate) -> TodoResponse:  # noqa: C901, PLR0912, PLR0915
@@ -280,12 +286,24 @@ class TodoService:
                 refresh_todo_reminders(todo)
             except Exception as e:
                 logger.warning(f"更新待办后同步提醒失败: {e}")
+        try:
+            from services.sync_hooks import notify_todo_updated  # noqa: PLC0415
+
+            notify_todo_updated(
+                todo.uid,
+                todo.cloud_version if hasattr(todo, "cloud_version") else 0,
+                todo.model_dump(mode="json"),
+            )
+        except Exception:
+            pass
         return todo
 
     def delete_todo(self, todo_id: int) -> None:
         """删除 Todo"""
-        if not self.repository.get_by_id(todo_id):
+        todo_data = self.repository.get_by_id(todo_id)
+        if not todo_data:
             raise HTTPException(status_code=404, detail="todo 不存在")
+        todo_uid = todo_data.get("uid", "")
         deleted_ids = self.repository.delete(todo_id)
         if deleted_ids is None:
             raise HTTPException(status_code=500, detail="删除 todo 失败")
@@ -293,6 +311,13 @@ class TodoService:
             remove_todo_reminder_jobs(did)
             clear_notification_by_todo_id(did)
             clear_dismissed_mark(did)
+        try:
+            from services.sync_hooks import notify_todo_deleted  # noqa: PLC0415
+
+            if todo_uid:
+                notify_todo_deleted(todo_uid)
+        except Exception:
+            pass
 
     def reorder_todos(self, items: list[dict[str, Any]]) -> dict[str, Any]:
         """批量重排序 Todo"""

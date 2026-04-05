@@ -135,6 +135,20 @@ export async function customFetcher<T>(
 	}
 
 	const finalHeaders = normalizeHeaders(headers);
+
+	// Auto-attach Authorization header from localStorage (non-blocking, optional)
+	if (typeof window !== "undefined") {
+		const hasAuth = Object.keys(finalHeaders).some(
+			(key) => key.toLowerCase() === "authorization",
+		);
+		if (!hasAuth) {
+			const token = localStorage.getItem("access_token");
+			if (token) {
+				finalHeaders.Authorization = `Bearer ${token}`;
+			}
+		}
+	}
+
 	if (isJsonBody) {
 		const hasContentType = Object.keys(finalHeaders).some(
 			(key) => key.toLowerCase() === "content-type",

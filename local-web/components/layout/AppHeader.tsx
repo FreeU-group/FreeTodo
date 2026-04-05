@@ -14,6 +14,7 @@ import { ThemeToggle } from "@/components/common/theme/ThemeToggle";
 import { LanguageToggle } from "@/components/common/ui/LanguageToggle";
 import { SettingsToggle } from "@/components/common/ui/SettingsToggle";
 import { HeaderIsland } from "@/components/notification/HeaderIsland";
+import { UserMenu } from "@/components/user/user-menu";
 
 interface AppHeaderProps {
 	/** 是否有通知（可选） */
@@ -57,6 +58,7 @@ export function AppHeader({ hasNotifications = false }: AppHeaderProps) {
 				<ThemeToggle />
 				<LanguageToggle />
 				<SettingsToggle />
+				<UserMenu />
 			</div>
 		</header>
 	);

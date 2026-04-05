@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "lifetrace-server"
+name = "freeu-local-api"
 version = "0.1.2"
-description = "Lifetrace Server — Center node (FastAPI backend)"
+description = ""
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # Core dependencies
@@ -68,6 +68,10 @@ dependencies = [
     "playwright>=1.58.0",
     "mcp>=1.26.0",
     "dateparser>=1.4.0",
+    # Auth & User system
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pillow>=11.0.0",
 ]
 
 [dependency-groups]

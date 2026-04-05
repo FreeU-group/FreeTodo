@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "freeu-cloud-api"
+version = "0.1.0"
+description = "FreeTodo Cloud API — 云端用户系统、认证、会员与数据同步服务"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.20.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "sqlmodel>=0.0.22",
+    "alembic>=1.14.0",
+    "asyncpg>=0.30.0",
+    "greenlet>=3.0.0",
+    "psycopg2-binary>=2.9.0",
+    "redis>=5.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "httpx>=0.28.1",
+    "pillow>=11.0.0",
+    "minio>=7.2.0",
+    "python-multipart>=0.0.6",
+    "python-dotenv>=1.1.0",
+    "loguru>=0.7.3",
+    # Aliyun SMS SDK
+    "alibabacloud-dysmsapi20170525>=3.0.0",
+    "alibabacloud-tea-openapi>=0.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.14.14",
+    "pyright>=1.1.408",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [".venv", "build", "dist"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".git", ".venv", "__pycache__", "build", "dist", "*.egg-info"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "SIM", "UP", "PL", "C90", "A", "ARG", "N", "TC", "FA", "ISC", "FLY", "DTZ", "RUF"]
+ignore = ["E501", "B008", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.pylint]
+max-statements = 50
+max-args = 7
+
+[tool.uv]
+package = true
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+extra-index-url = ["https://pypi.org/simple"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["core", "models", "schemas", "routers", "services", "dependencies"]

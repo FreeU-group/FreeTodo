@@ -91,6 +91,9 @@ MODULES: tuple[ModuleDefinition, ...] = (
     ),
     ModuleDefinition(id="location", router_module="routers.location"),
     ModuleDefinition(id="video_tool", router_module="routers.video_tool"),
+    ModuleDefinition(id="auth", router_module="routers.auth", core=True),
+    ModuleDefinition(id="user_api", router_module="routers.user_api"),
+    ModuleDefinition(id="profile", router_module="routers.profile", core=True),
 )
 
 MODULE_INDEX = {module.id: module for module in MODULES}

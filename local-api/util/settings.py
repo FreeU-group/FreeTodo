@@ -269,6 +269,16 @@ settings = Dynaconf(
             default=500,
             is_type_of=int,
         ),
+        # 认证配置
+        Validator("auth.secret_key", default="freetodo-local-default-secret-key"),
+        Validator("auth.algorithm", default="HS256"),
+        Validator("auth.access_token_expire_minutes", default=60, is_type_of=int),
+        Validator("auth.refresh_token_expire_days", default=7, is_type_of=int),
+        Validator("auth.local_access_token_expire_days", default=30, is_type_of=int),
+        Validator("auth.local_refresh_token_expire_days", default=365, is_type_of=int),
+        Validator("auth.cloud_api_url", default="http://127.0.0.1:8000"),
+        Validator("auth.is_debug", default=False, is_type_of=bool),
+        Validator("auth.debug_code", default="888888"),
         # Memory 模块配置
         Validator("memory.enabled", default=True, is_type_of=bool),
         Validator("memory.auto_compress", default=True, is_type_of=bool),

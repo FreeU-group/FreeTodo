@@ -27,7 +27,15 @@ setup_logging(logging_config)
 
 logger = get_logger()
 
-PRIORITY_MODULES = ("health", "config", "setup", "system", "todo", "perception")
+# Profile 架构：旧数据自动迁移（在数据库初始化之前执行）
+try:
+    from services.profile_service import ensure_migrated
+
+    ensure_migrated()
+except Exception as _profile_exc:
+    logger.warning("Profile 迁移检查跳过: %s", _profile_exc)
+
+PRIORITY_MODULES = ("health", "config", "setup", "system", "todo", "perception", "auth", "profile")
 
 
 @asynccontextmanager

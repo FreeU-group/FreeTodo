@@ -65,6 +65,9 @@ class DatabaseBase:
             self._run_migrations()
             self._ensure_legacy_schema_compatibility()
 
+            # 初始化用户系统默认数据
+            self._init_user_data()
+
             # 性能优化：添加关键索引
             self._create_performance_indexes()
 
@@ -220,6 +223,49 @@ class DatabaseBase:
                 logger.info(
                     f"Legacy todos schema repaired: added={added_columns}, repaired_uid_rows={repaired_uid_rows}"
                 )
+
+    def _get_profile_user_info(self) -> tuple[str, str]:
+        """获取当前 Profile 对应的默认用户 ID 和名称"""
+        try:
+            from services.profile_service import get_active_profile  # noqa: PLC0415
+
+            profile = get_active_profile()
+            if profile:
+                return profile.id, profile.name
+        except Exception:
+            pass
+        return "local-default-user", "本地用户"
+
+    def _init_user_data(self) -> None:
+        """初始化用户系统默认数据（本地默认用户 + 会员计划）"""
+        try:
+            from storage.models import AuthMode, User, UserType  # noqa: PLC0415
+
+            user_id, username = self._get_profile_user_info()
+
+            with Session(self.engine) as session:
+                local_user = session.get(User, user_id)
+                if not local_user:
+                    local_user = User(
+                        id=user_id,
+                        username=username,
+                        user_type=UserType.ADMIN,
+                        auth_mode=AuthMode.LOCAL,
+                    )
+                    session.add(local_user)
+                    session.commit()
+                    logger.info("本地默认用户已创建: id=%s", user_id)
+
+            with Session(self.engine) as session:
+                from services.membership_service import (  # noqa: PLC0415
+                    create_free_membership,
+                    init_default_plans,
+                )
+
+                init_default_plans(session)
+                create_free_membership(session, user_id)
+        except Exception as e:
+            logger.warning("用户系统初始化跳过: %s", e)
 
     def _create_performance_indexes(self):
         """创建性能优化索引"""
@@ -521,6 +567,14 @@ class DatabaseBase:
         except Exception as e:
             logger.warning(f"创建性能索引失败: {e}")
             raise
+
+    def reinitialize(self) -> None:
+        """Profile 切换后重新初始化数据库连接"""
+        if self.engine is not None:
+            self.engine.dispose()
+            self.engine = None
+            self.SessionLocal = None
+        self._init_database()
 
     @contextmanager
     def get_session(self):
